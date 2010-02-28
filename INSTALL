@@ -1,0 +1,14 @@
+The grid itself is only a single .hpp file so installation consists of
+just putting the dccrg.hpp file somewhere where your compiler can find it.
+
+When compiling your program the Zoltan library and boost serialization
+and mpi libraries must be included into the compilation command, for example
+with: -lboost_mpi-mt -lboost_serialization-mt -lzoltan
+See the Makefile in the examples directory for an example.
+
+Naturally OpenMPI, Zoltan and boost serialization and mpi libraries must
+be installed, refer to their websites (or your distributions documentation)
+for installation instructions:
+www.open-mpi.org
+www.cs.sandia.gov/Zoltan/
+www.boost.org

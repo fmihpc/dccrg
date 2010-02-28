@@ -1,0 +1,5 @@
+The distributed cartesian cell-refinable grid is a parallel grid for FVM
+simulations.
+
+For installation instructions see the INSTALL file, for other documentation
+see the projects home page: dccrg.berlios.de
