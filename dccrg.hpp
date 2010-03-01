@@ -584,9 +584,9 @@ public:
 
 			double x = get_cell_x(leaf_cells[i]), y = get_cell_y(leaf_cells[i]), z = get_cell_z(leaf_cells[i]);
 			// make the cells a little smaller than in theory so that the data at every face is well defined and VisIt plots it correctly
-			for (double z_offset = -get_cell_size(leaf_cells[i])/* / 2.01*/; z_offset < get_cell_size(leaf_cells[i]); z_offset += get_cell_size(leaf_cells[i]) /*/ 1.005*/) {
-				for (double y_offset = -get_cell_size(leaf_cells[i])/* / 2.01*/; y_offset < get_cell_size(leaf_cells[i]); y_offset += get_cell_size(leaf_cells[i])/* / 1.005*/) {
-					for (double x_offset = -get_cell_size(leaf_cells[i])/* / 2.01*/; x_offset < get_cell_size(leaf_cells[i]); x_offset += get_cell_size(leaf_cells[i])/* / 1.005*/) {
+			for (double z_offset = -get_cell_size(leaf_cells[i]) / 2; z_offset < get_cell_size(leaf_cells[i]); z_offset += get_cell_size(leaf_cells[i])) {
+				for (double y_offset = -get_cell_size(leaf_cells[i]) / 2; y_offset < get_cell_size(leaf_cells[i]); y_offset += get_cell_size(leaf_cells[i])) {
+					for (double x_offset = -get_cell_size(leaf_cells[i]) / 2; x_offset < get_cell_size(leaf_cells[i]); x_offset += get_cell_size(leaf_cells[i])) {
 						outfile << x + x_offset << " " << y + y_offset << " " << z + z_offset << std::endl;
 					}
 				}
