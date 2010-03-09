@@ -181,13 +181,17 @@ public:
 		this->max_cell_number = id; 
 
 		// create unrefined cells on process 0
-		if (comm.rank() == 0) {
-			for (uint64_t id = 1; id <= x_length * y_length * z_length; id++) {
-				this->added_cells.insert(id);
+		for (uint64_t id = 1; id <= x_length * y_length * z_length; id++) {
+			if (this->comm.rank() == 0) {
+				this->cells[id];
 			}
+			this->cell_process[id] = 0;
 		}
-		// and tell that to the other processes
-		stop_refining();
+
+		// update neighbour lists of created cells
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+			this->update_neighbours(cell->first);
+		}
 	}
 
 
@@ -233,8 +237,9 @@ public:
 	Informs other processes about cells created / removed on this process
 	Must be called simultaneously on all processes, after even one of them has refined / recoarsened its cells, before doing anything else with the grid
 	*/
-	void stop_refining(void)
+	/*void stop_refining(void)
 	{
+		this->comm.barrier();
 
 		std::vector<uint64_t> temp_added_cells(this->added_cells.begin(), this->added_cells.end());
 		std::vector<std::vector<uint64_t> > all_added_cells;
@@ -275,13 +280,13 @@ public:
 		}
 
 		this->added_cells.clear();
-		this->comm.barrier();
-	}
+	}*/
 
 
 	/*
 	Load balances the grids cells among processes
 	Must be called simultaneously on all processes
+	Does not update remote neighbour data of processes afterwards
 	*/
 	void balance_load(void)
 	{
@@ -303,17 +308,37 @@ public:
 			}
 		}
 
-		// calculate where cells have migrated to update cell_process[]
-		// TODO: could probably be combined with stop_refining()
+		/*
+		Calculate where cells have migrated to update internal data structures
+		Unlike with refining, here any cell can end up on any process and any neighbour of any cell can end up on yet another process
+		*/
+
+		// all cells on this process whose neighbours have changed process
+		boost::unordered_set<uint64_t> changed_neighbour_process;
+
+		// removed cells
 		std::vector<uint64_t> temp_removed_cells(this->removed_cells.begin(), this->removed_cells.end());
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
-		// removed cells
+		// remove obsolete items from the cell to process mappings
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
 
 			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
 
 				this->cell_process.erase(*removed_cell);
+
+				if (this->comm.rank() != cell_remover) {
+					continue;
+				}
+
+				// a cell left this process, its neighbours' neighbour info might need to be updated
+(*removed_cell);
+				for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[*removed_cell].begin(); neighbour != this->neighbours[*removed_cell].end(); neighbour++) {
+					changed_neighbour_process.insert(*neighbour);
+				}
+
+				// no need for this removed cells neighbour list anymore
+				this->neighbours.erase(*removed_cell);
 			}
 		}
 		this->removed_cells.clear();
@@ -322,14 +347,48 @@ public:
 		std::vector<uint64_t> temp_added_cells(this->added_cells.begin(), this->added_cells.end());
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
+		// add new items to the cell to process mappings
 		for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
 
 			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
 
 				this->cell_process[*created_cell] = cell_creator;
+
+				if (this->comm.rank() != cell_creator) {
+					continue;
+				}
+
+				uint64_t child = this->get_child(*created_cell);
+				// only update neighbour info of this cell and its neighbours if this cell doesn't have children
+				if (child != *created_cell) {
+					continue;
+				}
+
+				// a cell came to this process, its neighbours' neighbour info might need to be updated
+				this->update_neighbours(*created_cell);
+				changed_neighbour_process.insert(*created_cell);
+				for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[*created_cell].begin(); neighbour != this->neighbours[*created_cell].end(); neighbour++) {
+					changed_neighbour_process.insert(*neighbour);
+				}
 			}
 		}
+
+
+		// update neighbour lists of migrated cells or their neighbours on this process
+		for (boost::unordered_set<uint64_t>::const_iterator cell = changed_neighbour_process.begin(); cell != changed_neighbour_process.end(); cell++) {
+
+			if (this->cells.count(*cell) > 0) {
+
+				this->update_neighbours(*cell);
+				if ((this->get_remote_neighbours(*cell)).size() > 0) {
+					this->cells_with_remote_neighbours.insert(*cell);
+				}
+			}
+		}
+
 		this->added_cells.clear();
+
+		// TODO: remove obsolete remote_neighbours data
 	}
 
 
@@ -355,20 +414,18 @@ public:
 			send_receive_matrix.push_back(send_receive_vector);
 		}
 
-		// go through all cells and all their neighbours
-		for (boost::unordered_map<uint64_t, int>::const_iterator cell = this->cell_process.begin(); cell != this->cell_process.end(); cell++) {
+		// go through all cells that have a remote neighbour and all their neighbours
+		for (boost::unordered_set<uint64_t>::const_iterator cell = this->cells_with_remote_neighbours.begin(); cell != this->cells_with_remote_neighbours.end(); cell++) {
 
-			uint64_t current_cell = cell->first;
-			int current_process = cell->second;
+			int current_process = this->comm.rank();
 
-			boost::unordered_set<uint64_t> tmp_neighbours = this->get_neighbours_internal(current_cell);
-			for (boost::unordered_set<uint64_t>::const_iterator neighbour = tmp_neighbours.begin(); neighbour != tmp_neighbours.end(); neighbour++) {
+			for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
 
 				if (this->cell_process[*neighbour] != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
 					send_receive_matrix[this->cell_process[*neighbour]][current_process].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
-					send_receive_matrix[current_process][this->cell_process[*neighbour]].insert(current_cell);
+					send_receive_matrix[current_process][this->cell_process[*neighbour]].insert(*cell);
 				}
 			}
 		}
@@ -382,6 +439,7 @@ public:
 				continue;
 			}
 
+			std::cout << "Process " << this->comm.rank() << ":" << std::endl;
 			for (int sender = 0; sender < this->comm.size(); sender++) {
 				for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
@@ -396,9 +454,13 @@ public:
 					std::cout << std::endl;
 				}
 			}
+			std::cout << std::endl;
 			std::cout.flush();
 		}
 		#endif
+
+		// free the memory used previously by the neighbour data cache
+		//this->remote_neighbours.clear();
 
 		// spread the neighbour data
 		for (int sender = 0; sender < this->comm.size(); sender++) {
@@ -470,8 +532,30 @@ public:
 
 
 	/*
+	Returns the given cells neighbours that are on another process
+	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
+	*/
+	boost::unordered_set<uint64_t> get_remote_neighbours(const uint64_t id)
+	{
+		boost::unordered_set<uint64_t> remote_neighbours;
+
+		if (this->cells.count(id) == 0) {
+			return remote_neighbours;
+		}
+
+		for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[id].begin(); neighbour != this->neighbours[id].end(); neighbour++) {
+			if (this->cell_process[*neighbour] != this->comm.rank()) {
+				remote_neighbours.insert(*neighbour);
+			}
+		}
+
+		return remote_neighbours;
+	}
+
+
+	/*
 	Given a cell that exists and has children returns one of the children
-	Returns the given cell if it doesnt have children or 0 if the cell doesn't exist
+	Returns the given cell if it doesn't have children or 0 if the cell doesn't exist
 	*/
 	uint64_t get_child(const uint64_t id)
 	{
@@ -1186,11 +1270,11 @@ private:
 		UserData* user_data = &(dccrg_instance->cells[cell]);
 		memcpy(buffer, user_data, sizeof(UserData));
 
-		// remove the cell from this process
+		// remove the cell from this process' data structures
 		dccrg_instance->cells.erase(cell);
-		dccrg_instance->neighbours.erase(cell);
+		dccrg_instance->cells_with_remote_neighbours.erase(cell);
 
-		// record that the cell doesn't exist on this process anymore
+		// tell also others that the cell doesn't exist on this process anymore
 		dccrg_instance->removed_cells.insert(cell);
 	}
 
@@ -1214,7 +1298,6 @@ private:
 		// add the cell to this process
 		dccrg_instance->cells[cell];
 		memcpy(&(dccrg_instance->cells[cell]), buffer, sizeof(UserData));
-		dccrg_instance->neighbours[cell] = dccrg_instance->get_neighbours_internal(cell);
 
 		// record that the cell exist now on this process
 		dccrg_instance->added_cells.insert(cell);

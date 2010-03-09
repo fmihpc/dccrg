@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "BLOCK", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * 1 << endl << endl;
@@ -126,11 +126,6 @@ int main(int argc, char* argv[])
 	}
 
 
-	game_grid.balance_load();
-	vector<uint64_t> cells = game_grid.get_cells();
-	// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
-	sort(cells.begin(), cells.end());
-
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
 	basename << "game_of_life_test_" << comm.rank() << "_";
@@ -144,7 +139,11 @@ int main(int argc, char* argv[])
 
 	#define TIME_STEPS 25
 	for (int step = 0; step < TIME_STEPS; step++) {
-		comm.barrier();
+
+		game_grid.balance_load();
+		vector<uint64_t> cells = game_grid.get_cells();
+		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
+		sort(cells.begin(), cells.end());
 
 		if (comm.rank() == 0) {
 			cout << "step: " << step << endl;
