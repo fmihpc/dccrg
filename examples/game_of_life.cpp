@@ -157,8 +157,8 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbours int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			boost::unordered_set<uint64_t> neighbours = game_grid.get_neighbours(*cell);
-			outfile << neighbours.size() << endl;
+			const boost::unordered_set<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
+			outfile << neighbours->size() << endl;
 		}
 
 		// write each cells process
@@ -184,8 +184,13 @@ int main(int argc, char* argv[])
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			cell_data->live_neighbour_count = 0;
-			boost::unordered_set<uint64_t> neighbours = game_grid.get_neighbours(*cell);
-			for (boost::unordered_set<uint64_t>::const_iterator neighbour = neighbours.begin(); neighbour != neighbours.end(); neighbour++) {
+			const boost::unordered_set<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
+			if (neighbours == NULL) {
+				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
+				exit(EXIT_FAILURE);
+			}
+
+			for (boost::unordered_set<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
 					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;

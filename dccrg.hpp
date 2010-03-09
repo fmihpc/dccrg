@@ -221,7 +221,7 @@ public:
 	Returns a pointer to the user supplied data of given cell
 	Return NULL if the given cell isn't on this process and if the given cell isn't a neighbour of any cell on this process
 	*/
-	UserData* operator [] (uint64_t cell)
+	UserData* operator [] (const uint64_t cell)
 	{
 		if (this->cells.count(cell) > 0) {
 			return &(this->cells[cell]);
@@ -517,16 +517,15 @@ public:
 
 
 	/*
-	Returns the neighbours (some of which might be on another process) of given cell
-	Returns nothing if given cell doesn't exist or is on another process
+	Returns a pointer to the neighbours (some of which might be on another process) of given cell
+	Returns NULL if given cell doesn't exist or is on another process
 	*/
-	boost::unordered_set<uint64_t> get_neighbours(const uint64_t id)
+	const boost::unordered_set<uint64_t>* get_neighbours(const uint64_t id)
 	{
 		if (this->cells.count(id) > 0) {
-			return this->neighbours[id];
+			return &(this->neighbours[id]);
 		} else {
-			boost::unordered_set<uint64_t> empty_set;
-			return empty_set;
+			return NULL;
 		}
 	}
 
