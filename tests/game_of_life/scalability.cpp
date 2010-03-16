@@ -6,6 +6,7 @@ Tests the grid with some simple game of life patters
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
+#include "ctime"
 #include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
@@ -30,6 +31,8 @@ int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
 	communicator comm;
+
+	clock_t before, after, total = 0;
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -71,16 +74,22 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	if (comm.rank() == 0) {
+		cout << "step: ";
+	}
+
 	#define TIME_STEPS 100
 	for (int step = 0; step < TIME_STEPS; step++) {
 		comm.barrier();
 
 		if (comm.rank() == 0) {
-			cout << "step: " << step << endl;
+			cout << step << " ";
+			cout.flush();
 		}
 
 		// get the neighbour counts of every cell
 		game_grid.update_remote_neighbour_data();
+		before = clock();
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -117,12 +126,16 @@ int main(int argc, char* argv[])
 				cell_data->is_alive = false;
 			}
 		}
+		after = clock();
+		total += double(after) - before;
 
 	}
-
 	if (comm.rank() == 0) {
-		cout << "Total cells processed: " << GRID_SIZE * GRID_SIZE * TIME_STEPS << endl;
+		cout << endl;
 	}
+	comm.barrier();
+
+	cout << "Process " << comm.rank() << ": " << GRID_SIZE * GRID_SIZE * TIME_STEPS << " cells processed at the speed of " << double(GRID_SIZE * GRID_SIZE * TIME_STEPS) * CLOCKS_PER_SEC / total / comm.size() << " cells / second / process"<< endl;
 
 	return EXIT_SUCCESS;
 }
