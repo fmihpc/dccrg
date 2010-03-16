@@ -79,6 +79,7 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 100
+	before = clock();
 	for (int step = 0; step < TIME_STEPS; step++) {
 		comm.barrier();
 
@@ -89,7 +90,6 @@ int main(int argc, char* argv[])
 
 		// get the neighbour counts of every cell
 		game_grid.update_remote_neighbour_data();
-		before = clock();
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -126,10 +126,9 @@ int main(int argc, char* argv[])
 				cell_data->is_alive = false;
 			}
 		}
-		after = clock();
-		total += double(after) - before;
-
 	}
+	after = clock();
+	total += double(after) - before;
 	if (comm.rank() == 0) {
 		cout << endl;
 	}
