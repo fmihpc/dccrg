@@ -333,7 +333,7 @@ public:
 
 				// a cell left this process, its neighbours' neighbour info might need to be updated
 (*removed_cell);
-				for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[*removed_cell].begin(); neighbour != this->neighbours[*removed_cell].end(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*removed_cell].begin(); neighbour != this->neighbours[*removed_cell].end(); neighbour++) {
 					changed_neighbour_process.insert(*neighbour);
 				}
 
@@ -367,7 +367,7 @@ public:
 				// a cell came to this process, its neighbours' neighbour info might need to be updated
 				this->update_neighbours(*created_cell);
 				changed_neighbour_process.insert(*created_cell);
-				for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[*created_cell].begin(); neighbour != this->neighbours[*created_cell].end(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*created_cell].begin(); neighbour != this->neighbours[*created_cell].end(); neighbour++) {
 					changed_neighbour_process.insert(*neighbour);
 				}
 			}
@@ -419,7 +419,7 @@ public:
 
 			int current_process = this->comm.rank();
 
-			for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
+			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
 
 				if (this->cell_process[*neighbour] != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
@@ -520,7 +520,7 @@ public:
 	Returns a pointer to the neighbours (some of which might be on another process) of given cell
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
-	const boost::unordered_set<uint64_t>* get_neighbours(const uint64_t id)
+	const std::vector<uint64_t>* get_neighbours(const uint64_t id)
 	{
 		if (this->cells.count(id) > 0) {
 			return &(this->neighbours[id]);
@@ -534,17 +534,17 @@ public:
 	Returns the given cells neighbours that are on another process
 	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
 	*/
-	boost::unordered_set<uint64_t> get_remote_neighbours(const uint64_t id)
+	std::vector<uint64_t> get_remote_neighbours(const uint64_t id)
 	{
-		boost::unordered_set<uint64_t> remote_neighbours;
+		std::vector<uint64_t> remote_neighbours;
 
 		if (this->cells.count(id) == 0) {
 			return remote_neighbours;
 		}
 
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour = this->neighbours[id].begin(); neighbour != this->neighbours[id].end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[id].begin(); neighbour != this->neighbours[id].end(); neighbour++) {
 			if (this->cell_process[*neighbour] != this->comm.rank()) {
-				remote_neighbours.insert(*neighbour);
+				remote_neighbours.push_back(*neighbour);
 			}
 		}
 
@@ -866,7 +866,7 @@ private:
 	boost::unordered_map<uint64_t, UserData> cells;
 
 	// cells on this process and their neighbours
-	boost::unordered_map<uint64_t, boost::unordered_set<uint64_t> > neighbours;
+	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours;
 
 	// on which process every cell in the grid is
 	boost::unordered_map<uint64_t, int> cell_process;
@@ -896,12 +896,12 @@ private:
 	/*
 	Returns the neighbours of given cell, if it doesn't have children
 	*/
-	boost::unordered_set<uint64_t> get_neighbours_internal(const uint64_t id)
+	std::vector<uint64_t> get_neighbours_internal(const uint64_t id)
 	{
 		assert(id);
 		assert(this->cell_process.count(id) > 0);
 
-		boost::unordered_set<uint64_t> return_neighbours;
+		std::vector<uint64_t> return_neighbours;
 
 		// return nothing if given cell has children
 		uint64_t child = get_child(id);
@@ -985,12 +985,14 @@ private:
 						search_max_ref_level = this->max_refinement_level;
 					}
 
-					return_neighbours.insert(get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level));
+					// a cell isn't a neighbour of itself
+					uint64_t neighbour_candidate = get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+					if (neighbour_candidate != id) {
+						return_neighbours.push_back(neighbour_candidate);
+					}
 				}
 			}
 		}
-
-		return_neighbours.erase(id);	// a cell isn't a neighbour of itself
 
 		return return_neighbours;
 	}
