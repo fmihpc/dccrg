@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
 	}
 	comm.barrier();
 
-	cout << "Process " << comm.rank() << ": " << GRID_SIZE * GRID_SIZE * TIME_STEPS << " cells processed at the speed of " << double(GRID_SIZE * GRID_SIZE * TIME_STEPS) * CLOCKS_PER_SEC / total / comm.size() << " cells / second / process"<< endl;
+	cout << "Process " << comm.rank() << ": " << cells.size() * TIME_STEPS << " cells processed at the speed of " << double(cells.size() * TIME_STEPS) * CLOCKS_PER_SEC / total << " cells / second"<< endl;
 
 	return EXIT_SUCCESS;
 }
