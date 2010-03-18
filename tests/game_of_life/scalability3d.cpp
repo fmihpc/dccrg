@@ -1,5 +1,5 @@
 /*
-Tests the scalability of the grid in 2 D
+Tests the scalability of the grid in 3 D
 */
 
 #include "algorithm"
@@ -45,29 +45,28 @@ int main(int argc, char* argv[])
 
 
 	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 1000	// in unrefined cells
+	#define GRID_SIZE 100
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RCB", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, GRID_SIZE, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
-		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * 1 << endl << endl;
+		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * GRID_SIZE << endl << endl;
 	}
 
 	game_grid.balance_load();
 	vector<uint64_t> cells = game_grid.get_cells();
-	// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 	sort(cells.begin(), cells.end());
 
-	// initialize the game with a line of living cells in the x direction in the middle
+	// initialize the game with random cells alive
+	srand(time(NULL));
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
 		cell_data->live_neighbour_count = 0;
 
-		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_size(*cell) - y) < 0.5 * game_grid.get_cell_size(*cell)) {
+		if (double(rand()) / RAND_MAX <= 0.2) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;
@@ -134,7 +133,7 @@ int main(int argc, char* argv[])
 	}
 	comm.barrier();
 
-	cout << "Process " << comm.rank() << ": " << GRID_SIZE * GRID_SIZE * TIME_STEPS << " cells processed at the speed of " << double(GRID_SIZE * GRID_SIZE * TIME_STEPS) * CLOCKS_PER_SEC / total / comm.size() << " cells / second / process"<< endl;
+	cout << "Process " << comm.rank() << ": " << GRID_SIZE * GRID_SIZE * GRID_SIZE * TIME_STEPS << " cells processed at the speed of " << double(GRID_SIZE * GRID_SIZE * GRID_SIZE * TIME_STEPS) * CLOCKS_PER_SEC / total / comm.size() << " cells / second / process"<< endl;
 
 	return EXIT_SUCCESS;
 }
