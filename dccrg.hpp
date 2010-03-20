@@ -928,6 +928,9 @@ private:
 			index_increase = 1;
 		}
 
+		// don't add the same neighbour more than once
+		boost::unordered_set<uint64_t> unique_neighbours;
+
 		// search for neighbours in cells that share a vertex with the given cell
 		for (; current_x_index < x_index + size_in_indices * (1 + this->neighbourhood_size); current_x_index += index_increase) {
 
@@ -985,15 +988,15 @@ private:
 						search_max_ref_level = this->max_refinement_level;
 					}
 
-					// a cell isn't a neighbour of itself
-					uint64_t neighbour_candidate = get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-					if (neighbour_candidate != id) {
-						return_neighbours.push_back(neighbour_candidate);
-					}
+					unique_neighbours.insert(get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level));
 				}
 			}
 		}
 
+		// a cell isn't a neighbour of itself
+		unique_neighbours.erase(id);
+
+		return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
 		return return_neighbours;
 	}
 

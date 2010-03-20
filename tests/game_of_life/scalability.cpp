@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	after = clock();
-	total += double(after) - before;
+	total += after - before;
 	if (comm.rank() == 0) {
 		cout << endl;
 	}

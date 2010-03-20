@@ -45,8 +45,7 @@ int main(int argc, char* argv[])
 	#define GRID_SIZE 15	// in unrefined cells
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
-	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * 1 << endl << endl;
