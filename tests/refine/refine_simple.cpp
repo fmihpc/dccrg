@@ -32,7 +32,7 @@ int main(int argc, char* argv[])
 
 
 	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 4
+	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
 	dccrg<int> grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, 1, 1, STENCIL_SIZE);
@@ -52,10 +52,11 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 10
+	#define TIME_STEPS 3
+	grid.balance_load();
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		//game_grid.balance_load();
+		//grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
 

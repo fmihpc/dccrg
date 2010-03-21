@@ -678,9 +678,10 @@ public:
 
 
 	/*
-	Creates all children of given cell (and possibly more), overriding any unrefines of this cell (and possibly of its neighbours) before or after this call
-	After refining / unrefining even one cell on any process TODO must be called before doing anything else with the grid, except refining / unrefining
+	Creates all children of given cell (and possibly more due to induced refinement), overriding any unrefines of this cell (and possibly of its neighbours) before or after this call
+	After refining / unrefining even one cell on any process stop_refining() must be called before doing anything else with the grid, except refining / unrefining
 	Does nothing in any of the following cases:
+		-given cell has already been refined (including induced refinement) and stop_refining() has not been called afterwards
 		-given cell doesn't exist
 		-given cell exists on another process
 		-given cells children already exist
@@ -702,30 +703,27 @@ public:
 			return;
 		}
 
-		// cells on this process whose neighbour lists should be updated afterwards
-		boost::unordered_set<uint64_t> stale_neighbours;
-
-		// given cells neighbours' neighbour lists must be updated
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
-
-			if (this->cells.count(*neighbour) > 0) {
-				stale_neighbours.insert(*neighbour);
-			}
-
-			// if a neighbour is on another process tell that process that this cell's been refined by creating also this cell again
-			if (this->remote_neighbours.count(*neighbour) > 0) {
-				this->added_cells.insert(cell);
-			}
-		}
-		this->neighbours.erase(cell);
-
 		std::vector<uint64_t> children = get_all_children(cell);
-		stale_neighbours.insert(children.begin(), children.end());
+
+		...
 
 		for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child ++) {
 			this->cells[*child];
 			this->cell_process[*child] = this->comm.rank();
 		}
+
+		// update created childrens neighbour lists
+		for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child ++) {
+			this->update_neighbours(*child);
+		}
+
+		// update refined cells local neighbours' neighbour lists
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+			if (this->cells.count(*neighbour) > 0) {
+				this->update_neighbours(*neighbour);
+			}
+		}
+		this->neighbours.erase(cell);
 
 		// tell other processes about the children
 		this->added_cells.insert(children.begin(), children.end());
@@ -738,8 +736,10 @@ public:
 			std::vector<uint64_t> current_neighbours = this->get_neighbours_internal(this->get_cell_from_indices(x_index, y_index, z_index, current_refinement_level));
 			for (std::vector<uint64_t>::const_iterator neighbour = current_neighbours.begin(); neighbour != current_neighbours.end(); neighbour++) {
 
-				// skip remote neighbours
+				// if cells of any size at the refined cells index have remote neighbours tell other processes that this cell was refined
 				if (this->cells.count(*neighbour) == 0) {
+					this->added_cells.insert(cell);
+					// don't refine remote neighbours on this process
 					continue;
 				}
 
@@ -809,6 +809,9 @@ public:
 	*/
 	std::vector<uint64_t> stop_refining(void)
 	{
+		this->comm.barrier();
+
+		// tell the user which cells were actually created
 		std::vector<uint64_t> new_cells;
 
 		// first refine cells globally so that unrefines can be overridden locally
@@ -831,6 +834,29 @@ public:
 				break;
 			}
 
+			#ifndef NDEBUG
+			// print all added cells by every process
+			for (int process = 0; process < this->comm.size(); process++) {
+				this->comm.barrier();
+
+				if (process != this->comm.rank()) {
+					continue;
+				}
+
+				std::cout << "Process " << this->comm.rank() << ":" << std::endl;
+				for (int creator = 0; creator < this->comm.size(); creator++) {
+
+					std::cout << "Process " << creator << " created these cells: ";
+					for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[creator].begin(); created_cell != all_added_cells[creator].end(); created_cell++) {
+						std::cout << *created_cell << " ";
+					}
+					std::cout << std::endl;
+				}
+				std::cout << std::endl;
+				std::cout.flush();
+			}
+			#endif
+
 			// local cells that should be refined because their neighbours on other processes are too small
 			boost::unordered_set<uint64_t> induced_refines;
 
@@ -840,6 +866,9 @@ public:
 			// add new items to the cell to process mappings
 			for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
 
+				// go through added cells in ascending order so that a parent is added before its children
+				sort(all_added_cells[cell_creator].begin(), all_added_cells[cell_creator].end());
+
 				for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
 
 					// created cell was actually refined on some process
@@ -847,10 +876,44 @@ public:
 
 						// refined cell is neighbouring a local cell, might have to refine locally
 						if (this->comm.rank() != cell_creator && this->remote_neighbours.count(*created_cell) > 0) {
-							std::vector<uint64_t> neighbours_of_created = this->get_neighbours_internal(*created_cell);
-							for (std::vector<uint64_t>::const_iterator neighbour = neighbours_of_created.begin(); neighbour != neighbours_of_created.end(); neighbour++) {
-								if (this->get_refinement_level(*neighbour) < this->get_refinement_level(*created_cell)) {
-									induced_refines.insert(*neighbour);
+
+							// refine neighbours of cells of all sizes at the remote cells index on this process if they are too large
+							for (int current_refinement_level = this->get_refinement_level(*created_cell); current_refinement_level >= 0; current_refinement_level--) {
+
+								uint64_t x_index = get_x_index(*created_cell), y_index = get_y_index(*created_cell), z_index = get_z_index(*created_cell);
+
+								std::vector<uint64_t> current_neighbours_of_refined = this->get_neighbours_internal(this->get_cell_from_indices(x_index, y_index, z_index, current_refinement_level));
+								for (std::vector<uint64_t>::const_iterator neighbour_of_refined = current_neighbours_of_refined.begin(); neighbour_of_refined != current_neighbours_of_refined.end(); neighbour_of_refined++) {
+
+									// skip remote neighbours
+									if (this->cells.count(*neighbour_of_refined) == 0) {
+										continue;
+									}
+
+									stale_neighbours.insert(*neighbour_of_refined);
+
+									// neighbours of refined cell whose refinement level is larger than current_refinement_level cannot be neighbours of refined cell
+									if (this->get_refinement_level(*neighbour_of_refined) > current_refinement_level) {
+										continue;
+									}
+
+									// skip neighbours that have children
+									if (this->get_child(*neighbour_of_refined) != *neighbour_of_refined) {
+										continue;
+									}
+
+									// skip local cells that don't have the remotely refined cell as a neighbour
+									bool remote_cell_is_neighbour = false;
+									std::vector<uint64_t> temp_neighbours = this->get_neighbours_internal(*neighbour_of_refined);
+									for (std::vector<uint64_t>::const_iterator temp_neighbour = temp_neighbours.begin(); temp_neighbour != temp_neighbours.end(); temp_neighbour++) {
+										if (*temp_neighbour == *created_cell) {
+											remote_cell_is_neighbour = true;
+										}
+									}
+
+									if (remote_cell_is_neighbour && this->get_refinement_level(*neighbour_of_refined) < this->get_refinement_level(*created_cell)) {
+										induced_refines.insert(*neighbour_of_refined);
+									}
 								}
 							}
 						}
@@ -860,12 +923,13 @@ public:
 
 						if (this->comm.rank() == cell_creator) {
 							new_cells.push_back(*created_cell);
-						} else {
-							// this process added this cell in the refining function
-							this->cell_process[*created_cell] = cell_creator;
+							// rest of the data structures were updated in the refining function
+							continue;
 						}
 
-						// possibly add the child to cell_with_remote_neighbours
+						this->cell_process[*created_cell] = cell_creator;
+
+						// possibly add neighbours of the child to cells_with_remote_neighbours
 						uint64_t parent = this->get_parent(*created_cell);
 						assert(parent != *created_cell);
 						if (this->cells_with_remote_neighbours.count(parent) > 0) {
@@ -873,21 +937,26 @@ public:
 						}
 
 						// possibly update local neighbour lists
-						for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[parent].begin(); neighbour != this->neighbours[parent].end(); neighbour++) {
-							if (this->cells.count(*neighbour) > 0) {
-								stale_neighbours.insert(*neighbour);
+						std::vector<uint64_t> neighbours_of_created = this->get_neighbours_internal(*created_cell);
+						for (std::vector<uint64_t>::const_iterator neighbour_of_created = neighbours_of_created.begin(); neighbour_of_created != neighbours_of_created.end(); neighbour_of_created++) {
+							if (this->cells.count(*neighbour_of_created) > 0) {
+								this->update_neighbours(*neighbour_of_created);
 							}
 						}
 					}
 				}
 			}
 
-			// update local neighbour lists
+			// update local neighbour lists, etc.
 			for (boost::unordered_set<uint64_t>::const_iterator stale_neighbour = stale_neighbours.begin(); stale_neighbour != stale_neighbours.end(); stale_neighbour++) {
 
 					uint64_t child = this->get_child(*stale_neighbour);
 					assert(child == *stale_neighbour);
 					this->update_neighbours(*stale_neighbour);
+					std::vector<uint64_t> temp_remote_neighbours = this->get_remote_neighbours(*stale_neighbour);
+					for (std::vector<uint64_t>::const_iterator temp_remote_neighbour = temp_remote_neighbours.begin(); temp_remote_neighbour != temp_remote_neighbours.end(); temp_remote_neighbour++) {
+						this->remote_neighbours[*temp_remote_neighbour];
+					}
 			}
 
 			// induce refines
