@@ -2,7 +2,7 @@
 #FLAGS = -O3 -pg -W -Wall -pedantic
 FLAGS = -O3 -W -Wall -pedantic -DNDEBUG
 #FLAGS = -O0 -g -W -Wall -pedantic
-INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi-mt -lboost_serialization-mt -lzoltan
+INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
 all: game_of_life_test scalability scalability3d

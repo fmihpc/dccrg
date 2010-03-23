@@ -1,5 +1,5 @@
 FLAGS = -O3 -W -Wall -pedantic -DNDEBUG
-INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi-mt -lboost_serialization-mt -lzoltan
+INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
 all: game_of_life
