@@ -54,6 +54,7 @@ int main(int argc, char* argv[])
 
 	#define TIME_STEPS 3
 	grid.balance_load();
+	grid.print_remote_neighbours();
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		//grid.balance_load();
@@ -107,11 +108,12 @@ int main(int argc, char* argv[])
 		outfile.close();
 
 		// refine the smallest cell that is closest to the starting corner
-		grid.update_remote_neighbour_data();
+		//grid.update_remote_neighbour_data();
 		before = clock();
 		grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
 		grid.stop_refining();
 		after = clock();
+		grid.print_remote_neighbours();
 		cout << "Process " << comm.rank() <<": Refining took " << double(after - before) / CLOCKS_PER_SEC << " seconds" << endl;
 	}
 
