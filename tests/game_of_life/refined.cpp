@@ -1,24 +1,21 @@
 /*
-A simple 2 D game of life program to demonstrate the basic usage of dccrg
+Tests the grid with a game of life on a refined grid in 3 D with neighbours only in the ? plane
 */
 
 #include "algorithm"
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../dccrg.hpp"
+#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "zoltan.h"
 
 
-// store in every cell of the grid whether the cell is alive and the number of live neighbours it has
 struct game_of_life_cell {
 
-	// boost requires this from user data
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
 		ar & is_alive;
-		// no need to send live_neighbour_count to neighbours
 	}
 
 	bool is_alive;
@@ -44,21 +41,40 @@ int main(int argc, char* argv[])
 	}
 
 
-	// create the grid
 	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 10	// in unrefined cells
+	#define GRID_SIZE 1
 	#define CELL_SIZE (1.0 / GRID_SIZE)
-	// the cells that share a vertex are considered neighbours
 	#define STENCIL_SIZE 1
-	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 3, STENCIL_SIZE);
+	vector<uint64_t> cells = game_grid.get_cells();
 	if (comm.rank() == 0) {
-		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * 1 << endl << endl;
+		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 	}
+	cout << "Process " << comm.rank() << ": number of cells: " << cells.size() << endl;
 
+	// refine the grid increasingly in the z direction a few times
+	game_grid.balance_load();
+	cells = game_grid.get_cells();
+	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		if (game_grid.get_cell_z(*cell) > 1 * CELL_SIZE) {
+			game_grid.refine_completely(*cell);
+		}
+	}
+	game_grid.stop_refining();
+	game_grid.balance_load();
+	cells = game_grid.get_cells();
+	cout << "Process " << comm.rank() << ": number of cells after refining: " << cells.size() << endl;
+	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		if (game_grid.get_cell_z(*cell) > 1.5 * CELL_SIZE) {
+			game_grid.refine_completely(*cell);
+		}
+	}
+	game_grid.stop_refining();
+	game_grid.balance_load();
+	cells = game_grid.get_cells();
+	cout << "Process " << comm.rank() << ": number of cells after refining: " << cells.size() << endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	vector<uint64_t> cells = game_grid.get_cells();
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -72,34 +88,34 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	// since the grid doesn't change during the game, workload can be balanced only once in the beginning
-	game_grid.balance_load();
-
-	// get the cells on this process for the last time since the grid won't be refined or load balanced after this
-	cells = game_grid.get_cells();
-
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "game_of_life_" << comm.rank() << "_";
+	basename << "refined_" << comm.rank() << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (comm.rank() == 0) {
-		visit_file.open("game_of_life.visit");
+		visit_file.open("refined.visit");
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-
-	// the library writes the grid into a file in ascending cell order, do the same for the game data
-	sort(cells.begin(), cells.end());
-
-	#define TIME_STEPS 10
+	#define TIME_STEPS 25
 	for (int step = 0; step < TIME_STEPS; step++) {
-		comm.barrier();
+
+		game_grid.balance_load();
+		game_grid.update_remote_neighbour_data();
+		cells = game_grid.get_cells();
+		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
+		sort(cells.begin(), cells.end());
 
 		if (comm.rank() == 0) {
 			cout << "step: " << step << endl;
 		}
+		/*if (step == 20 || step == 21) {
+			game_grid.print_cell_to_process_mappings();
+			game_grid.print_remote_neighbours();
+		}
+		cout.flush();*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
@@ -114,7 +130,7 @@ int main(int argc, char* argv[])
 		// visualize the game with visit -o game_of_life_test.visit
 		if (comm.rank() == 0) {
 			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "game_of_life_" << process << "_" << step_string.str() << suffix.str() << endl;
+				visit_file << "refined_" << process << "_" << step_string.str() << suffix.str() << endl;
 			}
 		}
 
@@ -125,8 +141,7 @@ int main(int argc, char* argv[])
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
 
-
-		// go through the grids cells and write their state into files by process
+		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
@@ -176,9 +191,7 @@ int main(int argc, char* argv[])
 		}
 		outfile.close();
 
-
 		// get the neighbour counts of every cell
-		game_grid.update_remote_neighbour_data();
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -191,9 +204,15 @@ int main(int argc, char* argv[])
 			}
 
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+
+				// only consider neighbours in the same z plane
+				if (game_grid.get_cell_z(*cell) != game_grid.get_cell_z(*neighbour)) {
+					continue;
+				}
+
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
+					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data of cell " << *cell << " not available" << endl;
 					exit(EXIT_FAILURE);
 				}
 				if (neighbour_data->is_alive) {

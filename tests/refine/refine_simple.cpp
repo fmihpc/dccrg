@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 3
+	#define TIME_STEPS 5
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		grid.balance_load();
@@ -109,9 +109,9 @@ int main(int argc, char* argv[])
 		//grid.update_remote_neighbour_data();
 		before = clock();
 		grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
-		grid.stop_refining();
+		vector<uint64_t> new_cells = grid.stop_refining();
 		after = clock();
-		cout << "Process " << comm.rank() <<": Refining took " << double(after - before) / CLOCKS_PER_SEC << " seconds" << endl;
+		cout << "Process " << comm.rank() <<": Refining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
 	}
 
 	if (comm.rank() == 0) {

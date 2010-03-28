@@ -5,7 +5,7 @@ FLAGS = -O3 -W -Wall -pedantic -DNDEBUG
 INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-all: game_of_life_test scalability scalability3d
+all: game_of_life_test scalability scalability3d refined
 
 game_of_life_test: game_of_life_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) game_of_life_test.cpp $(INCLUDES) -o game_of_life_test
@@ -16,6 +16,9 @@ scalability: scalability.cpp ../../dccrg.hpp Makefile
 scalability3d: scalability3d.cpp ../../dccrg.hpp Makefile
 	$(CXX) scalability3d.cpp $(INCLUDES) -o scalability3d
 
+refined: refined.cpp ../../dccrg.hpp Makefile
+	$(CXX) refined.cpp $(INCLUDES) -o refined
+
 c: clean
 clean:
-	rm -f game_of_life_test scalability scalability3d
+	rm -f game_of_life_test scalability scalability3d refined
