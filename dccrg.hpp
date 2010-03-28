@@ -685,6 +685,12 @@ public:
 
 		this->added_cells.insert(children.begin(), children.end());
 
+		// don't unrefine this or other children of this cell's parent
+		std::vector<uint64_t> peers = this->get_all_children(this->get_parent(cell));
+		for (std::vector<uint64_t>::const_iterator peer = peers.begin(); peer != peers.end(); peer++) {
+			this->removed_cells.erase(*peer);
+		}
+
 		// refine neighbours of cells of all sizes at this index on this process if they are too large
 		for (int current_refinement_level = this->get_refinement_level(cell); current_refinement_level >= 0; current_refinement_level--) {
 
@@ -716,6 +722,11 @@ public:
 					}
 				}
 
+				// stop unrefining the neighbour if it is too large
+				if (given_cell_is_neighbour && this->get_refinement_level(*neighbour) <= this->get_refinement_level(cell)) {
+					this->removed_cells.erase(*neighbour);
+				}
+
 				// induced refinement
 				if (given_cell_is_neighbour && this->get_refinement_level(*neighbour) < this->get_refinement_level(cell)) {
 					this->refine_completely(*neighbour);
@@ -726,17 +737,98 @@ public:
 
 	/*
 	As refine_completely, but uses the smallest existing cell at given coordinates
-	Does nothing in the same cases as refine_completely and additionally 
+	Does nothing in the same cases as refine_completely and additionally if the coordinate is outside of the grid
 	*/
 	void refine_completely_at(const double x, const double y, const double z)
 	{
-		uint64_t cell = get_smallest_cell_from_coordinate(x, y, z);
+		uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
 		if (cell == 0) {
 			return;
 		}
 
 		this->refine_completely(cell);
 	}
+
+
+	/*
+	Removes the given cell and all other children of the given cells parent (and possibly more cells due to induced refinement)
+	After refining / unrefining even one cell on any process stop_refining() must be called before doing anything else with the grid, except refining / unrefining
+	In case any cell would be both refined and unrefined it will be refined
+	Does nothing in any of the following cases:
+		-given cell or any other child of given cells parent has already been unrefined and stop_refining() has not been called afterwards
+		-given cell doesn't exist
+		-given cell exists on another process
+		-given cell has children
+		-given cells refinement level is 0
+		-given cell (or cells close enough due to induced refinement) has or will be refined before calling stop_refining()
+	*/
+	void unrefine_completely(const uint64_t cell)
+	{
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
+
+		if (this->get_refinement_level(cell) == 0) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			// cell already has children
+			return;
+		}
+
+		std::vector<uint64_t> children = this->get_all_children(cell);
+
+		// refining overrides unrefining
+		if (children.size() > 0 && this->added_cells.count(children[0]) > 0) {
+			std::cout << "Process " << this->comm.rank() << ": Already refining cell " << cell << std::endl;
+			return;
+		}
+
+		// don't unrefine the same cell again
+		if (this->removed_cells.count(cell) > 0) {
+			return;
+		}
+
+		// don't unrefine if any neighbour of given cells parent is small enough and has been refined
+		std::vector<uint64_t> parents_neighbours = this->get_neighbours_internal(this->get_parent(cell));
+		for (std::vector<uint64_t>::const_iterator parents_neighbour = parents_neighbours.begin(); parents_neighbour != parents_neighbours.end(); parents_neighbour++) {
+
+			if (this->get_refinement_level(*parents_neighbour) >= this->get_refinement_level(cell)) {
+
+				std::vector<uint64_t> neighbours_children = this->get_all_children(*parents_neighbour);
+				if (neighbours_children.size() > 0 && this->added_cells.count(neighbours_children[0]) > 0) {
+					return;
+				}
+			}
+		}
+
+		std::vector<uint64_t> peers = this->get_all_children(this->get_parent(cell));
+		this->removed_cells.insert(peers.begin(), peers.end());
+
+		// induced unrefinement
+		for (std::vector<uint64_t>::const_iterator parents_neighbour = parents_neighbours.begin(); parents_neighbour != parents_neighbours.end(); parents_neighbour++) {
+
+			if (this->get_refinement_level(*parents_neighbour) > this->get_refinement_level(cell)) {
+				this->unrefine_completely(*parents_neighbour);
+			}
+		}
+	}
+
+	/*
+	As unrefine_completely, but uses the smallest existing cell at given coordinates
+	Does nothing in the same cases as unrefine_completely and additionally if the coordinate is outside of the grid
+	*/
+	void unrefine_completely_at(const double x, const double y, const double z)
+	{
+		uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
+		if (cell == 0) {
+			return;
+		}
+
+		this->unrefine_completely(cell);
+	}
+
 
 	/*
 	Must be called simultaneously on all processes if even one of the has refined or unrefined even one cell, before doing anything else with the grid except refining / unrefining
@@ -787,6 +879,40 @@ public:
 
 						if (this->cells.count(parent_of_created) > 0) {
 							this->neighbours.erase(parent_of_created);
+						}
+					}
+				}
+			}
+
+			// don't unrefine if another process has refined a small enough remote neighbour
+			for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
+				for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
+
+					if (cell_creator == this->comm.rank()) {
+						continue;
+					}
+
+					uint64_t parent_of_created = this->get_parent(*created_cell);
+
+					if (this->remote_neighbours.count(parent_of_created) == 0) {
+						continue;
+					}
+
+					std::vector<uint64_t> local_neighbours = this->get_neighbours_internal(parent_of_created);
+					for (std::vector<uint64_t>::const_iterator local_neighbour = local_neighbours.begin(); local_neighbour != local_neighbours.end(); local_neighbour++) {
+
+						if (this->cells.count(*local_neighbour) == 0) {
+							continue;
+						}
+
+						if (this->get_refinement_level(*local_neighbour) > this->get_refinement_level(parent_of_created)) {
+							continue;
+						}
+
+						// remote refined neighbour is too small
+						std::vector<uint64_t> peers = this->get_all_children(this->get_parent(*local_neighbour));
+						for (std::vector<uint64_t>::const_iterator peer = peers.begin(); peer != peers.end(); peer++) {
+							this->removed_cells.erase(*peer);
 						}
 					}
 				}
@@ -894,34 +1020,52 @@ public:
 			}
 		}
 
-		// TODO: unrefine cells globally
+		// unrefine
+		while (true) {
+
+			std::vector<std::vector<uint64_t> > all_removed_cells;
+			std::vector<uint64_t> temp_removed_cells(this->removed_cells.begin(), this->removed_cells.end());
+			all_gather(this->comm, temp_removed_cells, all_removed_cells);
+			this->removed_cells.clear();
+
+			// continue until induced unrefinement has stopped
+			bool cells_removed = false;
+			for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
+				if (all_removed_cells[cell_remover].size() > 0) {
+					cells_removed = true;
+					break;
+				}
+			}
+			if (!cells_removed) {
+				break;
+			}
+
+			// remove cells from the cell to process mappings
+			for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
+				for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
+
+					uint64_t child_of_removed = this->get_parent(*removed_cell);
+
+					// only children should be removed by unrefinement
+					assert(*removed_cell == child_of_removed);
+
+					this->cell_process.erase(*removed_cell);
+
+					// update local cells' and their parents' data structures
+					if (this->comm.rank() == cell_creator) {
+						//TODO: tell the user what cell were removed, retain their data for interpolating their parent's new value and move that data to the process of the parent
+						//this->removed_cells_data[*removed_cell] = this->cells[*removed_cell];
+						this->cells.erase(*removed_cell);
+						this->neighbours.erase(*removed_cell);
+					}
+				}
+			}
+
+			induced unrefinement from other processes...
+		}
 
 		return new_cells;
 	}
-
-
-	/*
-	Recursively removes all the children of given cell
-	Does nothing if the given cell doesn't exist or in on another process
-	*/
-	/*void unrefine_completely(const uint64_t id);
-	{
-		assert(id);
-
-		if (cells.count(id) == 0) {
-			return;
-		}
-
-		std::vector<uint64_t> children = get_all_children(id);
-
-		for (unsigned int i = 0; i < children.size(); i++) {
-			if (cells.count(children[i]) == 0) {
-				break;
-			}
-			unrefine(children[i]);
-			cells.erase(children[i]);
-		}
-	}*/
 
 
 	/*
