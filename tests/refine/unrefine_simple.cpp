@@ -35,7 +35,7 @@ int main(int argc, char* argv[])
 	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
-	dccrg<int> grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, 1, 1, STENCIL_SIZE);
+	dccrg<int> grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, 1, 1, STENCIL_SIZE, 5);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << GRID_SIZE << endl << endl;
@@ -55,7 +55,11 @@ int main(int argc, char* argv[])
 	#define TIME_STEPS 8
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		grid.balance_load();
+		if (comm.rank() == 0) {
+			cout << "step " << step << endl;
+		}
+
+		//grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
 
@@ -107,24 +111,31 @@ int main(int argc, char* argv[])
 
 		before = clock();
 
-		// unrefine all cells in the grid
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			grid.unrefine_completely(*cell);
-		}
-
 		// refine the smallest cell that is closest to the starting corner
-		if (step < 4) {
-			grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
+		if (step < 5) {
+			/*// unrefine all cells in the grid
+			for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+				grid.unrefine_completely(*cell);
+			}
+			cout << "unrefined 1" << endl;*/
+
+			grid.refine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE);
+			cout << "refined 1" << endl;
+
+			// unrefine all cells in the grid
+			for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+				grid.unrefine_completely(*cell);
+			}
+			cout << "unrefined 2" << endl;
+		} else {
+			grid.unrefine_completely_at(GRID_SIZE * CELL_SIZE - 0.0001 * CELL_SIZE, 0.999 * CELL_SIZE, 0.999 * CELL_SIZE);
+			cout << "unrefined 1" << endl;
 		}
 
-		// unrefine all cells in the grid
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			grid.unrefine_completely(*cell);
-		}
 		vector<uint64_t> new_cells = grid.stop_refining();
 
 		after = clock();
-		cout << "Process " << comm.rank() <<": Refining /unrefining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
+		cout << "Process " << comm.rank() <<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
 	}
 
 	if (comm.rank() == 0) {

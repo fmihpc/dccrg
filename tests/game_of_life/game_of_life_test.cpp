@@ -140,7 +140,9 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		game_grid.balance_load();
+		game_grid.update_remote_neighbour_data();
 		vector<uint64_t> cells = game_grid.get_cells();
+
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
 
@@ -224,7 +226,6 @@ int main(int argc, char* argv[])
 
 
 		// get the neighbour counts of every cell
-		game_grid.update_remote_neighbour_data();
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];

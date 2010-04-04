@@ -111,11 +111,6 @@ int main(int argc, char* argv[])
 		if (comm.rank() == 0) {
 			cout << "step: " << step << endl;
 		}
-		/*if (step == 20 || step == 21) {
-			game_grid.print_cell_to_process_mappings();
-			game_grid.print_remote_neighbours();
-		}
-		cout.flush();*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
