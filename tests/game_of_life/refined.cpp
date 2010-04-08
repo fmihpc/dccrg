@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
 
 
 	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 1
+	#define GRID_SIZE 5
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
 	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 3, STENCIL_SIZE);
@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
 	cells = game_grid.get_cells();
 	cout << "Process " << comm.rank() << ": number of cells after refining: " << cells.size() << endl;
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.get_cell_z(*cell) > 1.5 * CELL_SIZE) {
+		if (game_grid.get_cell_z(*cell) > 2 * CELL_SIZE) {
 			game_grid.refine_completely(*cell);
 		}
 	}
