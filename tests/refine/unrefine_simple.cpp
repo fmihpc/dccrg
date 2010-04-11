@@ -1,5 +1,5 @@
 /*
-Tests the grid using simple refining and unrefining which should induce refinement also across processes
+Tests the grid using simple refining and unrefining which should induce unrefinement also across processes
 */
 
 #include "boost/mpi.hpp"
@@ -53,6 +53,7 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 8
+	grid.balance_load();
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		if (comm.rank() == 0) {
@@ -112,7 +113,7 @@ int main(int argc, char* argv[])
 		before = clock();
 
 		// refine the smallest cell that is closest to the starting corner
-		if (step < 5) {
+		if (step < 4) {
 			/*// unrefine all cells in the grid
 			for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 				grid.unrefine_completely(*cell);
@@ -122,11 +123,10 @@ int main(int argc, char* argv[])
 			grid.refine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE);
 			cout << "refined 1" << endl;
 
-			// unrefine all cells in the grid
-			for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+			/*for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 				grid.unrefine_completely(*cell);
 			}
-			cout << "unrefined 2" << endl;
+			cout << "unrefined 2" << endl;*/
 		} else {
 			grid.unrefine_completely_at(GRID_SIZE * CELL_SIZE - 0.0001 * CELL_SIZE, 0.999 * CELL_SIZE, 0.999 * CELL_SIZE);
 			cout << "unrefined 1" << endl;
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 		vector<uint64_t> new_cells = grid.stop_refining();
 
 		after = clock();
-		cout << "Process " << comm.rank() <<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
+		cout << "Process " << comm.rank() <<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC << " seconds, " << new_cells.size() << " new cells created" << endl;
 	}
 
 	if (comm.rank() == 0) {
