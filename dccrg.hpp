@@ -393,21 +393,10 @@ public:
 	{
 		this->comm.barrier();
 
-		// a matrix of sets where each set holds the cells whose data has to be sent from one process to another
-		// outermost index is the process from which to send and innermost index is the process that will receive the cells
-		std::vector<std::vector<boost::unordered_set<uint64_t> > > send_receive_matrix;
+		// processes and the cells whose data to receive from or send to by this process
+		boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_send, cells_to_receive;
 
-		// fill the matrix with empty sets
-		for (int i = 0; i < this->comm.size(); i++) {
-			std::vector<boost::unordered_set<uint64_t> > send_receive_vector;
-			boost::unordered_set<uint64_t> temp_set;
-			for (int j = 0; j < this->comm.size(); j++) {
-				send_receive_vector.push_back(temp_set);
-			}
-			send_receive_matrix.push_back(send_receive_vector);
-		}
-
-		// go through all cells that have a remote neighbour and all their neighbours
+		// calculate where this process has to send and from where to receive cell data
 		for (boost::unordered_set<uint64_t>::const_iterator cell = this->cells_with_remote_neighbours.begin(); cell != this->cells_with_remote_neighbours.end(); cell++) {
 
 			assert(*cell == this->get_child(*cell));
@@ -417,9 +406,9 @@ public:
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
 				if (this->cell_process[*neighbour] != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
-					send_receive_matrix[this->cell_process[*neighbour]][current_process].insert(*neighbour);
+					cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
-					send_receive_matrix[current_process][this->cell_process[*neighbour]].insert(*cell);
+					cells_to_send[this->cell_process[*neighbour]].insert(*cell);
 				}
 			}
 
@@ -427,9 +416,9 @@ public:
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[*cell].begin(); neighbour != this->neighbours_to[*cell].end(); neighbour++) {
 				if (this->cell_process[*neighbour] != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
-					send_receive_matrix[this->cell_process[*neighbour]][current_process].insert(*neighbour);
+					cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
-					send_receive_matrix[current_process][this->cell_process[*neighbour]].insert(*cell);
+					cells_to_send[this->cell_process[*neighbour]].insert(*cell);
 				}
 			}
 		}
@@ -445,7 +434,7 @@ public:
 				continue;
 			}
 
-			if (send_receive_matrix[sender][this->comm.rank()].size() == 0) {
+			if (cells_to_receive.count(sender) == 0) {
 				// no data to send / receive
 				continue;
 			}
@@ -463,22 +452,22 @@ public:
 				continue;
 			}
 
-			if (send_receive_matrix[this->comm.rank()][receiver].size() == 0) {
+			if (cells_to_send.count(receiver) == 0) {
 				// no data to send / receive
 				continue;
 			}
 
-			// send cell data in the same order
-			std::vector<uint64_t> cells_to_send(send_receive_matrix[this->comm.rank()][receiver].begin(), send_receive_matrix[this->comm.rank()][receiver].end());
-			sort(cells_to_send.begin(), cells_to_send.end());
+			// send and receive cell data in an order known in advance
+			std::vector<uint64_t> current_cells_to_send(cells_to_send[receiver].begin(), cells_to_send[receiver].end());
+			sort(current_cells_to_send.begin(), current_cells_to_send.end());
 
 			// construct the outgoing data vector
-			for (std::vector<uint64_t>::const_iterator cell = cells_to_send.begin(); cell != cells_to_send.end(); cell++) {
+			for (std::vector<uint64_t>::const_iterator cell = current_cells_to_send.begin(); cell != current_cells_to_send.end(); cell++) {
 				UserData* user_data = (*this)[*cell];
 				assert(user_data != NULL);
 				outgoing_data[receiver].push_back(*user_data);
 			}
-			assert(outgoing_data[receiver].size() == cells_to_send.size());
+			assert(outgoing_data[receiver].size() == current_cells_to_send.size());
 		}
 
 		// post all sends
@@ -488,7 +477,7 @@ public:
 				continue;
 			}
 
-			if (send_receive_matrix[this->comm.rank()][receiver].size() == 0) {
+			if (cells_to_send.count(receiver) == 0) {
 				// no data to send / receive
 				continue;
 			}
@@ -498,22 +487,17 @@ public:
 			requests.push_back(this->comm.isend(receiver, send_receive_tag, outgoing_data[receiver]));
 		}
 
-		/*std::cout << "starting wait_all" << std::endl;
-		std::cout << "Proc " << this->comm.rank() << ": number of requests: " << requests.size() << std::endl;
-		std::cout.flush();*/
 		boost::mpi::wait_all(requests.begin(), requests.end());
-		/*std::cout << "wait_all finished" << std::endl;
-		std::cout.flush();*/
 
 		// incorporate received data
 		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = incoming_data.begin(); sender != incoming_data.end(); sender++) {
 
-			std::vector<uint64_t> cells_to_send(send_receive_matrix[sender->first][this->comm.rank()].begin(), send_receive_matrix[sender->first][this->comm.rank()].end());
-			sort(cells_to_send.begin(), cells_to_send.end());
-			assert(incoming_data[sender->first].size() == cells_to_send.size());
+			std::vector<uint64_t> current_cells_to_receive(cells_to_receive[sender->first].begin(), cells_to_receive[sender->first].end());
+			sort(current_cells_to_receive.begin(), current_cells_to_receive.end());
+			assert(incoming_data[sender->first].size() == current_cells_to_receive.size());
 
 			int i = 0;
-			for (std::vector<uint64_t>::const_iterator cell = cells_to_send.begin(); cell != cells_to_send.end(); cell++, i++) {
+			for (std::vector<uint64_t>::const_iterator cell = current_cells_to_receive.begin(); cell != current_cells_to_receive.end(); cell++, i++) {
 				this->remote_neighbours[*cell] = incoming_data[sender->first][i];
 			}
 		}
