@@ -56,9 +56,16 @@ int main(int argc, char* argv[])
 		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * 1 << endl << endl;
 	}
 
+	// since the grid doesn't change during the game, workload can be balanced only once in the beginning
+	game_grid.balance_load();
+
+	// get the cells on this process for the last time since the grid won't be refined or load balanced after this
+	vector<uint64_t> cells = game_grid.get_cells();
+
+	// the library writes the grid into a file in ascending cell order, do the same for the game data
+	sort(cells.begin(), cells.end());
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	vector<uint64_t> cells = game_grid.get_cells();
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -72,12 +79,6 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	// since the grid doesn't change during the game, workload can be balanced only once in the beginning
-	game_grid.balance_load();
-
-	// get the cells on this process for the last time since the grid won't be refined or load balanced after this
-	cells = game_grid.get_cells();
-
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
 	basename << "game_of_life_" << comm.rank() << "_";
@@ -89,9 +90,6 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-
-	// the library writes the grid into a file in ascending cell order, do the same for the game data
-	sort(cells.begin(), cells.end());
 
 	#define TIME_STEPS 10
 	for (int step = 0; step < TIME_STEPS; step++) {

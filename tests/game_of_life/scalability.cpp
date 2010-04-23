@@ -81,7 +81,6 @@ int main(int argc, char* argv[])
 	#define TIME_STEPS 100
 	before = clock();
 	for (int step = 0; step < TIME_STEPS; step++) {
-		comm.barrier();
 
 		if (comm.rank() == 0) {
 			cout << step << " ";
@@ -93,22 +92,12 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
-
 			cell_data->live_neighbour_count = 0;
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			if (neighbours == NULL) {
-				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
-				exit(EXIT_FAILURE);
-			}
 
+			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
-					exit(EXIT_FAILURE);
-				}
-
 				if (neighbour_data->is_alive) {
 					cell_data->live_neighbour_count++;
 				}

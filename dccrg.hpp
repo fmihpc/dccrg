@@ -434,56 +434,87 @@ public:
 			}
 		}
 
-		// spread the neighbour data
+		// spread the neighbour data, maps of process and data sending to or receiving from this process
+		boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
+		std::vector<boost::mpi::request> requests;
+
+		// post all receives
 		for (int sender = 0; sender < this->comm.size(); sender++) {
-			for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
-				if (sender == receiver) {
-					// don't send to self
-					continue;
-				}
+			if (sender == this->comm.rank()) {
+				continue;
+			}
 
-				if (sender != this->comm.rank() && receiver != this->comm.rank()) {
-					// this process is neither sending nor receiving
-					continue;
-				}
+			if (send_receive_matrix[sender][this->comm.rank()].size() == 0) {
+				// no data to send / receive
+				continue;
+			}
 
-				if (send_receive_matrix[sender][receiver].size() == 0) {
-					// no data to send / receive
-					continue;
-				}
+			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
 
-				int send_receive_tag = sender * this->comm.size() + receiver;
+			requests.push_back(this->comm.irecv(sender, send_receive_tag, incoming_data[sender]));
+		}
 
-				// send cell data in the same order
-				std::vector<uint64_t> cells_to_send(send_receive_matrix[sender][receiver].begin(), send_receive_matrix[sender][receiver].end());
-				sort(cells_to_send.begin(), cells_to_send.end());
+		// gather all data to send
+		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
-				std::vector<UserData> incoming_data, outgoing_data;
-				if (this->comm.rank() == sender) {
+			if (receiver == this->comm.rank()) {
+				// don't send to self
+				continue;
+			}
 
-					// construct the outgoing data vector
-					for (std::vector<uint64_t>::const_iterator cell = cells_to_send.begin(); cell != cells_to_send.end(); cell++) {
-						UserData* user_data = (*this)[*cell];
-						assert(user_data != NULL);
-						outgoing_data.push_back(*user_data);
-					}
+			if (send_receive_matrix[this->comm.rank()][receiver].size() == 0) {
+				// no data to send / receive
+				continue;
+			}
 
-					assert(outgoing_data.size() == cells_to_send.size());
-					this->comm.send(receiver, send_receive_tag, outgoing_data);
+			// send cell data in the same order
+			std::vector<uint64_t> cells_to_send(send_receive_matrix[this->comm.rank()][receiver].begin(), send_receive_matrix[this->comm.rank()][receiver].end());
+			sort(cells_to_send.begin(), cells_to_send.end());
 
-				} else {
+			// construct the outgoing data vector
+			for (std::vector<uint64_t>::const_iterator cell = cells_to_send.begin(); cell != cells_to_send.end(); cell++) {
+				UserData* user_data = (*this)[*cell];
+				assert(user_data != NULL);
+				outgoing_data[receiver].push_back(*user_data);
+			}
+			assert(outgoing_data[receiver].size() == cells_to_send.size());
+		}
 
-					this->comm.recv(sender, send_receive_tag, incoming_data);
-					assert(incoming_data.size() == cells_to_send.size());
+		// post all sends
+		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
-					// incorporate received data
-					int i = 0;
-					for (std::vector<uint64_t>::const_iterator cell = cells_to_send.begin(); cell != cells_to_send.end(); cell++, i++) {
-						this->remote_neighbours[*cell] = incoming_data[i];
-					}
+			if (receiver == this->comm.rank()) {
+				continue;
+			}
 
-				}
+			if (send_receive_matrix[this->comm.rank()][receiver].size() == 0) {
+				// no data to send / receive
+				continue;
+			}
+
+			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
+
+			requests.push_back(this->comm.isend(receiver, send_receive_tag, outgoing_data[receiver]));
+		}
+
+		/*std::cout << "starting wait_all" << std::endl;
+		std::cout << "Proc " << this->comm.rank() << ": number of requests: " << requests.size() << std::endl;
+		std::cout.flush();*/
+		boost::mpi::wait_all(requests.begin(), requests.end());
+		/*std::cout << "wait_all finished" << std::endl;
+		std::cout.flush();*/
+
+		// incorporate received data
+		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = incoming_data.begin(); sender != incoming_data.end(); sender++) {
+
+			std::vector<uint64_t> cells_to_send(send_receive_matrix[sender->first][this->comm.rank()].begin(), send_receive_matrix[sender->first][this->comm.rank()].end());
+			sort(cells_to_send.begin(), cells_to_send.end());
+			assert(incoming_data[sender->first].size() == cells_to_send.size());
+
+			int i = 0;
+			for (std::vector<uint64_t>::const_iterator cell = cells_to_send.begin(); cell != cells_to_send.end(); cell++, i++) {
+				this->remote_neighbours[*cell] = incoming_data[sender->first][i];
 			}
 		}
 	}
@@ -1034,21 +1065,23 @@ public:
 			}
 
 			// remove cells from cell to process mappings
-			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
+			for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
+				for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
 
-				// initial cells shouldn't be removed
-				assert(this->get_refinement_level(*removed_cell) > 0);
+					// initial cells shouldn't be removed
+					assert(this->get_refinement_level(*removed_cell) > 0);
 
-				this->cell_process.erase(*removed_cell);
+					this->cell_process.erase(*removed_cell);
 
-				if (cell_remover == this->comm.rank()) {
-					// update local cells' and their parents' data structures
-					/*TODO: tell the user what cell were removed, retain their data for interpolating their parent's new value and move that data to the process of the parent
-						this->removed_cells_data[*removed_cell] = this->cells[*removed_cell];*/
-					this->cells.erase(*removed_cell);
-					this->neighbours.erase(*removed_cell);
-					this->neighbours_to.erase(*removed_cell);
-					this->cells_with_remote_neighbours.erase(*removed_cell);
+					if (cell_remover == this->comm.rank()) {
+						// update local cells' and their parents' data structures
+						/*TODO: tell the user what cell were removed, retain their data for interpolating their parent's new value and move that data to the process of the parent
+							this->removed_cells_data[*removed_cell] = this->cells[*removed_cell];*/
+						this->cells.erase(*removed_cell);
+						this->neighbours.erase(*removed_cell);
+						this->neighbours_to.erase(*removed_cell);
+						this->cells_with_remote_neighbours.erase(*removed_cell);
+					}
 				}
 			}
 
@@ -1133,7 +1166,7 @@ private:
 		assert(this->cell_process.count(cell) > 0);
 		assert(this->get_refinement_level(cell) > 0);
 		assert(cell == this->get_child(cell));
-...
+
 		std::vector<uint64_t> children = this->get_all_children(cell);
 
 		// don't unrefine the same cell again
@@ -1388,7 +1421,6 @@ private:
 		unique_neighbours_to.erase(id);
 
 		// return only cells which consider given cell as a neighbour
-		uint64_t x_index = this->get_x_index(id), y_index = this->get_y_index(id), z_index = this->get_z_index(id);
 		//uint64_t cell_size = this->get_cell_size_in_indices(id);
 		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours_to.begin(); neighbour != unique_neighbours_to.end(); neighbour++) {
 			if (this->is_neighbour(*neighbour, id)) {
@@ -1398,6 +1430,7 @@ private:
 
 		#ifndef NDEBUG
 		// check that wrong cells weren't excluded / included
+		uint64_t x_index = this->get_x_index(id), y_index = this->get_y_index(id), z_index = this->get_z_index(id);
 		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours_to.begin(); neighbour != unique_neighbours_to.end(); neighbour++) {
 
 			uint64_t neighbour_x_index = this->get_x_index(*neighbour), neighbour_y_index = this->get_y_index(*neighbour), neighbour_z_index = this->get_z_index(*neighbour);
