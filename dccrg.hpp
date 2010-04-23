@@ -508,10 +508,24 @@ public:
 	Returns a pointer to the neighbours (some of which might be on another process) of given cell
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
-	const std::vector<uint64_t>* get_neighbours(const uint64_t id)
+	const std::vector<uint64_t>* get_neighbours(const uint64_t cell)
 	{
-		if (this->cells.count(id) > 0) {
-			return &(this->neighbours[id]);
+		if (this->cells.count(cell) > 0) {
+			return &(this->neighbours[cell]);
+		} else {
+			return NULL;
+		}
+	}
+
+	/*
+	Returns a pointer to the cells that consider given cell as a neighbour but that are not neighbours of given cell
+	Some cell might be on another process or the structure might be empty
+	Returns NULL if given cell doesn't exist or is on another process
+	*/
+	const std::vector<uint64_t>* get_neighbours_to(const uint64_t cell)
+	{
+		if (this->cells.count(cell) > 0) {
+			return &(this->neighbours_to[cell]);
 		} else {
 			return NULL;
 		}
