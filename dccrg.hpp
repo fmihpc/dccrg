@@ -201,7 +201,7 @@ public:
 
 
 	/*
-	Returns all cells on the same process that don't have children
+	Returns all cells on this process that don't have children (e.g. leaf cells)
 	*/
 	std::vector<uint64_t> get_cells(void)
 	{
@@ -219,6 +219,78 @@ public:
 		}
 
 		return all_cells;
+	}
+
+
+	/*
+	Returns all cells on this process that don't have children (e.g. leaf cells) and don't have neighbours on other processes
+	*/
+	std::vector<uint64_t> get_cells_with_local_neighbours(void)
+	{
+		std::vector<uint64_t> return_cells;
+		return_cells.reserve(this->cells.size());
+
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+
+			uint64_t child = this->get_child(cell->first);
+			assert(child > 0);
+
+			if (child != cell->first) {
+				continue;
+			}
+
+			bool has_remote_neighbour = false;
+
+			assert(this->neighbours.count(cell->first) > 0);
+			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell->first].begin(); neighbour != this->neighbours[cell->first].end(); neighbour++) {
+				if (this->cell_process[*neighbour] != this->comm.rank()) {
+					has_remote_neighbour = true;
+					break;
+				}
+			}
+
+			if (!has_remote_neighbour) {
+				return_cells.push_back(cell->first);
+			}
+		}
+
+		return return_cells;
+	}
+
+
+	/*
+	Returns all cells on this process that don't have children (e.g. leaf cells) and have at least one neighbour on another processes
+	*/
+	std::vector<uint64_t> get_cells_with_remote_neighbour(void)
+	{
+		std::vector<uint64_t> return_cells;
+		return_cells.reserve(this->cells.size());
+
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+
+			uint64_t child = this->get_child(cell->first);
+			assert(child > 0);
+
+			if (child != cell->first) {
+				continue;
+			}
+
+			bool has_remote_neighbour = false;
+
+			assert(this->neighbours.count(cell->first) > 0);
+			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell->first].begin(); neighbour != this->neighbours[cell->first].end(); neighbour++) {
+				if (this->cell_process[*neighbour] != this->comm.rank()) {
+					has_remote_neighbour = true;
+					break;
+				}
+			}
+
+			if (has_remote_neighbour) {
+				return_cells.push_back(cell->first);
+			}
+		}
+
+		return return_cells;
 	}
 
 
@@ -386,15 +458,26 @@ public:
 
 
 	/*
-	Updates the user data of those cells that have at least one neighbour on another process
+	Updates the user data of those cells that have at least one neighbour or are considered as a neighbour of a cell on another process
 	Must be called simultaneously on all processes
 	*/
 	void update_remote_neighbour_data(void)
 	{
+		this->start_remote_neighbour_data_update();
+		this->wait_neighbour_data_update();
+	}
+
+
+	/*
+	Starts the update of neighbour data between processes and returns before (probably) it has completed
+	Must be called simultaneously on all processes
+	*/
+	void start_remote_neighbour_data_update(void)
+	{
 		this->comm.barrier();
 
-		// processes and the cells whose data to receive from or send to by this process
-		boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_send, cells_to_receive;
+		// processes and the cells for which data has to be sent by this process
+		boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_send;
 
 		// calculate where this process has to send and from where to receive cell data
 		for (boost::unordered_set<uint64_t>::const_iterator cell = this->cells_with_remote_neighbours.begin(); cell != this->cells_with_remote_neighbours.end(); cell++) {
@@ -406,7 +489,7 @@ public:
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
 				if (this->cell_process[*neighbour] != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
-					cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
+					this->cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
 					cells_to_send[this->cell_process[*neighbour]].insert(*cell);
 				}
@@ -416,16 +499,12 @@ public:
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[*cell].begin(); neighbour != this->neighbours_to[*cell].end(); neighbour++) {
 				if (this->cell_process[*neighbour] != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
-					cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
+					this->cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
 					cells_to_send[this->cell_process[*neighbour]].insert(*cell);
 				}
 			}
 		}
-
-		// spread the neighbour data, maps of process and data sending to or receiving from this process
-		boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
-		std::vector<boost::mpi::request> requests;
 
 		// post all receives
 		for (int sender = 0; sender < this->comm.size(); sender++) {
@@ -441,7 +520,7 @@ public:
 
 			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
 
-			requests.push_back(this->comm.irecv(sender, send_receive_tag, incoming_data[sender]));
+			this->requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
 		}
 
 		// gather all data to send
@@ -465,9 +544,9 @@ public:
 			for (std::vector<uint64_t>::const_iterator cell = current_cells_to_send.begin(); cell != current_cells_to_send.end(); cell++) {
 				UserData* user_data = (*this)[*cell];
 				assert(user_data != NULL);
-				outgoing_data[receiver].push_back(*user_data);
+				this->outgoing_data[receiver].push_back(*user_data);
 			}
-			assert(outgoing_data[receiver].size() == current_cells_to_send.size());
+			assert(this->outgoing_data[receiver].size() == current_cells_to_send.size());
 		}
 
 		// post all sends
@@ -484,23 +563,35 @@ public:
 
 			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
 
-			requests.push_back(this->comm.isend(receiver, send_receive_tag, outgoing_data[receiver]));
+			this->requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
 		}
+	}
 
-		boost::mpi::wait_all(requests.begin(), requests.end());
+
+	/*
+	Waits until all neighbour data update transfers between processes have completed and incorporates that data
+	Must be called simultaneously on all processes
+	*/
+	void wait_neighbour_data_update(void)
+	{
+		boost::mpi::wait_all(this->requests.begin(), this->requests.end());
+		this->outgoing_data.clear();
+		this->requests.clear();
 
 		// incorporate received data
 		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = incoming_data.begin(); sender != incoming_data.end(); sender++) {
 
-			std::vector<uint64_t> current_cells_to_receive(cells_to_receive[sender->first].begin(), cells_to_receive[sender->first].end());
+			std::vector<uint64_t> current_cells_to_receive(this->cells_to_receive[sender->first].begin(), this->cells_to_receive[sender->first].end());
 			sort(current_cells_to_receive.begin(), current_cells_to_receive.end());
-			assert(incoming_data[sender->first].size() == current_cells_to_receive.size());
+			assert(this->incoming_data[sender->first].size() == current_cells_to_receive.size());
 
 			int i = 0;
 			for (std::vector<uint64_t>::const_iterator cell = current_cells_to_receive.begin(); cell != current_cells_to_receive.end(); cell++, i++) {
-				this->remote_neighbours[*cell] = incoming_data[sender->first][i];
+				this->remote_neighbours[*cell] = this->incoming_data[sender->first][i];
 			}
 		}
+		this->cells_to_receive.clear();
+		this->incoming_data.clear();
 	}
 
 
@@ -522,7 +613,7 @@ public:
 	Some cell might be on another process or the structure might be empty
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
-	const std::vector<uint64_t>* get_neighbours_to(const uint64_t cell)
+	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell)
 	{
 		if (this->cells.count(cell) > 0) {
 			return &(this->neighbours_to[cell]);
@@ -1143,7 +1234,7 @@ private:
 	// on which process every cell in the grid is
 	boost::unordered_map<uint64_t, int> cell_process;
 
-	// cells on this process that have a neighbour on another process
+	// cells on this process that have a neighbour on another process or are considered as a neighbour of a cell on another process
 	boost::unordered_set<uint64_t> cells_with_remote_neighbours;
 
 	// remote neighbours and their data, of cells on this process
@@ -1151,6 +1242,15 @@ private:
 
 	// cells added to or removed from the grid on this process that haven't been communicated to other processes yet
 	boost::unordered_set<uint64_t> added_cells, removed_cells;
+
+	// pending neighbour data requests for this process
+	std::vector<boost::mpi::request> requests;
+
+	// processes and their cells whose data has to be sent to this process during neighbour data updates
+	boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_receive;
+
+	// storage for user cell data that awaits transfer to or from this process
+	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
 
 
 	/*
