@@ -147,11 +147,11 @@ public:
 		this->neighbourhood_size = neighbourhood_size;
 
 		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
-		double max_id = pow(2, 64) - 1, last_id = x_length * y_length * z_length;
+		double max_id = uint64_t(~0), last_id = x_length * y_length * z_length;
 		int refinement_level = 0;
 		while (last_id / max_id < 1) {
 			refinement_level++;
-			last_id += x_length * y_length * z_length * pow(8, refinement_level);
+			last_id += double(x_length) * y_length * z_length * (uint64_t(1) << refinement_level * 3);
 		}
 		refinement_level--;
 
@@ -164,7 +164,7 @@ public:
 
 		if (maximum_refinement_level > refinement_level) {
 
-			std::cerr << "Given max_refinement_level (" << maximum_refinement_level << ") is too large: " << "x_length * y_length * z_length * 8^max_refinement_level / (2^64 - 1) == " << x_length * y_length * z_length * pow(8, maximum_refinement_level) / max_id << " but must be < 1" << std::endl;
+			std::cerr << "Given max_refinement_level (" << maximum_refinement_level << ") is too large: " << "x_length * y_length * z_length * 8^max_refinement_level / (2^64 - 1) >= " << x_length * y_length * z_length * (uint64_t(1) << maximum_refinement_level * 3) / max_id << " but must be < 1" << std::endl;
 			exit(EXIT_FAILURE);
 
 		} else if (maximum_refinement_level < 0) {
@@ -176,7 +176,7 @@ public:
 		// the number of the last cell at maximum refinement level
 		uint64_t id = 0;
 		for (refinement_level = 0; refinement_level <= this->max_refinement_level; refinement_level++) {
-			id += x_length * y_length * z_length * pow(8, refinement_level);
+			id += x_length * y_length * z_length * (uint64_t(1) << refinement_level * 3);
 		}
 		this->max_cell_number = id;
 
@@ -657,22 +657,22 @@ public:
 	// The following return the x, y or z coordinate of given cell regardless of whether it exists
 	double get_cell_x(const uint64_t cell)
 	{
-		return this->x_start + this->get_x_index(cell) * this->cell_size / int(pow(2, this->max_refinement_level)) + this->get_cell_size(cell) / 2;
+		return this->x_start + this->get_x_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_size(cell) / 2;
 	}
 	double get_cell_y(const uint64_t cell)
 	{
-		return this->y_start + this->get_y_index(cell) * this->cell_size / int(pow(2, this->max_refinement_level)) + this->get_cell_size(cell) / 2;
+		return this->y_start + this->get_y_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_size(cell) / 2;
 	}
 	double get_cell_z(const uint64_t cell)
 	{
-		return this->z_start + this->get_z_index(cell) * this->cell_size / int(pow(2, this->max_refinement_level)) + this->get_cell_size(cell) / 2;
+		return this->z_start + this->get_z_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_size(cell) / 2;
 	}
 
 
 	// Returns the length of given cell regardless of whether it exists
 	double get_cell_size(const uint64_t cell)
 	{
-		return this->cell_size / int(pow(2, this->get_refinement_level(cell)));
+		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 
@@ -684,11 +684,11 @@ public:
 
 		int refinement_level;
 		for (refinement_level = 0; refinement_level < this->max_refinement_level; refinement_level++) {
-			if (id <= (this->x_length * this->y_length * this->z_length * int(pow(8, refinement_level)))) {
+			if (id <= (this->x_length * this->y_length * this->z_length * (uint64_t(1) << refinement_level * 3))) {
 				break;
 			}
 			// substract ids of larger cells
-			id -= this->x_length * this->y_length * this->z_length * int(pow(8, refinement_level));
+			id -= this->x_length * this->y_length * this->z_length * (uint64_t(1) << refinement_level * 3);
 		}
 
 		return refinement_level;
@@ -1327,6 +1327,7 @@ private:
 	*/
 	void update_neighbours(const uint64_t cell)
 	{
+		assert(cell > 0 && cell <= this->max_cell_number);
 		assert(this->cells.count(cell) > 0);
 		assert(cell == this->get_child(cell));
 
@@ -1340,6 +1341,7 @@ private:
 	*/
 	std::vector<uint64_t> get_neighbours_of(const uint64_t id)
 	{
+		assert(id > 0 && id <= this->max_cell_number);
 		assert(this->cell_process.count(id) > 0);
 
 		std::vector<uint64_t> return_neighbours;
@@ -1374,7 +1376,7 @@ private:
 		for (; current_x_index < x_index + size_in_indices * (1 + this->neighbourhood_size); current_x_index += index_increase) {
 
 			// don't search outside of the grid
-			if (current_x_index >= this->x_length * int(pow(2, this->max_refinement_level))) {
+			if (current_x_index >= this->x_length * (uint64_t(1) << this->max_refinement_level)) {
 				continue;
 			}
 
@@ -1388,7 +1390,7 @@ private:
 
 			for (; current_y_index < y_index + size_in_indices * (1 + this->neighbourhood_size); current_y_index += index_increase) {
 
-				if (current_y_index >= this->y_length * int(pow(2, this->max_refinement_level))) {
+				if (current_y_index >= this->y_length * (uint64_t(1) << this->max_refinement_level)) {
 					continue;
 				}
 
@@ -1402,7 +1404,7 @@ private:
 
 				for (; current_z_index < z_index + size_in_indices * (1 + this->neighbourhood_size); current_z_index += index_increase) {
 
-					if (current_z_index >= this->z_length * int(pow(2, this->max_refinement_level))) {
+					if (current_z_index >= this->z_length * (uint64_t(1) << this->max_refinement_level)) {
 						continue;
 					}
 
@@ -1426,6 +1428,7 @@ private:
 					}
 
 					uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+					assert(neighbour > 0 && neighbour <= this->max_cell_number);
 					assert(neighbour == this->get_child(neighbour));
 					unique_neighbours.insert(neighbour);
 				}
@@ -1737,6 +1740,9 @@ private:
 	*/
 	uint64_t get_parent(const uint64_t cell)
 	{
+		assert(cell <= this->max_cell_number);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+
 		if (this->cell_process.count(cell) == 0) {
 			return 0;
 		}
@@ -1787,14 +1793,15 @@ private:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= x_length * y_length * z_length * int(pow(8, i));
+			id -= x_length * y_length * z_length * (uint64_t(1) << i * 3);
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		int this_level_index = id % (x_length * int(pow(2, refinement_level)));
+		uint64_t this_level_index = id % (x_length * (uint64_t(1) << refinement_level));
 
-		return this_level_index * int(pow(2, max_refinement_level - refinement_level));
+		assert(this_level_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) < this->x_length * (uint64_t(1) << this->max_refinement_level));
+		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
 	uint64_t get_y_index(uint64_t id)
@@ -1805,14 +1812,14 @@ private:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= x_length * y_length * z_length * int(pow(8, i));
+			id -= x_length * y_length * z_length * (uint64_t(1) << i * 3);
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		int this_level_index =  int(id / (x_length * int(pow(2, refinement_level)))) % (y_length  * int(pow(2, refinement_level)));
+		uint64_t this_level_index =  (id / (x_length * (uint64_t(1) << refinement_level))) % (y_length  * (uint64_t(1) << refinement_level));
 
-		return this_level_index * int(pow(2, max_refinement_level - refinement_level));
+		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
 	uint64_t get_z_index(uint64_t id)
@@ -1823,14 +1830,14 @@ private:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= x_length * y_length * z_length * int(pow(8, i));
+			id -= x_length * y_length * z_length * (uint64_t(1) << i * 3);
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		int this_level_index =  int(id / (x_length * y_length * int(pow(2, 2 * refinement_level))));
+		uint64_t this_level_index =  id / (x_length * y_length * (uint64_t(1) << 2 * refinement_level));
 
-		return this_level_index * int(pow(2, max_refinement_level - refinement_level));
+		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
 	// These return the x, y or z index of the given coordinate
@@ -1838,21 +1845,21 @@ private:
 	{
 		assert((x >= this->x_start) and (x <= this->x_start + this->x_length * this->cell_size));
 
-		return uint64_t((x - this->x_start) / (this->cell_size / int(pow(2, this->max_refinement_level))));
+		return uint64_t((x - this->x_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
 	}
 
 	uint64_t get_y_index(const double y)
 	{
 		assert((y >= this->y_start) and (y <= this->y_start + this->y_length * this->cell_size));
 
-		return uint64_t((y - this->y_start) / (this->cell_size / int(pow(2, this->max_refinement_level))));
+		return uint64_t((y - this->y_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
 	}
 
 	uint64_t get_z_index(const double z)
 	{
 		assert((z >= this->z_start) and (z <= this->z_start + this->z_length * this->cell_size));
 
-		return uint64_t((z - this->z_start) / (this->cell_size / int(pow(2, this->max_refinement_level))));
+		return uint64_t((z - this->z_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
 	}
 
 
@@ -1862,15 +1869,15 @@ private:
 	*/
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level)
 	{
-		assert(x_index < this->x_length * int(pow(2, this->max_refinement_level)));
-		assert(y_index < this->y_length * int(pow(2, this->max_refinement_level)));
-		assert(z_index < this->z_length * int(pow(2, this->max_refinement_level)));
+		assert(x_index < this->x_length * (uint64_t(1) << this->max_refinement_level));
+		assert(y_index < this->y_length * (uint64_t(1) << this->max_refinement_level));
+		assert(z_index < this->z_length * (uint64_t(1) << this->max_refinement_level));
 		assert(minimum_refinement_level <= maximum_refinement_level);
 
 		int average_refinement_level = (maximum_refinement_level + minimum_refinement_level) / 2;
 		uint64_t id = this->get_cell_from_indices(x_index, y_index, z_index, average_refinement_level);
 
-		// use binary search recursively (assumes that max_refinement_level_difference == 1)
+		// use binary search recursively (assumes that a cell refines to max. 8 children)
 		if (this->cell_process.count(id) == 0) {
 			// doesn't exist, search the bin of smaller refinement_level values
 			if (average_refinement_level > minimum_refinement_level) {
@@ -1900,29 +1907,30 @@ private:
 	// Returns the cell of given refinement level at given indices even if it doesn't exist
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level)
 	{
-		assert(x_index < this->x_length * int(pow(2, this->max_refinement_level)));
-		assert(y_index < this->y_length * int(pow(2, this->max_refinement_level)));
-		assert(z_index < this->z_length * int(pow(2, this->max_refinement_level)));
+		assert(x_index < this->x_length * (uint64_t(1) << this->max_refinement_level));
+		assert(y_index < this->y_length * (uint64_t(1) << this->max_refinement_level));
+		assert(z_index < this->z_length * (uint64_t(1) << this->max_refinement_level));
 		assert(refinement_level <= this->max_refinement_level);
 
 		uint64_t id = 1;
 
 		// add ids of larger cells
 		for (int i = 0; i < refinement_level; i++) {
-			id += x_length * y_length * z_length * int(pow(8, i));
+			id += x_length * y_length * z_length * (uint64_t(1) << i * 3);
 		}
 
 		// convert to indices of this cells refinement level
-		int this_level_x_index = x_index / int(pow(2, max_refinement_level - refinement_level));
-		int this_level_y_index = y_index / int(pow(2, max_refinement_level - refinement_level));
-		int this_level_z_index = z_index / int(pow(2, max_refinement_level - refinement_level));
+		uint64_t this_level_x_index = x_index / (uint64_t(1) << (max_refinement_level - refinement_level));
+		uint64_t this_level_y_index = y_index / (uint64_t(1) << (max_refinement_level - refinement_level));
+		uint64_t this_level_z_index = z_index / (uint64_t(1) << (max_refinement_level - refinement_level));
 
 		// get the size of the grid in terms of cells of this level
-		uint64_t this_level_x_length = x_length * int(pow(2, refinement_level));
-		uint64_t this_level_y_length = y_length * int(pow(2, refinement_level));
+		uint64_t this_level_x_length = x_length * (uint64_t(1) << refinement_level);
+		uint64_t this_level_y_length = y_length * (uint64_t(1) << refinement_level);
 
 		id += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
 
+		assert(id <= this->max_cell_number);
 		return id;
 	}
 
@@ -1931,7 +1939,7 @@ private:
 	uint64_t get_cell_size_in_indices(const uint64_t id)
 	{
 		assert(id);
-		return uint64_t(pow(2, max_refinement_level - get_refinement_level(id)));
+		return uint64_t(1) << (this->max_refinement_level - this->get_refinement_level(id));
 	}
 
 
@@ -1959,10 +1967,10 @@ private:
 
 		// get indices of next refinement level within this cell
 		refinement_level++;
-		int index_offset = pow(2, max_refinement_level - refinement_level);
-		for (int x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
-			for (int y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset) {
-				for (int z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset) {
+		uint64_t index_offset = (uint64_t(1) << (max_refinement_level - refinement_level));
+		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
+			for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset) {
+				for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset) {
 					children.push_back(get_cell_from_indices(x_index + x_index_offset, y_index + y_index_offset, z_index + z_index_offset, refinement_level));
 				}
 			}
