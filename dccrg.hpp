@@ -180,12 +180,13 @@ public:
 		}
 		this->max_cell_number = id;
 
-		// create unrefined cells on process 0
+		// create unrefined cells
+		uint64_t cells_per_process = 1 + x_length * y_length * z_length / uint64_t(comm.size());
 		for (uint64_t id = 1; id <= x_length * y_length * z_length; id++) {
-			if (this->comm.rank() == 0) {
+			if (id / cells_per_process == uint64_t(comm.rank())) {
 				this->cells[id];
 			}
-			this->cell_process[id] = 0;
+			this->cell_process[id] = id / cells_per_process;
 		}
 
 		// update neighbour lists of created cells
