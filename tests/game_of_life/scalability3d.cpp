@@ -60,7 +60,6 @@ int main(int argc, char* argv[])
 
 	vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
 	vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
-	cout << "Process " << comm.rank() << ": number of cells with local neighbours: " << cells_with_local_neighbours.size() << ", number of cells with a remote neighbour: " << cells_with_remote_neighbour.size() << endl;
 
 	// initialize the game with random cells alive
 	srand(time(NULL));
@@ -96,7 +95,7 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 		comm.barrier();
 
-		if (comm.rank() == 0) {
+		if (step % 10 == 0 && comm.rank() == 0) {
 			cout << step << " ";
 			cout.flush();
 		}
@@ -158,7 +157,7 @@ int main(int argc, char* argv[])
 		}
 	}
 	after = clock();
-	total += double(after) - before;
+	total += after - before;
 	if (comm.rank() == 0) {
 		cout << endl;
 	}

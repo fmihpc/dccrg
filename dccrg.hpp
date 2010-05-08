@@ -1023,17 +1023,46 @@ public:
 				}
 			}
 
-			// update neighbour and _to lists
+			// update neighbour lists
 			for (boost::unordered_set<uint64_t>::const_iterator cell = neighbour_lists_to_update.begin(); cell != neighbour_lists_to_update.end(); cell++) {
-				if (this->cells.count(*cell) > 0 && *cell == this->get_child(*cell)) {
-					this->update_neighbours(*cell);
+
+				if (this->cells.count(*cell) == 0) {
+					continue;
+				}
+
+				if (*cell != this->get_child(*cell)) {
+					continue;
+				}
+
+				// cell was just created if parent's neighbour list still exists
+				if (this->neighbours.count(this->get_parent(*cell)) > 0) {
+					this->neighbours[*cell] = this->get_neighbours_of(*cell, &(this->neighbours[this->get_parent(*cell)]));
+				// cell's neighbourhood changed, start from its old neighbour list
+				} else {
+					this->neighbours[*cell] = this->get_neighbours_of(*cell, &(this->neighbours[*cell]));
 				}
 			}
+
+			// update neighbour_to lists
 			for (boost::unordered_set<uint64_t>::const_iterator cell = neighbour_lists_to_update.begin(); cell != neighbour_lists_to_update.end(); cell++) {
-				if (this->cells.count(*cell) > 0 && *cell == this->get_child(*cell)) {
-					this->update_neighbours_to(*cell);
+				if (this->cells.count(*cell) == 0) {
+					continue;
 				}
+
+				if (*cell != this->get_child(*cell)) {
+					continue;
+				}
+
+				// cell was just created if parent's neighbour_to list still exists
+				if (this->neighbours_to.count(this->get_parent(*cell)) > 0) {
+					this->neighbours_to[*cell] = this->get_neighbours_to(*cell, &(this->neighbours[this->get_parent(*cell)]), &(this->neighbours_to[this->get_parent(*cell)]));
+				// cell's neighbourhood changed, start from its old neighbour_to list
+				} else {
+					this->neighbours_to[*cell] = this->get_neighbours_to(*cell, &(this->neighbours[*cell]), &(this->neighbours_to[*cell]));
+				}
+				this->update_remote_neighbour_info(*cell);
 			}
+
 
 			// don't unrefine if another process has refined a small enough remote neighbour
 			for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
@@ -1445,6 +1474,78 @@ private:
 
 
 	/*
+	Returns the existing neighbours without children of given cell from the given list of cells
+	Returns nothing if the given cell has children
+	Checks also for given cells children
+	*/
+	std::vector<uint64_t> get_neighbours_of(const uint64_t cell, const std::vector<uint64_t>* cells)
+	{
+		assert(cell > 0 && cell <= this->max_cell_number);
+		assert(this->cell_process.count(cell) > 0);
+
+		std::vector<uint64_t> return_neighbours;
+
+		if (cell != this->get_child(cell)) {
+			return return_neighbours;
+		}
+
+		// possibly add given cell's peers as neighbours
+		std::vector<uint64_t> temp_peers;
+		if (cell != this->get_parent(cell)) {
+			temp_peers = this->get_all_children(this->get_parent(cell));
+		}
+
+		boost::unordered_set<uint64_t> peers;
+		peers.insert(temp_peers.begin(), temp_peers.end());
+		peers.erase(cell);
+
+		for (std::vector<uint64_t>::const_iterator neighbour_candidate = cells->begin(); neighbour_candidate != cells->end(); neighbour_candidate++) {
+
+			if (!this->is_neighbour(cell, *neighbour_candidate)) {
+				continue;
+			}
+
+			peers.erase(*neighbour_candidate);
+
+			if (*neighbour_candidate == this->get_child(*neighbour_candidate)) {
+				return_neighbours.push_back(*neighbour_candidate);
+			// check the children in case the cell's been refined
+			} else {
+				std::vector<uint64_t> children = this->get_all_children(*neighbour_candidate);
+				assert(children.size() > 0);
+				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
+					if (this->is_neighbour(cell, *child)) {
+						return_neighbours.push_back(*child);
+					}
+				}
+			}
+		}
+
+		return_neighbours.insert(return_neighbours.end(), peers.begin(), peers.end());
+
+		#ifndef NDEBUG
+		sort(return_neighbours.begin(), return_neighbours.end());
+		std::vector<uint64_t> compare_neighbours = this->get_neighbours_of(cell);
+		sort(compare_neighbours.begin(), compare_neighbours.end());
+
+		if (return_neighbours.size() != compare_neighbours.size()) {
+			std::cout << "Neighbour counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = return_neighbours.begin(); c != return_neighbours.end(); c++) {
+				std::cout << *c << " ";
+			}
+			std::cout << ") should be " << compare_neighbours.size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
+				std::cout << *c << " ";
+			}
+			std::cout << ")" << std::endl;
+		}
+		#endif
+
+		return return_neighbours;
+	}
+
+
+	/*
 	Updates the neighbours_to structure of given cell on this process without children and remote neighbour info
 	*/
 	void update_neighbours_to(const uint64_t cell)
@@ -1523,7 +1624,6 @@ private:
 		unique_neighbours_to.erase(id);
 
 		// return only cells which consider given cell as a neighbour
-		//uint64_t cell_size = this->get_cell_size_in_indices(id);
 		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours_to.begin(); neighbour != unique_neighbours_to.end(); neighbour++) {
 			if (this->is_neighbour(*neighbour, id)) {
 				return_neighbours.insert(*neighbour);
@@ -1554,6 +1654,92 @@ private:
 				assert(false);
 			}
 			assert(!(temp_neighbours2.count(id) > 0 && return_neighbours.count(*neighbour) == 0));
+		}
+		#endif
+
+		return return_neighbours;
+	}
+
+
+	/*
+	Returns the existing cells without children from the given lists that have the given cell as a neighbour
+	Returns nothing if the given cell has children
+	Doesn't update neighbour lists
+	Checks for the children of cells2 only
+	*/
+	std::vector<uint64_t> get_neighbours_to(const uint64_t cell, const std::vector<uint64_t>* cells1, const std::vector<uint64_t>* cells2)
+	{
+		assert(this->cell_process.count(cell) > 0);
+
+		std::vector<uint64_t> return_neighbours;
+
+		if (cell != this->get_child(cell)) {
+			return return_neighbours;
+		}
+
+		for (std::vector<uint64_t>::const_iterator candidate = cells1->begin(); candidate != cells1->end(); candidate++) {
+			if (this->is_neighbour(cell, *candidate)) {
+				continue;
+			}
+
+			if (!this->is_neighbour(*candidate, cell)) {
+				continue;
+			}
+
+			if (*candidate == this->get_child(*candidate)) {
+				return_neighbours.push_back(*candidate);
+			// check the children in case the cell's been refined
+			} else {
+				std::vector<uint64_t> children = this->get_all_children(*candidate);
+				assert(children.size() > 0);
+				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
+					if (this->is_neighbour(*child, cell) && !this->is_neighbour(cell, *child)) {
+						return_neighbours.push_back(*child);
+					}
+				}
+			}
+		}
+
+		for (std::vector<uint64_t>::const_iterator candidate = cells2->begin(); candidate != cells2->end(); candidate++) {
+			if (this->is_neighbour(cell, *candidate)) {
+				continue;
+			}
+
+			if (!this->is_neighbour(*candidate, cell)) {
+				continue;
+			}
+
+			if (*candidate == this->get_child(*candidate)) {
+				return_neighbours.push_back(*candidate);
+			// check the children in case the cell's been refined
+			} else {
+				std::vector<uint64_t> children = this->get_all_children(*candidate);
+				assert(children.size() > 0);
+				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
+					if (this->is_neighbour(*child, cell) && !this->is_neighbour(cell, *child)) {
+						return_neighbours.push_back(*child);
+					}
+				}
+			}
+		}
+
+		#ifndef NDEBUG
+		boost::unordered_set<uint64_t> compare_neighbours = this->get_neighbours_to(cell);
+		// remove neighbours of given cell from compare neighbours
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+			compare_neighbours.erase(*neighbour);
+		}
+
+		if (return_neighbours.size() != compare_neighbours.size()) {
+			std::cout << "Neighbours_to counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = return_neighbours.begin(); c != return_neighbours.end(); c++) {
+				std::cout << *c << " ";
+			}
+			std::cout << ") should be " << compare_neighbours.size() << " (";
+			for (boost::unordered_set<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
+				std::cout << *c << " ";
+			}
+			std::cout << ")" << std::endl;
 		}
 		#endif
 

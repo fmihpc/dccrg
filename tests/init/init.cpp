@@ -36,9 +36,9 @@ int main(int argc, char* argv[])
 
 	clock_t before = clock();
 	#define GRID_SIZE 100	// in unrefined cells
-	dccrg<Data> game_grid(comm, "RCB", 0.0, 0.0, 0.0, 1, GRID_SIZE, GRID_SIZE, GRID_SIZE, 1, 0);
+	dccrg<CellData> game_grid(comm, "RCB", 0.0, 0.0, 0.0, 1, GRID_SIZE, GRID_SIZE, GRID_SIZE, 1, 0);
 	clock_t after = clock();
-	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds" << endl;
+	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds (total grid size " << GRID_SIZE * GRID_SIZE * GRID_SIZE << ")" << endl;
 
 	if (GRID_SIZE * GRID_SIZE * GRID_SIZE > 1000) {
 		return EXIT_SUCCESS;
