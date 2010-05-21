@@ -102,14 +102,31 @@ int main(int argc, char* argv[])
 
 	// get average number of neighbours
 	double avg_neighbours = 0.0;
+	uint64_t max_neighbours = 0;
 	uint64_t number_of_cells = cells_with_local_neighbours.size() + cells_with_remote_neighbour.size();
 	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			avg_neighbours += double(neighbours->size()) / number_of_cells;
+			if (max_neighbours < neighbours->size()) {
+				max_neighbours = neighbours->size();
+				cout << "Proc " << comm.rank() << " updating max_neighbours at cell " << *cell << ": ";
+				for (vector<uint64_t>::const_iterator n = neighbours->begin(); n != neighbours->end(); n++) {
+					cout << *n << " ";
+				}
+				cout << endl;
+			}
 	}
 	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			avg_neighbours += double(neighbours->size()) / number_of_cells;
+			if (max_neighbours < neighbours->size()) {
+				max_neighbours = neighbours->size();
+				cout << "Proc " << comm.rank() << " updating max_neighbours at cell " << *cell << ": ";
+				for (vector<uint64_t>::const_iterator n = neighbours->begin(); n != neighbours->end(); n++) {
+					cout << *n << " ";
+				}
+				cout << endl;
+			}
 	}
 
 	if (comm.rank() == 0) {

@@ -1,4 +1,4 @@
-FLAGS = -O3 -W -Wall -pedantic -DNDEBUG
+FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG
 INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 

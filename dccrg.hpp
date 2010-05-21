@@ -1056,7 +1056,7 @@ public:
 				// cell was just created if parent's neighbour_to list still exists
 				if (this->neighbours_to.count(this->get_parent(*cell)) > 0) {
 					this->neighbours_to[*cell] = this->get_neighbours_to(*cell, &(this->neighbours[this->get_parent(*cell)]), &(this->neighbours_to[this->get_parent(*cell)]));
-				// cell's neighbourhood changed, start from its old neighbour_to list
+				// cell's neighbourhood changed, start from its old neighbour lists
 				} else {
 					this->neighbours_to[*cell] = this->get_neighbours_to(*cell, &(this->neighbours[*cell]), &(this->neighbours_to[*cell]));
 				}
@@ -1529,7 +1529,7 @@ private:
 		sort(compare_neighbours.begin(), compare_neighbours.end());
 
 		if (return_neighbours.size() != compare_neighbours.size()) {
-			std::cout << "Neighbour counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
+			std::cout << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
 			for (std::vector<uint64_t>::const_iterator c = return_neighbours.begin(); c != return_neighbours.end(); c++) {
 				std::cout << *c << " ";
 			}
@@ -1665,7 +1665,6 @@ private:
 	Returns the existing cells without children from the given lists that have the given cell as a neighbour
 	Returns nothing if the given cell has children
 	Doesn't update neighbour lists
-	Checks for the children of cells2 only
 	*/
 	std::vector<uint64_t> get_neighbours_to(const uint64_t cell, const std::vector<uint64_t>* cells1, const std::vector<uint64_t>* cells2)
 	{
@@ -1710,6 +1709,11 @@ private:
 			}
 
 			if (*candidate == this->get_child(*candidate)) {
+				std::cout << "Proc " << this->comm.rank() << " existing cells: ";
+				for (boost::unordered_map<uint64_t, int>::const_iterator i = this->cell_process.begin(); i != this->cell_process.end(); i++) {
+					std::cout << i->first << " ";
+				}
+				std::cout << std::endl;
 				return_neighbours.push_back(*candidate);
 			// check the children in case the cell's been refined
 			} else {
@@ -1731,7 +1735,7 @@ private:
 		}
 
 		if (return_neighbours.size() != compare_neighbours.size()) {
-			std::cout << "Neighbours_to counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
+			std::cout << "Process " << this->comm.rank() << " neighbours_to counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
 			for (std::vector<uint64_t>::const_iterator c = return_neighbours.begin(); c != return_neighbours.end(); c++) {
 				std::cout << *c << " ";
 			}

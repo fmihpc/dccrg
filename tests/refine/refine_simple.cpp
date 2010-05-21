@@ -2,6 +2,7 @@
 Tests the grid using simple refinement which should induce refinement also across processes
 */
 
+#include "algorithm"
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
@@ -52,8 +53,16 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 5
+	#define TIME_STEPS 2
 	for (int step = 0; step < TIME_STEPS; step++) {
+
+		// refine the smallest cell that is closest to the starting corner
+		//grid.update_remote_neighbour_data();
+		before = clock();
+		grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
+		vector<uint64_t> new_cells = grid.stop_refining();
+		after = clock();
+		cout << "Process " << comm.rank() <<": Refining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
 
 		grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();
@@ -104,14 +113,18 @@ int main(int argc, char* argv[])
 			outfile << *cell << endl;
 		}
 		outfile.close();
+	}
 
-		// refine the smallest cell that is closest to the starting corner
-		//grid.update_remote_neighbour_data();
-		before = clock();
-		grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
-		vector<uint64_t> new_cells = grid.stop_refining();
-		after = clock();
-		cout << "Process " << comm.rank() <<": Refining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
+	vector<uint64_t> cells = grid.get_cells();
+	for (vector<uint64_t>::const_iterator c = cells.begin(); c != cells.end(); c++) {
+		const vector<uint64_t>* neighbours = grid.get_neighbours(*c);
+		vector<uint64_t> sorted_neighbours(neighbours->begin(), neighbours->end());
+		sort(sorted_neighbours.begin(), sorted_neighbours.end());
+		cout << "Cell " << *c << " neighbours (" << sorted_neighbours.size() << "): ";
+		for (vector<uint64_t>::const_iterator n = sorted_neighbours.begin(); n != sorted_neighbours.end(); n++) {
+			cout << *n << " ";
+		}
+		cout << endl;
 	}
 
 	if (comm.rank() == 0) {

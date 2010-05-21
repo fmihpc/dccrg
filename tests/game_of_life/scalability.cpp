@@ -7,6 +7,7 @@ Tests the scalability of the grid in 2 D
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
+#include "cunistd"
 #include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
@@ -166,6 +167,36 @@ int main(int argc, char* argv[])
 
 	int number_of_cells = cells_with_local_neighbours.size() + cells_with_remote_neighbour.size();
 	cout << "Process " << comm.rank() << ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) * CLOCKS_PER_SEC / total << " cells / second"<< endl;
+
+	// print the end state of the game
+	for (int i = 0; i < comm.size(); i++) {
+		comm.barrier();
+		if (comm.rank() != i) {
+			continue;
+		}
+		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+			cout << "Cell " << *cell << " ";
+			game_of_life_cell* cell_data = game_grid[*cell];
+			if (cell_data->is_alive) {
+				cout << "is alive";
+			} else {
+				cout << "is dead";
+			}
+			cout << endl;
+		}
+		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+			cout << "Cell " << *cell << " ";
+			game_of_life_cell* cell_data = game_grid[*cell];
+			if (cell_data->is_alive) {
+				cout << "is alive";
+			} else {
+				cout << "is dead";
+			}
+			cout << endl;
+		}
+		cout.flush();
+		sleep(3);
+	}
 
 	return EXIT_SUCCESS;
 }
