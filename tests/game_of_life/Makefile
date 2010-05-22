@@ -1,8 +1,8 @@
-#FLAGS = -O0 -g -W -Wall -pedantic -fprofile-arcs -ftest-coverage
-#FLAGS = -O3 -pg -W -Wall -pedantic
-FLAGS = -O3 -W -Wall -pedantic -DNDEBUG
-#FLAGS = -O0 -g -W -Wall -pedantic
-INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
+#FLAGS = -O0 -g -W -Wall -Wextra -pedantic -fprofile-arcs -ftest-coverage
+#FLAGS = -O3 -pg -W -Wall -Wextra -pedantic
+FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG
+#FLAGS = -O0 -g -W -Wall -Wextra -pedantic
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
 all: game_of_life_test scalability scalability3d refined refined_scalability3d scalability1d

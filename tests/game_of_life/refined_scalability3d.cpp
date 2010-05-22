@@ -4,6 +4,7 @@ Tests the scalability of the grid in 3 D with refined grid
 
 #include "algorithm"
 #include "boost/mpi.hpp"
+#include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
@@ -26,6 +27,7 @@ struct game_of_life_cell {
 
 
 using namespace std;
+using namespace boost;
 using namespace boost::mpi;
 
 int main(int argc, char* argv[])
@@ -46,29 +48,23 @@ int main(int argc, char* argv[])
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
 	dccrg<game_of_life_cell> game_grid(comm, "RCB", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, GRID_SIZE, STENCIL_SIZE);
-	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
-	}
 	game_grid.balance_load();
 
 	vector<uint64_t> cells = game_grid.get_cells();
-
 	// refine random cells until every process has enough cells
 	#define MAX_CELLS (100 * GRID_SIZE * GRID_SIZE * GRID_SIZE)
-	vector<uint64_t> new_cells;
 	do {
+		cout << "Process " << comm.rank() << ", number of cells: " << cells.size() << endl;
 		random_shuffle(cells.begin(), cells.end());
 
 		// refine a fraction of all cells each round
-		for (int i = 0; i < int(cells.size() / 15); i++) {
+		for (int i = 0; i < int(cells.size() / 15) && i < 10000; i++) {
 			game_grid.refine_completely(cells[i]);
 		}
-		new_cells = game_grid.stop_refining();
-		cells.insert(cells.end(), new_cells.begin(), new_cells.end());
-		new_cells.clear();
+		game_grid.stop_refining();
+		cells = game_grid.get_cells();
 	} while (all_reduce(comm, int(cells.size()), plus<int>()) < MAX_CELLS);
 	game_grid.balance_load();
-
 
 	vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
 	vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
@@ -100,33 +96,72 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	// get average number of neighbours
+	// get some statistics
+	unordered_map<int, int> neighbour_count_histogram;
+	for (int i = 0; i < 8 * (9 + 8 + 9); i++) {
+		neighbour_count_histogram[i] = 0;
+	}
 	double avg_neighbours = 0.0;
-	uint64_t max_neighbours = 0;
+	int max_neighbours = 0, min_neighbours = 999;
 	uint64_t number_of_cells = cells_with_local_neighbours.size() + cells_with_remote_neighbour.size();
+
 	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			avg_neighbours += double(neighbours->size()) / number_of_cells;
-			if (max_neighbours < neighbours->size()) {
-				max_neighbours = neighbours->size();
-				cout << "Proc " << comm.rank() << " updating max_neighbours at cell " << *cell << ": ";
-				for (vector<uint64_t>::const_iterator n = neighbours->begin(); n != neighbours->end(); n++) {
-					cout << *n << " ";
-				}
-				cout << endl;
-			}
+
+		const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
+		avg_neighbours += double(neighbours->size()) / number_of_cells;
+
+		if (max_neighbours < int(neighbours->size())) {
+			max_neighbours = neighbours->size();
+		}
+
+		if (min_neighbours > int(neighbours->size())) {
+			min_neighbours = neighbours->size();
+		}
+
+		if (neighbours->size() >= 7 && neighbours->size() <= 8 * (9 + 8 + 9)) {
+			neighbour_count_histogram[neighbours->size()] += 1;
+		} else {
+			cout << "Impossible number of neighbours for cell " << *cell << ": " << neighbours->size() << endl;
+		}
 	}
 	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			avg_neighbours += double(neighbours->size()) / number_of_cells;
-			if (max_neighbours < neighbours->size()) {
-				max_neighbours = neighbours->size();
-				cout << "Proc " << comm.rank() << " updating max_neighbours at cell " << *cell << ": ";
-				for (vector<uint64_t>::const_iterator n = neighbours->begin(); n != neighbours->end(); n++) {
-					cout << *n << " ";
-				}
-				cout << endl;
-			}
+
+		const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
+		avg_neighbours += double(neighbours->size()) / number_of_cells;
+
+		if (max_neighbours < int(neighbours->size())) {
+			max_neighbours = neighbours->size();
+		}
+
+		if (min_neighbours > int(neighbours->size())) {
+			min_neighbours = neighbours->size();
+		}
+
+		if (neighbours->size() >= 7 && neighbours->size() <= 8 * (9 + 8 + 9)) {
+			neighbour_count_histogram[neighbours->size()] += 1;
+		} else {
+			cout << "Impossible number of neighbours for cell " << *cell << ": " << neighbours->size() << endl;
+		}
+	}
+
+	// print statistics
+	int total_max_neighbours = all_reduce(comm, max_neighbours, plus<int>());
+	int total_min_neighbours = all_reduce(comm, min_neighbours, plus<int>());
+	double total_avg_neighbours = all_reduce(comm, avg_neighbours, plus<double>());
+
+	for (int i = 0; i <= 8 * (9 + 8 + 9); i++) {
+		int total = all_reduce(comm, neighbour_count_histogram[i], plus<int>());
+		neighbour_count_histogram[i] = total;
+	}
+
+	if (comm.rank() == 0) {
+		cout << "Max neighbours: " << total_max_neighbours << endl;
+		cout << "Min neighbours: " << total_min_neighbours << endl;
+		cout << "Avg. neighbours: " << total_avg_neighbours << endl;
+		cout << "Neighbour count histogram: (neighbours, count)" << endl;
+		for (int i = 0; i <= 8 * (9 + 8 + 9); i++) {
+			cout << i << " " << neighbour_count_histogram[i] << endl;
+		}
 	}
 
 	if (comm.rank() == 0) {
@@ -135,6 +170,7 @@ int main(int argc, char* argv[])
 
 	#define TIME_STEPS 100
 	before = clock();
+	uint64_t processed_neighbours = 0;
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		if (comm.rank() == 0) {
@@ -150,7 +186,7 @@ int main(int argc, char* argv[])
 			cell_data->live_neighbour_count = 0;
 
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++, processed_neighbours++) {
 
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data->is_alive) {
@@ -167,7 +203,7 @@ int main(int argc, char* argv[])
 			cell_data->live_neighbour_count = 0;
 
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++, processed_neighbours++) {
 
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data->is_alive) {
@@ -204,7 +240,7 @@ int main(int argc, char* argv[])
 		cout << endl;
 	}
 	comm.barrier();
-
+	cout << "processed neighbours: " << processed_neighbours << endl;
 	cout << "Process " << comm.rank() << ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) * CLOCKS_PER_SEC / total << " cells / second"<< endl;
 
 	return EXIT_SUCCESS;

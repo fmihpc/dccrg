@@ -1,6 +1,6 @@
-#FLAGS = -O3 -W -Wall -pedantic -DNDEBUG
-FLAGS = -O0 -g -W -Wall -pedantic
-INCLUDES = -I. -I$$HOME/include -L. -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
+#FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG
+FLAGS = -O0 -g -W -Wall -Wextra -pedantic
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
 all: refine_simple unrefine_simple scalability

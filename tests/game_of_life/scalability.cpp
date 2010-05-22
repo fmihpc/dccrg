@@ -7,10 +7,10 @@ Tests the scalability of the grid in 2 D
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
-#include "cunistd"
 #include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
+#include "unistd.h"
 #include "zoltan.h"
 
 
@@ -43,7 +43,6 @@ int main(int argc, char* argv[])
 	if (comm.rank() == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
-
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 1000	// in unrefined cells

@@ -9,6 +9,7 @@ Tests the grid using simple refinement which should induce refinement also acros
 #include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
+#include "unistd.h"
 #include "zoltan.h"
 
 
@@ -19,8 +20,6 @@ int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
 	communicator comm;
-
-	clock_t before, after;
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -37,10 +36,6 @@ int main(int argc, char* argv[])
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	#define STENCIL_SIZE 1
 	dccrg<int> grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, 1, 1, STENCIL_SIZE);
-	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << grid.get_max_refinement_level() << endl;
-		cout << "Number of cells: " << GRID_SIZE << endl << endl;
-	}
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
@@ -53,17 +48,12 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 2
+	#define TIME_STEPS 3
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		// refine the smallest cell that is closest to the starting corner
-		//grid.update_remote_neighbour_data();
-		before = clock();
 		grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
-		vector<uint64_t> new_cells = grid.stop_refining();
-		after = clock();
-		cout << "Process " << comm.rank() <<": Refining took " << double(after - before) / CLOCKS_PER_SEC / new_cells.size() << " seconds / new cell on this process" << endl;
-
+		grid.stop_refining();
 		grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
@@ -116,15 +106,23 @@ int main(int argc, char* argv[])
 	}
 
 	vector<uint64_t> cells = grid.get_cells();
-	for (vector<uint64_t>::const_iterator c = cells.begin(); c != cells.end(); c++) {
-		const vector<uint64_t>* neighbours = grid.get_neighbours(*c);
-		vector<uint64_t> sorted_neighbours(neighbours->begin(), neighbours->end());
-		sort(sorted_neighbours.begin(), sorted_neighbours.end());
-		cout << "Cell " << *c << " neighbours (" << sorted_neighbours.size() << "): ";
-		for (vector<uint64_t>::const_iterator n = sorted_neighbours.begin(); n != sorted_neighbours.end(); n++) {
-			cout << *n << " ";
+	for (int i = 0; i < comm.size(); i++) {
+		comm.barrier();
+		if (i != comm.rank()) {
+			continue;
 		}
-		cout << endl;
+		for (vector<uint64_t>::const_iterator c = cells.begin(); c != cells.end(); c++) {
+			const vector<uint64_t>* neighbours = grid.get_neighbours(*c);
+			vector<uint64_t> sorted_neighbours(neighbours->begin(), neighbours->end());
+			sort(sorted_neighbours.begin(), sorted_neighbours.end());
+			cout << "Cell " << *c << " neighbours (" << sorted_neighbours.size() << "): ";
+			for (vector<uint64_t>::const_iterator n = sorted_neighbours.begin(); n != sorted_neighbours.end(); n++) {
+				cout << *n << " ";
+			}
+			cout << endl;
+		}
+		cout.flush();
+		sleep(3);
 	}
 
 	if (comm.rank() == 0) {
