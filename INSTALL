@@ -3,12 +3,14 @@ just putting the dccrg.hpp file somewhere where your compiler can find it.
 
 When compiling your program the Zoltan library and boost serialization
 and mpi libraries must be included into the compilation command, for example
-with: -lboost_mpi-mt -lboost_serialization-mt -lzoltan
+with: -lboost_mpi -lboost_serialization -lzoltan
 See the Makefile in the examples directory for an example.
 
-Naturally OpenMPI, Zoltan and boost serialization and mpi libraries must
-be installed, refer to their websites (or your distributions documentation)
-for installation instructions:
+Naturally (Open or some other) MPI, Zoltan, boost serialization and
+mpi libraries must be installed. If this:
+http://dccrg.berlios.de/installation.html
+website doesn't help, refer to the libraries' websites (or your
+distributions documentation) for installation instructions:
 www.open-mpi.org
 www.cs.sandia.gov/Zoltan/
 www.boost.org
