@@ -1234,6 +1234,33 @@ public:
 	}
 
 
+	/*
+	Given a cell that exists and has a parent returns the parent cell
+	Returns the given cell if it doesn't have a parent or 0 if the cell doesn't exist
+	*/
+	uint64_t get_parent(const uint64_t cell)
+	{
+		assert(cell <= this->max_cell_number);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+
+		if (this->cell_process.count(cell) == 0) {
+			return 0;
+		}
+
+		// given cell cannot have a parent
+		if (this->get_refinement_level(cell) == 0) {
+			return cell;
+		}
+
+		uint64_t parent = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), this->get_refinement_level(cell) - 1);
+		if (this->cell_process.count(parent) > 0) {
+			return parent;
+		} else {
+			return cell;
+		}
+	}
+
+
 
 private:
 
@@ -1954,33 +1981,6 @@ private:
 		uint64_t child = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), this->get_refinement_level(cell) + 1);
 		if (this->cell_process.count(child) > 0) {
 			return child;
-		} else {
-			return cell;
-		}
-	}
-
-
-	/*
-	Given a cell that exists and has a parent returns the parent cell
-	Returns the given cell if it doesn't have a parent or 0 if the cell doesn't exist
-	*/
-	uint64_t get_parent(const uint64_t cell)
-	{
-		assert(cell <= this->max_cell_number);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
-
-		if (this->cell_process.count(cell) == 0) {
-			return 0;
-		}
-
-		// given cell cannot have a parent
-		if (this->get_refinement_level(cell) == 0) {
-			return cell;
-		}
-
-		uint64_t parent = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), this->get_refinement_level(cell) - 1);
-		if (this->cell_process.count(parent) > 0) {
-			return parent;
 		} else {
 			return cell;
 		}
