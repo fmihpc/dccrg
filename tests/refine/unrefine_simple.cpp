@@ -53,14 +53,13 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 8
-	grid.balance_load();
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		if (comm.rank() == 0) {
 			cout << "step " << step << endl;
 		}
 
-		//grid.balance_load();
+		grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
 
@@ -112,7 +111,7 @@ int main(int argc, char* argv[])
 
 		before = clock();
 
-		// refine the smallest cell that is closest to the starting corner
+		// refine / unrefine the smallest cell that is closest to the grid starting corner
 		if (step < 4) {
 			/*// unrefine all cells in the grid
 			for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
@@ -121,15 +120,13 @@ int main(int argc, char* argv[])
 			cout << "unrefined 1" << endl;*/
 
 			grid.refine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE);
-			cout << "refined 1" << endl;
 
 			/*for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 				grid.unrefine_completely(*cell);
 			}
 			cout << "unrefined 2" << endl;*/
 		} else {
-			grid.unrefine_completely_at(GRID_SIZE * CELL_SIZE - 0.0001 * CELL_SIZE, 0.999 * CELL_SIZE, 0.999 * CELL_SIZE);
-			cout << "unrefined 1" << endl;
+			grid.unrefine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE);
 		}
 
 		vector<uint64_t> new_cells = grid.stop_refining();
