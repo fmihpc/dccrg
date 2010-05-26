@@ -19,9 +19,7 @@ struct CellData {
 	vector<double> variables;
 
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		for (int i = 0; i < int(variables.size()); i++) {
-			ar & variables[i];
-		}
+		ar & variables;
 	}
 };
 
