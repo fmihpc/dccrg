@@ -95,18 +95,15 @@ public:
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
 		// no object weights
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "0");
-		Zoltan_Set_Param(this->zoltan, "AUTO_MIGRATE", "1");
 		// try to minimize moving of data between processes
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
-		// RTFM...
-		Zoltan_Set_Param(this->zoltan, "MIGRATE_ONLY_PROC_CHANGES", "1");
+		// when load balancing return only cells whose process changed
+		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
 
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
 		Zoltan_Set_Obj_List_Fn(this->zoltan, &dccrg<UserData>::get_cell_list, this);
 		Zoltan_Set_Obj_Size_Fn(this->zoltan, &dccrg<UserData>::user_data_size, NULL);
-		Zoltan_Set_Pack_Obj_Fn(this->zoltan, &dccrg<UserData>::pack_user_data, this);
-		Zoltan_Set_Unpack_Obj_Fn(this->zoltan, &dccrg<UserData>::unpack_user_data, this);
 		Zoltan_Set_Num_Geom_Fn(this->zoltan, &dccrg<UserData>::get_grid_dimensionality, NULL);
 		Zoltan_Set_Geom_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
 
@@ -335,6 +332,115 @@ public:
 				exit(EXIT_FAILURE);
 			}
 		}
+
+		if (partition_changed == 0) {
+			return;
+		}
+
+		// TODO: move identical code from here and start_neighbour_data_update into a separate function
+
+		// processes and the cells for which data has to be received by this process
+		for (int i = 0; i < number_to_receive; i++) {
+			assert(this->cell_process[global_ids_to_receive[i]] == sender_processes[i]);
+
+			this->cells_to_receive[sender_processes[i]].insert(global_ids_to_receive[i]);
+			this->added_cells.insert(global_ids_to_receive[i]);
+		}
+
+		// post all receives
+		for (int sender = 0; sender < this->comm.size(); sender++) {
+
+			// Zoltan returns cell migration info also for cells that don't chage their process
+			if (sender == this->comm.rank()) {
+				continue;
+			}
+
+			if (cells_to_receive.count(sender) == 0) {
+				continue;
+			}
+
+			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
+
+			this->requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+		}
+
+		// processes and the cells for which data has to be sent by this process
+		boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_send;
+		for (int i = 0; i < number_to_send; i++) {
+			if (this->cell_process[global_ids_to_send[i]] != this->comm.rank()) {
+				std::cout << "Process " << this->comm.rank() << ", shold send cell " << global_ids_to_send[i] << " but that cell is currently on process " << this->cell_process[global_ids_to_send[i]] << std::endl;
+			}
+			assert(this->cell_process[global_ids_to_send[i]] == this->comm.rank());
+			assert(this->cells.count(global_ids_to_send[i]) > 0);
+
+			cells_to_send[receiver_processes[i]].insert(global_ids_to_send[i]);
+			this->removed_cells.insert(global_ids_to_send[i]);
+		}
+
+		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
+
+		// gather data to send
+		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
+
+			// Zoltan returns cell migration info also for cells that don't chage their process
+			if (receiver == this->comm.rank()) {
+				continue;
+			}
+
+			if (cells_to_send.count(receiver) == 0) {
+				continue;
+			}
+
+			// send and receive cell data in an order known in advance
+			std::vector<uint64_t> current_cells_to_send(cells_to_send[receiver].begin(), cells_to_send[receiver].end());
+			sort(current_cells_to_send.begin(), current_cells_to_send.end());
+
+			// construct the outgoing data vector
+			for (std::vector<uint64_t>::const_iterator cell = current_cells_to_send.begin(); cell != current_cells_to_send.end(); cell++) {
+				UserData* user_data = (*this)[*cell];
+				assert(user_data != NULL);
+				this->outgoing_data[receiver].push_back(*user_data);
+				this->cells.erase(*cell);
+				this->cells_with_remote_neighbours.erase(*cell);
+			}
+			assert(this->outgoing_data[receiver].size() == current_cells_to_send.size());
+		}
+
+		// post all sends
+		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
+
+			if (receiver == this->comm.rank()) {
+				continue;
+			}
+
+			if (cells_to_send.count(receiver) == 0) {
+				// no data to send / receive
+				continue;
+			}
+
+			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
+
+			this->requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+		}
+
+		// incorporate received data
+		boost::mpi::wait_all(this->requests.begin(), this->requests.end());
+		this->outgoing_data.clear();
+		this->requests.clear();
+
+		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
+
+			std::vector<uint64_t> current_cells_to_receive(this->cells_to_receive[sender->first].begin(), this->cells_to_receive[sender->first].end());
+			sort(current_cells_to_receive.begin(), current_cells_to_receive.end());
+			assert(this->incoming_data[sender->first].size() == current_cells_to_receive.size());
+
+			int i = 0;
+			for (std::vector<uint64_t>::const_iterator cell = current_cells_to_receive.begin(); cell != current_cells_to_receive.end(); cell++, i++) {
+				this->cells[*cell] = this->incoming_data[sender->first][i];
+			}
+		}
+		this->cells_to_receive.clear();
+		this->incoming_data.clear();
 
 		/*
 		Calculate where cells have migrated to update internal data structures
@@ -582,7 +688,7 @@ public:
 		this->requests.clear();
 
 		// incorporate received data
-		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = incoming_data.begin(); sender != incoming_data.end(); sender++) {
+		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
 
 			std::vector<uint64_t> current_cells_to_receive(this->cells_to_receive[sender->first].begin(), this->cells_to_receive[sender->first].end());
 			sort(current_cells_to_receive.begin(), current_cells_to_receive.end());
@@ -1320,7 +1426,7 @@ private:
 	// processes and their cells whose data has to be sent to this process during neighbour data updates
 	boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_receive;
 
-	// storage for user cell data that awaits transfer to or from this process
+	// storage for cells' user data that awaits transfer to or from this process
 	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
 
 
@@ -2242,59 +2348,6 @@ private:
 		geom_vec[0] = dccrg_instance->get_cell_x(cell);
 		geom_vec[1] = dccrg_instance->get_cell_y(cell);
 		geom_vec[2] = dccrg_instance->get_cell_z(cell);
-	}
-
-
-	/*
-	Copies the data of given cell (global_id) to a buffer created by Zoltan
-	*/
-	static void pack_user_data(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_id, ZOLTAN_ID_PTR /*local_id*/, int /*destination_part*/, int /*buffer_size*/, char* buffer, int* error)
-	{
-		uint64_t cell = uint64_t(*global_id);
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
-
-		if (dccrg_instance->cells.count(cell) == 0) {
-			*error = ZOLTAN_FATAL;
-			std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted to pack a non-existing cell " << cell << std::endl;
-			return;
-		} else {
-			*error = ZOLTAN_OK;
-		}
-
-		UserData* user_data = &(dccrg_instance->cells[cell]);
-		memcpy(buffer, user_data, sizeof(UserData));
-
-		// remove the cell from this process' data structures
-		dccrg_instance->cells.erase(cell);
-		dccrg_instance->cells_with_remote_neighbours.erase(cell);
-
-		// tell also others that the cell doesn't exist on this process anymore
-		dccrg_instance->removed_cells.insert(cell);
-	}
-
-
-	/*
-	Copies the data of given cell (global_id) from a buffer created by Zoltan
-	*/
-	static void unpack_user_data(void* data, int /*global_id_size*/, ZOLTAN_ID_PTR global_id, int /*buffer_size*/, char* buffer, int* error)
-	{
-		uint64_t cell = uint64_t(*global_id);
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
-
-		if (dccrg_instance->get_refinement_level(cell) < 0 || dccrg_instance->get_refinement_level(cell) > dccrg_instance->max_refinement_level) {
-			*error = ZOLTAN_FATAL;
-			std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan gave a non-existing cell " << cell << " for unpacking" << std::endl;
-			return;
-		} else {
-			*error = ZOLTAN_OK;
-		}
-
-		// add the cell to this process
-		dccrg_instance->cells[cell];
-		memcpy(&(dccrg_instance->cells[cell]), buffer, sizeof(UserData));
-
-		// record that the cell exist now on this process
-		dccrg_instance->added_cells.insert(cell);
 	}
 
 
