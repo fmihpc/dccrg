@@ -1,5 +1,5 @@
 /*
-Tests the grid with some simple game of life patters
+Tests the scalability of initializing the grid
 */
 
 #include "boost/mpi.hpp"
