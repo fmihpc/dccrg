@@ -51,10 +51,9 @@ public:
 		The method that Zoltan will use for load balancing given as a string
 		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB and HSFC
 
-	x_start, y_start, z_start: the starting corner of the grid
-	cell_size: the size of each unrefined cell in every direction
-
-	x_length, y_length, z_length: the number of cells in the grid in x, y and z direction
+	x, y and z_coordinates:
+		The coordinates of unrefined cells in the respective direction
+		First coordinate is the starting point of the grid, following ith value is the endpoint of the ith unrefined cell
 
 	neighbourhood_size:
 		Determines which cells are considered neighbours.
@@ -66,7 +65,7 @@ public:
 		The maximum number of times an unrefined cell can be refined (replacing it with 8 smaller cells)
 		Optional: if not given it is maximized based on the grids initial size
 	 */
-	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_size, const unsigned int x_length, const unsigned int y_length, const unsigned int z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
 	{
 		this->comm = comm;
 
@@ -108,7 +107,29 @@ public:
 		Zoltan_Set_Geom_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
 
 
-		// Set grid parameters
+		/*
+		Set grid parameters
+		*/
+
+		// cell coordinates
+		if (x_coordinates.size() < 2) {
+			std::cerr << "At least two coordinates are required for grid cells in the x direction" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		if (y_coordinates.size() < 2) {
+			std::cerr << "At least two coordinates are required for grid cells in the y direction" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		if (z_coordinates.size() < 2) {
+			std::cerr << "At least two coordinates are required for grid cells in the z direction" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		for (int i = 0; i < x_coordinates.size() - 1; i++) {
+			if (x_coordinates[i] >= x_coordinates[i + 1]) {
+				std::cerr << "Coordinates in the x direction must be strictly increasing" << std::endl;
+			}
+		}
+
 		this->x_start = x_start;
 		this->y_start = y_start;
 		this->z_start = z_start;
@@ -778,8 +799,16 @@ public:
 	}
 
 
-	// Returns the length of given cell regardless of whether it exists
-	double get_cell_size(const uint64_t cell)
+	// The following return the length of given cell in x, y or z direction regardless of whether it exists
+	double get_cell_x_size(const uint64_t cell)
+	{
+		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+	}
+	double get_cell_y_size(const uint64_t cell)
+	{
+		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+	}
+	double get_cell_z_size(const uint64_t cell)
 	{
 		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
 	}
@@ -1367,10 +1396,11 @@ public:
 
 private:
 
-	// starting corner coordinate of the grid
-	double x_start, y_start, z_start;
-	// length of unrefined cells in all directions
-	double cell_size;
+	/*
+	The coordinates of unrefined cells in respective directions
+	First value is the starting point of the grid, following ith value is the end point of the ith unrefined cell
+	*/
+	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
 	// size of the grid in unrefined cells
 	uint64_t x_length, y_length, z_length;
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
@@ -1431,71 +1461,12 @@ private:
 
 
 	/*
-	Unrefines local cells whose unrefining is induced by unrefining given cell
-	Doesn't override unrefines with refines
-	In contrast to refine_* functions, removes cells directly from cell to process mappings
+	The following return the size of the initial (e.g. unrefined) cell at given cells location in x, y or z direction
 	*/
-	void unrefine_completely_internal(const uint64_t cell)
+	double get_unrefined_cell_x_size(const uint64_t cell)
 	{
-
-		assert(this->cell_process.count(cell) > 0);
-		assert(this->get_refinement_level(cell) > 0);
-		assert(cell == this->get_child(cell));
-
-		std::vector<uint64_t> children = this->get_all_children(cell);
-
-		// don't unrefine the same cell again
-		if (this->removed_cells.count(cell) > 0) {
-			return;
-		}
-
-		// don't unrefine if any neighbour of given cell's parent is small enough and has been refined
-		boost::unordered_set<uint64_t> parents_neighbours = this->get_neighbours_of_parent(cell);
-		for (boost::unordered_set<uint64_t>::const_iterator parents_neighbour = parents_neighbours.begin(); parents_neighbour != parents_neighbours.end(); parents_neighbour++) {
-
-			// neighbour is large enough even if its being refined
-			if (this->get_refinement_level(*parents_neighbour) < this->get_refinement_level(cell)) {
-				continue;
-			}
-
-			std::vector<uint64_t> neighbours_children = this->get_all_children(*parents_neighbour);
-			if (neighbours_children.size() > 0 && this->added_cells.count(neighbours_children[0]) > 0) {
-				return;
-			}
-		}
-
-		this->removed_cells.insert(cell);
-
-		if (this->cells.count(cell) > 0) {
-			std::vector<uint64_t> peers = this->get_all_children(this->get_parent(cell));
-			this->removed_cells.insert(peers.begin(), peers.end());
-			std::cout << "Process " << this->comm.rank() << " unrefining cell " << cell << ", induced unrefines of cells: ";
-		}
-
-		// unrefine
-		for (boost::unordered_set<uint64_t>::const_iterator parents_neighbour = parents_neighbours.begin(); parents_neighbour != parents_neighbours.end(); parents_neighbour++) {
-
-			// not remote cells
-			if (this->cells.count(*parents_neighbour) == 0) {
-				continue;
-			}
-
-			if (this->get_refinement_level(*parents_neighbour) > this->get_refinement_level(cell)) {
-				this->removed_cells.insert(*parents_neighbour);
-				std::cout << *parents_neighbour << " ";
-			}
-
-			// induced unrefinement, unrefine also neighbours' parents until they are large enough
-			uint64_t current_parent = this->get_parent(*parents_neighbour);
-			while (this->get_refinement_level(current_parent) > this->get_refinement_level(cell)) {
-				if (this->cells.count(current_parent) > 0) {
-					this->removed_cells.insert(current_parent);
-					std::cout << current_parent << " ";
-				}
-				current_parent = this->get_parent(current_parent);
-			}
-		}
-		std::cout << std::endl;
+		uint64_t x_index = this->get_x_index(cell), y_index = this->get_y_index(cell), z_index = this->get_z_index(cell);
+		uint64_t unrefined_cell = this->get_cell_from_indices(x_index, y_index, z_index, 0);
 	}
 
 
