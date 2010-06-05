@@ -44,15 +44,20 @@ int main(int argc, char* argv[])
 	}
 
 
-	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 100
 	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+		y_coordinates.push_back(i * CELL_SIZE);
+		z_coordinates.push_back(i * CELL_SIZE);
+	}
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, GRID_SIZE, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
-		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * GRID_SIZE << endl << endl;
+		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 
 	game_grid.balance_load();

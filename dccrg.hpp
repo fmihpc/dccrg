@@ -124,39 +124,35 @@ public:
 			std::cerr << "At least two coordinates are required for grid cells in the z direction" << std::endl;
 			exit(EXIT_FAILURE);
 		}
-		for (int i = 0; i < x_coordinates.size() - 1; i++) {
+		for (uint64_t i = 0; i < x_coordinates.size() - 1; i++) {
 			if (x_coordinates[i] >= x_coordinates[i + 1]) {
 				std::cerr << "Coordinates in the x direction must be strictly increasing" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+		for (uint64_t i = 0; i < y_coordinates.size() - 1; i++) {
+			if (y_coordinates[i] >= y_coordinates[i + 1]) {
+				std::cerr << "Coordinates in the y direction must be strictly increasing" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+		for (uint64_t i = 0; i < z_coordinates.size() - 1; i++) {
+			if (z_coordinates[i] >= z_coordinates[i + 1]) {
+				std::cerr << "Coordinates in the z direction must be strictly increasing" << std::endl;
+				exit(EXIT_FAILURE);
 			}
 		}
 
-		this->x_start = x_start;
-		this->y_start = y_start;
-		this->z_start = z_start;
+		this->x_coordinates.reserve(x_coordinates.size());
+		this->x_coordinates.insert(this->x_coordinates.begin(), x_coordinates.begin(), x_coordinates.end());
+		this->y_coordinates.reserve(y_coordinates.size());
+		this->y_coordinates.insert(this->y_coordinates.begin(), y_coordinates.begin(), y_coordinates.end());
+		this->z_coordinates.reserve(z_coordinates.size());
+		this->z_coordinates.insert(this->z_coordinates.begin(), z_coordinates.begin(), z_coordinates.end());
 
-		if (cell_size <= 0) {
-			std::cerr << "Cell size must be > 0" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		this->cell_size = cell_size;
-
-		if (x_length == 0) {
-			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		this->x_length = x_length;
-
-		if (y_length == 0) {
-			std::cerr << "Length of the grid in cells must be > 0 in the y direction" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		this->y_length = y_length;
-
-		if (z_length == 0) {
-			std::cerr << "Length of the grid in cells must be > 0 in the z direction" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		this->z_length = z_length;
+		this->x_length = this->x_coordinates.size() - 1;
+		this->y_length = this->y_coordinates.size() - 1;
+		this->z_length = this->z_coordinates.size() - 1;
 
 		if (neighbourhood_size == 0) {
 			std::cerr << "Neighbour stencil size has to be > 0" << std::endl;
@@ -726,7 +722,9 @@ public:
 
 
 	/*
-	Returns a pointer to the neighbours (some of which might be on another process) of given cell
+	Returns a pointer to the neighbours of given cell
+	Some neighbours might be on another process, but have a copy of their data on this process
+	The local copy of remote neighbours' data is updated, for example, by calling update_remote_neighbour_data()
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
 	const std::vector<uint64_t>* get_neighbours(const uint64_t cell)
@@ -784,41 +782,82 @@ public:
 	}
 
 
-	// The following return the x, y or z coordinate of given cell regardless of whether it exists
+	/*
+	The following return the x, y or z coordinate of the center of given cell regardless of whether it exists or has children
+	*/
 	double get_cell_x(const uint64_t cell)
 	{
-		return this->x_start + this->get_x_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_size(cell) / 2;
+		uint64_t cell_x_index = this->get_x_index(cell);
+
+		uint64_t unrefined_cell = this->get_cell_from_indices(cell_x_index, this->get_y_index(cell), this->get_z_index(cell), 0);
+		uint64_t unref_cell_x_index = this->get_x_index(unrefined_cell);
+
+		double x_size_of_index = this->get_cell_x_size(unrefined_cell) / this->get_cell_size_in_indices(unrefined_cell);
+
+		uint64_t x_coord_start_index = this->get_unref_cell_x_coord_start_index(unrefined_cell);
+
+		return this->x_coordinates[x_coord_start_index] + x_size_of_index * (cell_x_index - unref_cell_x_index) + 0.5 * x_size_of_index * this->get_cell_size_in_indices(cell);
 	}
 	double get_cell_y(const uint64_t cell)
 	{
-		return this->y_start + this->get_y_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_size(cell) / 2;
+		uint64_t cell_y_index = this->get_y_index(cell);
+
+		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), cell_y_index, this->get_z_index(cell), 0);
+		uint64_t unref_cell_y_index = this->get_y_index(unrefined_cell);
+
+		double y_size_of_index = this->get_cell_y_size(unrefined_cell) / this->get_cell_size_in_indices(unrefined_cell);
+
+		uint64_t y_coord_start_index = this->get_unref_cell_y_coord_start_index(unrefined_cell);
+
+		return this->y_coordinates[y_coord_start_index] + y_size_of_index * (cell_y_index - unref_cell_y_index) + 0.5 * y_size_of_index * this->get_cell_size_in_indices(cell);
 	}
 	double get_cell_z(const uint64_t cell)
 	{
-		return this->z_start + this->get_z_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_size(cell) / 2;
+		uint64_t cell_z_index = this->get_z_index(cell);
+
+		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), cell_z_index, 0);
+		uint64_t unref_cell_z_index = this->get_z_index(unrefined_cell);
+
+		double z_size_of_index = this->get_cell_z_size(unrefined_cell) / this->get_cell_size_in_indices(unrefined_cell);
+
+		uint64_t z_coord_start_index = this->get_unref_cell_z_coord_start_index(unrefined_cell);
+
+		return this->z_coordinates[z_coord_start_index] + z_size_of_index * (cell_z_index - unref_cell_z_index) + 0.5 * z_size_of_index * this->get_cell_size_in_indices(cell);
 	}
 
 
-	// The following return the length of given cell in x, y or z direction regardless of whether it exists
+	/*
+	The following return the length of given cell in x, y or z direction regardless of whether it exists or has children
+	*/
 	double get_cell_x_size(const uint64_t cell)
 	{
-		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
+		uint64_t x_coord_start_index = this->get_unref_cell_x_coord_start_index(unrefined_cell);
+		return (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
 	}
 	double get_cell_y_size(const uint64_t cell)
 	{
-		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
+		uint64_t y_coord_start_index = this->get_unref_cell_y_coord_start_index(unrefined_cell);
+		return (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
 	}
 	double get_cell_z_size(const uint64_t cell)
 	{
-		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
+		uint64_t z_coord_start_index = this->get_unref_cell_z_coord_start_index(unrefined_cell);
+		return (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 
-	// Returns the refinement level of given cell, even if it doesn't exist
+	/*
+	Returns the refinement level of given cell, even if it doesn't exist
+	Returns -1 if cell == 0 or cell would exceed maximum refinement level
+	*/
 	int get_refinement_level(uint64_t id)
 	{
-		assert(id > 0);
-		assert(id <= this->max_cell_number);
+		if (id == 0 || id > this->max_cell_number) {
+			return -1;
+		}
 
 		int refinement_level;
 		for (refinement_level = 0; refinement_level < this->max_refinement_level; refinement_level++) {
@@ -859,9 +898,9 @@ public:
 
 			double x = get_cell_x(leaf_cells[i]), y = get_cell_y(leaf_cells[i]), z = get_cell_z(leaf_cells[i]);
 			// make the cells a little smaller than in theory so that the data at every face is well defined and VisIt plots it correctly
-			for (double z_offset = -get_cell_size(leaf_cells[i]) / 2; z_offset < get_cell_size(leaf_cells[i]); z_offset += get_cell_size(leaf_cells[i])) {
-				for (double y_offset = -get_cell_size(leaf_cells[i]) / 2; y_offset < get_cell_size(leaf_cells[i]); y_offset += get_cell_size(leaf_cells[i])) {
-					for (double x_offset = -get_cell_size(leaf_cells[i]) / 2; x_offset < get_cell_size(leaf_cells[i]); x_offset += get_cell_size(leaf_cells[i])) {
+			for (double z_offset = -get_cell_z_size(leaf_cells[i]) / 2; z_offset < get_cell_z_size(leaf_cells[i]); z_offset += get_cell_z_size(leaf_cells[i])) {
+				for (double y_offset = -get_cell_y_size(leaf_cells[i]) / 2; y_offset < get_cell_y_size(leaf_cells[i]); y_offset += get_cell_y_size(leaf_cells[i])) {
+					for (double x_offset = -get_cell_x_size(leaf_cells[i]) / 2; x_offset < get_cell_x_size(leaf_cells[i]); x_offset += get_cell_x_size(leaf_cells[i])) {
 						outfile << x + x_offset << " " << y + y_offset << " " << z + z_offset << std::endl;
 					}
 				}
@@ -886,7 +925,7 @@ public:
 
 		if (!outfile.good()) {
 			std::cerr << "Writing of vtk file probably failed" << std::endl;
-			exit(1);
+			exit(EXIT_FAILURE);
 		}
 
 		outfile.close();
@@ -1461,12 +1500,22 @@ private:
 
 
 	/*
-	The following return the size of the initial (e.g. unrefined) cell at given cells location in x, y or z direction
+	These return the index of the starting coordinate in the coordinates vector of the given unrefined cell in the x, y and z direction respectively
 	*/
-	double get_unrefined_cell_x_size(const uint64_t cell)
+	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell)
 	{
-		uint64_t x_index = this->get_x_index(cell), y_index = this->get_y_index(cell), z_index = this->get_z_index(cell);
-		uint64_t unrefined_cell = this->get_cell_from_indices(x_index, y_index, z_index, 0);
+		assert(this->get_refinement_level(cell) == 0);
+		return ((cell - 1) % (this->x_length * this->y_length)) % this->x_length;
+	}
+	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell)
+	{
+		assert(this->get_refinement_level(cell) == 0);
+		return ((cell - 1) % (this->x_length * this->y_length)) / this->x_length;
+	}
+	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell)
+	{
+		assert(this->get_refinement_level(cell) == 0);
+		return (cell - 1) / (this->x_length * this->y_length);
 	}
 
 
@@ -2067,12 +2116,12 @@ private:
 	*/
 	uint64_t get_smallest_cell_from_coordinate(const double x, const double y, const double z)
 	{
-		if (x < this->x_start
-			|| x > this->x_start + this->cell_size * this->x_length
-			|| y < this->y_start
-			|| y > this->y_start + this->cell_size * this->y_length
-			|| z < this->z_start
-			|| z > this->z_start + this->cell_size * this->z_length)
+		if (x < this->x_coordinates[0]
+			|| x > this->x_coordinates[this->x_length]
+			|| y < this->y_coordinates[0]
+			|| y > this->y_coordinates[this->y_length]
+			|| z < this->z_coordinates[0]
+			|| z > this->z_coordinates[this->z_length])
 		{
 			return 0;
 		}
@@ -2140,26 +2189,70 @@ private:
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
-	// These return the x, y or z index of the given coordinate
+	/*
+	These return the x, y or z index of the given coordinate
+	*/
 	uint64_t get_x_index(const double x)
 	{
-		assert((x >= this->x_start) and (x <= this->x_start + this->x_length * this->cell_size));
+		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->x_length]));
 
-		return uint64_t((x - this->x_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		uint64_t x_coord_start_index = 0;
+		while (x_coordinates[x_coord_start_index] < x) {
+			x_coord_start_index++;
+		}
+		x_coord_start_index--;
+
+		double x_size_of_index = (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / this->get_cell_size_in_indices(1);
+
+		uint64_t index_offset = 0;
+		while (x_coordinates[x_coord_start_index] + index_offset * x_size_of_index < x) {
+			index_offset++;
+		}
+		index_offset--;
+
+		return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
 	}
 
 	uint64_t get_y_index(const double y)
 	{
-		assert((y >= this->y_start) and (y <= this->y_start + this->y_length * this->cell_size));
+		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->y_length]));
 
-		return uint64_t((y - this->y_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		uint64_t y_coord_start_index = 0;
+		while (y_coordinates[y_coord_start_index] < y) {
+			y_coord_start_index++;
+		}
+		y_coord_start_index--;
+
+		double y_size_of_index = (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / this->get_cell_size_in_indices(1);
+
+		uint64_t index_offset = 0;
+		while (y_coordinates[y_coord_start_index] + index_offset * y_size_of_index < y) {
+			index_offset++;
+		}
+		index_offset--;
+
+		return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
 	}
 
 	uint64_t get_z_index(const double z)
 	{
-		assert((z >= this->z_start) and (z <= this->z_start + this->z_length * this->cell_size));
+		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->z_length]));
 
-		return uint64_t((z - this->z_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		uint64_t z_coord_start_index = 0;
+		while (z_coordinates[z_coord_start_index] < z) {
+			z_coord_start_index++;
+		}
+		z_coord_start_index--;
+
+		double z_size_of_index = (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / this->get_cell_size_in_indices(1);
+
+		uint64_t index_offset = 0;
+		while (z_coordinates[z_coord_start_index] + index_offset * z_size_of_index < z) {
+			index_offset++;
+		}
+		index_offset--;
+
+		return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
 	}
 
 

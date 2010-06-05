@@ -38,7 +38,15 @@ int main(int argc, char* argv[])
 	}
 
 	#define GRID_SIZE 3
-	dccrg<CellData> grid(comm, "RANDOM", 0.0, 0.0, 0.0, 1, GRID_SIZE, GRID_SIZE, 1, 1, 0);
+	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+		y_coordinates.push_back(i * CELL_SIZE);
+	}
+	z_coordinates.push_back(0);
+	z_coordinates.push_back(1);
+	dccrg<CellData> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, 1, 0);
 
 	// populate the grid, number of variables in a cell is equal to its id
 	vector<uint64_t> cells = grid.get_cells();

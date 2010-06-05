@@ -44,19 +44,26 @@ int main(int argc, char* argv[])
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 5
 	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= 5; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+		y_coordinates.push_back(i * CELL_SIZE);
+	}
+	for (int i = 0; i <= 3; i++) {
+		z_coordinates.push_back(i * 1.5 * CELL_SIZE);
+	}
 	#define STENCIL_SIZE 1
-	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 3, STENCIL_SIZE);
+	dccrg<game_of_life_cell> game_grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
 	vector<uint64_t> cells = game_grid.get_cells();
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 	}
-	cout << "Process " << comm.rank() << ": number of cells: " << cells.size() << endl;
 
 	// refine the grid increasingly in the z direction a few times
 	game_grid.balance_load();
 	cells = game_grid.get_cells();
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.get_cell_z(*cell) > 1 * CELL_SIZE) {
+		if (game_grid.get_cell_z(*cell) > 1 * 1.5 * CELL_SIZE) {
 			game_grid.refine_completely(*cell);
 		}
 	}
@@ -65,7 +72,7 @@ int main(int argc, char* argv[])
 	cells = game_grid.get_cells();
 	cout << "Process " << comm.rank() << ": number of cells after refining: " << cells.size() << endl;
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.get_cell_z(*cell) > 2 * CELL_SIZE) {
+		if (game_grid.get_cell_z(*cell) > 2 * 1.5 * CELL_SIZE) {
 			game_grid.refine_completely(*cell);
 		}
 	}
@@ -81,7 +88,7 @@ int main(int argc, char* argv[])
 		cell_data->live_neighbour_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_size(*cell) - y) < 0.5 * game_grid.get_cell_size(*cell)) {
+		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;

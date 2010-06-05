@@ -31,11 +31,18 @@ int main(int argc, char* argv[])
 	}
 
 
-	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+	}
+	y_coordinates.push_back(0);
+	y_coordinates.push_back(0.5);
+	z_coordinates.push_back(0);
+	z_coordinates.push_back(0.5);
 	#define STENCIL_SIZE 1
-	dccrg<int> grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, 1, 1, STENCIL_SIZE);
+	dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
@@ -52,7 +59,7 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		// refine the smallest cell that is closest to the starting corner
-		grid.refine_completely_at(0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE, 0.00000001 * CELL_SIZE);
+		grid.refine_completely_at(0.000001 * CELL_SIZE, 0.000001 * CELL_SIZE, 0.000001 * CELL_SIZE);
 		grid.stop_refining();
 		grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();

@@ -34,13 +34,21 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	clock_t before = clock();
 	#define GRID_SIZE 100	// in unrefined cells
-	dccrg<CellData> game_grid(comm, "RCB", 0.0, 0.0, 0.0, 1, GRID_SIZE, GRID_SIZE, GRID_SIZE, 1, 0);
+	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+		y_coordinates.push_back(i * CELL_SIZE);
+		z_coordinates.push_back(i * CELL_SIZE);
+	}
+	clock_t before = clock();
+	dccrg<CellData> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, 1, 0);
 	clock_t after = clock();
-	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds (total grid size " << GRID_SIZE * GRID_SIZE * GRID_SIZE << ")" << endl;
+	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds (total grid size " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << ")" << endl;
 
-	if (GRID_SIZE * GRID_SIZE * GRID_SIZE > 1000) {
+	// don't write too large a grid to disk
+	if ((x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) > 1000) {
 		return EXIT_SUCCESS;
 	}
 

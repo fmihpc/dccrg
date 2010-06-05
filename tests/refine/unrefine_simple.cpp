@@ -31,14 +31,21 @@ int main(int argc, char* argv[])
 	}
 
 
-	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+	}
+	y_coordinates.push_back(0);
+	y_coordinates.push_back(1);
+	z_coordinates.push_back(0);
+	z_coordinates.push_back(1);
 	#define STENCIL_SIZE 1
-	dccrg<int> grid(comm, "RANDOM", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, 1, 1, STENCIL_SIZE, 5);
+	dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, 5);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << grid.get_max_refinement_level() << endl;
-		cout << "Number of cells: " << GRID_SIZE << endl << endl;
+		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 
 	// every process outputs the game state into its own file

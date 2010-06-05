@@ -45,15 +45,21 @@ int main(int argc, char* argv[])
 
 
 	// create the grid
-	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 10	// in unrefined cells
 	#define CELL_SIZE (1.0 / GRID_SIZE)
+	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		x_coordinates.push_back(i * CELL_SIZE);
+		y_coordinates.push_back(i * CELL_SIZE);
+	}
+	z_coordinates.push_back(0);
+	z_coordinates.push_back(1);
 	// the cells that share a vertex are considered neighbours
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", STARTING_CORNER, STARTING_CORNER, STARTING_CORNER, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
-		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE * 1 << endl << endl;
+		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 
 	// since the grid doesn't change during the game, workload can be balanced only once in the beginning
@@ -72,7 +78,7 @@ int main(int argc, char* argv[])
 		cell_data->live_neighbour_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_size(*cell) - y) < 0.5 * game_grid.get_cell_size(*cell)) {
+		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;
