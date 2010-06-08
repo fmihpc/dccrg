@@ -755,6 +755,51 @@ public:
 
 
 	/*
+	Returns the neighbour(s) of given cell in the positive or negative x direction, e.g. when viewed from that direction returns all neighbours that overlap the given cell
+	Returns neighbours in positive x direction if given direction > 0 and negative direction otherwise
+	Returns nothing if given cell doesn't exist or exists on another process
+	*/
+	std::vector<uint64_t> get_neighbours_x(const uint64_t cell, const double direction)
+	{
+		std::vector<uint64_t> return_neighbours;
+
+		if (this->cells.count(cell) == 0) {
+			return return_neighbours;
+		}
+
+		uint64_t y_index = this->get_y_index(cell), z_index = this->get_z_index(cell);
+		uint64_t size_i = this->get_cell_size_in_indices(cell);
+		double x = this->get_cell_x(cell);
+
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+
+			if (direction > 0) {
+				if (this->get_cell_x(*neighbour) < x) {
+					continue;
+				}
+			} else {
+				if (this->get_cell_x(*neighbour) > x) {
+					continue;
+				}
+			}
+
+			uint64_t neigh_y_i = this->get_y_index(*neighbour), neigh_z_i = this->get_z_index(*neighbour);
+			uint64_t neigh_size_i = this->get_cell_size_in_indices(*neighbour);
+
+			// return only neighbours whose indices overlap with given cell in y and z directions
+			if (neigh_y_i + neigh_size_i > y_index
+			 && neigh_y_i < y_index + size_i
+			 && neigh_z_i + neigh_size_i > z_index
+			 && neigh_z_i < z_index + size_i) {
+				return_neighbours.push_back(*neighbour);
+			}
+		}
+
+		return return_neighbours;
+	}
+
+
+	/*
 	Returns the given cells neighbours that are on another process
 	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
 	*/
