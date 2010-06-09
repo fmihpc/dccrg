@@ -21,6 +21,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_HPP
 
 
+#ifdef DCCRG_ARBITRARY_STRETCH
+	#ifdef DCCRG_CONSTANT_STRETCH
+		#error Only one type of grid stretching can be used simultaneously
+	#endif
+#endif
+
+
 #include "algorithm"
 #include "boost/mpi.hpp"
 #include "boost/unordered_map.hpp"
