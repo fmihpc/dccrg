@@ -58,9 +58,18 @@ public:
 		The method that Zoltan will use for load balancing given as a string
 		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB and HSFC
 
+	#ifdef DCCRG_ARBITRARY_STRETCH
 	x, y and z_coordinates:
 		The coordinates of unrefined cells in the respective direction
 		First coordinate is the starting point of the grid, the following ith value is the endpoint of the ith unrefined cell
+	#else
+	x_start, y_start, z_start:
+		the starting corner of the grid
+	cell_size:
+		the size of each unrefined cell in every direction
+	x_length, y_length, z_length:
+		the number of cells in the grid in x, y and z direction
+	#endif
 
 	neighbourhood_size:
 		Determines which cells are considered neighbours.
@@ -72,7 +81,11 @@ public:
 		The maximum number of times an unrefined cell can be refined (replacing it with 8 smaller cells)
 		Optional: if not given it is maximized based on the grids initial size
 	 */
+	#ifdef DCCRG_ARBITRARY_STRETCH
 	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+	#else
+	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_size, const unsigned int x_length, const unsigned int y_length, const unsigned int z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+	#endif
 	{
 		this->comm = comm;
 
@@ -118,6 +131,7 @@ public:
 		Set grid parameters
 		*/
 
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		// cell coordinates
 		if (x_coordinates.size() < 2) {
 			std::cerr << "At least two coordinates are required for grid cells in the x direction" << std::endl;
@@ -160,6 +174,37 @@ public:
 		this->x_length = this->x_coordinates.size() - 1;
 		this->y_length = this->y_coordinates.size() - 1;
 		this->z_length = this->z_coordinates.size() - 1;
+
+		#else
+
+		this->x_start = x_start;
+		this->y_start = y_start;
+		this->z_start = z_start;
+		if (cell_size <= 0) {
+			std::cerr << "Cell size must be > 0" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		this->cell_size = cell_size;
+
+		if (x_length == 0) {
+			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		this->x_length = x_length;
+
+		if (y_length == 0) {
+			std::cerr << "Length of the grid in cells must be > 0 in the y direction" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		this->y_length = y_length;
+
+		if (z_length == 0) {
+			std::cerr << "Length of the grid in cells must be > 0 in the z direction" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		this->z_length = z_length;
+
+		#endif
 
 		if (neighbourhood_size == 0) {
 			std::cerr << "Neighbour stencil size has to be > 0" << std::endl;
@@ -910,6 +955,16 @@ public:
 	}
 
 
+	bool is_local(const uint64_t cell)
+	{
+		if (this->cell_process[cell] == this->comm.rank()) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+
 	/*
 	Returns the maximum possible refinement level of any cell in the grid (0 means unrefined)
 	*/
@@ -924,6 +979,7 @@ public:
 	*/
 	double get_cell_x(const uint64_t cell)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t cell_x_index = this->get_x_index(cell);
 
 		uint64_t unrefined_cell = this->get_cell_from_indices(cell_x_index, this->get_y_index(cell), this->get_z_index(cell), 0);
@@ -934,9 +990,13 @@ public:
 		uint64_t x_coord_start_index = this->get_unref_cell_x_coord_start_index(unrefined_cell);
 
 		return this->x_coordinates[x_coord_start_index] + x_size_of_index * (cell_x_index - unref_cell_x_index) + 0.5 * x_size_of_index * this->get_cell_size_in_indices(cell);
+		#else
+		return this->x_start + this->get_x_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
+		#endif
 	}
 	double get_cell_y(const uint64_t cell)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t cell_y_index = this->get_y_index(cell);
 
 		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), cell_y_index, this->get_z_index(cell), 0);
@@ -947,9 +1007,13 @@ public:
 		uint64_t y_coord_start_index = this->get_unref_cell_y_coord_start_index(unrefined_cell);
 
 		return this->y_coordinates[y_coord_start_index] + y_size_of_index * (cell_y_index - unref_cell_y_index) + 0.5 * y_size_of_index * this->get_cell_size_in_indices(cell);
+		#else
+		return this->y_start + this->get_y_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
+		#endif
 	}
 	double get_cell_z(const uint64_t cell)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t cell_z_index = this->get_z_index(cell);
 
 		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), cell_z_index, 0);
@@ -960,6 +1024,9 @@ public:
 		uint64_t z_coord_start_index = this->get_unref_cell_z_coord_start_index(unrefined_cell);
 
 		return this->z_coordinates[z_coord_start_index] + z_size_of_index * (cell_z_index - unref_cell_z_index) + 0.5 * z_size_of_index * this->get_cell_size_in_indices(cell);
+		#else
+		return this->z_start + this->get_z_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
+		#endif
 	}
 
 
@@ -968,21 +1035,33 @@ public:
 	*/
 	double get_cell_x_size(const uint64_t cell)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
 		uint64_t x_coord_start_index = this->get_unref_cell_x_coord_start_index(unrefined_cell);
 		return (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
+		#else
+		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		#endif
 	}
 	double get_cell_y_size(const uint64_t cell)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
 		uint64_t y_coord_start_index = this->get_unref_cell_y_coord_start_index(unrefined_cell);
 		return (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
+		#else
+		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		#endif
 	}
 	double get_cell_z_size(const uint64_t cell)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
 		uint64_t z_coord_start_index = this->get_unref_cell_z_coord_start_index(unrefined_cell);
 		return (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
+		#else
+		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		#endif
 	}
 
 
@@ -1712,14 +1791,73 @@ public:
 	}
 
 
+	/*!
+	Returns true if given cells exist and share at least one vertex.
+	Returns false otherwise
+	FIXME: only works for stencil size 1
+	*/
+	bool shared_vertex(const uint64_t cell1, const uint64_t cell2)
+	{
+		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
+			return false;
+		}
+		if (this->is_neighbour(cell1, cell2) && this->is_neighbour(cell2, cell1)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/*!
+	Returns true if given cells exist and share at least one edge.
+	Returns false otherwise
+	FIXME: only works for stencil size 1
+	*/
+	bool shared_edge(const uint64_t cell1, const uint64_t cell2)
+	{
+		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
+			return false;
+		}
+		if (this->overlapping_indices(cell1, cell2) > 0 && this->is_neighbour(cell1, cell2) && this->is_neighbour(cell2, cell1)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	/*!
+	Returns true if given cells exist and share at least one face.
+	Returns false otherwise
+	FIXME: only works for stencil size 1
+	*/
+	bool shared_face(const uint64_t cell1, const uint64_t cell2)
+	{
+		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
+			return false;
+		}
+		if (this->overlapping_indices(cell1, cell2) > 1 && this->is_neighbour(cell1, cell2) && this->is_neighbour(cell2, cell1)) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+
 
 private:
 
+	#ifdef DCCRG_ARBITRARY_STRETCH
 	/*
 	The coordinates of unrefined cells in respective directions
 	First value is the starting point of the grid, following ith value is the end point of the ith unrefined cell
 	*/
 	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
+	#else
+	// starting corner coordinate of the grid
+	double x_start, y_start, z_start;
+	// length of unrefined cells in all directions
+	double cell_size;
+	#endif
 	// size of the grid in unrefined cells
 	uint64_t x_length, y_length, z_length;
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
@@ -2405,13 +2543,21 @@ private:
 	*/
 	uint64_t get_smallest_cell_from_coordinate(const double x, const double y, const double z)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		if (x < this->x_coordinates[0]
 			|| x > this->x_coordinates[this->x_length]
 			|| y < this->y_coordinates[0]
 			|| y > this->y_coordinates[this->y_length]
 			|| z < this->z_coordinates[0]
-			|| z > this->z_coordinates[this->z_length])
-		{
+			|| z > this->z_coordinates[this->z_length]) {
+		#else
+		if (x < this->x_start
+			|| x > this->x_start + this->cell_size * this->x_length
+			|| y < this->y_start
+			|| y > this->y_start + this->cell_size * this->y_length
+			|| z < this->z_start
+			|| z > this->z_start + this->cell_size * this->z_length) {
+		#endif
 			return 0;
 		}
 
@@ -2483,6 +2629,7 @@ private:
 	*/
 	uint64_t get_x_index(const double x)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->x_length]));
 
 		uint64_t x_coord_start_index = 0;
@@ -2500,10 +2647,15 @@ private:
 		index_offset--;
 
 		return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+		#else
+		assert((x >= this->x_start) and (x <= this->x_start + this->x_length * this->cell_size));
+		return uint64_t((x - this->x_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		#endif
 	}
 
 	uint64_t get_y_index(const double y)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->y_length]));
 
 		uint64_t y_coord_start_index = 0;
@@ -2521,10 +2673,15 @@ private:
 		index_offset--;
 
 		return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+		#else
+		assert((y >= this->y_start) and (y <= this->y_start + this->y_length * this->cell_size));
+		return uint64_t((y - this->y_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		#endif
 	}
 
 	uint64_t get_z_index(const double z)
 	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->z_length]));
 
 		uint64_t z_coord_start_index = 0;
@@ -2542,7 +2699,95 @@ private:
 		index_offset--;
 
 		return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+		#else
+		assert((z >= this->z_start) and (z <= this->z_start + this->z_length * this->cell_size));
+		return uint64_t((z - this->z_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		#endif
 	}
+
+
+	/*!
+	These return true if the x, y or z indices of given cells overlap, even if they don't exist
+	*/
+	bool x_indices_overlap(const uint64_t cell1, const uint64_t cell2)
+	{
+		assert(cell1 > 0);
+		assert(cell1 <= this->max_cell_number);
+		assert(cell2 > 0);
+		assert(cell2 <= this->max_cell_number);
+
+		uint64_t index1 = this->get_x_index(cell1);
+		uint64_t index2 = this->get_x_index(cell2);
+		uint64_t size1 = this->get_cell_size_in_indices(cell1);
+		uint64_t size2 = this->get_cell_size_in_indices(cell2);
+
+		if (index2 + size2 > index1 && index2 < index1 + size1) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	bool y_indices_overlap(const uint64_t cell1, const uint64_t cell2)
+	{
+		assert(cell1 > 0);
+		assert(cell1 <= this->max_cell_number);
+		assert(cell2 > 0);
+		assert(cell2 <= this->max_cell_number);
+
+		uint64_t index1 = this->get_y_index(cell1);
+		uint64_t index2 = this->get_y_index(cell2);
+		uint64_t size1 = this->get_cell_size_in_indices(cell1);
+		uint64_t size2 = this->get_cell_size_in_indices(cell2);
+
+		if (index2 + size2 > index1 && index2 < index1 + size1) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	bool z_indices_overlap(const uint64_t cell1, const uint64_t cell2)
+	{
+		assert(cell1 > 0);
+		assert(cell1 <= this->max_cell_number);
+		assert(cell2 > 0);
+		assert(cell2 <= this->max_cell_number);
+
+		uint64_t index1 = this->get_z_index(cell1);
+		uint64_t index2 = this->get_z_index(cell2);
+		uint64_t size1 = this->get_cell_size_in_indices(cell1);
+		uint64_t size2 = this->get_cell_size_in_indices(cell2);
+
+		if (index2 + size2 > index1 && index2 < index1 + size1) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+
+	/*!
+	Returns the number of directions in which given cells' indices overlap
+	Returns 0 if even one of given cell's doesn't exist
+	*/
+	int overlapping_indices(const uint64_t cell1, const uint64_t cell2)
+	{
+		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
+			return 0;
+		}
+
+		int ret = 0;
+		if (this->x_indices_overlap(cell1, cell2)) {
+			ret++;
+		}
+		if (this->y_indices_overlap(cell1, cell2)) {
+			ret++;
+		}
+		if (this->z_indices_overlap(cell1, cell2)) {
+			ret++;
+		}
+		return ret;
+	}
+
 
 
 	/*

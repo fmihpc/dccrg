@@ -6,6 +6,7 @@ Tests the grid with variable amount of data in cells
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
+#define DCCRG_ARBITRARY_STRETCH
 #include "../../dccrg.hpp"
 #include "iostream"
 #include "unistd.h"
