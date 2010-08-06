@@ -1920,6 +1920,7 @@ private:
 	boost::unordered_map<uint64_t, UserData> removed_cell_data;
 
 
+	#ifdef DCCRG_ARBITRARY_STRETCH
 	/*
 	These return the index of the starting coordinate in the coordinates vector of the given unrefined cell in the x, y and z direction respectively
 	*/
@@ -1938,6 +1939,7 @@ private:
 		assert(this->get_refinement_level(cell) == 0);
 		return (cell - 1) / (this->x_length * this->y_length);
 	}
+	#endif
 
 
 	/*
