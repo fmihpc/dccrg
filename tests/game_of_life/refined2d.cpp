@@ -8,10 +8,12 @@ Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 struct game_of_life_cell {

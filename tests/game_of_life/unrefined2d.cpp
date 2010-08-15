@@ -6,10 +6,12 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 struct game_of_life_cell {

@@ -42,6 +42,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 #include "zoltan.h"
 
+#include "dccrg_cell_geometry.hpp"
+
 
 template <class UserData> class dccrg
 {
@@ -992,6 +994,7 @@ public:
 		return this->x_coordinates[x_coord_start_index] + x_size_of_index * (cell_x_index - unref_cell_x_index) + 0.5 * x_size_of_index * this->get_cell_size_in_indices(cell);
 		#else
 		return this->x_start + this->get_x_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
+		//return this->geometry->get_cell_x(cell);
 		#endif
 	}
 	double get_cell_y(const uint64_t cell)
@@ -1009,6 +1012,7 @@ public:
 		return this->y_coordinates[y_coord_start_index] + y_size_of_index * (cell_y_index - unref_cell_y_index) + 0.5 * y_size_of_index * this->get_cell_size_in_indices(cell);
 		#else
 		return this->y_start + this->get_y_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
+		//return this->geometry->get_cell_y(cell);
 		#endif
 	}
 	double get_cell_z(const uint64_t cell)
@@ -1026,6 +1030,7 @@ public:
 		return this->z_coordinates[z_coord_start_index] + z_size_of_index * (cell_z_index - unref_cell_z_index) + 0.5 * z_size_of_index * this->get_cell_size_in_indices(cell);
 		#else
 		return this->z_start + this->get_z_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
+		//return this->geometry->get_cell_z(cell);
 		#endif
 	}
 
@@ -1041,6 +1046,7 @@ public:
 		return (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
 		#else
 		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		//return this->geometry->get_cell_x_size(cell);
 		#endif
 	}
 	double get_cell_y_size(const uint64_t cell)
@@ -1051,6 +1057,7 @@ public:
 		return (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
 		#else
 		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		//return this->geometry->get_cell_y_size(cell);
 		#endif
 	}
 	double get_cell_z_size(const uint64_t cell)
@@ -1061,6 +1068,7 @@ public:
 		return (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
 		#else
 		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
+		//return this->geometry->get_cell_z_size(cell);
 		#endif
 	}
 
@@ -1846,6 +1854,7 @@ public:
 
 private:
 
+	CellGeometry geometry;
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	/*
 	The coordinates of unrefined cells in respective directions

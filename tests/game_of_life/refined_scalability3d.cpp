@@ -8,11 +8,13 @@ Tests the scalability of the grid in 3 D with refined grid
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "functional"
 #include "iostream"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 struct game_of_life_cell {

@@ -7,11 +7,13 @@ Tests the scalability of the grid in 2 D
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "unistd.h"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 struct game_of_life_cell {

@@ -6,10 +6,12 @@ Tests the grid with a game of life on a refined grid in 3 D with neighbours only
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 struct game_of_life_cell {

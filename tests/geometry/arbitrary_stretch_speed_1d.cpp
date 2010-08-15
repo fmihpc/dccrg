@@ -18,17 +18,26 @@ int main(void)
 
 	#define CELLS 100000000
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	y_coordinates.reserve(CELLS);
-	for (int i = 0; i <= CELLS / (1 + 8 + 64 + 512) + 1; i++) {
+	x_coordinates.reserve(100);
+	for (int i = 0; i <= 100; i++) {
 		x_coordinates.push_back(i);
 	}
-	y_coordinates.push_back(0);
-	y_coordinates.push_back(1);
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
+	y_coordinates.reserve(200);
+	for (int i = 0; i <= 200; i++) {
+		y_coordinates.push_back(1.1 * i);
+	}
+	z_coordinates.reserve(300);
+	for (int i = 0; i <= 300; i++) {
+		z_coordinates.push_back(1.2 * i);
+	}
 
-	CellGeometry geometry(x_coordinates, y_coordinates, z_coordinates);
-	cout << "Maximum refinement level: " << geometry.get_maximum_refinement_level() << endl;
+	cout << "\nArbitrarily streched grid:" << endl;
+
+	CellGeometry geometry;
+	geometry.set_coordinates(x_coordinates, y_coordinates, z_coordinates);
+	geometry.set_maximum_refinement_level(geometry.get_maximum_possible_refinement_level());
+	cout << "\tMaximum refinement level: " << geometry.get_maximum_refinement_level() << endl;
+
 
 	double avg_size = 0;
 	before = clock();
@@ -37,17 +46,59 @@ int main(void)
 	}
 	after = clock();
 	avg_size /= CELLS;
-	cout << "Arbitrarily stretched grid's average cell x size " << avg_size;
+	cout << "\tAverage cell x size: " << avg_size;
 	cout << ", time for " << double(CELLS) << " cells: " << double(after - before) / CLOCKS_PER_SEC << " s" << endl;
 
-	double avg_x_pos = 0;
+	avg_size = 0;
 	before = clock();
 	for (uint64_t cell = 1; cell <= CELLS; cell++) {
-		avg_x_pos += geometry.get_cell_x(cell);
+		avg_size += geometry.get_cell_y_size(cell);
 	}
 	after = clock();
-	avg_x_pos /= CELLS;
-	cout << "Arbitrarily stretched grid's average cell x position " << avg_x_pos;
+	avg_size /= CELLS;
+	cout << "\tAverage cell y size: " << avg_size;
+	cout << ", time for " << double(CELLS) << " cells: " << double(after - before) / CLOCKS_PER_SEC << " s" << endl;
+
+	avg_size = 0;
+	before = clock();
+	for (uint64_t cell = 1; cell <= CELLS; cell++) {
+		avg_size += geometry.get_cell_z_size(cell);
+	}
+	after = clock();
+	avg_size /= CELLS;
+	cout << "\tAverage cell z size: " << avg_size;
+	cout << ", time for " << double(CELLS) << " cells: " << double(after - before) / CLOCKS_PER_SEC << " s" << endl;
+
+
+
+	double avg_pos = 0;
+	before = clock();
+	for (uint64_t cell = 1; cell <= CELLS; cell++) {
+		avg_pos += geometry.get_cell_x(cell);
+	}
+	after = clock();
+	avg_pos /= CELLS;
+	cout << "\tAverage cell x position: " << avg_pos;
+	cout << ", time for " << double(CELLS) << " cells: " << double(after - before) / CLOCKS_PER_SEC << " s" << endl;
+
+	avg_pos = 0;
+	before = clock();
+	for (uint64_t cell = 1; cell <= CELLS; cell++) {
+		avg_pos += geometry.get_cell_y(cell);
+	}
+	after = clock();
+	avg_pos /= CELLS;
+	cout << "\tAverage cell y position: " << avg_pos;
+	cout << ", time for " << double(CELLS) << " cells: " << double(after - before) / CLOCKS_PER_SEC << " s" << endl;
+
+	avg_pos = 0;
+	before = clock();
+	for (uint64_t cell = 1; cell <= CELLS; cell++) {
+		avg_pos += geometry.get_cell_z(cell);
+	}
+	after = clock();
+	avg_pos /= CELLS;
+	cout << "\tAverage cell z position: " << avg_pos;
 	cout << ", time for " << double(CELLS) << " cells: " << double(after - before) / CLOCKS_PER_SEC << " s" << endl;
 
 	return 0;

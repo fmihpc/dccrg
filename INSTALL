@@ -1,5 +1,5 @@
-The grid itself is only a single .hpp file so installation consists of
-just putting the dccrg.hpp file somewhere where your compiler can find it.
+The grid itself is only two .hpp files so installation consists of
+just putting them somewhere where your compiler can find them.
 
 When compiling your program the Zoltan library and boost serialization
 and mpi libraries must be included into the compilation command, for example

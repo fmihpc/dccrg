@@ -28,10 +28,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 
-#include "iostream"
-#include "stdint.h"
 #include "cassert"
 #include "cstdlib"
+#include "iostream"
+#include "stdint.h"
 #include "vector"
 
 
@@ -40,62 +40,133 @@ class CellGeometry
 
 public:
 
+	/*!
+	Creates a default instance of the grid, with one cell of size 1 in every direction between coordinates (0, 0, 0) and (1, 1, 1), with maximum refinement level of 0.
+	Use the set_* functions below to change the defaults.
+	*/
+	CellGeometry();
+
+	/*!
+	Returns grid parameters to their default values.
+	*/
+	~CellGeometry();
+
 	#ifdef DCCRG_ARBITRARY_STRETCH
 
-	/*
-	x, y and z_coordinates:
-		The coordinates of unrefined cells in the respective direction
-		First coordinate is the starting point of the grid, the following ith value is the endpoint of the ith unrefined cell
+	/*!
+	Sets the coordinates of unrefined cells in the grid.
+	First coordinate is the starting point of the grid and the following ith value is the endpoint of the ith unrefined cell
+	At least two values must be given for each direction and all values must be strictly increasing.
+	Returns true if successful, probably invalidating all previous cell geometries, e.g. their location, size, etc.
+	Returns false if unsuccessful and in that case has no effect.
+	Automatically maximizes maximum_refinement_level.
 	*/
-	CellGeometry(const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const int maximum_refinement_level);
+	bool set_coordinates(const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates);
 
 	#else
 
-	/*
-	x_start, y_start, z_start:
-		the starting corner of the grid
-	cell_size:
-		the size of each unrefined cell in every direction
-	x_length, y_length, z_length:
-		the number of cells in the grid in x, y and z direction
+	/*!
+	The following set the starting corner of the grid, e.g. the first face of the first unrefined cells.
+	At the moment these always return true.
+	Automatically maximizes maximum_refinement_level.
 	*/
-	CellGeometry(const double x_start, const double y_start, const double z_start, const double cell_x_size, const double cell_y_size, const double cell_z_size, const uint64_t x_length, const uint64_t y_length, const uint64_t z_length, const int maximum_refinement_level);
+	// FIXME: check that all cell coordinates fit into a double, and return false if some cells would be out of range
+	bool set_x_start(const double x_start);
+	bool set_y_start(const double y_start);
+	bool set_z_start(const double z_start);
+
+	/*!
+	The following set the size of unrefined cells.
+	These return true if successful, probably invalidating all previous cell areas, volumes, etc.
+	Return false if unsuccessful and in that case have no effect.
+	Automatically maximizes maximum_refinement_level.
+	*/
+	// FIXME: check that all cell coordinates fit into a double, and return false if some cells would be out of range
+	bool set_cell_x_size(const double cell_x_size);
+	bool set_cell_y_size(const double cell_y_size);
+	bool set_cell_z_size(const double cell_z_size);
+
+	/*!
+	The following set the size of the grid in unrefined cells.
+	These return true if successful, probably invalidating all previous cell information (id, geometry, etc.)
+	Return false if unsuccessful and in that case have no effect.
+	Automatically maximizes maximum_refinement_level.
+	*/
+	bool set_x_length(const uint64_t x_length);
+	bool set_y_length(const uint64_t y_length);
+	bool set_z_length(const uint64_t z_length);
 
 	#endif
 
 
-	/*
+	/*!
+	Sets the maximum refinement level of the grid (0 means unrefined), probably invalidating all previous cell indices.
+	Returns true if all cells in the grid with the given maximum refinement level would fit into an uint64_t, otherwise does nothing and returns false.
+	*/
+	bool set_maximum_refinement_level(const int maximum_refinement_level);
+
+	/*!
+	Returns the maximum refinement level of any cell in the grid (0 means unrefined).
+	*/
+	int get_maximum_refinement_level(void);
+
+	/*!
+	Returns the maximum possible refinement level for a cell in the grid (0 means unrefined).
+	*/
+	int get_maximum_possible_refinement_level(void);
+
+
+	/*!
 	Returns the refinement level of given cell (0 means unrefined)
 	Returns -1 if given cell cannot exist in the current grid
 	*/
 	int get_refinement_level(uint64_t cell);
 
 
-	/*
-	The following return the length of given cell in x, y or z direction
+	/*!
+	The following return the length of given cell.
 	*/
 	double get_cell_x_size(const uint64_t cell);
 	double get_cell_y_size(const uint64_t cell);
 	double get_cell_z_size(const uint64_t cell);
 
 
-	/*
-	The following return the x, y or z coordinate of the center of given cell regardless of whether it exists or has children
+	/*!
+	The following return the centroid of given cell.
 	*/
 	double get_cell_x(const uint64_t cell);
 	double get_cell_y(const uint64_t cell);
 	double get_cell_z(const uint64_t cell);
 
 
-	/*
-	Returns the maximum refinement level of any cell in the current grid
+	/*!
+	These return the index of given cell, starting from 0.
+	For cells that are larger than the smallest possible according to maximum_refinement_level, the index closest to the grid starting point is returned.
+
+	Example with maximum refinement level 1
+	index    0 1 2
+	        -------
+	      0 | |   |
+	        ---   |
+	      1 | |   |
+	        -------
 	*/
-	int get_maximum_refinement_level(void) { return this->maximum_refinement_level; }
+	uint64_t get_x_index(uint64_t cell);
+	uint64_t get_y_index(uint64_t cell);
+	uint64_t get_z_index(uint64_t cell);
+
+
 
 private:
 
+	/*!
+	Initializes the grid parameters to the values specified in the constructor comments.
+	*/
+	void init(void);
+
+
 	#ifdef DCCRG_ARBITRARY_STRETCH
-	/*
+	/*!
 	The coordinates of unrefined cells in respective directions
 	First value is the starting point of the grid, the following ith value is the end point of the ith unrefined cell
 	*/
@@ -112,37 +183,20 @@ private:
 	int maximum_refinement_level;
 
 
-	/*
-	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0.
-	For cells that are larger than the smallest possible according to maximum_refinement_level, the index within the cell with minimum x, y and z value is returned
-
-	Example with maximum refinement level 1
-	index    0 1 2
-		-------
-	      0 | |   |
-		---   |
-	      1 | |   |
-		-------
-	 */
-	uint64_t get_x_index(uint64_t cell);
-	uint64_t get_y_index(uint64_t cell);
-	uint64_t get_z_index(uint64_t cell);
-
-
-	/*
+	/*!
 	Returns the lengths of given cell in indices in every direction
 	*/
 	uint64_t get_cell_size_in_indices(const uint64_t cell);
 
 
-	/*
+	/*!
 	Returns the cell of given refinement level at given indices
 	*/
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level);
 
 
-	/*
-	These return the index of the starting coordinate in the coordinates vector of the given unrefined cell in the x, y and z direction respectively
+	/*!
+	These return the index in the coordinates vector of the starting coordinate of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell
 	*/
 	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell);
 	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell);
@@ -151,44 +205,95 @@ private:
 };
 
 
+CellGeometry::CellGeometry()
+{
+	this->init();
+}
+
+CellGeometry::~CellGeometry()
+{
+	this->init();
+}
+
+void CellGeometry::init(void)
+{
+	#ifdef DCCRG_ARBITRARY_STRETCH
+
+	this->x_coordinates.clear();
+	this->x_coordinates.push_back(0);
+	this->x_coordinates.push_back(1);
+
+	this->y_coordinates.clear();
+	this->y_coordinates.push_back(0);
+	this->y_coordinates.push_back(1);
+
+	this->z_coordinates.clear();
+	this->z_coordinates.push_back(0);
+	this->z_coordinates.push_back(1);
+
+	#else
+
+	this->x_start = 0;
+	this->y_start = 0;
+	this->z_start = 0;
+
+	this->cell_x_size = 1;
+	this->cell_y_size = 1;
+	this->cell_z_size = 1;
+
+	#endif
+
+	this->x_length = 1;
+	this->y_length = 1;
+	this->z_length = 1;
+
+	this->maximum_refinement_level = 0;
+}
+
+
 #ifdef DCCRG_ARBITRARY_STRETCH
-CellGeometry::CellGeometry(const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const int maximum_refinement_level = -1)
+
+bool CellGeometry::set_coordinates(const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates)
 {
 	if (x_coordinates.size() < 2) {
 		std::cerr << "At least two coordinates are required for grid cells in the x direction" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
 	if (y_coordinates.size() < 2) {
 		std::cerr << "At least two coordinates are required for grid cells in the y direction" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
 	if (z_coordinates.size() < 2) {
 		std::cerr << "At least two coordinates are required for grid cells in the z direction" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
+
 	for (uint64_t i = 0; i < x_coordinates.size() - 1; i++) {
 		if (x_coordinates[i] >= x_coordinates[i + 1]) {
 			std::cerr << "Coordinates in the x direction must be strictly increasing" << std::endl;
-			exit(EXIT_FAILURE);
+			return false;
 		}
 	}
 	for (uint64_t i = 0; i < y_coordinates.size() - 1; i++) {
 		if (y_coordinates[i] >= y_coordinates[i + 1]) {
 			std::cerr << "Coordinates in the y direction must be strictly increasing" << std::endl;
-			exit(EXIT_FAILURE);
+			return false;
 		}
 	}
 	for (uint64_t i = 0; i < z_coordinates.size() - 1; i++) {
 		if (z_coordinates[i] >= z_coordinates[i + 1]) {
 			std::cerr << "Coordinates in the z direction must be strictly increasing" << std::endl;
-			exit(EXIT_FAILURE);
+			return false;
 		}
 	}
 
+	this->x_coordinates.clear();
 	this->x_coordinates.reserve(x_coordinates.size());
 	this->x_coordinates.insert(this->x_coordinates.begin(), x_coordinates.begin(), x_coordinates.end());
+	this->y_coordinates.clear();
 	this->y_coordinates.reserve(y_coordinates.size());
 	this->y_coordinates.insert(this->y_coordinates.begin(), y_coordinates.begin(), y_coordinates.end());
+	this->z_coordinates.clear();
 	this->z_coordinates.reserve(z_coordinates.size());
 	this->z_coordinates.insert(this->z_coordinates.begin(), z_coordinates.begin(), z_coordinates.end());
 
@@ -196,82 +301,148 @@ CellGeometry::CellGeometry(const std::vector<double> x_coordinates, const std::v
 	this->y_length = this->y_coordinates.size() - 1;
 	this->z_length = this->z_coordinates.size() - 1;
 
+	return true;
+}
 
 #else
 
-CellGeometry::CellGeometry(const double x_start, const double y_start, const double z_start, const double cell_x_size, const double cell_y_size, const double cell_z_size, const uint64_t x_length, const uint64_t y_length, const uint64_t z_length, const int maximum_refinement_level = -1)
+bool CellGeometry::set_x_start(const double x_start)
 {
 	this->x_start = x_start;
+	return true;
+}
+
+bool CellGeometry::set_y_start(const double y_start)
+{
 	this->y_start = y_start;
+	return true;
+}
+
+bool CellGeometry::set_z_start(const double z_start)
+{
 	this->z_start = z_start;
+	return true;
+}
 
-
+bool CellGeometry::set_cell_x_size(const double cell_x_size)
+{
 	if (cell_x_size <= 0) {
 		std::cerr << "Cell size in x direction must be > 0" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
+
 	this->cell_x_size = cell_x_size;
 
+	return true;
+}
+
+bool CellGeometry::set_cell_y_size(const double cell_y_size)
+{
 	if (cell_y_size <= 0) {
 		std::cerr << "Cell size in y direction must be > 0" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
 	this->cell_y_size = cell_y_size;
 
+	return true;
+}
+
+bool CellGeometry::set_cell_z_size(const double cell_z_size)
+{
 	if (cell_z_size <= 0) {
 		std::cerr << "Cell size in z direction must be > 0" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
 	this->cell_z_size = cell_z_size;
 
+	return true;
+}
 
+bool CellGeometry::set_x_length(const uint64_t x_length)
+{
 	if (x_length == 0) {
 		std::cerr << "Length of the grid in unrefined cells must be > 0 in the x direction" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
+
+	uint64_t old_x_length = this->x_length;
 	this->x_length = x_length;
 
+	if (this->maximum_refinement_level > this->get_maximum_possible_refinement_level()) {
+		std::cerr << "Grid could have too many cells for an uint64_t with current refinement level" << std::endl;
+		this->x_length = old_x_length;
+		return false;
+	} else {
+		return true;
+	}
+}
+
+bool CellGeometry::set_y_length(const uint64_t y_length)
+{
 	if (y_length == 0) {
 		std::cerr << "Length of the grid in unrefined cells must be > 0 in the y direction" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
-	this->y_length = y_length;
 
+	double last_unrefined_cell = double(this->x_length) * double(y_length) * double(this->z_length);
+	if (last_unrefined_cell > double(uint64_t(~0))) {
+		std::cerr << "Grid would have too many unrefined cells to fit them into uint64_t (1..." << last_unrefined_cell << ")" << std::endl;
+		return false;
+	}
+
+	this->y_length = y_length;
+	return true;
+}
+
+bool CellGeometry::set_z_length(const uint64_t z_length)
+{
 	if (z_length == 0) {
 		std::cerr << "Length of the grid in unrefined cells must be > 0 in the z direction" << std::endl;
-		exit(EXIT_FAILURE);
+		return false;
 	}
-	this->z_length = z_length;
 
+	double last_unrefined_cell = double(this->x_length) * double(this->y_length) * double(z_length);
+	if (last_unrefined_cell > double(uint64_t(~0))) {
+		std::cerr << "Grid would have too many unrefined cells to fit them into uint64_t (1..." << last_unrefined_cell << ")" << std::endl;
+		return false;
+	}
+
+	this->z_length = z_length;
+	return true;
+}
 
 #endif
 
-	// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
-	double max_id = uint64_t(~0), last_id = x_length * y_length * z_length;
-	int refinement_level = 0;
-	while (last_id / max_id < 1) {
-		refinement_level++;
-		last_id += double(x_length) * y_length * z_length * (uint64_t(1) << refinement_level * 3);
-	}
-	refinement_level--;
 
-	// grid is too large even without refinement
-	if (refinement_level < 0) {
-		std::cerr << "Given grid would contain more than 2^64 - 1 unrefined cells" << std::endl;
-		exit(EXIT_FAILURE);
-	}
-
-
-	if (maximum_refinement_level > refinement_level) {
-
-		std::cerr << "Given maximum refinement level (" << maximum_refinement_level << ") is too large: last cell id would be " << double(x_length) * y_length * z_length * (uint64_t(1) << maximum_refinement_level * 3) << " but maximum for uint64_t is " << double(uint64_t(~0)) << std::endl;
-		exit(EXIT_FAILURE);
-
-	} else if (maximum_refinement_level < 0) {
-		this->maximum_refinement_level = refinement_level;
-	} else {
+bool CellGeometry::set_maximum_refinement_level(const int maximum_refinement_level)
+{
+	if (maximum_refinement_level <= this->get_maximum_possible_refinement_level()) {
 		this->maximum_refinement_level = maximum_refinement_level;
+		return true;
+	} else {
+		return false;
 	}
+}
+
+
+int CellGeometry::get_maximum_refinement_level(void)
+{
+	return this->maximum_refinement_level;
+}
+
+
+int CellGeometry::get_maximum_possible_refinement_level(void)
+{
+	double last_possible_cell = uint64_t(~0);
+	double last_cell = this->x_length * this->y_length * this->z_length;
+	int refinement_level = 0;
+
+	while (last_cell <= last_possible_cell) {
+		refinement_level++;
+		last_cell += double(this->x_length) * double(this->y_length) * double(this->z_length) * double(uint64_t(1) << refinement_level * 3);
+	}
+
+	return refinement_level - 1;
 }
 
 

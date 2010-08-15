@@ -6,11 +6,11 @@ A simple 2 D game of life program to demonstrate the basic usage of dccrg
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "zoltan.h"
 
+#include "../dccrg.hpp"
 
 // store in every cell of the grid whether the cell is alive and the number of live neighbours it has
 struct game_of_life_cell {
@@ -47,19 +47,13 @@ int main(int argc, char* argv[])
 	// create the grid
 	#define GRID_SIZE 10	// in unrefined cells
 	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-		y_coordinates.push_back(i * CELL_SIZE);
-	}
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
+
 	// the cells that share a vertex are considered neighbours
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	dccrg<game_of_life_cell> game_grid(comm, "RCB", 0, 0, 0, CELL_SIZE, GRID_SIZE, GRID_SIZE, 1, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
-		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
+		cout << "Number of cells: " << GRID_SIZE * GRID_SIZE << endl << endl;
 	}
 
 	// since the grid doesn't change during the game, workload can be balanced only once in the beginning
@@ -197,7 +191,7 @@ int main(int argc, char* argv[])
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
+					cout << "Process " << comm.rank() << ": neighbour (" << *neighbour << ") data for cell " << *cell << " not available" << endl;
 					exit(EXIT_FAILURE);
 				}
 				if (neighbour_data->is_alive) {
