@@ -6,11 +6,13 @@ Tests the speed of refining the grid in 3-d by refining random cells until enoug
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "functional"
 #include "iostream"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 using namespace std;

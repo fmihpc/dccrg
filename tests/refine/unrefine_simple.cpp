@@ -5,10 +5,12 @@ Tests the grid using simple refining and unrefining which should induce unrefine
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 using namespace std;

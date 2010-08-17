@@ -6,11 +6,13 @@ Tests the grid using simple refinement which should induce refinement also acros
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "../../dccrg.hpp"
 #include "fstream"
 #include "iostream"
 #include "unistd.h"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 using namespace std;

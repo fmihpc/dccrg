@@ -134,54 +134,18 @@ public:
 		*/
 
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		// cell coordinates
-		if (x_coordinates.size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the x direction" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		if (y_coordinates.size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the y direction" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		if (z_coordinates.size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the z direction" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		for (uint64_t i = 0; i < x_coordinates.size() - 1; i++) {
-			if (x_coordinates[i] >= x_coordinates[i + 1]) {
-				std::cerr << "Coordinates in the x direction must be strictly increasing" << std::endl;
-				exit(EXIT_FAILURE);
-			}
-		}
-		for (uint64_t i = 0; i < y_coordinates.size() - 1; i++) {
-			if (y_coordinates[i] >= y_coordinates[i + 1]) {
-				std::cerr << "Coordinates in the y direction must be strictly increasing" << std::endl;
-				exit(EXIT_FAILURE);
-			}
-		}
-		for (uint64_t i = 0; i < z_coordinates.size() - 1; i++) {
-			if (z_coordinates[i] >= z_coordinates[i + 1]) {
-				std::cerr << "Coordinates in the z direction must be strictly increasing" << std::endl;
-				exit(EXIT_FAILURE);
-			}
-		}
-
-		this->x_coordinates.reserve(x_coordinates.size());
-		this->x_coordinates.insert(this->x_coordinates.begin(), x_coordinates.begin(), x_coordinates.end());
-		this->y_coordinates.reserve(y_coordinates.size());
-		this->y_coordinates.insert(this->y_coordinates.begin(), y_coordinates.begin(), y_coordinates.end());
-		this->z_coordinates.reserve(z_coordinates.size());
-		this->z_coordinates.insert(this->z_coordinates.begin(), z_coordinates.begin(), z_coordinates.end());
-
-		this->x_length = this->x_coordinates.size() - 1;
-		this->y_length = this->y_coordinates.size() - 1;
-		this->z_length = this->z_coordinates.size() - 1;
-
+		this->geometry.set_coordinates(x_coordinates, y_coordinates, z_coordinates);
 		#else
+		this->geometry.set_x_start(x_start);
+		this->geometry.set_y_start(y_start);
+		this->geometry.set_z_start(z_start);
+		this->geometry.set_cell_x_size(cell_size);
+		this->geometry.set_cell_y_size(cell_size);
+		this->geometry.set_cell_z_size(cell_size);
+		this->geometry.set_x_length(x_length);
+		this->geometry.set_y_length(y_length);
+		this->geometry.set_z_length(z_length);
 
-		this->x_start = x_start;
-		this->y_start = y_start;
-		this->z_start = z_start;
 		if (cell_size <= 0) {
 			std::cerr << "Cell size must be > 0" << std::endl;
 			exit(EXIT_FAILURE);
@@ -192,19 +156,19 @@ public:
 			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
 			exit(EXIT_FAILURE);
 		}
-		this->x_length = x_length;
+		this->geometry.set_x_length(x_length);
 
 		if (y_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the y direction" << std::endl;
 			exit(EXIT_FAILURE);
 		}
-		this->y_length = y_length;
+		this->geometry.set_y_length(y_length);
 
 		if (z_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the z direction" << std::endl;
 			exit(EXIT_FAILURE);
 		}
-		this->z_length = z_length;
+		this->geometry.set_z_length(z_length);
 
 		#endif
 
@@ -215,11 +179,11 @@ public:
 		this->neighbourhood_size = neighbourhood_size;
 
 		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
-		double max_id = uint64_t(~0), last_id = x_length * y_length * z_length;
+		double max_id = uint64_t(~0), last_id = this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length();
 		int refinement_level = 0;
 		while (last_id / max_id < 1) {
 			refinement_level++;
-			last_id += double(x_length) * y_length * z_length * (uint64_t(1) << refinement_level * 3);
+			last_id += double(this->geometry.get_x_length()) * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << refinement_level * 3);
 		}
 		refinement_level--;
 
@@ -232,7 +196,7 @@ public:
 
 		if (maximum_refinement_level > refinement_level) {
 
-			std::cerr << "Given max_refinement_level (" << maximum_refinement_level << ") is too large: " << "x_length * y_length * z_length * 8^max_refinement_level / (2^64 - 1) >= " << x_length * y_length * z_length * (uint64_t(1) << maximum_refinement_level * 3) / max_id << " but must be < 1" << std::endl;
+			std::cerr << "Given max_refinement_level (" << maximum_refinement_level << ") is too large: " << "x_length * this->geometry.get_y_length() * this->geometry.get_z_length() * 8^max_refinement_level / (2^64 - 1) >= " << this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << maximum_refinement_level * 3) / max_id << " but must be < 1" << std::endl;
 			exit(EXIT_FAILURE);
 
 		} else if (maximum_refinement_level < 0) {
@@ -241,16 +205,18 @@ public:
 			this->max_refinement_level = maximum_refinement_level;
 		}
 
+		this->geometry.set_maximum_refinement_level(this->max_refinement_level);
+
 		// the number of the last cell at maximum refinement level
 		uint64_t id = 0;
 		for (refinement_level = 0; refinement_level <= this->max_refinement_level; refinement_level++) {
-			id += x_length * y_length * z_length * (uint64_t(1) << refinement_level * 3);
+			id += this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << refinement_level * 3);
 		}
 		this->max_cell_number = id;
 
 		// create unrefined cells
-		uint64_t cells_per_process = 1 + x_length * y_length * z_length / uint64_t(comm.size());
-		for (uint64_t id = 1; id <= x_length * y_length * z_length; id++) {
+		uint64_t cells_per_process = 1 + this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() / uint64_t(comm.size());
+		for (uint64_t id = 1; id <= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length(); id++) {
 			if (id / cells_per_process == uint64_t(comm.rank())) {
 				this->cells[id];
 			}
@@ -981,57 +947,15 @@ public:
 	*/
 	double get_cell_x(const uint64_t cell)
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t cell_x_index = this->get_x_index(cell);
-
-		uint64_t unrefined_cell = this->get_cell_from_indices(cell_x_index, this->get_y_index(cell), this->get_z_index(cell), 0);
-		uint64_t unref_cell_x_index = this->get_x_index(unrefined_cell);
-
-		double x_size_of_index = this->get_cell_x_size(unrefined_cell) / this->get_cell_size_in_indices(unrefined_cell);
-
-		uint64_t x_coord_start_index = this->get_unref_cell_x_coord_start_index(unrefined_cell);
-
-		return this->x_coordinates[x_coord_start_index] + x_size_of_index * (cell_x_index - unref_cell_x_index) + 0.5 * x_size_of_index * this->get_cell_size_in_indices(cell);
-		#else
-		return this->x_start + this->get_x_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
-		//return this->geometry->get_cell_x(cell);
-		#endif
+		return this->geometry.get_cell_x(cell);
 	}
 	double get_cell_y(const uint64_t cell)
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t cell_y_index = this->get_y_index(cell);
-
-		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), cell_y_index, this->get_z_index(cell), 0);
-		uint64_t unref_cell_y_index = this->get_y_index(unrefined_cell);
-
-		double y_size_of_index = this->get_cell_y_size(unrefined_cell) / this->get_cell_size_in_indices(unrefined_cell);
-
-		uint64_t y_coord_start_index = this->get_unref_cell_y_coord_start_index(unrefined_cell);
-
-		return this->y_coordinates[y_coord_start_index] + y_size_of_index * (cell_y_index - unref_cell_y_index) + 0.5 * y_size_of_index * this->get_cell_size_in_indices(cell);
-		#else
-		return this->y_start + this->get_y_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
-		//return this->geometry->get_cell_y(cell);
-		#endif
+		return this->geometry.get_cell_y(cell);
 	}
 	double get_cell_z(const uint64_t cell)
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t cell_z_index = this->get_z_index(cell);
-
-		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), cell_z_index, 0);
-		uint64_t unref_cell_z_index = this->get_z_index(unrefined_cell);
-
-		double z_size_of_index = this->get_cell_z_size(unrefined_cell) / this->get_cell_size_in_indices(unrefined_cell);
-
-		uint64_t z_coord_start_index = this->get_unref_cell_z_coord_start_index(unrefined_cell);
-
-		return this->z_coordinates[z_coord_start_index] + z_size_of_index * (cell_z_index - unref_cell_z_index) + 0.5 * z_size_of_index * this->get_cell_size_in_indices(cell);
-		#else
-		return this->z_start + this->get_z_index(cell) * this->cell_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
-		//return this->geometry->get_cell_z(cell);
-		#endif
+		return this->geometry.get_cell_z(cell);
 	}
 
 
@@ -1040,36 +964,15 @@ public:
 	*/
 	double get_cell_x_size(const uint64_t cell)
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
-		uint64_t x_coord_start_index = this->get_unref_cell_x_coord_start_index(unrefined_cell);
-		return (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
-		#else
-		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
-		//return this->geometry->get_cell_x_size(cell);
-		#endif
+		return this->geometry.get_cell_x_size(cell);
 	}
 	double get_cell_y_size(const uint64_t cell)
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
-		uint64_t y_coord_start_index = this->get_unref_cell_y_coord_start_index(unrefined_cell);
-		return (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
-		#else
-		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
-		//return this->geometry->get_cell_y_size(cell);
-		#endif
+		return this->geometry.get_cell_y_size(cell);
 	}
 	double get_cell_z_size(const uint64_t cell)
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t unrefined_cell = this->get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), 0);
-		uint64_t z_coord_start_index = this->get_unref_cell_z_coord_start_index(unrefined_cell);
-		return (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / (uint64_t(1) << this->get_refinement_level(cell));
-		#else
-		return this->cell_size / (uint64_t(1) << this->get_refinement_level(cell));
-		//return this->geometry->get_cell_z_size(cell);
-		#endif
+		return this->geometry.get_cell_z_size(cell);
 	}
 
 
@@ -1077,22 +980,9 @@ public:
 	Returns the refinement level of given cell, even if it doesn't exist
 	Returns -1 if cell == 0 or cell would exceed maximum refinement level
 	*/
-	int get_refinement_level(uint64_t id)
+	int get_refinement_level(uint64_t cell)
 	{
-		if (id == 0 || id > this->max_cell_number) {
-			return -1;
-		}
-
-		int refinement_level;
-		for (refinement_level = 0; refinement_level < this->max_refinement_level; refinement_level++) {
-			if (id <= (this->x_length * this->y_length * this->z_length * (uint64_t(1) << refinement_level * 3))) {
-				break;
-			}
-			// substract ids of larger cells
-			id -= this->x_length * this->y_length * this->z_length * (uint64_t(1) << refinement_level * 3);
-		}
-
-		return refinement_level;
+		return this->geometry.get_refinement_level(cell);
 	}
 
 
@@ -1862,13 +1752,9 @@ private:
 	*/
 	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
 	#else
-	// starting corner coordinate of the grid
-	double x_start, y_start, z_start;
 	// length of unrefined cells in all directions
 	double cell_size;
 	#endif
-	// size of the grid in unrefined cells
-	uint64_t x_length, y_length, z_length;
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
 	int max_refinement_level;
 	// the id of the last cell in the grid at maximum refinement level
@@ -1929,28 +1815,6 @@ private:
 	boost::unordered_map<uint64_t, UserData> removed_cell_data;
 
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
-	/*
-	These return the index of the starting coordinate in the coordinates vector of the given unrefined cell in the x, y and z direction respectively
-	*/
-	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell)
-	{
-		assert(this->get_refinement_level(cell) == 0);
-		return ((cell - 1) % (this->x_length * this->y_length)) % this->x_length;
-	}
-	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell)
-	{
-		assert(this->get_refinement_level(cell) == 0);
-		return ((cell - 1) % (this->x_length * this->y_length)) / this->x_length;
-	}
-	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell)
-	{
-		assert(this->get_refinement_level(cell) == 0);
-		return (cell - 1) / (this->x_length * this->y_length);
-	}
-	#endif
-
-
 	/*
 	Updates the neighbour list of given cell without children on this process
 	*/
@@ -2005,7 +1869,7 @@ private:
 		for (; current_x_index < x_index + size_in_indices * (1 + this->neighbourhood_size); current_x_index += index_increase) {
 
 			// don't search outside of the grid
-			if (current_x_index >= this->x_length * (uint64_t(1) << this->max_refinement_level)) {
+			if (current_x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
 				continue;
 			}
 
@@ -2019,7 +1883,7 @@ private:
 
 			for (; current_y_index < y_index + size_in_indices * (1 + this->neighbourhood_size); current_y_index += index_increase) {
 
-				if (current_y_index >= this->y_length * (uint64_t(1) << this->max_refinement_level)) {
+				if (current_y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
 					continue;
 				}
 
@@ -2033,7 +1897,7 @@ private:
 
 				for (; current_z_index < z_index + size_in_indices * (1 + this->neighbourhood_size); current_z_index += index_increase) {
 
-					if (current_z_index >= this->z_length * (uint64_t(1) << this->max_refinement_level)) {
+					if (current_z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
 						continue;
 					}
 
@@ -2057,7 +1921,8 @@ private:
 					}
 
 					uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-					assert(neighbour > 0 && neighbour <= this->max_cell_number);
+					assert(neighbour > 0);
+					assert(neighbour <= this->max_cell_number);
 					assert(neighbour == this->get_child(neighbour));
 					unique_neighbours.insert(neighbour);
 				}
@@ -2556,18 +2421,18 @@ private:
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		if (x < this->x_coordinates[0]
-			|| x > this->x_coordinates[this->x_length]
+			|| x > this->x_coordinates[this->geometry.get_x_length()]
 			|| y < this->y_coordinates[0]
-			|| y > this->y_coordinates[this->y_length]
+			|| y > this->y_coordinates[this->geometry.get_y_length()]
 			|| z < this->z_coordinates[0]
-			|| z > this->z_coordinates[this->z_length]) {
+			|| z > this->z_coordinates[this->geometry.get_z_length()]) {
 		#else
-		if (x < this->x_start
-			|| x > this->x_start + this->cell_size * this->x_length
-			|| y < this->y_start
-			|| y > this->y_start + this->cell_size * this->y_length
-			|| z < this->z_start
-			|| z > this->z_start + this->cell_size * this->z_length) {
+		if (x < this->geometry.get_x_start()
+			|| x > this->geometry.get_x_start() + this->cell_size * this->geometry.get_x_length()
+			|| y < this->geometry.get_y_start()
+			|| y > this->geometry.get_y_start() + this->cell_size * this->geometry.get_y_length()
+			|| z < this->geometry.get_z_start()
+			|| z > this->geometry.get_z_start() + this->cell_size * this->geometry.get_z_length()) {
 		#endif
 			return 0;
 		}
@@ -2588,14 +2453,14 @@ private:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= x_length * y_length * z_length * (uint64_t(1) << i * 3);
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index = id % (x_length * (uint64_t(1) << refinement_level));
+		uint64_t this_level_index = id % (this->geometry.get_x_length() * (uint64_t(1) << refinement_level));
 
-		assert(this_level_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) < this->x_length * (uint64_t(1) << this->max_refinement_level));
+		assert(this_level_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
@@ -2607,12 +2472,12 @@ private:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= x_length * y_length * z_length * (uint64_t(1) << i * 3);
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  (id / (x_length * (uint64_t(1) << refinement_level))) % (y_length  * (uint64_t(1) << refinement_level));
+		uint64_t this_level_index =  (id / (this->geometry.get_x_length() * (uint64_t(1) << refinement_level))) % (this->geometry.get_y_length()  * (uint64_t(1) << refinement_level));
 
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
@@ -2625,12 +2490,12 @@ private:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= x_length * y_length * z_length * (uint64_t(1) << i * 3);
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  id / (x_length * y_length * (uint64_t(1) << 2 * refinement_level));
+		uint64_t this_level_index =  id / (this->geometry.get_x_length() * this->geometry.get_y_length() *  (uint64_t(1) << 2 * refinement_level));
 
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
@@ -2641,7 +2506,7 @@ private:
 	uint64_t get_x_index(const double x)
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->x_length]));
+		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->geometry.get_x_length()]));
 
 		uint64_t x_coord_start_index = 0;
 		while (x_coordinates[x_coord_start_index] < x) {
@@ -2659,15 +2524,15 @@ private:
 
 		return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
 		#else
-		assert((x >= this->x_start) and (x <= this->x_start + this->x_length * this->cell_size));
-		return uint64_t((x - this->x_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		assert((x >= this->geometry.get_x_start()) and (x <= this->geometry.get_x_start() + this->geometry.get_x_length() * this->cell_size));
+		return uint64_t((x - this->geometry.get_x_start()) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
 		#endif
 	}
 
 	uint64_t get_y_index(const double y)
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->y_length]));
+		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->geometry.get_y_length()]));
 
 		uint64_t y_coord_start_index = 0;
 		while (y_coordinates[y_coord_start_index] < y) {
@@ -2685,15 +2550,15 @@ private:
 
 		return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
 		#else
-		assert((y >= this->y_start) and (y <= this->y_start + this->y_length * this->cell_size));
-		return uint64_t((y - this->y_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		assert((y >= this->geometry.get_y_start()) and (y <= this->geometry.get_y_start() + this->geometry.get_y_length() * this->cell_size));
+		return uint64_t((y - this->geometry.get_y_start()) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
 		#endif
 	}
 
 	uint64_t get_z_index(const double z)
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->z_length]));
+		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->geometry.get_z_length()]));
 
 		uint64_t z_coord_start_index = 0;
 		while (z_coordinates[z_coord_start_index] < z) {
@@ -2711,8 +2576,8 @@ private:
 
 		return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
 		#else
-		assert((z >= this->z_start) and (z <= this->z_start + this->z_length * this->cell_size));
-		return uint64_t((z - this->z_start) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
+		assert((z >= this->geometry.get_z_start()) and (z <= this->geometry.get_z_start() + this->geometry.get_z_length() * this->cell_size));
+		return uint64_t((z - this->geometry.get_z_start()) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
 		#endif
 	}
 
@@ -2807,9 +2672,9 @@ private:
 	*/
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level)
 	{
-		assert(x_index < this->x_length * (uint64_t(1) << this->max_refinement_level));
-		assert(y_index < this->y_length * (uint64_t(1) << this->max_refinement_level));
-		assert(z_index < this->z_length * (uint64_t(1) << this->max_refinement_level));
+		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level));
 		assert(minimum_refinement_level <= maximum_refinement_level);
 
 		int average_refinement_level = (maximum_refinement_level + minimum_refinement_level) / 2;
@@ -2845,16 +2710,16 @@ private:
 	// Returns the cell of given refinement level at given indices even if it doesn't exist
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level)
 	{
-		assert(x_index < this->x_length * (uint64_t(1) << this->max_refinement_level));
-		assert(y_index < this->y_length * (uint64_t(1) << this->max_refinement_level));
-		assert(z_index < this->z_length * (uint64_t(1) << this->max_refinement_level));
+		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level));
 		assert(refinement_level <= this->max_refinement_level);
 
 		uint64_t id = 1;
 
 		// add ids of larger cells
 		for (int i = 0; i < refinement_level; i++) {
-			id += x_length * y_length * z_length * (uint64_t(1) << i * 3);
+			id += this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
 		}
 
 		// convert to indices of this cells refinement level
@@ -2863,11 +2728,12 @@ private:
 		uint64_t this_level_z_index = z_index / (uint64_t(1) << (max_refinement_level - refinement_level));
 
 		// get the size of the grid in terms of cells of this level
-		uint64_t this_level_x_length = x_length * (uint64_t(1) << refinement_level);
-		uint64_t this_level_y_length = y_length * (uint64_t(1) << refinement_level);
+		uint64_t this_level_x_length = this->geometry.get_x_length() *  (uint64_t(1) << refinement_level);
+		uint64_t this_level_y_length = this->geometry.get_y_length() *  (uint64_t(1) << refinement_level);
 
 		id += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
 
+		assert(id > 0);
 		assert(id <= this->max_cell_number);
 		return id;
 	}

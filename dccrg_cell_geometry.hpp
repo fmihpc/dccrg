@@ -76,6 +76,14 @@ public:
 	bool set_z_start(const double z_start);
 
 	/*!
+	The following return the starting corner of the grid
+	*/
+	double get_x_start(void);
+	double get_y_start(void);
+	double get_z_start(void);
+
+
+	/*!
 	The following set the size of unrefined cells.
 	These return true if successful, probably invalidating all previous cell areas, volumes, etc.
 	Return false if unsuccessful and in that case have no effect.
@@ -97,6 +105,14 @@ public:
 	bool set_z_length(const uint64_t z_length);
 
 	#endif
+
+
+	/*!
+	The following return the length of the grid in unrefined cells
+	*/
+	uint64_t get_x_length(void);
+	uint64_t get_y_length(void);
+	uint64_t get_z_length(void);
 
 
 	/*!
@@ -324,6 +340,23 @@ bool CellGeometry::set_z_start(const double z_start)
 	return true;
 }
 
+
+double CellGeometry::get_x_start(void)
+{
+	return this->x_start;
+}
+
+double CellGeometry::get_y_start(void)
+{
+	return this->y_start;
+}
+
+double CellGeometry::get_z_start(void)
+{
+	return this->z_start;
+}
+
+
 bool CellGeometry::set_cell_x_size(const double cell_x_size)
 {
 	if (cell_x_size <= 0) {
@@ -357,6 +390,7 @@ bool CellGeometry::set_cell_z_size(const double cell_z_size)
 
 	return true;
 }
+
 
 bool CellGeometry::set_x_length(const uint64_t x_length)
 {
@@ -676,6 +710,24 @@ double CellGeometry::get_cell_z(const uint64_t cell)
 	return this->z_start + this->get_z_index(cell) * this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level) + this->get_cell_z_size(cell) / 2;
 }
 #endif
+
+
+
+uint64_t CellGeometry::get_x_length(void)
+{
+	return this->x_length;
+}
+
+uint64_t CellGeometry::get_y_length(void)
+{
+	return this->y_length;
+}
+
+uint64_t CellGeometry::get_z_length(void)
+{
+	return this->z_length;
+}
+
 
 
 #ifdef DCCRG_ARBITRARY_STRETCH
