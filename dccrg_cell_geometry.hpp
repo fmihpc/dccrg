@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "cassert"
 #include "cstdlib"
 #include "iostream"
+#include "limits"
 #include "stdint.h"
 #include "vector"
 
@@ -66,7 +67,7 @@ public:
 	#else
 
 	/*!
-	The following set the starting corner of the grid, e.g. the first face of the first unrefined cells.
+	The following set the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in that direction.
 	At the moment these always return true.
 	Automatically maximizes maximum_refinement_level.
 	*/
@@ -154,6 +155,19 @@ public:
 	double get_cell_y(const uint64_t cell);
 	double get_cell_z(const uint64_t cell);
 
+	/*!
+	The following return the centroid of a cell of given refinement level at given index
+	*/
+	double get_cell_x(const int refinement_level, const uint64_t x_index);
+	double get_cell_y(const int refinement_level, const uint64_t y_index);
+	double get_cell_z(const int refinement_level, const uint64_t z_index);
+
+
+	/*!
+	Returns the cell at given location, or 0 if outside of the current grid
+	*/
+	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z);
+
 
 	/*!
 	These return the index of given cell, starting from 0.
@@ -170,6 +184,14 @@ public:
 	uint64_t get_x_index(uint64_t cell);
 	uint64_t get_y_index(uint64_t cell);
 	uint64_t get_z_index(uint64_t cell);
+
+	/*!
+	These return the index (starting from 0) of given location.
+	TODO: check that location is within the current grid
+	*/
+	uint64_t get_x_index(const double x);
+	uint64_t get_y_index(const double y);
+	uint64_t get_z_index(const double z);
 
 
 
@@ -561,6 +583,97 @@ uint64_t CellGeometry::get_z_index(uint64_t cell)
 }
 
 
+uint64_t CellGeometry::get_x_index(const double x)
+{
+	#ifdef DCCRG_ARBITRARY_STRETCH
+
+	assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->get_x_length()]));
+
+	uint64_t x_coord_start_index = 0;
+	while (this->x_coordinates[x_coord_start_index] < x) {
+		x_coord_start_index++;
+	}
+	x_coord_start_index--;
+
+	double x_size_of_index = (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / this->get_cell_size_in_indices(1);
+
+	uint64_t index_offset = 0;
+	while (this->x_coordinates[x_coord_start_index] + index_offset * x_size_of_index < x) {
+		index_offset++;
+	}
+	index_offset--;
+
+	return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+
+	#else
+
+	assert((x >= this->get_x_start()) and (x <= this->get_x_start() + this->get_x_length() * this->cell_x_size));
+	return uint64_t((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level)));
+
+	#endif
+}
+
+uint64_t CellGeometry::get_y_index(const double y)
+{
+	#ifdef DCCRG_ARBITRARY_STRETCH
+
+	assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->get_y_length()]));
+
+	uint64_t y_coord_start_index = 0;
+	while (this->y_coordinates[y_coord_start_index] < y) {
+		y_coord_start_index++;
+	}
+	y_coord_start_index--;
+
+	double y_size_of_index = (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / this->get_cell_size_in_indices(1);
+
+	uint64_t index_offset = 0;
+	while (this->y_coordinates[y_coord_start_index] + index_offset * y_size_of_index < y) {
+		index_offset++;
+	}
+	index_offset--;
+
+	return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+
+	#else
+
+	assert((y >= this->get_y_start()) and (y <= this->get_y_start() + this->get_y_length() * this->cell_y_size));
+	return uint64_t((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level)));
+
+	#endif
+}
+
+uint64_t CellGeometry::get_z_index(const double z)
+{
+	#ifdef DCCRG_ARBITRARY_STRETCH
+
+	assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->get_z_length()]));
+
+	uint64_t z_coord_start_index = 0;
+	while (this->z_coordinates[z_coord_start_index] < z) {
+		z_coord_start_index++;
+	}
+	z_coord_start_index--;
+
+	double z_size_of_index = (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / this->get_cell_size_in_indices(1);
+
+	uint64_t index_offset = 0;
+	while (this->z_coordinates[z_coord_start_index] + index_offset * z_size_of_index < z) {
+		index_offset++;
+	}
+	index_offset--;
+
+	return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+
+	#else
+
+	assert((z >= this->get_z_start()) and (z <= this->get_z_start() + this->get_z_length() * this->cell_z_size));
+	return uint64_t((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level)));
+
+	#endif
+}
+
+
 uint64_t CellGeometry::get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level)
 {
 	assert(refinement_level >= 0);
@@ -589,6 +702,16 @@ uint64_t CellGeometry::get_cell_from_indices(const uint64_t x_index, const uint6
 
 	assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
 	return cell;
+}
+
+
+uint64_t CellGeometry::get_cell(const int refinement_level, const double x, const double y, const double z)
+{
+	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		return 0;
+	}
+
+	return get_cell_from_indices(this->get_x_index(x), this->get_x_index(y), this->get_x_index(z), refinement_level);
 }
 
 
@@ -653,9 +776,13 @@ double CellGeometry::get_cell_z_size(const uint64_t cell)
 
 double CellGeometry::get_cell_x(const uint64_t cell)
 {
-	assert(cell > 0);
-	assert(this->get_refinement_level(cell) >= 0);
-	assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+	 if (cell == 0) {
+		return std::numeric_limits<double>::quiet_NaN();
+	 }
+
+	if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->maximum_refinement_level) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
 
 #ifdef DCCRG_ARBITRARY_STRETCH
 	uint64_t unref_cell_x_coord_start_index = this->get_unref_cell_x_coord_start_index(cell);
@@ -673,9 +800,13 @@ double CellGeometry::get_cell_x(const uint64_t cell)
 
 double CellGeometry::get_cell_y(const uint64_t cell)
 {
-	assert(cell > 0);
-	assert(this->get_refinement_level(cell) >= 0);
-	assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+	 if (cell == 0) {
+		return std::numeric_limits<double>::quiet_NaN();
+	 }
+
+	if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->maximum_refinement_level) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
 
 #ifdef DCCRG_ARBITRARY_STRETCH
 	uint64_t unref_cell_y_coord_start_index = this->get_unref_cell_y_coord_start_index(cell);
@@ -693,9 +824,13 @@ double CellGeometry::get_cell_y(const uint64_t cell)
 
 double CellGeometry::get_cell_z(const uint64_t cell)
 {
-	assert(cell > 0);
-	assert(this->get_refinement_level(cell) >= 0);
-	assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+	 if (cell == 0) {
+		return std::numeric_limits<double>::quiet_NaN();
+	 }
+
+	if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->maximum_refinement_level) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
 
 #ifdef DCCRG_ARBITRARY_STRETCH
 	uint64_t unref_cell_z_coord_start_index = this->get_unref_cell_z_coord_start_index(cell);
@@ -711,6 +846,74 @@ double CellGeometry::get_cell_z(const uint64_t cell)
 }
 #endif
 
+double CellGeometry::get_cell_x(const int refinement_level, const uint64_t x_index)
+{
+	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+	if (x_index > this->x_length * (uint64_t(1) << this->maximum_refinement_level)) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+#ifdef DCCRG_ARBITRARY_STRETCH
+	uint64_t unref_cell_x_coord_start_index = x_index / (uint64_t(1) << this->maximum_refinement_level);
+
+	double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
+	double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->maximum_refinement_level);
+
+	return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->maximum_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) / 2;
+}
+#else
+	return this->x_start + x_index * this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level) + this->cell_x_size / (uint64_t(1) << refinement_level) / 2;
+}
+#endif
+
+double CellGeometry::get_cell_y(const int refinement_level, const uint64_t y_index)
+{
+	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+	if (y_index > this->y_length * (uint64_t(1) << this->maximum_refinement_level)) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+#ifdef DCCRG_ARBITRARY_STRETCH
+	uint64_t unref_cell_y_coord_start_index = y_index / (uint64_t(1) << this->maximum_refinement_level);
+
+	double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
+	double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->maximum_refinement_level);
+
+	return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->maximum_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) / 2;
+}
+#else
+	return this->y_start + y_index * this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level) + this->cell_y_size / (uint64_t(1) << refinement_level) / 2;
+}
+#endif
+
+double CellGeometry::get_cell_z(const int refinement_level, const uint64_t z_index)
+{
+	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+	if (z_index > this->z_length * (uint64_t(1) << this->maximum_refinement_level)) {
+		return std::numeric_limits<double>::quiet_NaN();
+	}
+
+#ifdef DCCRG_ARBITRARY_STRETCH
+	uint64_t unref_cell_z_coord_start_index = z_index / (uint64_t(1) << this->maximum_refinement_level);
+
+	double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
+	double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->maximum_refinement_level);
+
+	return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->maximum_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) / 2;
+}
+#else
+	return this->z_start + z_index * this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level) + this->cell_z_size / (uint64_t(1) << refinement_level) / 2;
+}
+#endif
 
 
 uint64_t CellGeometry::get_x_length(void)
