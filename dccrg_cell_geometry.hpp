@@ -220,6 +220,20 @@ private:
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
 	int maximum_refinement_level;
 
+	// BOOST serialization support
+	#ifdef BOOST_VERSION
+	#include "boost/serialization/serialization.hpp"
+	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
+		#ifdef DCCRG_ARBITRARY_STRETCH
+		ar & x_coordinates & y_coordinates & z_coordinates;
+		#else
+		ar & x_start & y_start & z_start;
+		ar & cell_x_size & cell_y_size & cell_z_size;
+		#endif
+		ar & x_length & y_length & z_length & maximum_refinement_level;
+	}
+	#endif
+
 
 	/*!
 	Returns the lengths of given cell in indices in every direction
