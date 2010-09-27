@@ -1741,103 +1741,19 @@ public:
 	}
 
 
-
-private:
-
-	CellGeometry geometry;
-	#ifdef DCCRG_ARBITRARY_STRETCH
-	/*
-	The coordinates of unrefined cells in respective directions
-	First value is the starting point of the grid, following ith value is the end point of the ith unrefined cell
-	*/
-	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
-	#else
-	// length of unrefined cells in all directions
-	double cell_size;
-	#endif
-	// maximum refinemet level of any cell in the grid, 0 means unrefined
-	int max_refinement_level;
-	// the id of the last cell in the grid at maximum refinement level
-	uint64_t max_cell_number;
-	// size of the neighbour stencil of a cells in cells (of the same size as the cell itself)
-	unsigned int neighbourhood_size;
-	// the grid is distributed between these processes
-	boost::mpi::communicator comm;
-
-	// bookkeeping for Zoltan
-	Zoltan_Struct* zoltan;
-	// record whether Zoltan_LB_Partition is expected to fail (when the user selects NONE as the load balancing algorithm)
-	bool no_load_balancing;
-
-	// cells and their data on this process
-	boost::unordered_map<uint64_t, UserData> cells;
-
-	// cell on this process and its neithis->cells.count(current_parent) > 0ghbours
-	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours;
-
-	/*
-	Cell on this process and those cells that aren't neighbours of this cell but whose neighbour this cell is.
-	For example with a stencil size of 1 in the following grid:
-
-	|-----------|
-	|     |5 |6 |
-	|  1  |--|--|
-	|     |9 |10|
-	|-----------|
-
-	neighbours_to[6] = 1 because neighbours[6] = 5, 9, 10 while
-	neighbours_to[5] is empty because neighbours[5] = 1, 6, 9, 10
-	*/
-	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours_to;
-
-	// on which process every cell in the grid is
-	boost::unordered_map<uint64_t, int> cell_process;
-
-	// cells on this process that have a neighbour on another process or are considered as a neighbour of a cell on another process
-	boost::unordered_set<uint64_t> cells_with_remote_neighbours;
-
-	// remote neighbours and their data, of cells on this process
-	boost::unordered_map<uint64_t, UserData> remote_neighbours;
-
-	// cells added to or removed from the grid on this process that haven't been communicated to other processes yet
-	boost::unordered_set<uint64_t> added_cells, removed_cells;
-
-	// pending neighbour data requests for this process
-	std::vector<boost::mpi::request> requests;
-
-	// processes and their cells whose data has to be sent to this process
-	boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_receive;
-
-	// storage for cells' user data that awaits transfer to or from this process
-	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
-
-	// stores user data of cell that were removed when unrefining
-	boost::unordered_map<uint64_t, UserData> removed_cell_data;
-
-
-	/*
-	Updates the neighbour list of given cell without children on this process
-	*/
-	void update_neighbours(const uint64_t cell)
-	{
-		assert(cell > 0 && cell <= this->max_cell_number);
-		assert(this->cells.count(cell) > 0);
-		assert(cell == this->get_child(cell));
-
-		this->neighbours[cell] = this->get_neighbours_of(cell);
-	}
-
-
-	/*
+	/*!
 	Returns the existing neighbours without children of given cell
 	Returns nothing if the given cell has children
 	*/
 	std::vector<uint64_t> get_neighbours_of(const uint64_t id)
 	{
-		assert(id > 0 && id <= this->max_cell_number);
-		assert(this->cell_process.count(id) > 0);
-
 		std::vector<uint64_t> return_neighbours;
+
+		if (id == 0
+		|| id > this->max_cell_number
+		|| this->cell_process.count(id) == 0) {
+			return return_neighbours;
+		}
 
 		if (id != this->get_child(id)) {
 			return return_neighbours;
@@ -1934,6 +1850,93 @@ private:
 
 		return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
 		return return_neighbours;
+	}
+
+
+
+private:
+
+	CellGeometry geometry;
+	#ifdef DCCRG_ARBITRARY_STRETCH
+	/*
+	The coordinates of unrefined cells in respective directions
+	First value is the starting point of the grid, following ith value is the end point of the ith unrefined cell
+	*/
+	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
+	#else
+	// length of unrefined cells in all directions
+	double cell_size;
+	#endif
+	// maximum refinemet level of any cell in the grid, 0 means unrefined
+	int max_refinement_level;
+	// the id of the last cell in the grid at maximum refinement level
+	uint64_t max_cell_number;
+	// size of the neighbour stencil of a cells in cells (of the same size as the cell itself)
+	unsigned int neighbourhood_size;
+	// the grid is distributed between these processes
+	boost::mpi::communicator comm;
+
+	// bookkeeping for Zoltan
+	Zoltan_Struct* zoltan;
+	// record whether Zoltan_LB_Partition is expected to fail (when the user selects NONE as the load balancing algorithm)
+	bool no_load_balancing;
+
+	// cells and their data on this process
+	boost::unordered_map<uint64_t, UserData> cells;
+
+	// cell on this process and its neithis->cells.count(current_parent) > 0ghbours
+	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours;
+
+	/*
+	Cell on this process and those cells that aren't neighbours of this cell but whose neighbour this cell is.
+	For example with a stencil size of 1 in the following grid:
+
+	|-----------|
+	|     |5 |6 |
+	|  1  |--|--|
+	|     |9 |10|
+	|-----------|
+
+	neighbours_to[6] = 1 because neighbours[6] = 5, 9, 10 while
+	neighbours_to[5] is empty because neighbours[5] = 1, 6, 9, 10
+	*/
+	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours_to;
+
+	// on which process every cell in the grid is
+	boost::unordered_map<uint64_t, int> cell_process;
+
+	// cells on this process that have a neighbour on another process or are considered as a neighbour of a cell on another process
+	boost::unordered_set<uint64_t> cells_with_remote_neighbours;
+
+	// remote neighbours and their data, of cells on this process
+	boost::unordered_map<uint64_t, UserData> remote_neighbours;
+
+	// cells added to or removed from the grid on this process that haven't been communicated to other processes yet
+	boost::unordered_set<uint64_t> added_cells, removed_cells;
+
+	// pending neighbour data requests for this process
+	std::vector<boost::mpi::request> requests;
+
+	// processes and their cells whose data has to be sent to this process
+	boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_receive;
+
+	// storage for cells' user data that awaits transfer to or from this process
+	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
+
+	// stores user data of cell that were removed when unrefining
+	boost::unordered_map<uint64_t, UserData> removed_cell_data;
+
+
+	/*
+	Updates the neighbour list of given cell without children on this process
+	*/
+	void update_neighbours(const uint64_t cell)
+	{
+		assert(cell > 0 && cell <= this->max_cell_number);
+		assert(this->cells.count(cell) > 0);
+		assert(cell == this->get_child(cell));
+
+		this->neighbours[cell] = this->get_neighbours_of(cell);
 	}
 
 
@@ -2667,7 +2670,7 @@ private:
 
 
 	/*
-	Returns the smallest cell at given indices between given refinement ranges inclusive
+	Returns the smallest cell at given indices between given refinement levels inclusive
 	Returns 0 if no cell between given refinement ranges exists
 	*/
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level)
@@ -2736,6 +2739,35 @@ private:
 		assert(id > 0);
 		assert(id <= this->max_cell_number);
 		return id;
+	}
+
+
+	/*!
+	Returns the smallest cell at given coordinates or 0 if outside of the grid
+	*/
+	uint64_t get_cell(const double x, const double y, const double z)
+	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
+		if (x < this->x_coordinates[0]
+		|| x > this->x_coordinates[this->x_coordinates.size() - 1]
+		|| y < this->y_coordinates[0]
+		|| y > this->y_coordinates[this->y_coordinates.size() - 1]
+		|| z < this->z_coordinates[0]
+		|| z > this->z_coordinates[this->z_coordinates.size() - 1]) {
+			return 0;
+		}
+		#else
+		if (x < this->cell_geometry.get_x_start()
+		|| x > this->cell_geometry.get_x_start() + this->cell_geometry.get_x_length() * this->cell_geometry.get_cell_x_size()
+		|| y < this->cell_geometry.get_y_start()
+		|| y > this->cell_geometry.get_y_start() + this->cell_geometry.get_y_length() * this->cell_geometry.get_cell_y_size()
+		|| z < this->cell_geometry.get_z_start()
+		|| z > this->cell_geometry.get_z_start() + this->cell_geometry.get_z_length() * this->cell_geometry.get_cell_z_size()) {
+			return 0;
+		}
+		#endif
+
+		return this->get_cell_from_indices(this->cell_geometry.get_x_index(x), this->cell_geometry.get_y_index(y), this->cell_geometry.get_z_index(z), 0, this->cell_geometry.get_maximum_refinement_level());
 	}
 
 

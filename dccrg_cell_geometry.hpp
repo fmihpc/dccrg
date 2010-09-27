@@ -164,7 +164,7 @@ public:
 
 
 	/*!
-	Returns the cell at given location, or 0 if outside of the current grid
+	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location of refinement level
 	*/
 	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z);
 
@@ -194,6 +194,18 @@ public:
 	uint64_t get_z_index(const double z);
 
 
+	// BOOST serialization support
+	#include "boost/serialization/serialization.hpp"
+	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
+		#ifdef DCCRG_ARBITRARY_STRETCH
+		ar & x_coordinates & y_coordinates & z_coordinates;
+		#else
+		ar & x_start & y_start & z_start;
+		ar & cell_x_size & cell_y_size & cell_z_size;
+		#endif
+		ar & x_length & y_length & z_length & maximum_refinement_level;
+	}
+
 
 private:
 
@@ -219,20 +231,6 @@ private:
 	uint64_t x_length, y_length, z_length;
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
 	int maximum_refinement_level;
-
-	// BOOST serialization support
-	#ifdef BOOST_VERSION
-	#include "boost/serialization/serialization.hpp"
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		ar & x_coordinates & y_coordinates & z_coordinates;
-		#else
-		ar & x_start & y_start & z_start;
-		ar & cell_x_size & cell_y_size & cell_z_size;
-		#endif
-		ar & x_length & y_length & z_length & maximum_refinement_level;
-	}
-	#endif
 
 
 	/*!
