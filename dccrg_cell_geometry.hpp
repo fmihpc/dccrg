@@ -96,6 +96,13 @@ public:
 	bool set_cell_z_size(const double cell_z_size);
 
 	/*!
+	The following return the length of unrefined cells
+	*/
+	double get_unrefined_cell_x_size(void);
+	double get_unrefined_cell_y_size(void);
+	double get_unrefined_cell_z_size(void);
+
+	/*!
 	The following set the size of the grid in unrefined cells.
 	These return true if successful, probably invalidating all previous cell information (id, geometry, etc.)
 	Return false if unsuccessful and in that case have no effect.
@@ -423,6 +430,20 @@ bool CellGeometry::set_cell_z_size(const double cell_z_size)
 	this->cell_z_size = cell_z_size;
 
 	return true;
+}
+
+
+double CellGeometry::get_unrefined_cell_x_size(void)
+{
+	return this->cell_x_size;
+}
+double CellGeometry::get_unrefined_cell_y_size(void)
+{
+	return this->cell_y_size;
+}
+double CellGeometry::get_unrefined_cell_z_size(void)
+{
+	return this->cell_z_size;
 }
 
 

@@ -1853,6 +1853,35 @@ public:
 	}
 
 
+	/*!
+	Returns the smallest cell at given coordinates or 0 if outside of the grid
+	*/
+	uint64_t get_cell(const double x, const double y, const double z)
+	{
+		#ifdef DCCRG_ARBITRARY_STRETCH
+		if (x < this->x_coordinates[0]
+		|| x > this->x_coordinates[this->x_coordinates.size() - 1]
+		|| y < this->y_coordinates[0]
+		|| y > this->y_coordinates[this->y_coordinates.size() - 1]
+		|| z < this->z_coordinates[0]
+		|| z > this->z_coordinates[this->z_coordinates.size() - 1]) {
+			return 0;
+		}
+		#else
+		if (x < this->geometry.get_x_start()
+		|| x > this->geometry.get_x_start() + this->geometry.get_x_length() * this->geometry.get_unrefined_cell_x_size()
+		|| y < this->geometry.get_y_start()
+		|| y > this->geometry.get_y_start() + this->geometry.get_y_length() * this->geometry.get_unrefined_cell_y_size()
+		|| z < this->geometry.get_z_start()
+		|| z > this->geometry.get_z_start() + this->geometry.get_z_length() * this->geometry.get_unrefined_cell_z_size()) {
+			return 0;
+		}
+		#endif
+
+		return this->get_cell_from_indices(this->geometry.get_x_index(x), this->geometry.get_y_index(y), this->geometry.get_z_index(z), 0, this->geometry.get_maximum_refinement_level());
+	}
+
+
 
 private:
 
@@ -2739,35 +2768,6 @@ private:
 		assert(id > 0);
 		assert(id <= this->max_cell_number);
 		return id;
-	}
-
-
-	/*!
-	Returns the smallest cell at given coordinates or 0 if outside of the grid
-	*/
-	uint64_t get_cell(const double x, const double y, const double z)
-	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		if (x < this->x_coordinates[0]
-		|| x > this->x_coordinates[this->x_coordinates.size() - 1]
-		|| y < this->y_coordinates[0]
-		|| y > this->y_coordinates[this->y_coordinates.size() - 1]
-		|| z < this->z_coordinates[0]
-		|| z > this->z_coordinates[this->z_coordinates.size() - 1]) {
-			return 0;
-		}
-		#else
-		if (x < this->cell_geometry.get_x_start()
-		|| x > this->cell_geometry.get_x_start() + this->cell_geometry.get_x_length() * this->cell_geometry.get_cell_x_size()
-		|| y < this->cell_geometry.get_y_start()
-		|| y > this->cell_geometry.get_y_start() + this->cell_geometry.get_y_length() * this->cell_geometry.get_cell_y_size()
-		|| z < this->cell_geometry.get_z_start()
-		|| z > this->cell_geometry.get_z_start() + this->cell_geometry.get_z_length() * this->cell_geometry.get_cell_z_size()) {
-			return 0;
-		}
-		#endif
-
-		return this->get_cell_from_indices(this->cell_geometry.get_x_index(x), this->cell_geometry.get_y_index(y), this->cell_geometry.get_z_index(z), 0, this->cell_geometry.get_maximum_refinement_level());
 	}
 
 
