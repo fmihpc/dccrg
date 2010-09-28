@@ -171,7 +171,7 @@ public:
 
 
 	/*!
-	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location of refinement level
+	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location or refinement level
 	*/
 	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z);
 
