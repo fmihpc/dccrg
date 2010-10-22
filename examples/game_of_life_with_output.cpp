@@ -1,11 +1,12 @@
 /*
-A simple 2 D game of life program to demonstrate the efficient usage of dccrg
+A simple 2 D game of life program to demonstrate the efficient usage of dccrg and shows an example of how to output dccrg grid data into a file
 */
 
 #include "boost/mpi.hpp"
 #include "cstdlib"
-#include "ctime"
-#include "vector"
+#include "fstream"
+#include "iostream"
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../dccrg.hpp"
@@ -88,6 +89,47 @@ void apply_rules(const vector<uint64_t>* cells, dccrg<game_of_life_cell>* game_g
 }
 
 
+/*!
+Writes the game state into a file named game_of_life_, postfixed with the timestep and .dc
+See the file dc2vtk.cpp for a description of the fileformat
+*/
+void write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>* game_grid)
+{
+	// get the output filename
+	ostringstream basename("game_of_life_"), step_string, suffix(".vtk");
+	step_string.width(3);
+	step_string.fill('0');
+	step_string << step;
+
+	string output_name("");
+	output_name += basename.str();
+	output_name += step_string;
+	output_name += suffix.str();
+
+	MPI_File outfile;
+	MPI_File_open(comm, output_name.c_str(), MPI_MODE_WRONLY, MPI_INFO_NULL, &outfile);
+
+	// figure out how many bytes every process will write
+	vector<uint64_t> cells = game_grid->get_cells();
+	vector<uint64_t> all_bytes;
+	if (comm.rank() == 0) {
+		uint64_t geometry_size = sizeof(double) * 4 + sizeof(uint64_t) * 3 + sizeof(int);
+		all_gather(comm, geometry_size + (sizeof(uint64_t) + sizeof(int)) * cells.size(), all_bytes);
+	} else {
+		all_gather(comm, (sizeof(uint64_t) + sizeof(int)) * cells.size(), all_bytes);
+	}
+
+	uint64_t displacement = 0;
+	for (int i = 0; i < comm.rank(); i++) {
+		displacement += all_bytes[i];
+	}
+
+	...mpi_set_file_view(&outfile, displacement, MPI_BYTE, MPI_BYTE, "native", MPI_INFO_NULL...);
+
+	MPI_File_close(&outfile);
+}
+
+
 int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
@@ -98,6 +140,10 @@ int main(int argc, char* argv[])
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
+	if (comm.rank() == 0) {
+		cout << "Using Zoltan version " << zoltan_version << endl;
+	}
+
 
 	// create the grid
 	#define GRID_X_SIZE 1000	// in unrefined cells

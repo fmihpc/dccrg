@@ -86,7 +86,7 @@ public:
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
 	#else
-	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_size, const unsigned int x_length, const unsigned int y_length, const unsigned int z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_size, const uint64_t x_length, const uint64_t y_length, const uint64_t z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
 	#endif
 	{
 		this->comm = comm;
@@ -1881,6 +1881,85 @@ public:
 		return this->get_cell_from_indices(this->geometry.get_x_index(x), this->geometry.get_y_index(y), this->geometry.get_z_index(z), 0, this->geometry.get_maximum_refinement_level());
 	}
 
+	#ifdef DCCRG_ARBITRARY_STRETCH
+	#else
+	/*!
+	The following return the start and end corners of the grid
+	*/
+	double get_x_start(void) { return this->geometry.get_x_start(); }
+	double get_y_start(void) { return this->geometry.get_y_start(); }
+	double get_z_start(void) { return this->geometry.get_z_start(); }
+	double get_x_end(void) { return this->geometry.get_x_end(); }
+	double get_y_end(void) { return this->geometry.get_y_end(); }
+	double get_z_end(void) { return this->geometry.get_z_end(); }
+	#endif
+
+	/*!
+	The following return the grid length in unrefined cells
+	*/
+	uint64_t get_x_length(void) { return this->geometry.get_x_length(); }
+	uint64_t get_y_length(void) { return this->geometry.get_y_length(); }
+	uint64_t get_z_length(void) { return this->geometry.get_z_length(); }
+
+
+	/*
+	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0
+	For cells that are larger than the smallest possible according to max_refinement_level, the index closest to the grids starting corner is returned
+	 */
+	uint64_t get_x_index(uint64_t id)
+	{
+		assert(id);
+		assert(id <= this->max_cell_number);
+
+		// substract ids of larger cells
+		int refinement_level = get_refinement_level(id);
+		for (int i = 0; i < refinement_level; i++) {
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+		}
+
+		// get the index at this cells refinement level
+		id -= 1;	// cell numbering starts from 1
+		uint64_t this_level_index = id % (this->geometry.get_x_length() * (uint64_t(1) << refinement_level));
+
+		assert(this_level_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
+		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
+	}
+
+	uint64_t get_y_index(uint64_t id)
+	{
+		assert(id);
+		assert(id <= this->max_cell_number);
+
+		// substract ids of larger cells
+		int refinement_level = get_refinement_level(id);
+		for (int i = 0; i < refinement_level; i++) {
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+		}
+
+		// get the index at this cells refinement level
+		id -= 1;	// cell numbering starts from 1
+		uint64_t this_level_index =  (id / (this->geometry.get_x_length() * (uint64_t(1) << refinement_level))) % (this->geometry.get_y_length()  * (uint64_t(1) << refinement_level));
+
+		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
+	}
+
+	uint64_t get_z_index(uint64_t id)
+	{
+		assert(id);
+		assert(id <= this->max_cell_number);
+
+		// substract ids of larger cells
+		int refinement_level = get_refinement_level(id);
+		for (int i = 0; i < refinement_level; i++) {
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+		}
+
+		// get the index at this cells refinement level
+		id -= 1;	// cell numbering starts from 1
+		uint64_t this_level_index =  id / (this->geometry.get_x_length() * this->geometry.get_y_length() *  (uint64_t(1) << 2 * refinement_level));
+
+		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
+	}
 
 
 private:
@@ -2472,65 +2551,6 @@ private:
 		return this->get_cell_from_indices(this->get_x_index(x), this->get_y_index(y), this->get_z_index(z), 0, this->max_refinement_level);
 	}
 
-
-	/*
-	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0
-	For cells that are larger than the smallest possible according to max_refinement_level, the index closest to the grids starting corner is returned
-	 */
-	uint64_t get_x_index(uint64_t id)
-	{
-		assert(id);
-		assert(id <= this->max_cell_number);
-
-		// substract ids of larger cells
-		int refinement_level = get_refinement_level(id);
-		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
-		}
-
-		// get the index at this cells refinement level
-		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index = id % (this->geometry.get_x_length() * (uint64_t(1) << refinement_level));
-
-		assert(this_level_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
-		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
-	}
-
-	uint64_t get_y_index(uint64_t id)
-	{
-		assert(id);
-		assert(id <= this->max_cell_number);
-
-		// substract ids of larger cells
-		int refinement_level = get_refinement_level(id);
-		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
-		}
-
-		// get the index at this cells refinement level
-		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  (id / (this->geometry.get_x_length() * (uint64_t(1) << refinement_level))) % (this->geometry.get_y_length()  * (uint64_t(1) << refinement_level));
-
-		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
-	}
-
-	uint64_t get_z_index(uint64_t id)
-	{
-		assert(id);
-		assert(id <= this->max_cell_number);
-
-		// substract ids of larger cells
-		int refinement_level = get_refinement_level(id);
-		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
-		}
-
-		// get the index at this cells refinement level
-		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  id / (this->geometry.get_x_length() * this->geometry.get_y_length() *  (uint64_t(1) << 2 * refinement_level));
-
-		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
-	}
 
 	/*
 	These return the x, y or z index of the given coordinate

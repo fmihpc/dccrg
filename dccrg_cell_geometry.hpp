@@ -79,9 +79,18 @@ public:
 	/*!
 	The following return the starting corner of the grid
 	*/
+	// TODO move outside of ifdef
 	double get_x_start(void);
 	double get_y_start(void);
 	double get_z_start(void);
+
+	/*!
+	The following return the ending corner of the grid
+	*/
+	// TODO move outside of ifdef
+	double get_x_end(void);
+	double get_y_end(void);
+	double get_z_end(void);
 
 
 	/*!
@@ -363,21 +372,21 @@ bool CellGeometry::set_coordinates(const std::vector<double> x_coordinates, cons
 
 #else
 
-bool CellGeometry::set_x_start(const double x_start)
+bool CellGeometry::set_x_start(const double given_x_start)
 {
-	this->x_start = x_start;
+	this->x_start = given_x_start;
 	return true;
 }
 
-bool CellGeometry::set_y_start(const double y_start)
+bool CellGeometry::set_y_start(const double given_y_start)
 {
-	this->y_start = y_start;
+	this->y_start = given_y_start;
 	return true;
 }
 
-bool CellGeometry::set_z_start(const double z_start)
+bool CellGeometry::set_z_start(const double given_z_start)
 {
-	this->z_start = z_start;
+	this->z_start = given_z_start;
 	return true;
 }
 
@@ -398,36 +407,52 @@ double CellGeometry::get_z_start(void)
 }
 
 
-bool CellGeometry::set_cell_x_size(const double cell_x_size)
+double CellGeometry::get_x_end(void)
 {
-	if (cell_x_size <= 0) {
+	return this->x_start + double(this->x_length) * this->cell_x_size;
+}
+
+double CellGeometry::get_y_end(void)
+{
+	return this->y_start + double(this->y_length) * this->cell_y_size;
+}
+
+double CellGeometry::get_z_end(void)
+{
+	return this->z_start + double(this->z_length) * this->cell_z_size;
+}
+
+
+bool CellGeometry::set_cell_x_size(const double given_cell_x_size)
+{
+	if (given_cell_x_size <= 0) {
 		std::cerr << "Cell size in x direction must be > 0" << std::endl;
 		return false;
 	}
 
-	this->cell_x_size = cell_x_size;
+	this->cell_x_size = given_cell_x_size;
 
 	return true;
 }
 
-bool CellGeometry::set_cell_y_size(const double cell_y_size)
+bool CellGeometry::set_cell_y_size(const double given_cell_y_size)
 {
-	if (cell_y_size <= 0) {
+	if (given_cell_y_size <= 0) {
 		std::cerr << "Cell size in y direction must be > 0" << std::endl;
 		return false;
 	}
-	this->cell_y_size = cell_y_size;
+	this->cell_y_size = given_cell_y_size;
 
 	return true;
 }
 
-bool CellGeometry::set_cell_z_size(const double cell_z_size)
+bool CellGeometry::set_cell_z_size(const double given_cell_z_size)
 {
-	if (cell_z_size <= 0) {
+	if (given_cell_z_size <= 0) {
 		std::cerr << "Cell size in z direction must be > 0" << std::endl;
 		return false;
 	}
-	this->cell_z_size = cell_z_size;
+	this->cell_z_size = given_cell_z_size;
 
 	return true;
 }
@@ -447,15 +472,15 @@ double CellGeometry::get_unrefined_cell_z_size(void)
 }
 
 
-bool CellGeometry::set_x_length(const uint64_t x_length)
+bool CellGeometry::set_x_length(const uint64_t given_x_length)
 {
-	if (x_length == 0) {
+	if (given_x_length == 0) {
 		std::cerr << "Length of the grid in unrefined cells must be > 0 in the x direction" << std::endl;
 		return false;
 	}
 
 	uint64_t old_x_length = this->x_length;
-	this->x_length = x_length;
+	this->x_length = given_x_length;
 
 	if (this->maximum_refinement_level > this->get_maximum_possible_refinement_level()) {
 		std::cerr << "Grid could have too many cells for an uint64_t with current refinement level" << std::endl;
@@ -466,47 +491,47 @@ bool CellGeometry::set_x_length(const uint64_t x_length)
 	}
 }
 
-bool CellGeometry::set_y_length(const uint64_t y_length)
+bool CellGeometry::set_y_length(const uint64_t given_y_length)
 {
-	if (y_length == 0) {
+	if (given_y_length == 0) {
 		std::cerr << "Length of the grid in unrefined cells must be > 0 in the y direction" << std::endl;
 		return false;
 	}
 
-	double last_unrefined_cell = double(this->x_length) * double(y_length) * double(this->z_length);
+	double last_unrefined_cell = double(this->x_length) * double(given_y_length) * double(this->z_length);
 	if (last_unrefined_cell > double(uint64_t(~0))) {
 		std::cerr << "Grid would have too many unrefined cells to fit them into uint64_t (1..." << last_unrefined_cell << ")" << std::endl;
 		return false;
 	}
 
-	this->y_length = y_length;
+	this->y_length = given_y_length;
 	return true;
 }
 
-bool CellGeometry::set_z_length(const uint64_t z_length)
+bool CellGeometry::set_z_length(const uint64_t given_z_length)
 {
-	if (z_length == 0) {
+	if (given_z_length == 0) {
 		std::cerr << "Length of the grid in unrefined cells must be > 0 in the z direction" << std::endl;
 		return false;
 	}
 
-	double last_unrefined_cell = double(this->x_length) * double(this->y_length) * double(z_length);
+	double last_unrefined_cell = double(this->x_length) * double(this->y_length) * double(given_z_length);
 	if (last_unrefined_cell > double(uint64_t(~0))) {
 		std::cerr << "Grid would have too many unrefined cells to fit them into uint64_t (1..." << last_unrefined_cell << ")" << std::endl;
 		return false;
 	}
 
-	this->z_length = z_length;
+	this->z_length = given_z_length;
 	return true;
 }
 
 #endif
 
 
-bool CellGeometry::set_maximum_refinement_level(const int maximum_refinement_level)
+bool CellGeometry::set_maximum_refinement_level(const int given_maximum_refinement_level)
 {
-	if (maximum_refinement_level <= this->get_maximum_possible_refinement_level()) {
-		this->maximum_refinement_level = maximum_refinement_level;
+	if (given_maximum_refinement_level <= this->get_maximum_possible_refinement_level()) {
+		this->maximum_refinement_level = given_maximum_refinement_level;
 		return true;
 	} else {
 		return false;
@@ -522,8 +547,8 @@ int CellGeometry::get_maximum_refinement_level(void)
 
 int CellGeometry::get_maximum_possible_refinement_level(void)
 {
-	double last_possible_cell = uint64_t(~0);
-	double last_cell = this->x_length * this->y_length * this->z_length;
+	double last_possible_cell = double(uint64_t(~0));
+	double last_cell = double(this->x_length * this->y_length * this->z_length);
 	int refinement_level = 0;
 
 	while (last_cell <= last_possible_cell) {
