@@ -4,7 +4,7 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG -std=c++0x #$(EXTRA_WARNINGS)
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-all: simple_game_of_life game_of_life
+all: simple_game_of_life game_of_life game_of_life_with_output dc2vtk
 
 game_of_life: game_of_life.cpp ../dccrg.hpp Makefile
 	$(CXX) game_of_life.cpp $(INCLUDES) -o game_of_life
@@ -12,6 +12,12 @@ game_of_life: game_of_life.cpp ../dccrg.hpp Makefile
 simple_game_of_life: simple_game_of_life.cpp ../dccrg.hpp Makefile
 	$(CXX) simple_game_of_life.cpp $(INCLUDES) -o simple_game_of_life
 
+game_of_life_with_output: game_of_life_with_output.cpp ../dccrg.hpp Makefile
+	$(CXX) game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
+
+dc2vtk: dc2vtk.cpp ../dccrg.hpp Makefile
+	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
+
 c: clean
 clean:
-	rm -f simple_game_of_life game_of_life
+	rm -f simple_game_of_life game_of_life game_of_life_with_output dc2vtk *dc *.vtk

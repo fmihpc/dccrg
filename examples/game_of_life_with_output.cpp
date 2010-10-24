@@ -3,10 +3,13 @@ A simple 2 D game of life program to demonstrate the efficient usage of dccrg an
 */
 
 #include "boost/mpi.hpp"
+#include "cstdio"
 #include "cstdlib"
+#include "cstring"
 #include "fstream"
 #include "iostream"
 #include "mpi.h"
+#include "stdint.h"
 #include "zoltan.h"
 
 #include "../dccrg.hpp"
@@ -91,42 +94,129 @@ void apply_rules(const vector<uint64_t>* cells, dccrg<game_of_life_cell>* game_g
 
 /*!
 Writes the game state into a file named game_of_life_, postfixed with the timestep and .dc
-See the file dc2vtk.cpp for a description of the fileformat
+Fileformat:
+double x_start
+double y_start
+double z_start
+double cell_size
+uint64_t x_length
+uint64_t y_length
+uint64_t z_length
+uint64_t cell1
+uint64_t is_alive1
+uint64_t cell2
+uint64_t is_alive2
+uint64_t cell3
+uint64_t is_alive3
+...
 */
-void write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>* game_grid)
+bool write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>* game_grid)
 {
+	int result;
+
 	// get the output filename
-	ostringstream basename("game_of_life_"), step_string, suffix(".vtk");
+	ostringstream basename("game_of_life_"), step_string, suffix(".dc");
 	step_string.width(3);
 	step_string.fill('0');
 	step_string << step;
 
 	string output_name("");
 	output_name += basename.str();
-	output_name += step_string;
+	output_name += step_string.str();
 	output_name += suffix.str();
 
+	// MPI_File_open wants a non-constant string
+	char* output_name_c_string = new char [output_name.size() + 1];
+	strncpy(output_name_c_string, output_name.c_str(), output_name.size() + 1);
+
+	/*
+	Contrary to what http://www.open-mpi.org/doc/v1.4/man3/MPI_File_open.3.php writes, MPI_File_open doesn't truncate the file with OpenMPI 1.4.1 on Ubuntu, so use a fopen call first (http://www.opengroup.org/onlinepubs/009695399/functions/fopen.html)
+	*/
+	if (comm.rank() == 0) {
+		FILE* i = fopen(output_name_c_string, "w");
+		fflush(i);
+		fclose(i);
+	}
+	comm.barrier();
+
 	MPI_File outfile;
-	MPI_File_open(comm, output_name.c_str(), MPI_MODE_WRONLY, MPI_INFO_NULL, &outfile);
+	result = MPI_File_open(comm, output_name_c_string, MPI_MODE_CREATE | MPI_MODE_WRONLY, MPI_INFO_NULL, &outfile);
+	if (result != MPI_SUCCESS) {
+		char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+		int mpi_error_string_length;
+		MPI_Error_string(result, mpi_error_string, &mpi_error_string_length);
+		mpi_error_string[mpi_error_string_length + 1] = '\0';
+		cerr << "Couldn't open file " << output_name_c_string << ": " << mpi_error_string << endl;
+		return false;
+	}
+
+	MPI_Status status;
+	MPI_Offset offset;
+
+	// first process writes the header
+	MPI_File_set_view(outfile, 0, MPI_DOUBLE, MPI_DOUBLE, (char*)"native", MPI_INFO_NULL);
+	if (comm.rank() == 0) {
+		// for file writes the offset is in units of sizeof(MPI_DOUBLE)
+		offset = 0;
+		double x_start = game_grid->get_x_start();
+		MPI_File_write_at(outfile, offset, &x_start, 1, MPI_DOUBLE, &status);
+
+		offset = 1;
+		double y_start = game_grid->get_y_start();
+		MPI_File_write_at(outfile, offset, &y_start, 1, MPI_DOUBLE, &status);
+
+		offset = 2;
+		double z_start = game_grid->get_z_start();
+		MPI_File_write_at(outfile, offset, &z_start, 1, MPI_DOUBLE, &status);
+
+		offset = 3;
+		double cell_size = game_grid->get_cell_x_size(1);
+		MPI_File_write_at(outfile, offset, &cell_size, 1, MPI_DOUBLE, &status);
+	}
+
+	// for file views the offset is in bytes
+	MPI_File_set_view(outfile, 4 * sizeof(double), MPI_UNSIGNED_LONG_LONG, MPI_UNSIGNED_LONG_LONG, (char*)"native", MPI_INFO_NULL);
+	if (comm.rank() == 0) {
+		// for file writes the offset is in units of sizeof(uint64_t), starting from the offset given in set_view
+		offset = 0;
+		uint64_t x_length = game_grid->get_x_length();
+		MPI_File_write_at(outfile, offset, &x_length, 1, MPI_UNSIGNED_LONG_LONG, &status);
+
+		offset = 1;
+		uint64_t y_length = game_grid->get_y_length();
+		MPI_File_write_at(outfile, offset, &y_length, 1, MPI_UNSIGNED_LONG_LONG, &status);
+
+		offset = 2;
+		uint64_t z_length = game_grid->get_z_length();
+		MPI_File_write_at(outfile, offset, &z_length, 1, MPI_UNSIGNED_LONG_LONG, &status);
+	}
 
 	// figure out how many bytes every process will write
 	vector<uint64_t> cells = game_grid->get_cells();
 	vector<uint64_t> all_bytes;
-	if (comm.rank() == 0) {
-		uint64_t geometry_size = sizeof(double) * 4 + sizeof(uint64_t) * 3 + sizeof(int);
-		all_gather(comm, geometry_size + (sizeof(uint64_t) + sizeof(int)) * cells.size(), all_bytes);
-	} else {
-		all_gather(comm, (sizeof(uint64_t) + sizeof(int)) * cells.size(), all_bytes);
-	}
+	all_gather(comm, 2 * sizeof(uint64_t) * cells.size(), all_bytes);
 
-	uint64_t displacement = 0;
+	// add the header to every process' offset
+	offset = 4 * sizeof(double) + 3 * sizeof(uint64_t);
 	for (int i = 0; i < comm.rank(); i++) {
-		displacement += all_bytes[i];
+		offset += all_bytes[i];
 	}
 
-	...mpi_set_file_view(&outfile, displacement, MPI_BYTE, MPI_BYTE, "native", MPI_INFO_NULL...);
+	// every process writes its cells after the previous processes
+	MPI_File_set_view(outfile, offset, MPI_UNSIGNED_LONG_LONG, MPI_UNSIGNED_LONG_LONG, (char*)"native", MPI_INFO_NULL);
+	offset = 0;
+	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		uint64_t current_cell = *cell;
+		MPI_File_write_at(outfile, offset, &current_cell, 1, MPI_UNSIGNED_LONG_LONG, &status);
+		offset++;
+
+		uint64_t current_is_alive = uint64_t((*game_grid)[*cell]->is_alive);
+		MPI_File_write_at(outfile, offset, &current_is_alive, 1, MPI_UNSIGNED_LONG_LONG, &status);
+		offset++;
+	}
 
 	MPI_File_close(&outfile);
+	return true;
 }
 
 
@@ -146,8 +236,8 @@ int main(int argc, char* argv[])
 
 
 	// create the grid
-	#define GRID_X_SIZE 1000	// in unrefined cells
-	#define GRID_Y_SIZE 1000
+	#define GRID_X_SIZE 10	// in unrefined cells
+	#define GRID_Y_SIZE 10
 	#define GRID_Z_SIZE 1
 	#define CELL_SIZE 1.0
 	#define STENCIL_SIZE 1	// the cells that share a vertex are considered neighbours
@@ -168,11 +258,10 @@ int main(int argc, char* argv[])
 	initialize_game(&cells_with_local_neighbours, &game_grid);
 	initialize_game(&cells_with_remote_neighbour, &game_grid);
 
-
-	// time the game to examine its scalability
-	clock_t before = clock();
-	#define TURNS 100
+	#define TURNS 10
 	for (int turn = 0; turn < TURNS; turn++) {
+
+		write_game_data(turn, comm, &game_grid);
 
 		// start updating cell data from other processes and calculate the next turn for cells without neighbours on other processes in the meantime
 		game_grid.start_remote_neighbour_data_update();
@@ -186,25 +275,7 @@ int main(int argc, char* argv[])
 		apply_rules(&cells_with_local_neighbours, &game_grid);
 		apply_rules(&cells_with_remote_neighbour, &game_grid);
 	}
-	clock_t after = clock();
+	write_game_data(TURNS, comm, &game_grid);
 
-
-	// calculate some timing statistics
-	double total_time = double(after - before) / CLOCKS_PER_SEC;
-	uint64_t total_cells = TURNS * (cells_with_local_neighbours.size() + cells_with_remote_neighbour.size());
-
-	double min_speed = all_reduce(comm, total_cells / total_time, minimum<double>());
-	double max_speed = all_reduce(comm, total_cells / total_time, maximum<double>());
-	double avg_speed = all_reduce(comm, total_cells / total_time, plus<double>()) / comm.size();
-
-	uint64_t total_global_cells = all_reduce(comm, total_cells, plus<uint64_t>());
-	double avg_global_speed = all_reduce(comm, total_global_cells / (all_reduce(comm, total_time, plus<double>()) / comm.size()), plus<double>()) / comm.size();
-
-	// print the statistics
-	if (comm.rank() == 0) {
-		cout << "Game played at " << avg_speed << " cells / process / s (average speed, minimum: " << min_speed << ", maximum: " << max_speed << ")" << endl;
-		cout << "Average total playing speed " << avg_global_speed << " cells / s" << endl;
-	}
-
-	return game_grid[cells_with_local_neighbours[0]]->is_alive;
+	return EXIT_SUCCESS;
 }
