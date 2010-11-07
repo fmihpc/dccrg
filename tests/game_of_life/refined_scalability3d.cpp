@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 	environment env(argc, argv);
 	communicator comm;
 
-	clock_t before, after, total = 0;
+	time_t before, after, total = 0;
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 100
-	before = clock();
+	before = time(NULL);
 	uint64_t processed_neighbours = 0;
 	for (int step = 0; step < TIME_STEPS; step++) {
 
@@ -241,14 +241,14 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	after = clock();
+	after = time(NULL);
 	total += after - before;
 	if (comm.rank() == 0) {
 		cout << endl;
 	}
 	comm.barrier();
 	cout << "processed neighbours: " << processed_neighbours << endl;
-	cout << "Process " << comm.rank() << ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) * CLOCKS_PER_SEC / total << " cells / second"<< endl;
+	cout << "Process " << comm.rank() << ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) / total << " cells / second"<< endl;
 
 	return EXIT_SUCCESS;
 }

@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
 
 
 	// time the game to examine its scalability
-	clock_t before = clock();
+	time_t before = time(NULL);
 	#define TURNS 100
 	for (int turn = 0; turn < TURNS; turn++) {
 
@@ -140,11 +140,11 @@ int main(int argc, char* argv[])
 		apply_rules(&cells_with_local_neighbours, &game_grid);
 		apply_rules(&cells_with_remote_neighbour, &game_grid);
 	}
-	clock_t after = clock();
+	time_t after = time(NULL);
 
 
 	// calculate some timing statistics
-	double total_time = double(after - before) / CLOCKS_PER_SEC;
+	time_t total_time = after - before;
 	uint64_t total_cells = TURNS * (cells_with_local_neighbours.size() + cells_with_remote_neighbour.size());
 
 	double min_speed = all_reduce(comm, total_cells / total_time, minimum<double>());
