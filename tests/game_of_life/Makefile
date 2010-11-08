@@ -31,4 +31,4 @@ refined_scalability3d: refined_scalability3d.cpp ../../dccrg.hpp Makefile
 
 c: clean
 clean:
-	rm -f game_of_life_test scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d
+	rm -f game_of_life_test scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d *vtk *visit

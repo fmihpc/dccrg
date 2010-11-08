@@ -10,7 +10,6 @@ Turns the files saved from game_of_life_with_output.cpp into .vtk files, visuali
 #include "iostream"
 #include "stdint.h"
 
-#define NO_SERIALIZE
 #include "../dccrg_cell_geometry.hpp"
 
 using namespace std;
@@ -138,19 +137,17 @@ int main(int argc, char* argv[])
 		}
 		sort(cells.begin(), cells.end());
 
-		// write separate points for every cells corners
+		// write separate points for every cells' corners
 		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < cells.size(); i++) {
-
-			double x = geometry.get_cell_x(cells[i]), y = geometry.get_cell_y(cells[i]), z = geometry.get_cell_z(cells[i]);
-			// make the cells a little smaller than in theory so that the data at every face is well defined and VisIt plots it correctly
-			for (double z_offset = -geometry.get_cell_z_size(cells[i]) / 2; z_offset < geometry.get_cell_z_size(cells[i]); z_offset += geometry.get_cell_z_size(cells[i])) {
-				for (double y_offset = -geometry.get_cell_y_size(cells[i]) / 2; y_offset < geometry.get_cell_y_size(cells[i]); y_offset += geometry.get_cell_y_size(cells[i])) {
-					for (double x_offset = -geometry.get_cell_x_size(cells[i]) / 2; x_offset < geometry.get_cell_x_size(cells[i]); x_offset += geometry.get_cell_x_size(cells[i])) {
-						outfile << x + x_offset << " " << y + y_offset << " " << z + z_offset << std::endl;
-					}
-				}
-			}
+			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
 		}
 
 		// map cells to written points

@@ -958,6 +958,32 @@ public:
 	}
 
 
+	double get_cell_min_x(const uint64_t cell) const
+	{
+		return this->geometry.get_cell_min_x(cell);
+	}
+	double get_cell_min_y(const uint64_t cell) const
+	{
+		return this->geometry.get_cell_min_y(cell);
+	}
+	double get_cell_min_z(const uint64_t cell) const
+	{
+		return this->geometry.get_cell_min_z(cell);
+	}
+
+	double get_cell_max_x(const uint64_t cell) const
+	{
+		return this->geometry.get_cell_max_x(cell);
+	}
+	double get_cell_max_y(const uint64_t cell) const
+	{
+		return this->geometry.get_cell_max_y(cell);
+	}
+	double get_cell_max_z(const uint64_t cell) const
+	{
+		return this->geometry.get_cell_max_z(cell);
+	}
+
 	/*
 	The following return the length of given cell in x, y or z direction regardless of whether it exists or has children
 	*/
@@ -1008,16 +1034,14 @@ public:
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-
-			double x = get_cell_x(leaf_cells[i]), y = get_cell_y(leaf_cells[i]), z = get_cell_z(leaf_cells[i]);
-			// make the cells a little smaller than in theory so that the data at every face is well defined and VisIt plots it correctly
-			for (double z_offset = -get_cell_z_size(leaf_cells[i]) / 2; z_offset < get_cell_z_size(leaf_cells[i]); z_offset += get_cell_z_size(leaf_cells[i])) {
-				for (double y_offset = -get_cell_y_size(leaf_cells[i]) / 2; y_offset < get_cell_y_size(leaf_cells[i]); y_offset += get_cell_y_size(leaf_cells[i])) {
-					for (double x_offset = -get_cell_x_size(leaf_cells[i]) / 2; x_offset < get_cell_x_size(leaf_cells[i]); x_offset += get_cell_x_size(leaf_cells[i])) {
-						outfile << x + x_offset << " " << y + y_offset << " " << z + z_offset << std::endl;
-					}
-				}
-			}
+			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
 		}
 
 		// map cells to written points
