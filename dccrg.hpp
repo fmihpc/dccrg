@@ -124,7 +124,6 @@ public:
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
 		Zoltan_Set_Obj_List_Fn(this->zoltan, &dccrg<UserData>::get_cell_list, this);
-		Zoltan_Set_Obj_Size_Fn(this->zoltan, &dccrg<UserData>::user_data_size, NULL);
 		Zoltan_Set_Num_Geom_Fn(this->zoltan, &dccrg<UserData>::get_grid_dimensionality, NULL);
 		Zoltan_Set_Geom_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
 
@@ -238,7 +237,7 @@ public:
 	/*
 	Returns all cells on this process that don't have children (e.g. leaf cells)
 	*/
-	std::vector<uint64_t> get_cells(void)
+	std::vector<uint64_t> get_cells(void) const
 	{
 		std::vector<uint64_t> all_cells;
 		all_cells.reserve(this->cells.size());
@@ -260,7 +259,7 @@ public:
 	/*
 	Returns all cells on this process that don't have children (e.g. leaf cells) and don't have neighbours on other processes
 	*/
-	std::vector<uint64_t> get_cells_with_local_neighbours(void)
+	std::vector<uint64_t> get_cells_with_local_neighbours(void) const
 	{
 		std::vector<uint64_t> return_cells;
 		return_cells.reserve(this->cells.size());
@@ -277,8 +276,8 @@ public:
 			bool has_remote_neighbour = false;
 
 			assert(this->neighbours.count(cell->first) > 0);
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell->first].begin(); neighbour != this->neighbours[cell->first].end(); neighbour++) {
-				if (this->cell_process[*neighbour] != this->comm.rank()) {
+			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell->first).begin(); neighbour != this->neighbours.at(cell->first).end(); neighbour++) {
+				if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 					has_remote_neighbour = true;
 					break;
 				}
@@ -296,7 +295,7 @@ public:
 	/*
 	Returns all cells on this process that don't have children (e.g. leaf cells) and have at least one neighbour on another processes
 	*/
-	std::vector<uint64_t> get_cells_with_remote_neighbour(void)
+	std::vector<uint64_t> get_cells_with_remote_neighbour(void) const
 	{
 		std::vector<uint64_t> return_cells;
 		return_cells.reserve(this->cells.size());
@@ -313,8 +312,8 @@ public:
 			bool has_remote_neighbour = false;
 
 			assert(this->neighbours.count(cell->first) > 0);
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell->first].begin(); neighbour != this->neighbours[cell->first].end(); neighbour++) {
-				if (this->cell_process[*neighbour] != this->comm.rank()) {
+			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell->first).begin(); neighbour != this->neighbours.at(cell->first).end(); neighbour++) {
+				if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 					has_remote_neighbour = true;
 					break;
 				}
@@ -333,14 +332,14 @@ public:
 	Returns a pointer to the user supplied data of given cell
 	Return NULL if the given cell isn't on this process and if the given cell isn't a neighbour of any cell on this process
 	*/
-	UserData* operator [] (const uint64_t cell)
+	UserData* operator [] (const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			return &(this->cells[cell]);
+			return (UserData*) &(this->cells.at(cell));
 		} else if (this->remote_neighbours.count(cell) > 0) {
-			return &(this->remote_neighbours[cell]);
+			return (UserData*) &(this->remote_neighbours.at(cell));
 		} else if (this->removed_cell_data.count(cell) > 0) {
-			return &(this->removed_cell_data[cell]);
+			return (UserData*) &(this->removed_cell_data.at(cell));
 		} else {
 			return NULL;
 		}
@@ -750,10 +749,10 @@ public:
 	The local copy of remote neighbours' data is updated, for example, by calling update_remote_neighbour_data()
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
-	const std::vector<uint64_t>* get_neighbours(const uint64_t cell)
+	const std::vector<uint64_t>* get_neighbours(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			return &(this->neighbours[cell]);
+			return (std::vector<uint64_t>*) &(this->neighbours.at(cell));
 		} else {
 			return NULL;
 		}
@@ -764,7 +763,7 @@ public:
 	Some cell might be on another process or the structure might be empty
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
-	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell)
+	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
 			return &(this->neighbours_to[cell]);
@@ -779,7 +778,7 @@ public:
 	Returns neighbours in positive x direction if given direction > 0 and negative direction otherwise
 	Returns nothing if given cell doesn't exist or exists on another process
 	*/
-	std::vector<uint64_t> get_neighbours_x(const uint64_t cell, const double direction)
+	std::vector<uint64_t> get_neighbours_x(const uint64_t cell, const double direction) const
 	{
 		std::vector<uint64_t> return_neighbours;
 
@@ -820,7 +819,7 @@ public:
 	/*!
 	Same as get_neighbours_x but in y direction
 	*/
-	std::vector<uint64_t> get_neighbours_y(const uint64_t cell, const double direction)
+	std::vector<uint64_t> get_neighbours_y(const uint64_t cell, const double direction) const
 	{
 		std::vector<uint64_t> return_neighbours;
 
@@ -861,7 +860,7 @@ public:
 	/*!
 	Same as get_neighbours_x but in z direction
 	*/
-	std::vector<uint64_t> get_neighbours_z(const uint64_t cell, const double direction)
+	std::vector<uint64_t> get_neighbours_z(const uint64_t cell, const double direction) const
 	{
 		std::vector<uint64_t> return_neighbours;
 
@@ -905,7 +904,7 @@ public:
 	Returns the given cells neighbours that are on another process
 	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
 	*/
-	std::vector<uint64_t> get_remote_neighbours(const uint64_t id)
+	std::vector<uint64_t> get_remote_neighbours(const uint64_t id) const
 	{
 		std::vector<uint64_t> remote_neighbours;
 
@@ -936,7 +935,7 @@ public:
 	/*
 	Returns the maximum possible refinement level of any cell in the grid (0 means unrefined)
 	*/
-	int get_max_refinement_level(void)
+	int get_max_refinement_level(void) const
 	{
 		return this->max_refinement_level;
 	}
@@ -945,15 +944,15 @@ public:
 	/*
 	The following return the x, y or z coordinate of the center of given cell regardless of whether it exists or has children
 	*/
-	double get_cell_x(const uint64_t cell)
+	double get_cell_x(const uint64_t cell) const
 	{
 		return this->geometry.get_cell_x(cell);
 	}
-	double get_cell_y(const uint64_t cell)
+	double get_cell_y(const uint64_t cell) const
 	{
 		return this->geometry.get_cell_y(cell);
 	}
-	double get_cell_z(const uint64_t cell)
+	double get_cell_z(const uint64_t cell) const
 	{
 		return this->geometry.get_cell_z(cell);
 	}
@@ -962,15 +961,15 @@ public:
 	/*
 	The following return the length of given cell in x, y or z direction regardless of whether it exists or has children
 	*/
-	double get_cell_x_size(const uint64_t cell)
+	double get_cell_x_size(const uint64_t cell) const
 	{
 		return this->geometry.get_cell_x_size(cell);
 	}
-	double get_cell_y_size(const uint64_t cell)
+	double get_cell_y_size(const uint64_t cell) const
 	{
 		return this->geometry.get_cell_y_size(cell);
 	}
-	double get_cell_z_size(const uint64_t cell)
+	double get_cell_z_size(const uint64_t cell) const
 	{
 		return this->geometry.get_cell_z_size(cell);
 	}
@@ -980,7 +979,7 @@ public:
 	Returns the refinement level of given cell, even if it doesn't exist
 	Returns -1 if cell == 0 or cell would exceed maximum refinement level
 	*/
-	int get_refinement_level(uint64_t cell)
+	int get_refinement_level(uint64_t cell) const
 	{
 		return this->geometry.get_refinement_level(cell);
 	}
@@ -991,7 +990,7 @@ public:
 	The cells are written in ascending order
 	Must be called simultaneously on all processes
 	*/
-	void write_vtk_file(const char* file_name)
+	void write_vtk_file(const char* file_name) const
 	{
 		std::ofstream outfile(file_name);
 		if (!outfile.is_open()) {
@@ -1638,7 +1637,7 @@ public:
 	Returns cells that were removed by unrefinement whose parent is on this process
 	Removed cells data is also on this process, but only until balance_load() is called
 	*/
-	std::vector<uint64_t> get_removed_cells(void)
+	std::vector<uint64_t> get_removed_cells(void) const
 	{
 		std::vector<uint64_t> unref_removed_cells;
 		unref_removed_cells.reserve(this->removed_cell_data.size());
@@ -1655,7 +1654,7 @@ public:
 	Given a cell that exists and has a parent returns the parent cell
 	Returns the given cell if it doesn't have a parent or 0 if the cell doesn't exist
 	*/
-	uint64_t get_parent(const uint64_t cell)
+	uint64_t get_parent(const uint64_t cell) const
 	{
 		if (this->cell_process.count(cell) == 0) {
 			return 0;
@@ -1678,7 +1677,7 @@ public:
 	Returns the parent of given cell
 	Returns the given cell if its refinement level == 0 or > maximum refinement level
 	*/
-	uint64_t get_parent_for_removed(const uint64_t cell)
+	uint64_t get_parent_for_removed(const uint64_t cell) const
 	{
 		int refinement_level = this->get_refinement_level(cell);
 		if (refinement_level == 0 || refinement_level > this->max_refinement_level) {
@@ -1694,7 +1693,7 @@ public:
 	Returns false otherwise
 	FIXME: only works for stencil size 1
 	*/
-	bool shared_vertex(const uint64_t cell1, const uint64_t cell2)
+	bool shared_vertex(const uint64_t cell1, const uint64_t cell2) const
 	{
 		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
 			return false;
@@ -1711,7 +1710,7 @@ public:
 	Returns false otherwise
 	FIXME: only works for stencil size 1
 	*/
-	bool shared_edge(const uint64_t cell1, const uint64_t cell2)
+	bool shared_edge(const uint64_t cell1, const uint64_t cell2) const
 	{
 		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
 			return false;
@@ -1728,7 +1727,7 @@ public:
 	Returns false otherwise
 	FIXME: only works for stencil size 1
 	*/
-	bool shared_face(const uint64_t cell1, const uint64_t cell2)
+	bool shared_face(const uint64_t cell1, const uint64_t cell2) const
 	{
 		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
 			return false;
@@ -1745,7 +1744,7 @@ public:
 	Returns the existing neighbours without children of given cell
 	Returns nothing if the given cell has children
 	*/
-	std::vector<uint64_t> get_neighbours_of(const uint64_t id)
+	std::vector<uint64_t> get_neighbours_of(const uint64_t id) const
 	{
 		std::vector<uint64_t> return_neighbours;
 
@@ -1856,7 +1855,7 @@ public:
 	/*!
 	Returns the smallest cell at given coordinates or 0 if outside of the grid
 	*/
-	uint64_t get_cell(const double x, const double y, const double z)
+	uint64_t get_cell(const double x, const double y, const double z) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		if (x < this->x_coordinates[0]
@@ -1886,27 +1885,27 @@ public:
 	/*!
 	The following return the start and end corners of the grid
 	*/
-	double get_x_start(void) { return this->geometry.get_x_start(); }
-	double get_y_start(void) { return this->geometry.get_y_start(); }
-	double get_z_start(void) { return this->geometry.get_z_start(); }
-	double get_x_end(void) { return this->geometry.get_x_end(); }
-	double get_y_end(void) { return this->geometry.get_y_end(); }
-	double get_z_end(void) { return this->geometry.get_z_end(); }
+	double get_x_start(void) const { return this->geometry.get_x_start(); }
+	double get_y_start(void) const { return this->geometry.get_y_start(); }
+	double get_z_start(void) const { return this->geometry.get_z_start(); }
+	double get_x_end(void) const { return this->geometry.get_x_end(); }
+	double get_y_end(void) const { return this->geometry.get_y_end(); }
+	double get_z_end(void) const { return this->geometry.get_z_end(); }
 	#endif
 
 	/*!
 	The following return the grid length in unrefined cells
 	*/
-	uint64_t get_x_length(void) { return this->geometry.get_x_length(); }
-	uint64_t get_y_length(void) { return this->geometry.get_y_length(); }
-	uint64_t get_z_length(void) { return this->geometry.get_z_length(); }
+	uint64_t get_x_length(void) const { return this->geometry.get_x_length(); }
+	uint64_t get_y_length(void) const { return this->geometry.get_y_length(); }
+	uint64_t get_z_length(void) const { return this->geometry.get_z_length(); }
 
 
 	/*
 	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0
 	For cells that are larger than the smallest possible according to max_refinement_level, the index closest to the grids starting corner is returned
 	 */
-	uint64_t get_x_index(uint64_t id)
+	uint64_t get_x_index(uint64_t id) const
 	{
 		assert(id);
 		assert(id <= this->max_cell_number);
@@ -1925,7 +1924,7 @@ public:
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
-	uint64_t get_y_index(uint64_t id)
+	uint64_t get_y_index(uint64_t id) const
 	{
 		assert(id);
 		assert(id <= this->max_cell_number);
@@ -1943,7 +1942,7 @@ public:
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
 
-	uint64_t get_z_index(uint64_t id)
+	uint64_t get_z_index(uint64_t id) const
 	{
 		assert(id);
 		assert(id <= this->max_cell_number);
@@ -2053,7 +2052,7 @@ private:
 	Returns nothing if the given cell has children
 	Checks also for given cells siblings, in case it has been refined so they aren't in given cells
 	*/
-	std::vector<uint64_t> get_neighbours_of(const uint64_t cell, const std::vector<uint64_t>* cells)
+	std::vector<uint64_t> get_neighbours_of(const uint64_t cell, const std::vector<uint64_t>* cells) const
 	{
 		assert(cell > 0 && cell <= this->max_cell_number);
 		assert(this->cell_process.count(cell) > 0);
@@ -2155,7 +2154,7 @@ private:
 	Returns nothing if the given cell has children
 	Doesn't update neighbour lists
 	*/
-	boost::unordered_set<uint64_t> get_neighbours_to(const uint64_t id)
+	boost::unordered_set<uint64_t> get_neighbours_to(const uint64_t id) const
 	{
 		assert(this->cell_process.count(id) > 0);
 
@@ -2177,7 +2176,7 @@ private:
 		boost::unordered_set<uint64_t> neighbours1, neighbours2;
 		if (this->cells.count(id) > 0) {
 
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[id].begin(); neighbour != this->neighbours[id].end(); neighbour++) {
+			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(id).begin(); neighbour != this->neighbours.at(id).end(); neighbour++) {
 				assert(*neighbour == this->get_child(*neighbour));
 				neighbours1.insert(*neighbour);
 				unique_neighbours_to.insert(*neighbour);
@@ -2193,7 +2192,7 @@ private:
 		for (boost::unordered_set<uint64_t>::const_iterator neighbour1 = neighbours1.begin(); neighbour1 != neighbours1.end(); neighbour1++) {
 
 			if (this->cells.count(*neighbour1) > 0) {
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*neighbour1].begin(); neighbour != this->neighbours[*neighbour1].end(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*neighbour1).begin(); neighbour != this->neighbours.at(*neighbour1).end(); neighbour++) {
 					assert(*neighbour == this->get_child(*neighbour));
 					neighbours2.insert(*neighbour);
 					unique_neighbours_to.insert(*neighbour);
@@ -2209,7 +2208,7 @@ private:
 		for (boost::unordered_set<uint64_t>::const_iterator neighbour2 = neighbours2.begin(); neighbour2 != neighbours2.end(); neighbour2++) {
 
 			if (this->cells.count(*neighbour2) > 0) {
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*neighbour2].begin(); neighbour != this->neighbours[*neighbour2].end(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*neighbour2).begin(); neighbour != this->neighbours.at(*neighbour2).end(); neighbour++) {
 					assert(*neighbour == this->get_child(*neighbour));
 					unique_neighbours_to.insert(*neighbour);
 				}
@@ -2263,7 +2262,7 @@ private:
 	Returns nothing if the given cell has children
 	Doesn't update neighbour lists
 	*/
-	std::vector<uint64_t> get_neighbours_to(const uint64_t cell, const std::vector<uint64_t>* cells1, const std::vector<uint64_t>* cells2)
+	std::vector<uint64_t> get_neighbours_to(const uint64_t cell, const std::vector<uint64_t>* cells1, const std::vector<uint64_t>* cells2) const
 	{
 		assert(this->cell_process.count(cell) > 0);
 
@@ -2322,7 +2321,7 @@ private:
 		#ifndef NDEBUG
 		boost::unordered_set<uint64_t> compare_neighbours = this->get_neighbours_to(cell);
 		// remove neighbours of given cell from compare neighbours
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 			compare_neighbours.erase(*neighbour);
 		}
 
@@ -2375,7 +2374,7 @@ private:
 	/*
 	Returns the existing neighbours of given cell's parent or existing neighbours of given cell if it is an unrefined cell (= without a parent)
 	*/
-	boost::unordered_set<uint64_t> get_neighbours_of_parent(const uint64_t cell)
+	boost::unordered_set<uint64_t> get_neighbours_of_parent(const uint64_t cell) const
 	{
 		assert(this->cell_process.count(cell) > 0);
 
@@ -2384,7 +2383,7 @@ private:
 		if (this->get_refinement_level(cell) == 0) {
 			// given cells doesn't have a parent
 			if (this->cells.count(cell) > 0) {
-				return_neighbours.insert(this->neighbours[cell].begin(), this->neighbours[cell].end());
+				return_neighbours.insert(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end());
 			} else {
 				std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(cell);
 				return_neighbours.insert(temp_neighbours.begin(), temp_neighbours.end());
@@ -2401,7 +2400,7 @@ private:
 
 			// try to use existing neighbour list
 			if (this->cells.count(*peer) > 0) {
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*peer].begin(); neighbour != this->neighbours[*peer].end(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*peer).begin(); neighbour != this->neighbours.at(*peer).end(); neighbour++) {
 					if (this->is_neighbour(parent, *neighbour)) {
 
 						if (this->cell_process.count(*neighbour) == 0) {
@@ -2449,7 +2448,7 @@ private:
 
 				// try to use existing neighbour list
 				if (this->cells.count(*search_neighbour) > 0) {
-					for (std::vector<uint64_t>::const_iterator neigh_of_new_neigh = this->neighbours[*search_neighbour].begin(); neigh_of_new_neigh != this->neighbours[*search_neighbour].end(); neigh_of_new_neigh++)  {
+					for (std::vector<uint64_t>::const_iterator neigh_of_new_neigh = this->neighbours.at(*search_neighbour).begin(); neigh_of_new_neigh != this->neighbours.at(*search_neighbour).end(); neigh_of_new_neigh++)  {
 						if (this->is_neighbour(parent, *neigh_of_new_neigh) && return_neighbours.count(*neigh_of_new_neigh) == 0) {
 							new_neighbours.insert(*neigh_of_new_neigh);
 						}
@@ -2470,7 +2469,7 @@ private:
 
 
 	// Returns true if cell1 considers cell2 as a neighbour, even if neither of them exists
-	bool is_neighbour(const uint64_t cell1, const uint64_t cell2)
+	bool is_neighbour(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
 		assert(cell1 <= this->max_cell_number);
@@ -2504,7 +2503,7 @@ private:
 	Given a cell that exists and has children returns one of the children
 	Returns the given cell if it doesn't have children or 0 if the cell doesn't exist
 	*/
-	uint64_t get_child(const uint64_t cell)
+	uint64_t get_child(const uint64_t cell) const
 	{
 		if (this->cell_process.count(cell) == 0) {
 			return 0;
@@ -2528,7 +2527,7 @@ private:
 	Returns the smallest existing cell at the given coordinate
 	Returns 0 if the coordinate is outside of the grid or the cell is on another process
 	*/
-	uint64_t get_smallest_cell_from_coordinate(const double x, const double y, const double z)
+	uint64_t get_smallest_cell_from_coordinate(const double x, const double y, const double z) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		if (x < this->x_coordinates[0]
@@ -2555,7 +2554,7 @@ private:
 	/*
 	These return the x, y or z index of the given coordinate
 	*/
-	uint64_t get_x_index(const double x)
+	uint64_t get_x_index(const double x) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->geometry.get_x_length()]));
@@ -2581,7 +2580,7 @@ private:
 		#endif
 	}
 
-	uint64_t get_y_index(const double y)
+	uint64_t get_y_index(const double y) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->geometry.get_y_length()]));
@@ -2607,7 +2606,7 @@ private:
 		#endif
 	}
 
-	uint64_t get_z_index(const double z)
+	uint64_t get_z_index(const double z) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->geometry.get_z_length()]));
@@ -2637,7 +2636,7 @@ private:
 	/*!
 	These return true if the x, y or z indices of given cells overlap, even if they don't exist
 	*/
-	bool x_indices_overlap(const uint64_t cell1, const uint64_t cell2)
+	bool x_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
 		assert(cell1 <= this->max_cell_number);
@@ -2655,7 +2654,7 @@ private:
 			return false;
 		}
 	}
-	bool y_indices_overlap(const uint64_t cell1, const uint64_t cell2)
+	bool y_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
 		assert(cell1 <= this->max_cell_number);
@@ -2673,7 +2672,7 @@ private:
 			return false;
 		}
 	}
-	bool z_indices_overlap(const uint64_t cell1, const uint64_t cell2)
+	bool z_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
 		assert(cell1 <= this->max_cell_number);
@@ -2697,7 +2696,7 @@ private:
 	Returns the number of directions in which given cells' indices overlap
 	Returns 0 if even one of given cell's doesn't exist
 	*/
-	int overlapping_indices(const uint64_t cell1, const uint64_t cell2)
+	int overlapping_indices(const uint64_t cell1, const uint64_t cell2) const
 	{
 		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
 			return 0;
@@ -2722,7 +2721,7 @@ private:
 	Returns the smallest cell at given indices between given refinement levels inclusive
 	Returns 0 if no cell between given refinement ranges exists
 	*/
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level)
+	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level) const
 	{
 		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
 		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
@@ -2760,7 +2759,7 @@ private:
 
 
 	// Returns the cell of given refinement level at given indices even if it doesn't exist
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level)
+	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
 	{
 		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
 		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
@@ -2792,7 +2791,7 @@ private:
 
 
 	// Returns the lengths of given cell in indices in every direction
-	uint64_t get_cell_size_in_indices(const uint64_t id)
+	uint64_t get_cell_size_in_indices(const uint64_t id) const
 	{
 		assert(id);
 		return uint64_t(1) << (this->max_refinement_level - this->get_refinement_level(id));
@@ -2803,7 +2802,7 @@ private:
 	Returns all children of given cell regardless of whether they exist
 	Returns no cells if childrens' refinement level would exceed max_refinement_level
 	 */
-	std::vector<uint64_t> get_all_children(const uint64_t id)
+	std::vector<uint64_t> get_all_children(const uint64_t id) const
 	{
 		assert(id > 0);
 		assert(this->cell_process.count(id) > 0);
@@ -2833,16 +2832,6 @@ private:
 		}
 
 		return children;
-	}
-
-
-	/*
-	Returns the size of user data in given cell (global_id) in bytes
-	*/
-	static int user_data_size(void* /*data*/, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR /*global_id*/, ZOLTAN_ID_PTR /*local_id*/, int* error)
-	{
-		*error = ZOLTAN_OK;
-		return sizeof(UserData);
 	}
 
 

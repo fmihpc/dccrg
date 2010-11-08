@@ -6,8 +6,10 @@ Tests the scalability of initializing the grid
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
-#include "../../dccrg.hpp"
 #include "zoltan.h"
+
+#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg.hpp"
 
 
 struct CellData {

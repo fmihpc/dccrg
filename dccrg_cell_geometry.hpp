@@ -80,17 +80,17 @@ public:
 	The following return the starting corner of the grid
 	*/
 	// TODO move outside of ifdef
-	double get_x_start(void);
-	double get_y_start(void);
-	double get_z_start(void);
+	double get_x_start(void) const;
+	double get_y_start(void) const;
+	double get_z_start(void) const;
 
 	/*!
 	The following return the ending corner of the grid
 	*/
 	// TODO move outside of ifdef
-	double get_x_end(void);
-	double get_y_end(void);
-	double get_z_end(void);
+	double get_x_end(void) const;
+	double get_y_end(void) const;
+	double get_z_end(void) const;
 
 
 	/*!
@@ -107,9 +107,9 @@ public:
 	/*!
 	The following return the length of unrefined cells
 	*/
-	double get_unrefined_cell_x_size(void);
-	double get_unrefined_cell_y_size(void);
-	double get_unrefined_cell_z_size(void);
+	double get_unrefined_cell_x_size(void) const;
+	double get_unrefined_cell_y_size(void) const;
+	double get_unrefined_cell_z_size(void) const;
 
 	/*!
 	The following set the size of the grid in unrefined cells.
@@ -127,9 +127,9 @@ public:
 	/*!
 	The following return the length of the grid in unrefined cells
 	*/
-	uint64_t get_x_length(void);
-	uint64_t get_y_length(void);
-	uint64_t get_z_length(void);
+	uint64_t get_x_length(void) const;
+	uint64_t get_y_length(void) const;
+	uint64_t get_z_length(void) const;
 
 
 	/*!
@@ -141,48 +141,48 @@ public:
 	/*!
 	Returns the maximum refinement level of any cell in the grid (0 means unrefined).
 	*/
-	int get_maximum_refinement_level(void);
+	int get_maximum_refinement_level(void) const;
 
 	/*!
 	Returns the maximum possible refinement level for a cell in the grid (0 means unrefined).
 	*/
-	int get_maximum_possible_refinement_level(void);
+	int get_maximum_possible_refinement_level(void) const;
 
 
 	/*!
 	Returns the refinement level of given cell (0 means unrefined)
 	Returns -1 if given cell cannot exist in the current grid
 	*/
-	int get_refinement_level(uint64_t cell);
+	int get_refinement_level(uint64_t cell) const;
 
 
 	/*!
 	The following return the length of given cell.
 	*/
-	double get_cell_x_size(const uint64_t cell);
-	double get_cell_y_size(const uint64_t cell);
-	double get_cell_z_size(const uint64_t cell);
+	double get_cell_x_size(const uint64_t cell) const;
+	double get_cell_y_size(const uint64_t cell) const;
+	double get_cell_z_size(const uint64_t cell) const;
 
 
 	/*!
 	The following return the centroid of given cell.
 	*/
-	double get_cell_x(const uint64_t cell);
-	double get_cell_y(const uint64_t cell);
-	double get_cell_z(const uint64_t cell);
+	double get_cell_x(const uint64_t cell) const;
+	double get_cell_y(const uint64_t cell) const;
+	double get_cell_z(const uint64_t cell) const;
 
 	/*!
 	The following return the centroid of a cell of given refinement level at given index
 	*/
-	double get_cell_x(const int refinement_level, const uint64_t x_index);
-	double get_cell_y(const int refinement_level, const uint64_t y_index);
-	double get_cell_z(const int refinement_level, const uint64_t z_index);
+	double get_cell_x(const int refinement_level, const uint64_t x_index) const;
+	double get_cell_y(const int refinement_level, const uint64_t y_index) const;
+	double get_cell_z(const int refinement_level, const uint64_t z_index) const;
 
 
 	/*!
 	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location or refinement level
 	*/
-	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z);
+	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z) const;
 
 
 	/*!
@@ -197,21 +197,22 @@ public:
 	      1 | |   |
 	        -------
 	*/
-	uint64_t get_x_index(uint64_t cell);
-	uint64_t get_y_index(uint64_t cell);
-	uint64_t get_z_index(uint64_t cell);
+	uint64_t get_x_index(uint64_t cell) const;
+	uint64_t get_y_index(uint64_t cell) const;
+	uint64_t get_z_index(uint64_t cell) const;
 
 	/*!
 	These return the index (starting from 0) of given location.
 	TODO: check that location is within the current grid
 	*/
-	uint64_t get_x_index(const double x);
-	uint64_t get_y_index(const double y);
-	uint64_t get_z_index(const double z);
+	uint64_t get_x_index(const double x) const;
+	uint64_t get_y_index(const double y) const;
+	uint64_t get_z_index(const double z) const;
 
 
 	// BOOST serialization support
-	#ifndef NO_SERIALIZE
+	#ifdef BOOST_VERSION
+	#ifdef BOOST_SERIALIZATION_LIBRARY_VERSION
 	#include "boost/serialization/serialization.hpp"
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
 		#ifdef DCCRG_ARBITRARY_STRETCH
@@ -222,6 +223,7 @@ public:
 		#endif
 		ar & x_length & y_length & z_length & maximum_refinement_level;
 	}
+	#endif
 	#endif
 
 
@@ -254,21 +256,21 @@ private:
 	/*!
 	Returns the lengths of given cell in indices in every direction
 	*/
-	uint64_t get_cell_size_in_indices(const uint64_t cell);
+	uint64_t get_cell_size_in_indices(const uint64_t cell) const;
 
 
 	/*!
 	Returns the cell of given refinement level at given indices
 	*/
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level);
+	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const;
 
 
 	/*!
 	These return the index in the coordinates vector of the starting coordinate of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell
 	*/
-	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell);
-	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell);
-	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell);
+	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell) const;
+	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell) const;
+	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell) const;
 
 };
 
@@ -393,33 +395,33 @@ bool CellGeometry::set_z_start(const double given_z_start)
 }
 
 
-double CellGeometry::get_x_start(void)
+double CellGeometry::get_x_start(void) const
 {
 	return this->x_start;
 }
 
-double CellGeometry::get_y_start(void)
+double CellGeometry::get_y_start(void) const
 {
 	return this->y_start;
 }
 
-double CellGeometry::get_z_start(void)
+double CellGeometry::get_z_start(void) const
 {
 	return this->z_start;
 }
 
 
-double CellGeometry::get_x_end(void)
+double CellGeometry::get_x_end(void) const
 {
 	return this->x_start + double(this->x_length) * this->cell_x_size;
 }
 
-double CellGeometry::get_y_end(void)
+double CellGeometry::get_y_end(void) const
 {
 	return this->y_start + double(this->y_length) * this->cell_y_size;
 }
 
-double CellGeometry::get_z_end(void)
+double CellGeometry::get_z_end(void) const
 {
 	return this->z_start + double(this->z_length) * this->cell_z_size;
 }
@@ -460,15 +462,15 @@ bool CellGeometry::set_cell_z_size(const double given_cell_z_size)
 }
 
 
-double CellGeometry::get_unrefined_cell_x_size(void)
+double CellGeometry::get_unrefined_cell_x_size(void) const
 {
 	return this->cell_x_size;
 }
-double CellGeometry::get_unrefined_cell_y_size(void)
+double CellGeometry::get_unrefined_cell_y_size(void) const
 {
 	return this->cell_y_size;
 }
-double CellGeometry::get_unrefined_cell_z_size(void)
+double CellGeometry::get_unrefined_cell_z_size(void) const
 {
 	return this->cell_z_size;
 }
@@ -541,13 +543,13 @@ bool CellGeometry::set_maximum_refinement_level(const int given_maximum_refineme
 }
 
 
-int CellGeometry::get_maximum_refinement_level(void)
+int CellGeometry::get_maximum_refinement_level(void) const
 {
 	return this->maximum_refinement_level;
 }
 
 
-int CellGeometry::get_maximum_possible_refinement_level(void)
+int CellGeometry::get_maximum_possible_refinement_level(void) const
 {
 	double last_possible_cell = double(uint64_t(~0));
 	double last_cell = double(this->x_length * this->y_length * this->z_length);
@@ -562,7 +564,7 @@ int CellGeometry::get_maximum_possible_refinement_level(void)
 }
 
 
-int CellGeometry::get_refinement_level(uint64_t cell)
+int CellGeometry::get_refinement_level(uint64_t cell) const
 {
 	if (cell == 0) {
 		return -1;
@@ -584,7 +586,7 @@ int CellGeometry::get_refinement_level(uint64_t cell)
 }
 
 
-uint64_t CellGeometry::get_x_index(uint64_t cell)
+uint64_t CellGeometry::get_x_index(uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -604,7 +606,7 @@ uint64_t CellGeometry::get_x_index(uint64_t cell)
 	return this_level_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level));
 }
 
-uint64_t CellGeometry::get_y_index(uint64_t cell)
+uint64_t CellGeometry::get_y_index(uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -623,7 +625,7 @@ uint64_t CellGeometry::get_y_index(uint64_t cell)
 	return this_level_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level));
 }
 
-uint64_t CellGeometry::get_z_index(uint64_t cell)
+uint64_t CellGeometry::get_z_index(uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -643,7 +645,7 @@ uint64_t CellGeometry::get_z_index(uint64_t cell)
 }
 
 
-uint64_t CellGeometry::get_x_index(const double x)
+uint64_t CellGeometry::get_x_index(const double x) const
 {
 	#ifdef DCCRG_ARBITRARY_STRETCH
 
@@ -673,7 +675,7 @@ uint64_t CellGeometry::get_x_index(const double x)
 	#endif
 }
 
-uint64_t CellGeometry::get_y_index(const double y)
+uint64_t CellGeometry::get_y_index(const double y) const
 {
 	#ifdef DCCRG_ARBITRARY_STRETCH
 
@@ -703,7 +705,7 @@ uint64_t CellGeometry::get_y_index(const double y)
 	#endif
 }
 
-uint64_t CellGeometry::get_z_index(const double z)
+uint64_t CellGeometry::get_z_index(const double z) const
 {
 	#ifdef DCCRG_ARBITRARY_STRETCH
 
@@ -734,7 +736,7 @@ uint64_t CellGeometry::get_z_index(const double z)
 }
 
 
-uint64_t CellGeometry::get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level)
+uint64_t CellGeometry::get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
 {
 	assert(refinement_level >= 0);
 	assert(refinement_level <= this->maximum_refinement_level);
@@ -765,7 +767,7 @@ uint64_t CellGeometry::get_cell_from_indices(const uint64_t x_index, const uint6
 }
 
 
-uint64_t CellGeometry::get_cell(const int refinement_level, const double x, const double y, const double z)
+uint64_t CellGeometry::get_cell(const int refinement_level, const double x, const double y, const double z) const
 {
 	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
 		return 0;
@@ -775,7 +777,7 @@ uint64_t CellGeometry::get_cell(const int refinement_level, const double x, cons
 }
 
 
-uint64_t CellGeometry::get_cell_size_in_indices(const uint64_t cell)
+uint64_t CellGeometry::get_cell_size_in_indices(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -785,7 +787,7 @@ uint64_t CellGeometry::get_cell_size_in_indices(const uint64_t cell)
 }
 
 
-double CellGeometry::get_cell_x_size(const uint64_t cell)
+double CellGeometry::get_cell_x_size(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -801,7 +803,7 @@ double CellGeometry::get_cell_x_size(const uint64_t cell)
 }
 #endif
 
-double CellGeometry::get_cell_y_size(const uint64_t cell)
+double CellGeometry::get_cell_y_size(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -817,7 +819,7 @@ double CellGeometry::get_cell_y_size(const uint64_t cell)
 }
 #endif
 
-double CellGeometry::get_cell_z_size(const uint64_t cell)
+double CellGeometry::get_cell_z_size(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -834,7 +836,7 @@ double CellGeometry::get_cell_z_size(const uint64_t cell)
 #endif
 
 
-double CellGeometry::get_cell_x(const uint64_t cell)
+double CellGeometry::get_cell_x(const uint64_t cell) const
 {
 	 if (cell == 0) {
 		return std::numeric_limits<double>::quiet_NaN();
@@ -858,7 +860,7 @@ double CellGeometry::get_cell_x(const uint64_t cell)
 }
 #endif
 
-double CellGeometry::get_cell_y(const uint64_t cell)
+double CellGeometry::get_cell_y(const uint64_t cell) const
 {
 	 if (cell == 0) {
 		return std::numeric_limits<double>::quiet_NaN();
@@ -882,7 +884,7 @@ double CellGeometry::get_cell_y(const uint64_t cell)
 }
 #endif
 
-double CellGeometry::get_cell_z(const uint64_t cell)
+double CellGeometry::get_cell_z(const uint64_t cell) const
 {
 	 if (cell == 0) {
 		return std::numeric_limits<double>::quiet_NaN();
@@ -906,7 +908,7 @@ double CellGeometry::get_cell_z(const uint64_t cell)
 }
 #endif
 
-double CellGeometry::get_cell_x(const int refinement_level, const uint64_t x_index)
+double CellGeometry::get_cell_x(const int refinement_level, const uint64_t x_index) const
 {
 	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
 		return std::numeric_limits<double>::quiet_NaN();
@@ -929,7 +931,7 @@ double CellGeometry::get_cell_x(const int refinement_level, const uint64_t x_ind
 }
 #endif
 
-double CellGeometry::get_cell_y(const int refinement_level, const uint64_t y_index)
+double CellGeometry::get_cell_y(const int refinement_level, const uint64_t y_index) const
 {
 	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
 		return std::numeric_limits<double>::quiet_NaN();
@@ -952,7 +954,7 @@ double CellGeometry::get_cell_y(const int refinement_level, const uint64_t y_ind
 }
 #endif
 
-double CellGeometry::get_cell_z(const int refinement_level, const uint64_t z_index)
+double CellGeometry::get_cell_z(const int refinement_level, const uint64_t z_index) const
 {
 	if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
 		return std::numeric_limits<double>::quiet_NaN();
@@ -976,17 +978,17 @@ double CellGeometry::get_cell_z(const int refinement_level, const uint64_t z_ind
 #endif
 
 
-uint64_t CellGeometry::get_x_length(void)
+uint64_t CellGeometry::get_x_length(void) const
 {
 	return this->x_length;
 }
 
-uint64_t CellGeometry::get_y_length(void)
+uint64_t CellGeometry::get_y_length(void) const
 {
 	return this->y_length;
 }
 
-uint64_t CellGeometry::get_z_length(void)
+uint64_t CellGeometry::get_z_length(void) const
 {
 	return this->z_length;
 }
@@ -994,7 +996,7 @@ uint64_t CellGeometry::get_z_length(void)
 
 
 #ifdef DCCRG_ARBITRARY_STRETCH
-uint64_t CellGeometry::get_unref_cell_x_coord_start_index(const uint64_t cell)
+uint64_t CellGeometry::get_unref_cell_x_coord_start_index(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -1003,7 +1005,7 @@ uint64_t CellGeometry::get_unref_cell_x_coord_start_index(const uint64_t cell)
 	return this->get_x_index(cell) / (uint64_t(1) << this->maximum_refinement_level);
 }
 
-uint64_t CellGeometry::get_unref_cell_y_coord_start_index(const uint64_t cell)
+uint64_t CellGeometry::get_unref_cell_y_coord_start_index(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
@@ -1012,7 +1014,7 @@ uint64_t CellGeometry::get_unref_cell_y_coord_start_index(const uint64_t cell)
 	return this->get_y_index(cell) / (uint64_t(1) << this->maximum_refinement_level);
 }
 
-uint64_t CellGeometry::get_unref_cell_z_coord_start_index(const uint64_t cell)
+uint64_t CellGeometry::get_unref_cell_z_coord_start_index(const uint64_t cell) const
 {
 	assert(cell > 0);
 	assert(this->get_refinement_level(cell) >= 0);
