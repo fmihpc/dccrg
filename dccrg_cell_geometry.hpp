@@ -174,16 +174,16 @@ public:
 	/*!
 	The following return the coordinate of the cells face in negative direction
 	*/
-	double get_cell_min_x(const uint64_t cell) const;
-	double get_cell_min_y(const uint64_t cell) const;
-	double get_cell_min_z(const uint64_t cell) const;
+	double get_cell_x_min(const uint64_t cell) const;
+	double get_cell_y_min(const uint64_t cell) const;
+	double get_cell_z_min(const uint64_t cell) const;
 
 	/*!
 	The following return the coordinate of the cells face in positive direction
 	*/
-	double get_cell_max_x(const uint64_t cell) const;
-	double get_cell_max_y(const uint64_t cell) const;
-	double get_cell_max_z(const uint64_t cell) const;
+	double get_cell_x_max(const uint64_t cell) const;
+	double get_cell_y_max(const uint64_t cell) const;
+	double get_cell_z_max(const uint64_t cell) const;
 
 	/*!
 	The following return the centroid of a cell of given refinement level at given index
@@ -923,33 +923,33 @@ double CellGeometry::get_cell_z(const uint64_t cell) const
 #endif
 
 
-double CellGeometry::get_cell_min_x(const uint64_t cell) const
+double CellGeometry::get_cell_x_min(const uint64_t cell) const
 {
 	return this->get_cell_x(cell) - this->get_cell_x_size(cell) / 2;
 }
 
-double CellGeometry::get_cell_min_y(const uint64_t cell) const
+double CellGeometry::get_cell_y_min(const uint64_t cell) const
 {
 	return this->get_cell_y(cell) - this->get_cell_y_size(cell) / 2;
 }
 
-double CellGeometry::get_cell_min_z(const uint64_t cell) const
+double CellGeometry::get_cell_z_min(const uint64_t cell) const
 {
 	return this->get_cell_z(cell) - this->get_cell_z_size(cell) / 2;
 }
 
 
-double CellGeometry::get_cell_max_x(const uint64_t cell) const
+double CellGeometry::get_cell_x_max(const uint64_t cell) const
 {
 	return this->get_cell_x(cell) + this->get_cell_x_size(cell) / 2;
 }
 
-double CellGeometry::get_cell_max_y(const uint64_t cell) const
+double CellGeometry::get_cell_y_max(const uint64_t cell) const
 {
 	return this->get_cell_y(cell) + this->get_cell_y_size(cell) / 2;
 }
 
-double CellGeometry::get_cell_max_z(const uint64_t cell) const
+double CellGeometry::get_cell_z_max(const uint64_t cell) const
 {
 	return this->get_cell_z(cell) + this->get_cell_z_size(cell) / 2;
 }

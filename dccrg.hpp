@@ -958,30 +958,30 @@ public:
 	}
 
 
-	double get_cell_min_x(const uint64_t cell) const
+	double get_cell_x_min(const uint64_t cell) const
 	{
-		return this->geometry.get_cell_min_x(cell);
+		return this->geometry.get_cell_x_min(cell);
 	}
-	double get_cell_min_y(const uint64_t cell) const
+	double get_cell_y_min(const uint64_t cell) const
 	{
-		return this->geometry.get_cell_min_y(cell);
+		return this->geometry.get_cell_y_min(cell);
 	}
-	double get_cell_min_z(const uint64_t cell) const
+	double get_cell_z_min(const uint64_t cell) const
 	{
-		return this->geometry.get_cell_min_z(cell);
+		return this->geometry.get_cell_z_min(cell);
 	}
 
-	double get_cell_max_x(const uint64_t cell) const
+	double get_cell_x_max(const uint64_t cell) const
 	{
-		return this->geometry.get_cell_max_x(cell);
+		return this->geometry.get_cell_x_max(cell);
 	}
-	double get_cell_max_y(const uint64_t cell) const
+	double get_cell_y_max(const uint64_t cell) const
 	{
-		return this->geometry.get_cell_max_y(cell);
+		return this->geometry.get_cell_y_max(cell);
 	}
-	double get_cell_max_z(const uint64_t cell) const
+	double get_cell_z_max(const uint64_t cell) const
 	{
-		return this->geometry.get_cell_max_z(cell);
+		return this->geometry.get_cell_z_max(cell);
 	}
 
 	/*
@@ -1034,14 +1034,14 @@ public:
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_min_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_min_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_min_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(leaf_cells[i]) << " " << geometry.get_cell_max_y(leaf_cells[i]) << " " << geometry.get_cell_max_z(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
 		}
 
 		// map cells to written points

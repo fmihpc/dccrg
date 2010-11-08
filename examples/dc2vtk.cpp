@@ -140,14 +140,14 @@ int main(int argc, char* argv[])
 		// write separate points for every cells' corners
 		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < cells.size(); i++) {
-			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_min_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_min_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_min_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
-			outfile << geometry.get_cell_max_x(cells[i]) << " " << geometry.get_cell_max_y(cells[i]) << " " << geometry.get_cell_max_z(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
+			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
 		}
 
 		// map cells to written points
