@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #ifdef DCCRG_ARBITRARY_STRETCH
 	#ifdef DCCRG_CONSTANT_STRETCH
-		#error Only one type of grid stretching can be used simultaneously
+		#error Only one type of grid stretching can be used at a time
 	#endif
 #endif
 
