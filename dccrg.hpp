@@ -86,7 +86,7 @@ public:
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
 	#else
-	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_size, const uint64_t x_length, const uint64_t y_length, const uint64_t z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_x_size, const double cell_y_size, const double cell_z_size, const uint64_t x_length, const uint64_t y_length, const uint64_t z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
 	#endif
 	{
 		this->comm = comm;
@@ -138,9 +138,9 @@ public:
 		this->geometry.set_x_start(x_start);
 		this->geometry.set_y_start(y_start);
 		this->geometry.set_z_start(z_start);
-		this->geometry.set_cell_x_size(cell_size);
-		this->geometry.set_cell_y_size(cell_size);
-		this->geometry.set_cell_z_size(cell_size);
+		this->geometry.set_cell_x_size(cell_x_size);
+		this->geometry.set_cell_y_size(cell_y_size);
+		this->geometry.set_cell_z_size(cell_z_size);
 		this->geometry.set_x_length(x_length);
 		this->geometry.set_y_length(y_length);
 		this->geometry.set_z_length(z_length);
@@ -790,7 +790,7 @@ public:
 		uint64_t size_i = this->get_cell_size_in_indices(cell);
 		double x = this->get_cell_x(cell);
 
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 
 			if (direction > 0) {
 				if (this->get_cell_x(*neighbour) < x) {
@@ -831,7 +831,7 @@ public:
 		uint64_t size_i = this->get_cell_size_in_indices(cell);
 		double y = this->get_cell_y(cell);
 
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 
 			if (direction > 0) {
 				if (this->get_cell_y(*neighbour) < y) {
@@ -872,7 +872,7 @@ public:
 		uint64_t size_i = this->get_cell_size_in_indices(cell);
 		double z = this->get_cell_z(cell);
 
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 
 			if (direction > 0) {
 				if (this->get_cell_z(*neighbour) < z) {
@@ -912,7 +912,7 @@ public:
 			return remote_neighbours;
 		}
 
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[id].begin(); neighbour != this->neighbours[id].end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(id).begin(); neighbour != this->neighbours.at(id).end(); neighbour++) {
 			if (this->cell_process[*neighbour] != this->comm.rank()) {
 				remote_neighbours.push_back(*neighbour);
 			}
