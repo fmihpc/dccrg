@@ -225,9 +225,7 @@ public:
 
 
 	// BOOST serialization support
-	#ifdef BOOST_VERSION
 	#ifdef BOOST_SERIALIZATION_LIBRARY_VERSION
-	#include "boost/serialization/serialization.hpp"
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		ar & x_coordinates & y_coordinates & z_coordinates;
@@ -237,7 +235,6 @@ public:
 		#endif
 		ar & x_length & y_length & z_length & maximum_refinement_level;
 	}
-	#endif
 	#endif
 
 

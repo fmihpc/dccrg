@@ -42,6 +42,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 #include "zoltan.h"
 
+// make CellGeometry serializable
+#include "boost/serialization/serialization.hpp"
 #include "dccrg_cell_geometry.hpp"
 
 
@@ -1985,6 +1987,47 @@ public:
 	}
 
 
+	// Returns the cell of given refinement level at given indices even if it doesn't exist
+	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
+	{
+		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level));
+		assert(refinement_level <= this->max_refinement_level);
+
+		uint64_t id = 1;
+
+		// add ids of larger cells
+		for (int i = 0; i < refinement_level; i++) {
+			id += this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+		}
+
+		// convert to indices of this cells refinement level
+		uint64_t this_level_x_index = x_index / (uint64_t(1) << (max_refinement_level - refinement_level));
+		uint64_t this_level_y_index = y_index / (uint64_t(1) << (max_refinement_level - refinement_level));
+		uint64_t this_level_z_index = z_index / (uint64_t(1) << (max_refinement_level - refinement_level));
+
+		// get the size of the grid in terms of cells of this level
+		uint64_t this_level_x_length = this->geometry.get_x_length() *  (uint64_t(1) << refinement_level);
+		uint64_t this_level_y_length = this->geometry.get_y_length() *  (uint64_t(1) << refinement_level);
+
+		id += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
+
+		assert(id > 0);
+		assert(id <= this->max_cell_number);
+		return id;
+	}
+
+
+	// Returns the lengths of given cell in indices in every direction
+	uint64_t get_cell_size_in_indices(const uint64_t cell) const
+	{
+		assert(cell);
+		return uint64_t(1) << (this->max_refinement_level - this->get_refinement_level(cell));
+	}
+
+
+
 private:
 
 	CellGeometry geometry;
@@ -2779,46 +2822,6 @@ private:
 				return id;
 			}
 		}
-	}
-
-
-	// Returns the cell of given refinement level at given indices even if it doesn't exist
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
-	{
-		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(refinement_level <= this->max_refinement_level);
-
-		uint64_t id = 1;
-
-		// add ids of larger cells
-		for (int i = 0; i < refinement_level; i++) {
-			id += this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
-		}
-
-		// convert to indices of this cells refinement level
-		uint64_t this_level_x_index = x_index / (uint64_t(1) << (max_refinement_level - refinement_level));
-		uint64_t this_level_y_index = y_index / (uint64_t(1) << (max_refinement_level - refinement_level));
-		uint64_t this_level_z_index = z_index / (uint64_t(1) << (max_refinement_level - refinement_level));
-
-		// get the size of the grid in terms of cells of this level
-		uint64_t this_level_x_length = this->geometry.get_x_length() *  (uint64_t(1) << refinement_level);
-		uint64_t this_level_y_length = this->geometry.get_y_length() *  (uint64_t(1) << refinement_level);
-
-		id += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
-
-		assert(id > 0);
-		assert(id <= this->max_cell_number);
-		return id;
-	}
-
-
-	// Returns the lengths of given cell in indices in every direction
-	uint64_t get_cell_size_in_indices(const uint64_t id) const
-	{
-		assert(id);
-		return uint64_t(1) << (this->max_refinement_level - this->get_refinement_level(id));
 	}
 
 

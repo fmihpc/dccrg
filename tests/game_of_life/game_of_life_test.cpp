@@ -1,5 +1,5 @@
 /*
-Tests the grid with some simple game of life patters
+Tests the grid with some simple game of life patters, returns EXIT_SUCCESS if everything went ok.
 */
 
 #include "algorithm"
@@ -27,6 +27,184 @@ struct game_of_life_cell {
 
 using namespace std;
 using namespace boost::mpi;
+
+
+/*!
+Returns EXIT_SUCCESS if the state of the given game at given timestep is correct, return EXIT_FAILURE otherwise.
+timestep == 0 means before any turns have been taken.
+*/
+int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
+{
+	vector<uint64_t> cells = grid->get_cells();
+	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+
+		game_of_life_cell* data = (*grid)[*cell];
+		if (data == NULL) {
+			cerr << "No data for cell " << *cell << endl;
+			return EXIT_FAILURE;
+		}
+
+		// check cells that are always supposed to be alive
+		switch (*cell) {
+		case 22:
+		case 23:
+		case 32:
+		case 33:
+		case 36:
+		case 39:
+		case 47:
+		case 48:
+		case 52:
+		case 53:
+		case 94:
+		case 95:
+		case 110:
+		case 122:
+		case 137:
+		case 138:
+		case 188:
+		case 199:
+		case 206:
+			if (!data->is_alive) {
+				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+				return EXIT_FAILURE;
+			}
+			break;
+		default:
+			break;
+		}
+
+		// these are supposed to be alive every other turn
+		if (timestep % 2 == 0) {
+
+		switch (*cell) {
+		case 109:
+		case 123:
+		case 189:
+		case 190:
+		case 198:
+		case 200:
+		case 204:
+		case 205:
+			if (!data->is_alive) {
+				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+				return EXIT_FAILURE;
+			}
+			break;
+		default:
+			break;
+		}
+
+		} else {
+
+		switch (*cell) {
+		case 174:
+		case 184:
+		case 214:
+		case 220:
+			if (!data->is_alive) {
+				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+				return EXIT_FAILURE;
+			}
+			break;
+		default:
+			break;
+		}
+
+		}
+
+		// check that the glider is moving correctly
+		switch (timestep) {
+		/* can't be bothered manually for cases 1-19, use an automatic method later */
+		case 20:
+			switch (*cell) {
+			case 43:
+			case 44:
+			case 45:
+			case 60:
+			case 74:
+				if (!data->is_alive) {
+					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
+				break;
+			}
+			break;
+
+		case 21:
+			switch (*cell) {
+			case 29:
+			case 44:
+			case 45:
+			case 58:
+			case 60:
+				if (!data->is_alive) {
+					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
+				break;
+			}
+			break;
+
+		case 22:
+			switch (*cell) {
+			case 29:
+			case 30:
+			case 43:
+			case 45:
+			case 60:
+				if (!data->is_alive) {
+					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
+				break;
+			}
+			break;
+
+		case 23:
+			switch (*cell) {
+			case 29:
+			case 30:
+			case 45:
+			case 59:
+				if (!data->is_alive) {
+					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
+				break;
+			}
+			break;
+
+		case 24:
+			switch (*cell) {
+			case 29:
+			case 30:
+			case 45:
+				if (!data->is_alive) {
+					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
+				break;
+			}
+			break;
+		default:
+			break;
+		}
+	}
+
+	return EXIT_SUCCESS;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -152,6 +330,12 @@ int main(int argc, char* argv[])
 		game_grid.start_remote_neighbour_data_update();
 		game_grid.wait_neighbour_data_update();
 		vector<uint64_t> cells = game_grid.get_cells();
+
+		int result = check_game_of_life_state(step, &game_grid);
+		if (result != EXIT_SUCCESS) {
+			cout << "Game of Life test failed on timestep: " << step << endl;
+			return EXIT_FAILURE;
+		}
 
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
@@ -309,6 +493,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (comm.rank() == 0) {
+		cout << "Passed" << endl;
 		visit_file.close();
 	}
 
