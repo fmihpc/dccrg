@@ -147,12 +147,6 @@ public:
 		this->geometry.set_y_length(y_length);
 		this->geometry.set_z_length(z_length);
 
-		if (cell_size <= 0) {
-			std::cerr << "Cell size must be > 0" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		this->cell_size = cell_size;
-
 		if (x_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
 			exit(EXIT_FAILURE);
@@ -2039,7 +2033,7 @@ private:
 	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
 	#else
 	// length of unrefined cells in all directions
-	double cell_size;
+	double cell_x_size, cell_y_size, cell_z_size;
 	#endif
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
 	int max_refinement_level;
@@ -2088,16 +2082,21 @@ private:
 	// cells added to or removed from the grid on this process that haven't been communicated to other processes yet
 	boost::unordered_set<uint64_t> added_cells, removed_cells;
 
+	#ifdef DCCRG_SEND_SINGLE_CELLS	// user data is sent to another process one cell at a time
+	// list of pending transfers between this process and the process as the key
+	boost::unordered_map<int, std::vector<boost::mpi::request> > requests;
+	#else	// user data is packed into a vector which is sent to another process
 	// pending neighbour data requests for this process
 	std::vector<boost::mpi::request> requests;
+	#endif
 
-	// processes and their cells whose data has to be sent to this process
+	// cells whose data has to be received by this process from the process as the key
 	boost::unordered_map<int, boost::unordered_set<uint64_t> > cells_to_receive;
 
 	// storage for cells' user data that awaits transfer to or from this process
 	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
 
-	// stores user data of cell that were removed when unrefining
+	// stores user data of cells that were removed when unrefining (possibly on another process)
 	boost::unordered_map<uint64_t, UserData> removed_cell_data;
 
 

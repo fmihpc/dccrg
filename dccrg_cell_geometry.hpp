@@ -441,7 +441,7 @@ double CellGeometry::get_z_end(void) const
 bool CellGeometry::set_cell_x_size(const double given_cell_x_size)
 {
 	if (given_cell_x_size <= 0) {
-		std::cerr << "Cell size in x direction must be > 0" << std::endl;
+		std::cerr << "Cell size in x direction must be > 0, but " << given_cell_x_size << " given" << std::endl;
 		return false;
 	}
 
@@ -453,7 +453,7 @@ bool CellGeometry::set_cell_x_size(const double given_cell_x_size)
 bool CellGeometry::set_cell_y_size(const double given_cell_y_size)
 {
 	if (given_cell_y_size <= 0) {
-		std::cerr << "Cell size in y direction must be > 0" << std::endl;
+		std::cerr << "Cell size in y direction must be > 0, but " << given_cell_y_size << " given" << std::endl;
 		return false;
 	}
 	this->cell_y_size = given_cell_y_size;
@@ -464,7 +464,7 @@ bool CellGeometry::set_cell_y_size(const double given_cell_y_size)
 bool CellGeometry::set_cell_z_size(const double given_cell_z_size)
 {
 	if (given_cell_z_size <= 0) {
-		std::cerr << "Cell size in z direction must be > 0" << std::endl;
+		std::cerr << "Cell size in z direction must be > 0, but " << given_cell_z_size << " given" << std::endl;
 		return false;
 	}
 	this->cell_z_size = given_cell_z_size;
