@@ -709,7 +709,7 @@ public:
 			this->requests[sender->first].reserve(this->requests[sender->first].size() + sender->second.size());
 
 			for (std::vector<uint64_t>::const_iterator cell = sender->second.begin(); cell != sender->second.end(); cell++) {
-				this->requests[sender->first].push_back(this->comm.irecv(sender->first, *cell, this->remote_neighbours[*cell]));
+				this->requests[sender->first].push_back(this->comm.irecv(sender->first, *cell % boost::mpi::environment::max_tag(), this->remote_neighbours[*cell]));	// FIXME: make sure message tags are unique between any two processes
 			}
 		}
 
@@ -748,7 +748,7 @@ public:
 			this->requests[receiver->first].reserve(this->requests[receiver->first].size() + receiver->second.size());
 
 			for (std::vector<uint64_t>::const_iterator cell = receiver->second.begin(); cell != receiver->second.end(); cell++) {
-				this->requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell, this->cells[*cell]));
+				this->requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells[*cell]));
 			}
 		}
 
