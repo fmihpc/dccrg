@@ -30,7 +30,7 @@ using namespace boost::mpi;
 
 
 /*!
-Returns EXIT_SUCCESS if the state of the given game at given timestep is correct, return EXIT_FAILURE otherwise.
+Returns EXIT_SUCCESS if the state of the given game at given timestep is correct on this process, returns EXIT_FAILURE otherwise.
 timestep == 0 means before any turns have been taken.
 */
 int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
@@ -332,8 +332,8 @@ int main(int argc, char* argv[])
 		vector<uint64_t> cells = game_grid.get_cells();
 
 		int result = check_game_of_life_state(step, &game_grid);
-		if (result != EXIT_SUCCESS) {
-			cout << "Game of Life test failed on timestep: " << step << endl;
+		if (GRID_SIZE != 15 || result != EXIT_SUCCESS) {
+			cout << "Process " << comm.rank() << ": Game of Life test failed on timestep: " << step << endl;
 			return EXIT_FAILURE;
 		}
 

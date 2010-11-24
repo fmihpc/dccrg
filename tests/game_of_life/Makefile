@@ -1,4 +1,5 @@
 FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG -std=c++0x
+#FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG -std=c++0x -DDCCRG_SEND_SINGLE_CELLS
 #FLAGS = -O0 -W -Wall -Wextra -pedantic
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
