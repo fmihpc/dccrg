@@ -60,7 +60,7 @@ public:
 
 	load_balancing_method:
 		The method that Zoltan will use for load balancing given as a string
-		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB and HSFC
+		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB, HSFC and GRAPH
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	x, y and z_coordinates:
@@ -125,9 +125,11 @@ public:
 
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
-		Zoltan_Set_Obj_List_Fn(this->zoltan, &dccrg<UserData>::get_cell_list, this);
+		Zoltan_Set_Obj_List_Fn(this->zoltan, &dccrg<UserData>::fill_cell_list, this);
 		Zoltan_Set_Num_Geom_Fn(this->zoltan, &dccrg<UserData>::get_grid_dimensionality, NULL);
-		Zoltan_Set_Geom_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
+		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
+		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_neighbours_for_cells, this);
+		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_neighbour_lists, this);
 
 
 		/*
@@ -3016,25 +3018,28 @@ private:
 	}
 
 
-	/*
-	Fills geom_vec with the coordinate of the given cell (global_id)
+	// TODO: Zoltan assumes global ids are integers, which works as long as there are less than 2^32 cells in the grid
+
+	/*!
+	Fills geom_vec with the coordinates of cells given in global_id
 	*/
-	static void fill_with_cell_coordinates(void *data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_id, ZOLTAN_ID_PTR /*local_id*/, double *geom_vec, int *error)
+	static void fill_with_cell_coordinates(void *data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*number_of_dimensions*/, double *geom_vec, int *error)
 	{
-		uint64_t cell = uint64_t(*global_id);
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		*error = ZOLTAN_OK;
 
-		if (dccrg_instance->cells.count(cell) == 0) {
-			*error = ZOLTAN_FATAL;
-			std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted the coordinates of a non-existing cell " << cell << std::endl;
-			return;
-		} else {
-			*error = ZOLTAN_OK;
+		for (int i = 0; i < number_of_cells; i++) {
+			uint64_t cell = uint64_t(global_ids[i]);
+			if (dccrg_instance->cells.count(cell) == 0) {
+				*error = ZOLTAN_FATAL;
+				std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted the coordinates of a non-existing cell " << cell << std::endl;
+				return;
+			}
+
+			geom_vec[3 * i + 0] = dccrg_instance->get_cell_x(cell);
+			geom_vec[3 * i + 1] = dccrg_instance->get_cell_y(cell);
+			geom_vec[3 * i + 2] = dccrg_instance->get_cell_z(cell);
 		}
-
-		geom_vec[0] = dccrg_instance->get_cell_x(cell);
-		geom_vec[1] = dccrg_instance->get_cell_y(cell);
-		geom_vec[2] = dccrg_instance->get_cell_z(cell);
 	}
 
 
@@ -3050,13 +3055,61 @@ private:
 	/*
 	Writes all cell ids on this process to the global_ids array
 	*/
-	static void get_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*weight_dimension*/, float* /*object_weights*/, int* error)
+	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*weight_dimension*/, float* /*object_weights*/, int* error)
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 		int i = 0;
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
 			global_ids[i] = cell->first;
+		}
+	}
+
+
+	/*!
+	Writes the number of neighbours into number_of_neighbours for all cells given in global_ids with length number_of_cells
+	*/
+	static void fill_number_of_neighbours_for_cells(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		*error = ZOLTAN_OK;
+
+		for (int i = 0; i < number_of_cells; i++) {
+			uint64_t cell = uint64_t(global_ids[i]);
+			if (dccrg_instance->cells.count(cell) == 0) {
+				*error = ZOLTAN_FATAL;
+				std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted the number of neighbours of a non-existing cell " << cell << std::endl;
+				return;
+			}
+
+			number_of_neighbours[i] = dccrg_instance->neighbours[cell].size();
+		}
+	}
+
+
+	/*!
+	Writes neighbour lists of given cells into neighbours, etc.
+	*/
+	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int /*number_of_weights_per_edge*/, float* /*edge_weights*/, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+
+		*error = ZOLTAN_OK;
+		int current_neighbour_number = 0;
+		for (int i = 0; i < number_of_cells; i++) {
+			uint64_t cell = uint64_t(global_ids[i]);
+			if (dccrg_instance->cells.count(cell) == 0) {
+				*error = ZOLTAN_FATAL;
+				std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted neighbour list of a non-existing cell " << cell << std::endl;
+				return;
+			}
+
+			number_of_neighbours[i] = dccrg_instance->neighbours[cell].size();
+
+			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell].begin(); neighbour != dccrg_instance->neighbours[cell].end(); neighbour++, current_neighbour_number++) {
+				neighbours[current_neighbour_number] = *neighbour;
+				processes_of_neighbours[current_neighbour_number] = dccrg_instance->cell_process[*neighbour];
+			}
 		}
 	}
 
