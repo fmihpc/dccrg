@@ -60,7 +60,7 @@ public:
 
 	load_balancing_method:
 		The method that Zoltan will use for load balancing given as a string
-		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB, HSFC and GRAPH
+		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB, HSFC, GRAPH and HYPERGRAPH
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	x, y and z_coordinates:
@@ -122,6 +122,7 @@ public:
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
 		// when load balancing return only cells whose process changed
 		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
+		Zoltan_Set_Param(this->zoltan, "IMBALANCE_TOL", "1.1");
 
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
@@ -130,6 +131,8 @@ public:
 		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
 		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_neighbours_for_cells, this);
 		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_neighbour_lists, this);
+		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_hyperedges, this);
+		Zoltan_Set_HG_CS_Fn(this->zoltan, &dccrg<UserData>::fill_hyperedge_lists, this);
 
 
 		/*
@@ -675,6 +678,36 @@ public:
 				}
 			}
 		}
+
+		// print how many cells to send / receive
+		/*for (int process = 0; process < this->comm.size(); process++) {
+			this->comm.barrier();
+			if (process != this->comm.rank()) {
+				continue;
+			}
+
+			int total_to_receive = 0;
+			//std::cout << "Process " << process << " receiving cells from: ";
+			for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
+
+				total_to_receive += sender->second.size();
+
+				//std::cout << sender->first << ": " << sender->second.size() << ", ";
+			}
+			//std::cout << "\nTotal cells to receive: " << total_to_receive << std::endl;
+
+			int total_to_send = 0;
+			//std::cout << "Process " << process << " sending cells to: ";
+			for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator receiver = cells_to_send.begin(); receiver != cells_to_send.end(); receiver++) {
+
+				total_to_send += receiver->second.size();
+
+				//std::cout << receiver->first << ": " << receiver->second.size() << ", ";
+			}
+			//std::cout << "\nTotal cells to send: " << total_to_send << std::endl;
+
+			std::cout << "Process " << process << ": Total cells to send/receive: " << total_to_receive + total_to_send << std::endl;
+		}*/
 
 		/*
 		TODO: Find out why setting the message tags to zero here leads to this in wait_neighbour_data_update(), at least when using OpenMPI:
@@ -3059,6 +3092,7 @@ private:
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
+
 		int i = 0;
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
 			global_ids[i] = cell->first;
@@ -3093,8 +3127,8 @@ private:
 	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int /*number_of_weights_per_edge*/, float* /*edge_weights*/, int* error)
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
-
 		*error = ZOLTAN_OK;
+
 		int current_neighbour_number = 0;
 		for (int i = 0; i < number_of_cells; i++) {
 			uint64_t cell = uint64_t(global_ids[i]);
@@ -3110,6 +3144,66 @@ private:
 				neighbours[current_neighbour_number] = *neighbour;
 				processes_of_neighbours[current_neighbour_number] = dccrg_instance->cell_process[*neighbour];
 			}
+		}
+	}
+
+
+	/*!
+	Writes the number of hyperedges in the grid on this process
+	*/
+	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		*error = ZOLTAN_OK;
+
+		*number_of_hyperedges = dccrg_instance->cells.size();
+		*format = ZOLTAN_COMPRESSED_EDGE;
+
+		*number_of_connections = 0;
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++) {
+			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell->first].begin(); neighbour != dccrg_instance->neighbours[cell->first].end(); neighbour++) {
+				(*number_of_connections)++;
+			}
+		}
+	}
+
+
+	/*!
+	Writes the hypergraph in compressed edge format
+	*/
+	static void fill_hyperedge_lists(void* data, int /*global_id_size*/, int number_of_hyperedges, int number_of_connections, int format, ZOLTAN_ID_PTR hyperedges, int* hyperedge_connection_offsets, ZOLTAN_ID_PTR connections, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		*error = ZOLTAN_OK;
+
+		if (format != ZOLTAN_COMPRESSED_EDGE) {
+			std::cerr << "Only compressed edge format supported for hypergraph partitioning" << std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
+		}
+
+		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
+			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges << " instead of " << dccrg_instance->cells.size() << std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
+		}
+
+		int i = 0;
+		int connection_number = 0;
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
+
+			hyperedges[i] = cell->first;
+			hyperedge_connection_offsets[i] = connection_number;
+
+			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell->first].begin(); neighbour != dccrg_instance->neighbours[cell->first].end(); neighbour++, connection_number++) {
+				connections[connection_number] = *neighbour;
+			}
+		}
+
+		if (connection_number != number_of_connections) {
+			std::cerr << "Zoltan is expecting wrong number of connections from hyperedges: " << number_of_connections << " instead of " << connection_number << std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
 		}
 	}
 
