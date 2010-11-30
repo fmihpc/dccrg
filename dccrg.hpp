@@ -117,7 +117,9 @@ public:
 		snprintf(global_id_length_string, 10, "%0i", int(sizeof(uint64_t) / sizeof(unsigned int)));*/
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
 		// no object weights
-		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "0");
+		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
+		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "1");
+		//Zoltan_Set_Param(this->zoltan, "PHG_REFINEMENT_QUALITY", "1.5");
 		// try to minimize moving of data between processes
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
 		// when load balancing return only cells whose process changed
@@ -133,6 +135,8 @@ public:
 		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_neighbour_lists, this);
 		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_hyperedges, this);
 		Zoltan_Set_HG_CS_Fn(this->zoltan, &dccrg<UserData>::fill_hyperedge_lists, this);
+		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_edge_weights, this);
+		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &dccrg<UserData>::fill_edge_weights, this);
 
 
 		/*
@@ -3088,7 +3092,7 @@ private:
 	/*
 	Writes all cell ids on this process to the global_ids array
 	*/
-	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*weight_dimension*/, float* /*object_weights*/, int* error)
+	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int number_of_weights_per_object, float* object_weights, int* error)
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
@@ -3096,6 +3100,10 @@ private:
 		int i = 0;
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
 			global_ids[i] = cell->first;
+
+			if (number_of_weights_per_object > 0) {
+				object_weights[i] = 1e-10;
+			}
 		}
 	}
 
@@ -3124,7 +3132,7 @@ private:
 	/*!
 	Writes neighbour lists of given cells into neighbours, etc.
 	*/
-	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int /*number_of_weights_per_edge*/, float* /*edge_weights*/, int* error)
+	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int number_of_weights_per_edge, float* edge_weights, int* error)
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
@@ -3141,15 +3149,21 @@ private:
 			number_of_neighbours[i] = dccrg_instance->neighbours[cell].size();
 
 			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell].begin(); neighbour != dccrg_instance->neighbours[cell].end(); neighbour++, current_neighbour_number++) {
+
 				neighbours[current_neighbour_number] = *neighbour;
 				processes_of_neighbours[current_neighbour_number] = dccrg_instance->cell_process[*neighbour];
+
+				// weight of edge from cell to *neighbour
+				if (number_of_weights_per_edge > 0) {
+					edge_weights[current_neighbour_number] = 1.0;
+				}
 			}
 		}
 	}
 
 
 	/*!
-	Writes the number of hyperedges in the grid on this process
+	Writes the number of hyperedges (one per existing cell) in the grid on this process.
 	*/
 	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
 	{
@@ -3204,6 +3218,44 @@ private:
 			std::cerr << "Zoltan is expecting wrong number of connections from hyperedges: " << number_of_connections << " instead of " << connection_number << std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
+		}
+	}
+
+
+	/*!
+	Writes the number of hyperedge weights (one per hyperedge) on this process
+	*/
+	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		*error = ZOLTAN_OK;
+
+		*number_of_edge_weights = dccrg_instance->cells.size();
+		return;
+	}
+
+
+	/*!
+	Writes hyperedge weights (one per hyperedge) on this process
+	*/
+	static void fill_edge_weights(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_hyperedges, int number_of_weights_per_hyperedge, ZOLTAN_ID_PTR hyperedges, ZOLTAN_ID_PTR /*hyperedges_local_ids*/, float* hyperedge_weights, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		*error = ZOLTAN_OK;
+
+		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
+			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges << " instead of " << dccrg_instance->cells.size() << std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
+		}
+
+		int i = 0;
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
+			hyperedges[i] = cell->first;
+
+			if (number_of_weights_per_hyperedge > 0) {
+				hyperedge_weights[i] = 1.0 * dccrg_instance->neighbours[cell->first].size();
+			}
 		}
 	}
 
