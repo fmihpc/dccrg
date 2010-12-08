@@ -423,9 +423,16 @@ public:
 
 			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
 
+			// don't actually send one cell at a time or anything, just use the correct request structures
 			#ifdef DCCRG_SEND_SINGLE_CELLS
-			...
+
+			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+			this->load_balance_requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+			#else
 			this->requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+			#endif
+
+
 			#else
 			this->requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
 			#endif
@@ -487,8 +494,15 @@ public:
 
 			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
 
+			// don't actually receive one cell at a time or anything, just use the correct request structures
 			#ifdef DCCRG_SEND_SINGLE_CELLS
+
+			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+			this->load_balance_requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+			#else
 			this->requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+			#endif
+
 			#else
 			this->requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
 			#endif
@@ -497,11 +511,21 @@ public:
 		// wait for transfers to complete
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->load_balance_requests.begin(); process != this->load_balance_requests.end(); process++) {
+			boost::mpi::wait_all(process->second.begin(), process->second.end());
+			process->second.clear();
+		}
+		this->load_balance_requests.clear();
+
+		#else
+
 		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->requests.begin(); process != this->requests.end(); process++) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 			process->second.clear();
 		}
 		this->requests.clear();
+		#endif
 
 		#else
 
@@ -771,7 +795,7 @@ public:
 
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->requests[sender->first].push_back(MPI_Request());
-				MPI_Irecv(this->remote_neighbours[*cell].at(), UserData::size(), sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[sender->first].back()));
+				MPI_Irecv(this->remote_neighbours[*cell].at(), UserData::size(), MPI_BYTE, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[sender->first].back()));
 				#else
 				this->requests[sender->first].push_back(this->comm.irecv(sender->first, *cell % boost::mpi::environment::max_tag(), this->remote_neighbours[*cell]));	// FIXME: make sure message tags are unique between any two processes
 				#endif
@@ -814,8 +838,8 @@ public:
 
 			for (std::vector<uint64_t>::const_iterator cell = receiver->second.begin(); cell != receiver->second.end(); cell++) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-				this->requests[sender->first].push_back(MPI_Request());
-				MPI_Isend(this->cells[*cell].at(), UserData::size(), receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[sender->first].back()));
+				this->requests[receiver->first].push_back(MPI_Request());
+				MPI_Isend(this->cells[*cell].at(), UserData::size(), MPI_BYTE, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[receiver->first].back()));
 				#else
 				this->requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells[*cell]));
 				#endif
@@ -898,10 +922,12 @@ public:
 
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		MPI_Status status;
-
 		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->requests.begin(); process != this->requests.end(); process++) {
-			MPI_Waitall(prosess->second.size(), &(process->second[0]), &status);
+
+			std::vector<MPI_Status> statuses;
+			statuses.resize(process->second.size());
+
+			MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0]));
 			process->second.clear();
 		}
 		this->requests.clear();
@@ -1711,7 +1737,13 @@ public:
 			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
 
 			#ifdef DCCRG_SEND_SINGLE_CELLS
+
+			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+			this->load_balance_requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+			#else
 			this->requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+			#endif
+
 			#else
 			this->requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
 			#endif
@@ -1747,7 +1779,13 @@ public:
 			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
 
 			#ifdef DCCRG_SEND_SINGLE_CELLS
+
+			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+			this->load_balance_requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+			#else
 			this->requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+			#endif
+
 			#else
 			this->requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
 			#endif
@@ -1756,11 +1794,19 @@ public:
 		// wait for transfers to complete
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->load_balance_requests.begin(); process != this->load_balance_requests.end(); process++) {
+			boost::mpi::wait_all(process->second.begin(), process->second.end());
+			process->second.clear();
+		}
+		this->load_balance_requests.clear();
+		#else
 		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->requests.begin(); process != this->requests.end(); process++) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 			process->second.clear();
 		}
 		this->requests.clear();
+		#endif
 
 		#else
 
@@ -2311,6 +2357,7 @@ private:
 	// list of pending transfers between this process and the process as the key
 	#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 	boost::unordered_map<int, std::vector<MPI_Request> > requests;
+	boost::unordered_map<int, std::vector<boost::mpi::request> > load_balance_requests;	// TODO: get rid of this
 	#else
 	boost::unordered_map<int, std::vector<boost::mpi::request> > requests;
 	#endif

@@ -9,6 +9,9 @@ all: game_of_life_test scalability scalability3d refined refined2d unrefined2d r
 game_of_life_test: game_of_life_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) game_of_life_test.cpp $(INCLUDES) -o game_of_life_test
 
+game_of_life_user_data_size: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
+
 scalability: scalability.cpp ../../dccrg.hpp Makefile
 	$(CXX) scalability.cpp $(INCLUDES) -o scalability
 
@@ -32,4 +35,4 @@ refined_scalability3d: refined_scalability3d.cpp ../../dccrg.hpp Makefile
 
 c: clean
 clean:
-	rm -f game_of_life_test scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d *vtk *visit
+	rm -f game_of_life_test game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d *vtk *visit
