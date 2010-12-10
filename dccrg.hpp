@@ -765,6 +765,11 @@ public:
 		// user data is sent to another process one cell at a time
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
+		#ifdef DCCRG_USER_MPI_DATA_TYPE
+		MPI_Datatype data_type = UserData::mpi_data_type();
+		MPI_Type_commit(&data_type);
+		#endif
+
 		// calculate from where and what to receive
 		for (int sender = 0; sender < this->comm.size(); sender++) {
 
@@ -795,9 +800,17 @@ public:
 
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->requests[sender->first].push_back(MPI_Request());
-				MPI_Irecv(this->remote_neighbours[*cell].at(), UserData::size(), MPI_BYTE, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[sender->first].back()));
+
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Irecv(this->remote_neighbours[*cell].at(), 1, data_type, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[sender->first].back()));
 				#else
+				MPI_Irecv(this->remote_neighbours[*cell].at(), UserData::size(), MPI_BYTE, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[sender->first].back()));
+				#endif
+
+				#else
+
 				this->requests[sender->first].push_back(this->comm.irecv(sender->first, *cell % boost::mpi::environment::max_tag(), this->remote_neighbours[*cell]));	// FIXME: make sure message tags are unique between any two processes
+
 				#endif
 			}
 		}
@@ -839,12 +852,24 @@ public:
 			for (std::vector<uint64_t>::const_iterator cell = receiver->second.begin(); cell != receiver->second.end(); cell++) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->requests[receiver->first].push_back(MPI_Request());
-				MPI_Isend(this->cells[*cell].at(), UserData::size(), MPI_BYTE, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[receiver->first].back()));
+
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Isend(this->cells[*cell].at(), 1, data_type, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[receiver->first].back()));
 				#else
+				MPI_Isend(this->cells[*cell].at(), UserData::size(), MPI_BYTE, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->requests[receiver->first].back()));
+				#endif
+
+				#else
+
 				this->requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells[*cell]));
+
 				#endif
 			}
 		}
+
+		#ifdef DCCRG_USER_MPI_DATA_TYPE
+		MPI_Type_free(&data_type);
+		#endif
 
 		// user data is packed into a vector which is sent to another process
 		#else
@@ -927,7 +952,14 @@ public:
 			std::vector<MPI_Status> statuses;
 			statuses.resize(process->second.size());
 
-			MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0]));
+			if (MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0])) != MPI_SUCCESS) {
+				for (std::vector<MPI_Status>::const_iterator status = statuses.begin(); status != statuses.end(); status++) {
+					if (status->MPI_ERROR != MPI_SUCCESS) {
+						std::cerr << "MPI receive failed from process " << status->MPI_SOURCE << " with tag " << status->MPI_TAG << std::endl;
+					}
+				}
+			}
+
 			process->second.clear();
 		}
 		this->requests.clear();
