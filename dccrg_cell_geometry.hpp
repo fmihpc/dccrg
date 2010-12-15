@@ -203,13 +203,15 @@ public:
 	These return the index of given cell, starting from 0.
 	For cells that are larger than the smallest possible according to maximum_refinement_level, the index closest to the grid starting point is returned.
 
-	Example with maximum refinement level 1
-	index    0 1 2
-	        -------
-	      0 | |   |
-	        ---   |
-	      1 | |   |
-	        -------
+\verbatim
+Example with maximum refinement level 1:
+index    0 1 2
+        -------
+      0 | |   |
+        ---   |
+      1 | |   |
+        -------
+\endverbatim
 	*/
 	uint64_t get_x_index(uint64_t cell) const;
 	uint64_t get_y_index(uint64_t cell) const;

@@ -70,7 +70,7 @@ template <class UserData> class dccrg
 
 public:
 
-	/*
+	/*!
 	Creates a new grid where each cell stores one instance of given UserData
 	Zoltan_Initialize must be called before calling this constructor
 
@@ -257,7 +257,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells)
 	*/
 	std::vector<uint64_t> get_cells(void) const
@@ -279,7 +279,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells) and don't have neighbours on other processes
 	*/
 	std::vector<uint64_t> get_cells_with_local_neighbours(void) const
@@ -315,7 +315,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells) and have at least one neighbour on another processes
 	*/
 	std::vector<uint64_t> get_cells_with_remote_neighbour(void) const
@@ -351,7 +351,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns a pointer to the user supplied data of given cell
 	Return NULL if the given cell isn't on this process and if the given cell isn't a neighbour of any cell on this process
 	*/
@@ -369,7 +369,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Load balances the grids cells among processes
 	Must be called simultaneously on all processes
 	Does not update remote neighbour data of processes afterwards
@@ -675,7 +675,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Updates the user data between processes of those cells that have at least one neighbour or are considered as a neighbour of a cell on another process
 	Must be called simultaneously on all processes
 	*/
@@ -686,7 +686,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Starts the update of neighbour data between processes and returns before (probably) it has completed
 	Must be called simultaneously on all processes
 	*/
@@ -937,7 +937,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Waits until all neighbour data update transfers between processes have completed and incorporates that data
 	Must be called simultaneously on all processes
 	*/
@@ -1000,7 +1000,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns a pointer to the neighbours of given cell
 	Some neighbours might be on another process, but have a copy of their data on this process
 	The local copy of remote neighbours' data is updated, for example, by calling update_remote_neighbour_data()
@@ -1015,7 +1015,7 @@ public:
 		}
 	}
 
-	/*
+	/*!
 	Returns a pointer to the cells that consider given cell as a neighbour but that are not neighbours of given cell
 	Some cell might be on another process or the structure might be empty
 	Returns NULL if given cell doesn't exist or is on another process
@@ -1189,7 +1189,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns the maximum possible refinement level of any cell in the grid (0 means unrefined)
 	*/
 	int get_max_refinement_level(void) const
@@ -1198,7 +1198,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	The following return the x, y or z coordinate of the center of given cell regardless of whether it exists or has children
 	*/
 	double get_cell_x(const uint64_t cell) const
@@ -1241,7 +1241,7 @@ public:
 		return this->geometry.get_cell_z_max(cell);
 	}
 
-	/*
+	/*!
 	The following return the length of given cell in x, y or z direction regardless of whether it exists or has children
 	*/
 	double get_cell_x_size(const uint64_t cell) const
@@ -1258,7 +1258,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns the refinement level of given cell, even if it doesn't exist
 	Returns -1 if cell == 0 or cell would exceed maximum refinement level
 	*/
@@ -1268,7 +1268,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Writes the cells on this process into a vtk file with given name in ASCII format
 	The cells are written in ascending order
 	Must be called simultaneously on all processes
@@ -1326,7 +1326,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Creates all children of given cell (and possibly more due to induced refinement), overriding any unrefines of this cell (and possibly of its neighbours) before or after this call
 	After refining / unrefining even one cell on any process stop_refining() must be called before doing anything else with the grid, except refining / unrefining
 	Does nothing in any of the following cases:
@@ -1410,7 +1410,7 @@ public:
 		}
 	}
 
-	/*
+	/*!
 	As refine_completely, but uses the smallest existing cell at given coordinates
 	Does nothing in the same cases as refine_completely and additionally if the coordinate is outside of the grid
 	*/
@@ -1425,7 +1425,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Removes the given cell and its siblings from the grid if none of their neighbours are smaller than the given cell
 	After refining / unrefining even one cell on any process stop_refining() must be called before doing anything else with the grid, except refining / unrefining
 	In case a cell would be both refined and unrefined it will be refined
@@ -1466,7 +1466,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	As unrefine_completely, but uses the smallest existing cell at given coordinates
 	Does nothing in the same cases as unrefine_completely and additionally if the coordinate is outside of the grid
 	*/
@@ -1481,7 +1481,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Informs other processes about cells created / deleted on this process by refining / unrefining
 	Must be called simultaneously on all processes if even one of the has refined or unrefined even one cell, before doing anything else with the grid except refining / unrefining
 	Returns all cells that were created on this process since the last call to this function
@@ -1956,7 +1956,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Returns cells that were removed by unrefinement whose parent is on this process
 	Removed cells data is also on this process, but only until balance_load() is called
 	*/
@@ -1973,7 +1973,7 @@ public:
 	}
 
 
-	/*
+	/*!
 	Given a cell that exists and has a parent returns the parent cell
 	Returns the given cell if it doesn't have a parent or 0 if the cell doesn't exist
 	*/
@@ -1996,7 +1996,7 @@ public:
 		}
 	}
 
-	/*
+	/*!
 	Returns the parent of given cell
 	Returns the given cell if its refinement level == 0 or > maximum refinement level
 	*/
@@ -2224,7 +2224,7 @@ public:
 	uint64_t get_z_length(void) const { return this->geometry.get_z_length(); }
 
 
-	/*
+	/*!
 	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0
 	For cells that are larger than the smallest possible according to max_refinement_level, the index closest to the grids starting corner is returned
 	 */
@@ -2329,7 +2329,7 @@ private:
 
 	CellGeometry geometry;
 	#ifdef DCCRG_ARBITRARY_STRETCH
-	/*
+	/*!
 	The coordinates of unrefined cells in respective directions
 	First value is the starting point of the grid, following ith value is the end point of the ith unrefined cell
 	*/
@@ -2358,16 +2358,16 @@ private:
 	// cell on this process and its neithis->cells.count(current_parent) > 0ghbours
 	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours;
 
-	/*
+	/*!
 	Cell on this process and those cells that aren't neighbours of this cell but whose neighbour this cell is.
 	For example with a stencil size of 1 in the following grid:
-
-	|-----------|
-	|     |5 |6 |
-	|  1  |--|--|
-	|     |9 |10|
-	|-----------|
-
+\verbatim
+|-----------|
+|     |5 |6 |
+|  1  |--|--|
+|     |9 |10|
+|-----------|
+\endverbatim
 	neighbours_to[6] = 1 because neighbours[6] = 5, 9, 10 while
 	neighbours_to[5] is empty because neighbours[5] = 1, 6, 9, 10
 	*/
@@ -2412,7 +2412,7 @@ private:
 	boost::unordered_map<uint64_t, UserData> removed_cell_data;
 
 
-	/*
+	/*!
 	Updates the neighbour list of given cell without children on this process
 	*/
 	void update_neighbours(const uint64_t cell)
@@ -2425,7 +2425,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns the existing neighbours without children of given cell from the given list of cells
 	Returns nothing if the given cell has children
 	Checks also for given cells siblings, in case it has been refined so they aren't in given cells
@@ -2503,7 +2503,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Updates the neighbours_to structure of given cell on this process without children and remote neighbour info
 	*/
 	void update_neighbours_to(const uint64_t cell)
@@ -2527,7 +2527,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns the existing cells without children that have the given cell as a neighbour
 	Returns nothing if the given cell has children
 	Doesn't update neighbour lists
@@ -2635,7 +2635,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns the existing cells without children from the given lists that have the given cell as a neighbour
 	Returns nothing if the given cell has children
 	Doesn't update neighbour lists
@@ -2721,7 +2721,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Updates the remote neighbour info of given cell on this process without children
 	Doesn't update neighbour or neighbour_to lists
 	*/
@@ -2749,7 +2749,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns the existing neighbours of given cell's parent or existing neighbours of given cell if it is an unrefined cell (= without a parent)
 	*/
 	boost::unordered_set<uint64_t> get_neighbours_of_parent(const uint64_t cell) const
@@ -2846,7 +2846,9 @@ private:
 	}
 
 
-	// Returns true if cell1 considers cell2 as a neighbour, even if neither of them exists
+	/*!
+	Returns true if cell1 considers cell2 as a neighbour, even if neither of them exists
+	*/
 	bool is_neighbour(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
@@ -2877,7 +2879,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Given a cell that exists and has children returns one of the children
 	Returns the given cell if it doesn't have children or 0 if the cell doesn't exist
 	*/
@@ -2901,7 +2903,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns the smallest existing cell at the given coordinate
 	Returns 0 if the coordinate is outside of the grid or the cell is on another process
 	*/
@@ -2929,7 +2931,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	These return the x, y or z index of the given coordinate
 	*/
 	uint64_t get_x_index(const double x) const
@@ -3095,7 +3097,7 @@ private:
 
 
 
-	/*
+	/*!
 	Returns the smallest cell at given indices between given refinement levels inclusive
 	Returns 0 if no cell between given refinement ranges exists
 	*/
@@ -3136,7 +3138,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns all children of given cell regardless of whether they exist
 	Returns no cells if childrens' refinement level would exceed max_refinement_level
 	 */
@@ -3173,7 +3175,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Returns the number of values needed to represent the coordinate of a cell
 	*/
 	static int get_grid_dimensionality(void* /*data*/, int* error)
@@ -3208,7 +3210,9 @@ private:
 	}
 
 
-	// Returns the number of cells on this process
+	/*!
+	Returns the number of cells on this process
+	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
@@ -3217,7 +3221,7 @@ private:
 	}
 
 
-	/*
+	/*!
 	Writes all cell ids on this process to the global_ids array
 	*/
 	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int number_of_weights_per_object, float* object_weights, int* error)
