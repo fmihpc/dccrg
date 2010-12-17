@@ -3098,15 +3098,26 @@ private:
 
 
 	/*!
-	Returns the smallest cell at given indices between given refinement levels inclusive
-	Returns 0 if no cell between given refinement ranges exists
+	Returns the smallest cell at given indices between given refinement levels inclusive.
+	Returns 0 if no cell between given refinement ranges exists or an index is outside of the grid or minimum_refinement_level > maximum_refinement_level.
 	*/
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level) const
 	{
-		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(minimum_refinement_level <= maximum_refinement_level);
+		if (x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
+			return 0;
+		}
+
+		if (y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
+			return 0;
+		}
+
+		if (z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+			return 0;
+		}
+
+		if (minimum_refinement_level > maximum_refinement_level) {
+			return 0;
+		}
 
 		int average_refinement_level = (maximum_refinement_level + minimum_refinement_level) / 2;
 		uint64_t id = this->get_cell_from_indices(x_index, y_index, z_index, average_refinement_level);

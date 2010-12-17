@@ -822,10 +822,10 @@ index    0 1 2
 
 	/*!
 	Returns the x index of given location, starting from 0.
+	Returns an invalid index if given location is outside of the grid.
 	*/
 	uint64_t get_x_index(const double x) const
 	{
-		//TODO: check that location is within the current grid
 		#ifdef DCCRG_ARBITRARY_STRETCH
 
 		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->get_x_length()]));
@@ -855,7 +855,8 @@ index    0 1 2
 	}
 
 	/*!
-	Returns the x index of given location, starting from 0.
+	Returns the y index of given location, starting from 0.
+	Returns an invalid index if given location is outside of the grid.
 	*/
 	uint64_t get_y_index(const double y) const
 	{
@@ -888,7 +889,8 @@ index    0 1 2
 	}
 
 	/*!
-	Returns the x index of given location, starting from 0.
+	Returns the z index of given location, starting from 0.
+	Returns an invalid index if given location is outside of the grid.
 	*/
 	uint64_t get_z_index(const double z) const
 	{
