@@ -4,10 +4,13 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-all: game_of_life_test scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d
+all: game_of_life_test_all_cells game_of_life_test_single_cells scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d
 
-game_of_life_test: game_of_life_test.cpp ../../dccrg.hpp Makefile
-	$(CXX) game_of_life_test.cpp $(INCLUDES) -o game_of_life_test
+game_of_life_test_all_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells
+
+game_of_life_test_single_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_single_cells
 
 game_of_life_user_data_size: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
@@ -35,4 +38,4 @@ refined_scalability3d: refined_scalability3d.cpp ../../dccrg.hpp Makefile
 
 c: clean
 clean:
-	rm -f game_of_life_test game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d *vtk *visit
+	rm -f game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d *vtk *visit

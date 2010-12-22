@@ -336,6 +336,9 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 25
+	if (comm.rank() == 0) {
+		cout << "step: ";
+	}
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		game_grid.balance_load();
@@ -353,7 +356,8 @@ int main(int argc, char* argv[])
 		sort(cells.begin(), cells.end());
 
 		if (comm.rank() == 0) {
-			cout << "step: " << step << endl;
+			cout << step << " ";
+			cout.flush();
 		}
 
 		// write the game state into a file named according to the current time step
@@ -494,7 +498,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (comm.rank() == 0) {
-		cout << "Passed" << endl;
+		cout << "\nPassed" << endl;
 		visit_file.close();
 	}
 
