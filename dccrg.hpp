@@ -896,6 +896,56 @@ public:
 
 
 	/*!
+	Returns the number of cells whose data this process has to send during a neighbour data update.
+
+	The total amount of cells to be sent is returned so if a cell's data will be sent to N processes it is counted N times.
+	*/
+	uint64_t get_number_of_update_send_cells(void) const
+	{
+		uint64_t result = 0;
+
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+
+		for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator receiver = ordered_cells_to_send.begin(); receiver != ordered_cells_to_send.end(); receiver++) {
+			result += receiver->second.size();
+		}
+
+		#else
+
+		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator receiver = cells_to_send.begin(); receiver != cells_to_send.end(); receiver++) {
+			result += receiver->second.size();
+		}
+		#endif
+
+		return result;
+	}
+
+	/*!
+	Returns the number of cells whose data this process has to receive during a neighbour data update.
+	*/
+	uint64_t get_number_of_update_receive_cells(void) const
+	{
+		uint64_t result = 0;
+
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+
+		for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator sender = ordered_cells_to_receive.begin(); sender != ordered_cells_to_receive.end(); sender++) {
+			result += sender->second.size();
+		}
+
+		#else
+
+		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator sender = cells_to_receive.begin(); sender != cells_to_receive.end(); sender++) {
+			result += sender->second.size();
+		}
+
+		#endif
+
+		return result;
+	}
+
+
+	/*!
 	Returns a pointer to the neighbours of given cell
 	Some neighbours might be on another process, but have a copy of their data on this process
 	The local copy of remote neighbours' data is updated, for example, by calling update_remote_neighbour_data()
