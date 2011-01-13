@@ -566,6 +566,7 @@ public:
 		// TODO: only delete those that aren't remote neighbours anymore
 		this->remote_neighbours.clear();
 		this->remote_cells_with_local_neighbours.clear();
+		this->cells_with_remote_neighbours.clear();
 
 		// check that cells were removed by their process
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
@@ -669,6 +670,11 @@ public:
 					}
 				}
 			}
+		}
+
+		// free user data from migrated cells
+		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = this->removed_cells.begin(); removed_cell != this->removed_cells.end(); removed_cell++) {
+			this->cells.erase(*removed_cell);
 		}
 
 		this->recalculate_neighbour_update_send_receive_lists();
