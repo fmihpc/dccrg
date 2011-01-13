@@ -459,12 +459,12 @@ public:
 		// gather data to send
 		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
-			// Zoltan returns cell migration info also for cells that don't chage their process
+			// Zoltan returns cell migration info also for cells that don't change their process
 			if (receiver == this->comm.rank()) {
 				continue;
 			}
 
-			if (cells_to_send.count(receiver) == 0) {
+			if (this->cells_to_send.count(receiver) == 0) {
 				continue;
 			}
 
