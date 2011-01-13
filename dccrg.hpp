@@ -134,15 +134,13 @@ public:
 		/*char global_id_length_string[10];
 		snprintf(global_id_length_string, 10, "%0i", int(sizeof(uint64_t) / sizeof(unsigned int)));*/
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
-		// no object weights
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
 		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "1");
 		//Zoltan_Set_Param(this->zoltan, "PHG_REFINEMENT_QUALITY", "1.5");
-		// try to minimize moving of data between processes
+		// try to minimize moving of data between processes, doesn't work between processes?
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
-		// when load balancing return only cells whose process changed
 		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
-		Zoltan_Set_Param(this->zoltan, "IMBALANCE_TOL", "1.1");
+		Zoltan_Set_Param(this->zoltan, "IMBALANCE_TOL", "1.05");
 
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
@@ -395,7 +393,11 @@ public:
 		if (partition_changed == 0) {
 			return;
 		}
+
+		// clear user data which is about to get old
 		this->removed_cell_data.clear();
+		this->remote_neighbours.clear();
+		this->remote_cells_with_local_neighbours.clear();
 
 		// clear send / receive lists, here they mean cells that will be moved between processes
 		this->cells_to_receive.clear();
@@ -563,11 +565,6 @@ public:
 		all_gather(this->comm, temp_added_cells, all_added_cells);
 		this->added_cells.clear();
 
-		// TODO: only delete those that aren't remote neighbours anymore
-		this->remote_neighbours.clear();
-		this->remote_cells_with_local_neighbours.clear();
-		this->cells_with_remote_neighbours.clear();
-
 		// check that cells were removed by their process
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
 			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
@@ -631,6 +628,8 @@ public:
 			if (*created_cell != this->get_child(*created_cell)) {
 				continue;
 			}
+
+			this->update_remote_neighbour_info(*created_cell);
 
 			// neighbours of added child
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*created_cell].begin(); neighbour != this->neighbours[*created_cell].end(); neighbour++) {
@@ -1658,6 +1657,7 @@ public:
 						continue;
 					}
 
+					// TODO: duplicate sends?
 					if (this->comm.rank() == process_of_parent) {
 						this->cells_to_receive[this->cell_process[*sibling]].push_back(*sibling);
 					}

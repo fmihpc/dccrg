@@ -1,4 +1,4 @@
-FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG -std=c++0x
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
@@ -14,13 +14,13 @@ game_of_life_user_data_size: game_of_life_user_data_size.cpp ../../dccrg.hpp Mak
 	$(CXX) -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
 
 scalability: scalability.cpp ../../dccrg.hpp Makefile
-	$(CXX) scalability.cpp $(INCLUDES) -o scalability
+	$(CXX) -DNDEBUG scalability.cpp $(INCLUDES) -o scalability
 
 scalability3d: scalability3d.cpp ../../dccrg.hpp Makefile
-	$(CXX) scalability3d.cpp $(INCLUDES) -o scalability3d
+	$(CXX) -DNDEBUG scalability3d.cpp $(INCLUDES) -o scalability3d
 
 scalability1d: scalability1d.cpp ../../dccrg.hpp Makefile
-	$(CXX) scalability1d.cpp $(INCLUDES) -o scalability1d
+	$(CXX) -DNDEBUG scalability1d.cpp $(INCLUDES) -o scalability1d
 
 refined: refined.cpp ../../dccrg.hpp Makefile
 	$(CXX) refined.cpp $(INCLUDES) -o refined
@@ -32,7 +32,7 @@ unrefined2d: unrefined2d.cpp ../../dccrg.hpp Makefile
 	$(CXX) unrefined2d.cpp $(INCLUDES) -o unrefined2d
 
 refined_scalability3d: refined_scalability3d.cpp ../../dccrg.hpp Makefile
-	$(CXX) refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d
+	$(CXX) -DNDEBUG refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d
 
 c: clean
 clean:
