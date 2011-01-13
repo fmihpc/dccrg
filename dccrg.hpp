@@ -565,6 +565,7 @@ public:
 
 		// TODO: only delete those that aren't remote neighbours anymore
 		this->remote_neighbours.clear();
+		this->remote_cells_with_local_neighbours.clear();
 
 		// check that cells were removed by their process
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
@@ -657,7 +658,7 @@ public:
 					continue;
 				}
 
-				if (this->remote_neighbours.count(*created_cell) == 0) {
+				if (this->remote_cells_with_local_neighbours.count(*created_cell) == 0) {
 					continue;
 				}
 
@@ -1060,21 +1061,21 @@ public:
 	Returns the given cells neighbours that are on another process
 	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
 	*/
-	std::vector<uint64_t> get_remote_neighbours(const uint64_t id) const
+	std::vector<uint64_t> get_remote_neighbours(const uint64_t cell) const
 	{
-		std::vector<uint64_t> remote_neighbours;
+		std::vector<uint64_t> result;
 
-		if (this->cells.count(id) == 0) {
-			return remote_neighbours;
+		if (this->cells.count(cell) == 0) {
+			return result;
 		}
 
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(id).begin(); neighbour != this->neighbours.at(id).end(); neighbour++) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 			if (this->cell_process[*neighbour] != this->comm.rank()) {
-				remote_neighbours.push_back(*neighbour);
+				result.push_back(*neighbour);
 			}
 		}
 
-		return remote_neighbours;
+		return result;
 	}
 
 
@@ -1481,6 +1482,7 @@ public:
 					}
 
 					// remote refined cell doesn't count as a neighbour anymore
+					this->remote_cells_with_local_neighbours.erase(*neighbour);
 					this->remote_neighbours.erase(*neighbour);
 
 					// induced refinement
@@ -1505,6 +1507,7 @@ public:
 					}
 
 					// remote refined cell doesn't count as a neighbour anymore
+					this->remote_cells_with_local_neighbours.erase(*neighbour);
 					this->remote_neighbours.erase(*neighbour);
 
 					// induced refinement
@@ -2363,6 +2366,9 @@ private:
 	// cells on this process that have a neighbour on another process or are considered as a neighbour of a cell on another process
 	boost::unordered_set<uint64_t> cells_with_remote_neighbours;
 
+	// cells on other processes that have a neighbour on this process or are considered as a neighbour of a cell on this process
+	boost::unordered_set<uint64_t> remote_cells_with_local_neighbours;
+
 	// remote neighbours and their data, of cells on this process
 	boost::unordered_map<uint64_t, UserData> remote_neighbours;
 
@@ -2771,14 +2777,14 @@ private:
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
 			if (this->cell_process[*neighbour] != this->comm.rank()) {
 				this->cells_with_remote_neighbours.insert(cell);
-				this->remote_neighbours[*neighbour];
+				this->remote_cells_with_local_neighbours.insert(*neighbour);
 			}
 		}
 		// cells with given cell as neighbour
 		for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to[cell].begin(); neighbour_to != this->neighbours_to[cell].end(); neighbour_to++) {
 			if (this->cell_process[*neighbour_to] != this->comm.rank()) {
 				this->cells_with_remote_neighbours.insert(cell);
-				this->remote_neighbours[*neighbour_to];
+				this->remote_cells_with_local_neighbours.insert(*neighbour_to);
 			}
 		}
 	}
