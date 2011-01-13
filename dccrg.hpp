@@ -1,7 +1,7 @@
 /*
 A distributed cartesian cell-refinable grid
 
-Copyright 2009, 2010 Ilja Honkonen
+Copyright 2009, 2010, 2011 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
