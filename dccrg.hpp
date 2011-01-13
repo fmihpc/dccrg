@@ -2339,7 +2339,7 @@ private:
 	// cells and their data on this process
 	boost::unordered_map<uint64_t, UserData> cells;
 
-	// cell on this process and its neithis->cells.count(current_parent) > 0ghbours
+	// cell on this process and its neighbours
 	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbours;
 
 	/*!
