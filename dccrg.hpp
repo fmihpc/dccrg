@@ -490,7 +490,7 @@ public:
 				continue;
 			}
 
-			if (cells_to_send.count(receiver) == 0) {
+			if (this->cells_to_send.count(receiver) == 0) {
 				// no data to send / receive
 				continue;
 			}
