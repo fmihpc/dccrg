@@ -29,6 +29,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 #include "cassert"
+#include "cmath"
 #include "cstdlib"
 #include "iostream"
 #include "limits"
@@ -849,7 +850,7 @@ index    0 1 2
 		#else
 
 		assert((x >= this->get_x_start()) and (x <= this->get_x_start() + this->get_x_length() * this->cell_x_size));
-		return uint64_t((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level)));
+		return uint64_t(floor((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level))));
 
 		#endif
 	}
@@ -883,7 +884,7 @@ index    0 1 2
 		#else
 
 		assert((y >= this->get_y_start()) and (y <= this->get_y_start() + this->get_y_length() * this->cell_y_size));
-		return uint64_t((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level)));
+		return uint64_t(floor((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level))));
 
 		#endif
 	}
@@ -917,7 +918,7 @@ index    0 1 2
 		#else
 
 		assert((z >= this->get_z_start()) and (z <= this->get_z_start() + this->get_z_length() * this->cell_z_size));
-		return uint64_t((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level)));
+		return uint64_t(floor((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level))));
 
 		#endif
 	}
