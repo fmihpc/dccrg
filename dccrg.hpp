@@ -914,7 +914,7 @@ public:
 	const std::vector<uint64_t>* get_neighbours(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			return (std::vector<uint64_t>*) &(this->neighbours.at(cell));
+			return &(this->neighbours.at(cell));
 		} else {
 			return NULL;
 		}
@@ -928,7 +928,7 @@ public:
 	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			return &(this->neighbours_to[cell]);
+			return &(this->neighbours_to.at(cell));
 		} else {
 			return NULL;
 		}
