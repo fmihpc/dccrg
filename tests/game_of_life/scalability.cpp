@@ -126,8 +126,8 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		// wait for neighbour data updates to finish and go through the rest of the cells
-		game_grid.wait_neighbour_data_update();
+		// wait for neighbour data updates to this process to finish and go through the rest of the cells
+		game_grid.wait_neighbour_data_update_receives();
 		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -164,6 +164,9 @@ int main(int argc, char* argv[])
 				cell_data->is_alive = false;
 			}
 		}
+
+		// wait for neighbour data updates from this process to finish until starting the next timestep
+		game_grid.wait_neighbour_data_update_sends();
 	}
 	after = time(NULL);
 	total += after - before;
