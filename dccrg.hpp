@@ -3403,9 +3403,7 @@ private:
 
 		*number_of_connections = 0;
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++) {
-			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell->first].begin(); neighbour != dccrg_instance->neighbours[cell->first].end(); neighbour++) {
-				(*number_of_connections)++;
-			}
+			*number_of_connections += 1 + dccrg_instance->neighbours[cell->first].size();
 		}
 	}
 
@@ -3436,6 +3434,9 @@ private:
 
 			hyperedges[i] = cell->first;
 			hyperedge_connection_offsets[i] = connection_number;
+
+			// add a connection to the cell itself from its hyperedge
+			connections[connection_number++] = cell->first;
 
 			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell->first].begin(); neighbour != dccrg_instance->neighbours[cell->first].end(); neighbour++, connection_number++) {
 				connections[connection_number] = *neighbour;
