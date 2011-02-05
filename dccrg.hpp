@@ -1394,14 +1394,16 @@ public:
 	/*!
 	Executes refines / unrefines that have been requested so far.
 
-	Must be called simultaneously on all processes. Returns all cells that were created by refining on this process since the last call to this function.
+	Must be called simultaneously on all processes.
+	Returns cells that were created by refinement on this process.
+	Moves user data of unrefined cells to the process of their parent.
 	*/
 	std::vector<uint64_t> stop_refining(void)
 	{
 		this->comm.barrier();
-
-		// cells that were created on this process while refining
-		std::vector<uint64_t> created_cells;
+		this->induce_refines();
+		this->override_unrefines();
+		return this->execute_refines();
 
 		// all cells which will be refined including induced refines
 		std::vector<boost::unordered_set<uint64_t> > all_cells_to_refine;
@@ -2997,6 +2999,150 @@ private:
 		} else {
 			return cell;
 		}
+	}
+
+
+	/*!
+	Adds new cells to cells_to_refine in order to enforce maximum refinement level difference of one between neighbours (also across processes).
+
+	After this function cells_to_refine will contain the refines of all processes.
+	*/
+	void induce_refines(void)
+	{
+		std::vector<uint64_t> new_refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
+		while (all_reduce(this->comm, new_refines.size(), plus<uint64_t>()) > 0) {
+
+			this->cells_to_refine.insert(new_refines.begin(), new_refines.end());
+			std::vector<std::vector<uint64_t> > all_new_refines;
+			all_gather(this->comm, new_refines, all_new_refines);
+
+			boost::unordered_set<uint64_t> unique_induced_refines;
+
+			// induced refines on this process
+			for (std::vector<uint64_t>::const_iterator refined = all_new_refines[this->comm.rank()].begin(); refined != all_new_refines[this->comm.rank()].end(); refined++) {
+
+				// refine local neighbours that are too large
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*refined].begin(); neighbour != this->neighbours[*refined].end(); neighbour++) {
+
+					#ifndef NDEBUG
+					if (this->cell_process.count(*neighbour) == 0) {
+						std::cerr << "Process " << this->comm.rank() ": Cell " << *refined << " had a non-existing neighbour in neighbour list: " << *neighbour << std::endl;
+					}
+					#endif
+
+					if (this->cell_process[*neighbour] != this->comm.rank()) {
+						continue;
+					}
+
+					if (this->get_refinement_level(*neighbour) > this->get_refinement_level(*refined)) {
+						unique_induced_refines.insert(*neighbour)
+					}
+				}
+			}
+
+			// refines induced here by other processes
+			for (int process = 0; process < this->comm.size(); process++) {
+
+				if (process == this->comm.rank()) {
+					continue;
+				}
+
+				for (std::vector<uint64_t>::const_iterator refined = all_new_refines[process].begin(); refined != all_new_refines[process].end(); refined++) {
+
+					if (this->remote_cells_with_local_neighbours.count(*refined) == 0) {
+						continue;
+					}
+
+					// refine all local cells that are too large and neighbouring the refined cell
+					for (boost::unordered_set<uint64_t>::const_iterator local = this->cells_with_remote_neighbours.begin(); local != this->cells_with_remote_neighbours.end(); local++) {
+						if (this->is_neighbour(*local, *refined)) {
+							unique_induced_refines.insert(*local);
+						}
+					}
+				}
+			}
+
+			new_refines.clear();
+			new_refines.insert(new_refines.begin(), unique_induced_refines.begin(), unique_induced_refines.end());
+			unique_induced_refines.clear();
+		}
+
+		// reduce future global communication by adding refines from all processes to cells_to_refine
+		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
+		std::vector<std::vector<uint64_t> > all_refines;
+		all_gather(this->comm, refines, all_refines);
+
+		for (int process = 0; process < this->comm.size(); process++) {
+			for (std::vector<uint64_t>::const_iterator refined = all_refines[process].begin(); refined != all_refines[process].end(); refined++) {
+				this->cells_to_refine.insert(*refined);
+			}
+		}
+	}
+
+
+	/*!
+	Removes cells from cells_to_unrefine in order to enforce maximum refinement level difference of one between neighbours (also across processes).
+
+	cells_to_refine must contain the refines to be done by all processes.
+	After this function cells_to_unrefine will contain the unrefines of all processes.
+	*/
+	void override_unrefines(void)
+	{
+		// unrefines that were not overridden by refines or too small neighbours
+		boost::unordered_set<uint64_t> final_unrefines;
+
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
+
+			if (this->cells_to_refine.count(*unrefined) > 0) {
+				continue;
+			}
+
+			// TODO improve performance by first using local neighbour lists to override unrefines
+
+			boost::unordered_set<uint64_t> neighbours_of_parent = this->get_neighbours_of_parent(*unrefined);
+
+			bool can_unrefine = true;
+			for (boost::unordered_set<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
+
+				if (this->get_refinement_level(*neighbour_of_parent) < this->get_refinement_level(*unrefined)) {
+					can_unrefine = false;
+					break;
+				}
+
+				if (this->cells_to_refine.count(*neighbour_of_parent) > 0
+				&& this->get_refinement_level(*neighbour_of_parent) <= this->get_refinement_level(*unrefined)) {
+					can_unrefine = false;
+					break;
+				}
+			}
+
+			if (can_unrefine) {
+				final_unrefines.insert(*unrefined);
+			}
+		}
+		this->cells_to_unrefine.clear();
+
+		std::vector<uint64_t> unrefines(final_unrefines.begin(), final_unrefines.end());
+		std::vector<std::vector<uint64_t> > all_unrefines;
+		all_gather(this->comm, unrefines, all_unrefines);
+
+		for (int process = 0; process < this->comm.size(); process++) {
+			for (std::vector<uint64_t>::const_iterator unrefined = all_unrefines[process].begin(); unrefined != all_unrefines[process].end(); unrefined++) {
+				this->cells_to_unrefine.insert(*unrefined);
+			}
+		}
+	}
+
+
+	/*!
+	Addss refined cells to the grid, removes unrefined cells from the grid.
+
+	cells_to_refine and cells_to_unrefine must contain the cells to refine/unrefine of all processes.
+	*/
+	std::vector<uint64_t> execute_unrefines(void)
+	{
+		std::vector<uint64_t> new_cells;
+		return new_cells;
 	}
 
 
