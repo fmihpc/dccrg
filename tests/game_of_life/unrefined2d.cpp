@@ -176,11 +176,13 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator new_cell = new_cells.begin(); new_cell != new_cells.end(); new_cell++) {
 			game_of_life_cell* new_cell_data = game_grid[*new_cell];
 			if (new_cell_data == NULL) {
-				cout << "no data for created cell after refining" << endl;
+				cout << __FILE__ << ":" << __LINE__ << " no data for created cell " << *new_cell << endl;
+				exit(EXIT_FAILURE);
 			}
 			game_of_life_cell* parent_data = game_grid[game_grid.get_parent(*new_cell)];
 			if (parent_data == NULL) {
-				cout << "no data for parent cell after refining" << endl;
+				cout << __FILE__ << ":" << __LINE__ << " no data for parent cell " << game_grid.get_parent(*new_cell) << endl;
+				exit(EXIT_FAILURE);
 			}
 			new_cell_data->is_alive = parent_data->is_alive;
 		}
@@ -190,17 +192,19 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
 			game_of_life_cell* removed_cell_data = game_grid[*removed_cell];
 			if (removed_cell_data == NULL) {
-				cout << "no data for removed cell after unrefining: " << *removed_cell << endl;
+				cout << __FILE__ << ":" << __LINE__ << " no data for removed cell after unrefining: " << *removed_cell << endl;
+				exit(EXIT_FAILURE);
 			}
 			game_of_life_cell* parent_data = game_grid[game_grid.get_parent_for_removed(*removed_cell)];
 			if (parent_data == NULL) {
-				cout << "no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell) << endl;
+				cout << __FILE__ << ":" << __LINE__ << " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell) << endl;
+				exit(EXIT_FAILURE);
 			}
 			parent_data->is_alive = removed_cell_data->is_alive;
 		}
 
 
-		game_grid.balance_load();
+		//game_grid.balance_load();
 		game_grid.update_remote_neighbour_data();
 		cells = game_grid.get_cells();
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
@@ -287,6 +291,10 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
+			if (cell_data == NULL) {
+				cout << __FILE__ << ":" << __LINE__ << " no data cell: " << *cell << endl;
+				exit(EXIT_FAILURE);
+			}
 
 			cell_data->total_live_neighbour_count = 0;
 
@@ -306,7 +314,8 @@ int main(int argc, char* argv[])
 
 					game_of_life_cell* neighbour_data = game_grid[*neighbour];
 					if (neighbour_data == NULL) {
-						cout << "no data for neighbour cell at neighbour counts: " << *neighbour << " " << *cell << endl;
+						cout << __FILE__ << ":" << __LINE__ << " no data for neighbour of cell " << *cell << ": " << *neighbour << endl;
+						exit(EXIT_FAILURE);
 					}
 
 					if (game_grid.get_refinement_level(*neighbour) == 0) {
@@ -348,6 +357,10 @@ int main(int argc, char* argv[])
 				for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 
 					game_of_life_cell* neighbour_data = game_grid[*neighbour];
+					if (neighbour_data == NULL) {
+						cout << __FILE__ << ":" << __LINE__ << " no data for neighbour of refined cell " << *cell << ": " << *neighbour << endl;
+						exit(EXIT_FAILURE);
+					}
 
 					if (game_grid.get_refinement_level(*neighbour) == 0) {
 						if (neighbour_data->is_alive) {

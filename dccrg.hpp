@@ -55,6 +55,7 @@ If the size of the data in every cell is known in advance by the user, neighbour
 #include "cstdlib"
 #include "cstring"
 #include "fstream"
+#include "functional"
 #include "stdint.h"
 #include "utility"
 #include "vector"
@@ -241,10 +242,10 @@ public:
 
 		// update neighbour lists of created cells
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
-			this->update_neighbours(cell->first);
+			this->neighbours[cell->first] = this->find_neighbours_of(cell->first);
+			this->neighbours_to[cell->first] = this->find_neighbours_to(cell->first);
 		}
 
-		// update neighbour_to lists of created cells
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
 			this->update_remote_neighbour_info(cell->first);
 		}
@@ -357,8 +358,10 @@ public:
 			return (UserData*) &(this->cells.at(cell));
 		} else if (this->remote_neighbours.count(cell) > 0) {
 			return (UserData*) &(this->remote_neighbours.at(cell));
-		} else if (this->removed_cell_data.count(cell) > 0) {
-			return (UserData*) &(this->removed_cell_data.at(cell));
+		} else if (this->refined_cell_data.count(cell) > 0) {
+			return (UserData*) &(this->refined_cell_data.at(cell));
+		} else if (this->unrefined_cell_data.count(cell) > 0) {
+			return (UserData*) &(this->unrefined_cell_data.at(cell));
 		} else {
 			return NULL;
 		}
@@ -397,7 +400,6 @@ public:
 		}
 
 		// clear user data which is about to get old
-		this->removed_cell_data.clear();
 		this->remote_neighbours.clear();
 		this->remote_cells_with_local_neighbours.clear();
 
@@ -612,24 +614,15 @@ public:
 			this->neighbours_to.erase(*removed_cell);
 		}
 
-		// create neighbour list for children that came to this process
+		// create neighbour lists for children that came to this process
 		for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
 
 			if (*created_cell != this->get_child(*created_cell)) {
 				continue;
 			}
 
-			this->update_neighbours(*created_cell);
-		}
-
-		// create neighbour_to list for children that came to this process
-		for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
-
-			if (*created_cell != this->get_child(*created_cell)) {
-				continue;
-			}
-
-			this->update_neighbours_to(*created_cell);
+			this->neighbours[*created_cell] = this->find_neighbours_of(*created_cell);
+			this->neighbours_to[*created_cell] = this->find_neighbours_to(*created_cell);
 		}
 
 		// if a child cell came to this process, update remote neighbour info of nearby cells
@@ -672,8 +665,8 @@ public:
 					continue;
 				}
 
-				boost::unordered_set<uint64_t> temp_neighbours = this->get_neighbours_to(*created_cell);
-				for (boost::unordered_set<uint64_t>::const_iterator neighbour = temp_neighbours.begin(); neighbour != temp_neighbours.end(); neighbour++) {
+				std::vector<uint64_t> temp_neighbours = this->find_neighbours_to(*created_cell);
+				for (std::vector<uint64_t>::const_iterator neighbour = temp_neighbours.begin(); neighbour != temp_neighbours.end(); neighbour++) {
 					if (this->cells.count(*neighbour)) {
 						this->update_remote_neighbour_info(*neighbour);
 					}
@@ -1414,9 +1407,9 @@ public:
 	std::vector<uint64_t> get_removed_cells(void) const
 	{
 		std::vector<uint64_t> unref_removed_cells;
-		unref_removed_cells.reserve(this->removed_cell_data.size());
+		unref_removed_cells.reserve(this->unrefined_cell_data.size());
 
-		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->removed_cell_data.begin(); cell != this->removed_cell_data.end(); cell++) {
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->unrefined_cell_data.begin(); cell != this->unrefined_cell_data.end(); cell++) {
 			unref_removed_cells.push_back(cell->first);
 		}
 
@@ -1426,7 +1419,7 @@ public:
 
 	/*!
 	Given a cell that exists and has a parent returns the parent cell
-	Returns the given cell if it doesn't have a parent or 0 if the cell doesn't exist
+	Returns the given cell if it doesn't have a parent or 0 if given cell doesn't exist
 	*/
 	uint64_t get_parent(const uint64_t cell) const
 	{
@@ -1450,6 +1443,7 @@ public:
 	/*!
 	Returns the parent of given cell
 	Returns the given cell if its refinement level == 0 or > maximum refinement level
+	TODO: replace with get_{,all_}siblings?
 	*/
 	uint64_t get_parent_for_removed(const uint64_t cell) const
 	{
@@ -1520,47 +1514,50 @@ public:
 	Returns nothing if the following cases:
 		-given cell has children
 		-given doesn't exist on any process
-	Doesn't use existing neighbour lists and hence is slow but works if given cell was moved to another process by load balancing.
+	Doesn't use existing neighbour lists and hence is slow but works if for example given cell was moved to another process by load balancing.
 	*/
-	std::vector<uint64_t> find_neighbours_of(const uint64_t id) const
+	std::vector<uint64_t> find_neighbours_of(const uint64_t cell) const
 	{
 		std::vector<uint64_t> return_neighbours;
 
-		if (id == 0
-		|| id > this->max_cell_number
-		|| this->cell_process.count(id) == 0) {
+		if (cell == 0
+		|| cell > this->max_cell_number
+		|| this->cell_process.count(cell) == 0) {
 			return return_neighbours;
 		}
 
-		if (id != this->get_child(id)) {
+		if (cell != this->get_child(cell)) {
 			return return_neighbours;
 		}
 
-		const uint64_t x_index = this->get_x_index(id), y_index = this->get_y_index(id), z_index = this->get_z_index(id);
+		const uint64_t x_index = this->get_x_index(cell), y_index = this->get_y_index(cell), z_index = this->get_z_index(cell);
 
-		// search neighbours in cells of the same size as the given cell
-		const uint64_t size_in_indices = this->get_cell_size_in_indices(id);
+		// search neighbours in cells of the same size as the given cell (times neighbourhood size)
+		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
-		// the refinement level difference between neighbours is <= 2, only search for those cells
-		const int refinement_level = this->get_refinement_level(id);
-		int search_min_ref_level = refinement_level - 2, search_max_ref_level = refinement_level + 2;	// TODO: make these also const
-		if (search_min_ref_level < 0) {
-			search_min_ref_level = 0;
-		}
-		if (search_max_ref_level > this->max_refinement_level) {
-			search_max_ref_level = this->max_refinement_level;
+		const int refinement_level = this->get_refinement_level(cell);
+		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
+		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
+
+		#ifndef NDEBUG
+		if (refinement_level > this->max_refinement_level) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
+			exit(EXIT_FAILURE);
 		}
 
-		// the refinement level difference between neighbours is <= 2 because induced refines haven't propagated across processes when neighbours are updated, search index can increase by this amount at most
-		uint64_t index_increase = size_in_indices / 4;
-		if (index_increase == 0) {
-			index_increase = 1;
+		if (refinement_level < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << cell << " is less than 0: " << refinement_level << std::endl;
+			exit(EXIT_FAILURE);
 		}
+		#endif
+
+		// the refinement level difference between neighbours is <= 1 so search index must increase by at most half the size of given cell
+		const uint64_t index_increase = (size_in_indices < 2) ? 1 : size_in_indices / 2;
 
 		// don't add the same neighbour more than once
 		boost::unordered_set<uint64_t> unique_neighbours;
 
-		// if neighbour_size == 0 just check the volume inside cells of the same size and that share a face with the given one
+		// if neighbour_size == 0 just check the volume inside cells of the same size and that share a face with the given cell
 		if (this->neighbourhood_size == 0) {
 
 			// -x direction
@@ -1704,9 +1701,219 @@ public:
 		}
 
 		// a cell isn't a neighbour of itself
-		unique_neighbours.erase(id);
+		unique_neighbours.erase(cell);
 
 		return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
+		return return_neighbours;
+	}
+
+
+	/* TODO: use this in both neighbour finding functions?
+	std::vector<uint64_t> find_cells(x_index, y_index, z_index, min_distance, max_distance, min_refinement_level, max_refinement_level)
+	{
+	}*/
+
+
+	std::vector<uint64_t> find_neighbours_to(const uint64_t cell) const
+	{
+		std::vector<uint64_t> return_neighbours;
+
+		if (cell == 0
+		|| cell > this->max_cell_number
+		|| this->cell_process.count(cell) == 0) {
+			return return_neighbours;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return return_neighbours;
+		}
+
+		const int refinement_level = this->get_refinement_level(cell);
+		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
+		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
+
+		const uint64_t x_index = this->get_x_index(cell), y_index = this->get_y_index(cell), z_index = this->get_z_index(cell);
+
+		// don't search for cells larger than the initial ones
+		const uint64_t size_in_indices = (refinement_level > 0) ? 2 * this->get_cell_size_in_indices(cell) : this->get_cell_size_in_indices(cell);
+
+		#ifndef NDEBUG
+		if (refinement_level > this->max_refinement_level) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (refinement_level < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << cell << " is less than 0: " << refinement_level << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
+		// the refinement level difference between neighbours is <= 1 so search index must increase by at most half the size of given cell
+		const uint64_t index_increase = (size_in_indices < 4) ? 1 : size_in_indices / 4;
+
+		// don't add the same neighbour more than once
+		boost::unordered_set<uint64_t> unique_neighbours;
+
+		// if neighbour_size == 0 just check the volume inside cells of the same size and that share a face with the given cell
+		if (this->neighbourhood_size == 0) {
+
+			// -x direction
+			if (x_index >= size_in_indices) {
+			for (uint64_t current_x_index = x_index - size_in_indices; current_x_index < x_index; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// +x direction
+			if (x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
+			for (uint64_t current_x_index = x_index + size_in_indices; current_x_index < x_index + 2 * size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// -y direction
+			if (y_index >= size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index - size_in_indices; current_y_index < y_index; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// +y direction
+			if (y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index + size_in_indices; current_y_index < y_index + 2 * size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// -z direction
+			if (z_index >= size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index - size_in_indices; current_z_index < z_index; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// +z direction
+			if (z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index + size_in_indices; current_z_index < z_index + 2 * size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
+			return return_neighbours;
+		}
+
+
+		// don't start searching outside of the grid
+		uint64_t current_x_index;
+		if (x_index < size_in_indices * this->neighbourhood_size) {
+			current_x_index = 0;
+		} else {
+			current_x_index = x_index - size_in_indices * this->neighbourhood_size;
+		}
+
+		// search for neighbours in cells that share a vertex with the given cell
+		for (; current_x_index < x_index + size_in_indices * (1 + this->neighbourhood_size); current_x_index += index_increase) {
+
+			// don't search outside of the grid
+			if (current_x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
+				continue;
+			}
+
+			// don't start searching outside of the grid
+			uint64_t current_y_index;
+			if (y_index < size_in_indices * this->neighbourhood_size) {
+				current_y_index = 0;
+			} else {
+				current_y_index = y_index - size_in_indices * this->neighbourhood_size;
+			}
+
+			for (; current_y_index < y_index + size_in_indices * (1 + this->neighbourhood_size); current_y_index += index_increase) {
+
+				if (current_y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
+					continue;
+				}
+
+				// don't start searching outside of the grid
+				uint64_t current_z_index;
+				if (z_index < size_in_indices * this->neighbourhood_size) {
+					current_z_index = 0;
+				} else {
+					current_z_index = z_index - size_in_indices * this->neighbourhood_size;
+				}
+
+				for (; current_z_index < z_index + size_in_indices * (1 + this->neighbourhood_size); current_z_index += index_increase) {
+
+					if (current_z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+						continue;
+					}
+
+					// don't search inside of the given cell
+					if (current_x_index >= x_index
+					    && current_y_index >= y_index
+					    && current_z_index >= z_index
+					    && current_x_index < x_index + size_in_indices
+					    && current_y_index < y_index + size_in_indices
+					    && current_z_index < z_index + size_in_indices) {
+						continue;
+					}
+
+					const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+					assert(neighbour > 0);
+					assert(neighbour <= this->max_cell_number);
+					#ifndef NDEBUG
+					if (neighbour != this->get_child(neighbour)) {
+						std::cerr << __FILE__ << ":" << __LINE__ << " While searching for neighbours_to of cell " << cell << " (ref lvl " << this->get_refinement_level(cell) << ") between refinement levels " << search_min_ref_level << " and " << search_max_ref_level << ": returned neighbour (" << neighbour << ", ref lvl " << this->get_refinement_level(neighbour) << ") has a child: " << this->get_child(neighbour) << " (ref lvl " << this->get_refinement_level(this->get_child(neighbour)) << ")" << std::endl;
+						exit(EXIT_FAILURE);
+					}
+					#endif
+					unique_neighbours.insert(neighbour);
+				}
+			}
+		}
+
+		// a cell isn't a neighbour of itself
+		unique_neighbours.erase(cell);
+
+		return_neighbours.reserve(unique_neighbours.size());
+		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours.begin(); neighbour != unique_neighbours.end(); neighbour++) {
+			if (!this->is_neighbour(cell, *neighbour)
+			&& this->is_neighbour(*neighbour, cell)) {
+				return_neighbours.push_back(*neighbour);
+			}
+		}
+
 		return return_neighbours;
 	}
 
@@ -1857,6 +2064,16 @@ public:
 	{
 		assert(cell);
 		return uint64_t(1) << (this->max_refinement_level - this->get_refinement_level(cell));
+	}
+
+
+	/*!
+	Removes user data of refined and unrefined cells from this process.
+	*/
+	void clear_refined_unrefined_data(void)
+	{
+		this->refined_cell_data.clear();
+		this->unrefined_cell_data.clear();
 	}
 
 
@@ -2011,346 +2228,220 @@ private:
 
 
 	/*!
-	Updates the neighbour list of given cell without children on this process
-	*/
-	void update_neighbours(const uint64_t cell)
-	{
-		assert(cell > 0 && cell <= this->max_cell_number);
-		assert(this->cells.count(cell) > 0);
-		assert(cell == this->get_child(cell));
+	Updates given cell's neighbour and neighbour_to lists.
 
-		this->neighbours[cell] = this->get_neighbours_of(cell);
-	}
-
-
-	/*!
-	Returns the existing neighbours (that don't have children) of given cell on this process.
-
-	Returns nothing if the following cases:
+	Does nothing in the following cases:
 		-given cell has children
 		-given isn't on this process
 	Uses existing neighbour list of given cell and hence is fast but gives the wrong result if the cell's neighbour list isn't up-to-date (excluding refined / unrefined neighbours) or doesn't exist.
 	Also takes into account that neighbours in given cell's neighbour list could've been refined / urefined.
 	*/
-	std::vector<uint64_t> get_neighbours_of(const uint64_t cell) const
+	void update_neighbours(const uint64_t cell)
 	{
-		assert(cell > 0 && cell <= this->max_cell_number);
-		assert(this->cell_process.count(cell) > 0);
+		#ifndef NDEBUG
+		if (cell == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given: " << cell << std::endl;
+			exit(EXIT_FAILURE);
+		}
 
-		std::vector<uint64_t> return_neighbours;
+		if (this->get_refinement_level(cell) > this->max_refinement_level) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of given cell (" << cell << ") is too large: " << this->get_refinement_level(cell) << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 
-		if (this->neighbours.count(cell) == 0) {
-			return return_neighbours;
+		if (this->cell_process[cell] != this->comm.rank()) {
+			return;
 		}
 
 		if (cell != this->get_child(cell)) {
-			return return_neighbours;
+			return;
 		}
 
-		boost::unordered_set<uint64_t> unique_return_neighbours;
-
-		// get new neighbours from this list
-		std::vector<uint64_t>* old_neighbours;
-
-		// when unrefining...
-		if (this->cells_to_unrefine.count(this->get_parent(cell)) > 0) {
-			return find_neighbours_to(cell);
+		bool cell_result_of_refining;
+		if (this->cells_to_refine.count(this->get_parent(cell)) > 0) {
+			cell_result_of_refining = true;
+		} else {
+			cell_result_of_refining = false;
 		}
 
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
+		// choose which neighbour lists to use
+		std::vector<uint64_t> old_neighbours;
+		if (cell_result_of_refining) {
 
+			// use given cell's parent's neighbour lists
+			const uint64_t parent = this->get_parent(cell);
+			std::vector<uint64_t> siblings = this->get_all_children(parent);
+			old_neighbours.insert(old_neighbours.end(), siblings.begin(), siblings.end());
+			old_neighbours.insert(old_neighbours.end(), this->neighbours[parent].begin(), this->neighbours[parent].end());
+			old_neighbours.insert(old_neighbours.end(), this->neighbours_to[parent].begin(), this->neighbours_to[parent].end());
 
-		
-		}
-
-		// if given cell has been refined, its siblings are not in given cells
-		std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
-		for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
-
-			if (cell == *sibling) {
-				continue;
+			#ifndef NDEBUG
+			if (this->neighbours.count(this->get_parent(cell)) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list of cell's " << cell << " parent " << this->get_parent(cell) << " doesn't exist" << std::endl;
+				exit(EXIT_FAILURE);
 			}
 
-			if (*sibling == this->get_child(*sibling)) {
-				unique_return_neighbours.insert(*sibling);
-			} else {
-				// if sibling has children this cell wasn't refined and sibling is included in given cells
+			if (this->neighbours_to.count(this->get_parent(cell)) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour_to list of cell's " << cell << " parent " << this->get_parent(cell) << " doesn't exist" << std::endl;
+				exit(EXIT_FAILURE);
 			}
+			#endif
+
+		} else {
+
+			// use given cell's neighbour lists
+			old_neighbours.insert(old_neighbours.end(), this->neighbours[cell].begin(), this->neighbours[cell].end());
+			old_neighbours.insert(old_neighbours.end(), this->neighbours_to[cell].begin(), this->neighbours_to[cell].end());
+
+			#ifndef NDEBUG
+			if (this->neighbours.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list of cell " << cell << " doesn't exist" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+
+			if (this->neighbours_to.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour_to list of cell " << cell << " doesn't exist" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
 		}
+		this->neighbours[cell].clear();
+		this->neighbours_to[cell].clear();
 
-		// add neighbours from given list of cells
-		for (std::vector<uint64_t>::const_iterator neighbour_candidate = cells->begin(); neighbour_candidate != cells->end(); neighbour_candidate++) {
+		// neighbour candidates of given cell based on old neighbour lists
+		boost::unordered_set<uint64_t> neighbour_candidates;
 
-			if (!this->is_neighbour(cell, *neighbour_candidate)) {
-				continue;
-			}
+		for (std::vector<uint64_t>::const_iterator old_neighbour = old_neighbours.begin(); old_neighbour != old_neighbours.end(); old_neighbour++) {
 
-			if (*neighbour_candidate == this->get_child(*neighbour_candidate)) {
-				unique_return_neighbours.insert(*neighbour_candidate);
-			// check the children in case the cell's been refined
-			} else {
-				std::vector<uint64_t> children = this->get_all_children(*neighbour_candidate);
-				assert(children.size() > 0);
-				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
-					if (this->is_neighbour(cell, *child)) {
-						unique_return_neighbours.insert(*child);
+			// add the parents of unrefined cells as neighbour candidates instead of the unrefined cells
+			bool add_parent = false;
+
+			// check all siblings because only one is recorded even though all have been removed
+			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent_for_removed(*old_neighbour));
+			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+				if (this->cells_to_unrefine.count(*sibling) > 0) {
+
+					#ifndef NDEBUG
+					if (this->cell_process.count(*sibling) > 0) {
+						std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *sibling << " shouldn't exist" << std::endl;
+						exit(EXIT_FAILURE);
 					}
+					#endif
+
+					add_parent = true;
+					break;
 				}
 			}
-		}
 
-		return_neighbours.insert(return_neighbours.end(), unique_return_neighbours.begin(), unique_return_neighbours.end());
+			if (add_parent) {
+				#ifndef NDEBUG
+				if (this->cells_to_refine.count(*old_neighbour) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Old neighbour " << *old_neighbour << " was refined and it or its sibling was also unrefined" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				#endif
+
+				neighbour_candidates.insert(this->get_parent_for_removed(*old_neighbour));
+				continue;
+			}
+
+			// add an unchanged old neighbour as a neighbour candidate
+			if (this->cells_to_refine.count(*old_neighbour) == 0) {
+				neighbour_candidates.insert(*old_neighbour);
+
+				#ifndef NDEBUG
+				if (this->cell_process.count(*old_neighbour) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Old neighbour " << *old_neighbour << " doesn't exist but was supposed to have been refined" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+
+				if (*old_neighbour != this->get_child(*old_neighbour)) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Old neighbour " << *old_neighbour << " has children (at least " << this->get_child(*old_neighbour) << ") but wasn't refined" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				#endif
+
+			// add children of refined cells as neighbour candidates
+			} else {
+
+				std::vector<uint64_t> children = this->get_all_children(*old_neighbour);
+				neighbour_candidates.insert(children.begin(), children.end());
+
+				#ifndef NDEBUG
+				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
+					if (this->cell_process.count(*child) == 0) {
+						std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *child << " doesn't exist" << std::endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+				#endif
+			}
+		}
+		neighbour_candidates.erase(cell);
 
 		#ifndef NDEBUG
-		sort(return_neighbours.begin(), return_neighbours.end());
-		std::vector<uint64_t> compare_neighbours = this->get_neighbours_of(cell);
+		if (neighbour_candidates.count(0) > 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell in neighbour candidates" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
+		// update neighbour lists from neighbour candidates
+		for (boost::unordered_set<uint64_t>::const_iterator candidate = neighbour_candidates.begin(); candidate != neighbour_candidates.end(); candidate++) {
+			if (this->is_neighbour(cell, *candidate)) {
+				this->neighbours[cell].push_back(*candidate);
+			} else if (this->is_neighbour(*candidate, cell)) {
+				this->neighbours_to[cell].push_back(*candidate);
+			}
+
+			#ifndef NDEBUG
+			if (*candidate != this->get_child(*candidate)) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour candidate " << *candidate << " of cell " << cell << " has children" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+		}
+
+		#ifndef NDEBUG
+		// verify the result for neighbours_of
+		sort(this->neighbours[cell].begin(), this->neighbours[cell].end());
+		std::vector<uint64_t> compare_neighbours = this->find_neighbours_of(cell);
 		sort(compare_neighbours.begin(), compare_neighbours.end());
 
-		if (return_neighbours.size() != compare_neighbours.size()) {
-			std::cout << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
-			for (std::vector<uint64_t>::const_iterator c = return_neighbours.begin(); c != return_neighbours.end(); c++) {
+		if (!std::equal(this->neighbours[cell].begin(), this->neighbours[cell].end(), compare_neighbours.begin())) {
+			std::cerr << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " don't match: " << this->neighbours[cell].size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = this->neighbours[cell].begin(); c != this->neighbours[cell].end(); c++) {
 				std::cout << *c << " ";
 			}
-			std::cout << ") should be " << compare_neighbours.size() << " (";
+			std::cerr << ") should be " << compare_neighbours.size() << " (";
 			for (std::vector<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
 				std::cout << *c << " ";
 			}
 			std::cout << ")" << std::endl;
-			assert(0);
+			exit(EXIT_FAILURE);
 		}
 		#endif
-
-		return return_neighbours;
 	}
 
 
 	/*!
-	Updates the neighbours_to structure of given cell on this process without children and remote neighbour info
-	*/
-	void update_neighbours_to(const uint64_t cell)
-	{
-		assert(this->cells.count(cell) > 0);
-		assert(cell == this->get_child(cell));
+	Updates the remote neighbour info of given cell on this process without children.
 
-		// get cells which consider given cell as neighbour, but aren't neighbours of given cell
-		this->neighbours_to[cell].clear();
-		boost::unordered_set<uint64_t> temp_neighbours_to = this->get_neighbours_to(cell);
-
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
-			temp_neighbours_to.erase(*neighbour);
-		}
-
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour_to = temp_neighbours_to.begin(); neighbour_to != temp_neighbours_to.end(); neighbour_to++) {
-			this->neighbours_to[cell].push_back(*neighbour_to);
-		}
-
-		this->update_remote_neighbour_info(cell);
-	}
-
-
-	/*!
-	Returns the existing cells without children that have the given cell as a neighbour
-	Returns nothing if the given cell has children
-	Doesn't update neighbour lists
-	*/
-	boost::unordered_set<uint64_t> get_neighbours_to(const uint64_t id) const
-	{
-		assert(this->cell_process.count(id) > 0);
-
-		boost::unordered_set<uint64_t> return_neighbours;
-
-		if (id != this->get_child(id)) {
-			return return_neighbours;
-		}
-
-		/*
-		The largest cell that considers this as a neighbour has a refinement level of no less than this cells refinement level -2 if this cell has been refined
-		All of those can be found by searching the neighbours of this cell's neighbours' neighbours
-		*/
-
-		// don't add the same neighbour more than once
-		boost::unordered_set<uint64_t> unique_neighbours_to;
-
-		// first round of neighbour search, use existing neighbour lists if available
-		boost::unordered_set<uint64_t> neighbours1, neighbours2;
-		if (this->cells.count(id) > 0) {
-
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(id).begin(); neighbour != this->neighbours.at(id).end(); neighbour++) {
-				assert(*neighbour == this->get_child(*neighbour));
-				neighbours1.insert(*neighbour);
-				unique_neighbours_to.insert(*neighbour);
-			}
-
-		} else {
-			std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(id);
-			neighbours1.insert(temp_neighbours.begin(), temp_neighbours.end());
-			unique_neighbours_to.insert(temp_neighbours.begin(), temp_neighbours.end());
-		}
-
-		// second round of neighbour search...
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour1 = neighbours1.begin(); neighbour1 != neighbours1.end(); neighbour1++) {
-
-			if (this->cells.count(*neighbour1) > 0) {
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*neighbour1).begin(); neighbour != this->neighbours.at(*neighbour1).end(); neighbour++) {
-					assert(*neighbour == this->get_child(*neighbour));
-					neighbours2.insert(*neighbour);
-					unique_neighbours_to.insert(*neighbour);
-				}
-			} else {
-				std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(*neighbour1);
-				neighbours2.insert(temp_neighbours.begin(), temp_neighbours.end());
-				unique_neighbours_to.insert(temp_neighbours.begin(), temp_neighbours.end());
-			}
-		}
-
-		// third round of neighbour search...
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour2 = neighbours2.begin(); neighbour2 != neighbours2.end(); neighbour2++) {
-
-			if (this->cells.count(*neighbour2) > 0) {
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*neighbour2).begin(); neighbour != this->neighbours.at(*neighbour2).end(); neighbour++) {
-					assert(*neighbour == this->get_child(*neighbour));
-					unique_neighbours_to.insert(*neighbour);
-				}
-			} else {
-				std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(*neighbour2);
-				unique_neighbours_to.insert(temp_neighbours.begin(), temp_neighbours.end());
-			}
-		}
-		unique_neighbours_to.erase(id);
-
-		// return only cells which consider given cell as a neighbour
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours_to.begin(); neighbour != unique_neighbours_to.end(); neighbour++) {
-			if (this->is_neighbour(*neighbour, id)) {
-				return_neighbours.insert(*neighbour);
-			}
-		}
-
-		#ifndef NDEBUG
-		// check that wrong cells weren't excluded / included
-		uint64_t x_index = this->get_x_index(id), y_index = this->get_y_index(id), z_index = this->get_z_index(id);
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours_to.begin(); neighbour != unique_neighbours_to.end(); neighbour++) {
-
-			uint64_t neighbour_x_index = this->get_x_index(*neighbour), neighbour_y_index = this->get_y_index(*neighbour), neighbour_z_index = this->get_z_index(*neighbour);
-			uint64_t neighbour_size = this->get_cell_size_in_indices(*neighbour);
-
-			std::vector<uint64_t> temp_neighbours1 = this->get_neighbours_of(*neighbour);
-			boost::unordered_set<uint64_t> temp_neighbours2;
-			temp_neighbours2.insert(temp_neighbours1.begin(), temp_neighbours1.end());
-
-			if (temp_neighbours2.count(id) == 0 && return_neighbours.count(*neighbour) > 0) {
-				std::cout << "Process " << this->comm.rank() << ": cell " << *neighbour << " considers cell " << id << " as neighbour but it shouldn't" << std::endl;
-				std::cout << "Cell " << id << " size " << this->get_cell_size_in_indices(id) << ", indices: " << x_index << " " << y_index << " " << z_index << "; Cell " << *neighbour << " indices: " << neighbour_x_index << " " << neighbour_y_index << " " << neighbour_z_index << ", size in indices " << neighbour_size << std::endl;
-				assert(false);
-			}
-			assert(!(temp_neighbours2.count(id) == 0 && return_neighbours.count(*neighbour) > 0));
-			if (temp_neighbours2.count(id) > 0 && return_neighbours.count(*neighbour) == 0) {
-				std::cout << "Process " << this->comm.rank() << ": cell " << *neighbour << " doesn't consider cell " << id << " as neighbour but it should" << std::endl;
-				std::cout << "Cell " << id << " size " << this->get_cell_size_in_indices(id) << ",  indices: " << x_index << " " << y_index << " " << z_index << "; Cell " << *neighbour << " indices: " << neighbour_x_index << " " << neighbour_y_index << " " << neighbour_z_index << ", size in indices " << neighbour_size << std::endl;
-				assert(false);
-			}
-			assert(!(temp_neighbours2.count(id) > 0 && return_neighbours.count(*neighbour) == 0));
-		}
-		#endif
-
-		return return_neighbours;
-	}
-
-
-	/*!
-	Returns the existing cells without children from the given lists that have the given cell as a neighbour
-	Returns nothing if the given cell has children
-	Doesn't update neighbour lists
-	*/
-	std::vector<uint64_t> get_neighbours_to(const uint64_t cell, const std::vector<uint64_t>* cells1, const std::vector<uint64_t>* cells2) const
-	{
-		assert(this->cell_process.count(cell) > 0);
-
-		std::vector<uint64_t> return_neighbours;
-
-		if (cell != this->get_child(cell)) {
-			return return_neighbours;
-		}
-
-		for (std::vector<uint64_t>::const_iterator candidate = cells1->begin(); candidate != cells1->end(); candidate++) {
-			if (this->is_neighbour(cell, *candidate)) {
-				continue;
-			}
-
-			if (!this->is_neighbour(*candidate, cell)) {
-				continue;
-			}
-
-			if (*candidate == this->get_child(*candidate)) {
-				return_neighbours.push_back(*candidate);
-			// check the children in case the cell's been refined
-			} else {
-				std::vector<uint64_t> children = this->get_all_children(*candidate);
-				assert(children.size() > 0);
-				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
-					if (this->is_neighbour(*child, cell) && !this->is_neighbour(cell, *child)) {
-						return_neighbours.push_back(*child);
-					}
-				}
-			}
-		}
-
-		for (std::vector<uint64_t>::const_iterator candidate = cells2->begin(); candidate != cells2->end(); candidate++) {
-			if (this->is_neighbour(cell, *candidate)) {
-				continue;
-			}
-
-			if (!this->is_neighbour(*candidate, cell)) {
-				continue;
-			}
-
-			if (*candidate == this->get_child(*candidate)) {
-				return_neighbours.push_back(*candidate);
-			// check the children in case the cell's been refined
-			} else {
-				std::vector<uint64_t> children = this->get_all_children(*candidate);
-				assert(children.size() > 0);
-				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
-					if (this->is_neighbour(*child, cell) && !this->is_neighbour(cell, *child)) {
-						return_neighbours.push_back(*child);
-					}
-				}
-			}
-		}
-
-		#ifndef NDEBUG
-		boost::unordered_set<uint64_t> compare_neighbours = this->get_neighbours_to(cell);
-		// remove neighbours of given cell from compare neighbours
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
-			compare_neighbours.erase(*neighbour);
-		}
-
-		if (return_neighbours.size() != compare_neighbours.size()) {
-			std::cout << "Process " << this->comm.rank() << " neighbours_to counts for cell " << cell << " don't match: " << return_neighbours.size() << " (";
-			for (std::vector<uint64_t>::const_iterator c = return_neighbours.begin(); c != return_neighbours.end(); c++) {
-				std::cout << *c << " ";
-			}
-			std::cout << ") should be " << compare_neighbours.size() << " (";
-			for (boost::unordered_set<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
-				std::cout << *c << " ";
-			}
-			std::cout << ")" << std::endl;
-			assert(0);
-		}
-		#endif
-
-		return return_neighbours;
-	}
-
-
-	/*!
-	Updates the remote neighbour info of given cell on this process without children
-	Doesn't update neighbour or neighbour_to lists
+	Uses current neighbour lists.
+	Does nothing if given cell doesn't exist on this process or has children
 	*/
 	void update_remote_neighbour_info(const uint64_t cell)
 	{
-		assert(this->cells.count(cell) > 0);
-		assert(cell == this->get_child(cell));
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
 
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		// TODO: also update remote_cells_with_local_neighbours
 		this->cells_with_remote_neighbours.erase(cell);
 
 		// neighbours of given cell
@@ -2372,97 +2463,199 @@ private:
 
 	/*!
 	Returns the existing neighbours of given cell's parent or existing neighbours of given cell if it is an unrefined cell (= without a parent)
+
+	Assumes that given cell will be unrefined so the refinement level of possible neighbours of the parent is <= n and >= n - 2, where n is the refinement level of given cell
 	*/
-	boost::unordered_set<uint64_t> get_neighbours_of_parent(const uint64_t cell) const
+	std::vector<uint64_t> find_neighbours_of_parent(const uint64_t cell) const
 	{
-		assert(this->cell_process.count(cell) > 0);
 
-		boost::unordered_set<uint64_t> return_neighbours;
+		std::vector<uint64_t> return_neighbours;
 
-		if (this->get_refinement_level(cell) == 0) {
-			// given cells doesn't have a parent
-			if (this->cells.count(cell) > 0) {
-				return_neighbours.insert(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end());
-			} else {
-				std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(cell);
-				return_neighbours.insert(temp_neighbours.begin(), temp_neighbours.end());
-			}
+		const uint64_t parent = this->get_parent(cell);
+
+		if (cell == 0
+		|| cell > this->max_cell_number) {
 			return return_neighbours;
 		}
 
-		uint64_t parent = this->get_parent(cell);
+		if (cell != this->get_child(cell)) {
+			return return_neighbours;
+		}
 
-		// search for given cell's siblings' neighbours of neighbours of... until a neighbour isn't really a neighbour of given cell's parent
-		boost::unordered_set<uint64_t> new_neighbours;
-		std::vector<uint64_t> peers = this->get_all_children(parent);
-		for (std::vector<uint64_t>::const_iterator peer = peers.begin(); peer != peers.end(); peer++) {
+		const uint64_t x_index = this->get_x_index(parent), y_index = this->get_y_index(parent), z_index = this->get_z_index(parent);
 
-			// try to use existing neighbour list
-			if (this->cells.count(*peer) > 0) {
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*peer).begin(); neighbour != this->neighbours.at(*peer).end(); neighbour++) {
-					if (this->is_neighbour(parent, *neighbour)) {
+		// search neighbours in cells of the same size as the given cell (times neighbourhood size)
+		const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
-						if (this->cell_process.count(*neighbour) == 0) {
-							std::cout << "outoo! " << cell << " " << parent << " " << *peer << " ei ole: " << *neighbour << std::endl;
-							exit(EXIT_FAILURE);
-						}
+		const int refinement_level = this->get_refinement_level(parent);
+		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
+		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
 
-						new_neighbours.insert(*neighbour);
-					}
-				}
+		#ifndef NDEBUG
+		if (refinement_level > this->max_refinement_level) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << parent << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (refinement_level < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << parent << " is less than 0: " << refinement_level << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
+		// the refinement level difference between neighbours is <= 1 so search index must increase by at most half the size of given cell
+		const uint64_t index_increase = (size_in_indices < 2) ? 1 : size_in_indices / 2;
+
+		// don't add the same neighbour more than once
+		boost::unordered_set<uint64_t> unique_neighbours;
+
+		// if neighbour_size == 0 just check the volume inside cells of the same size and that share a face with the given cell
+		if (this->neighbourhood_size == 0) {
+
+			// -x direction
+			if (x_index >= size_in_indices) {
+			for (uint64_t current_x_index = x_index - size_in_indices; current_x_index < x_index; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// +x direction
+			if (x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
+			for (uint64_t current_x_index = x_index + size_in_indices; current_x_index < x_index + 2 * size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// -y direction
+			if (y_index >= size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index - size_in_indices; current_y_index < y_index; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// +y direction
+			if (y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index + size_in_indices; current_y_index < y_index + 2 * size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// -z direction
+			if (z_index >= size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index - size_in_indices; current_z_index < z_index; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			// +z direction
+			if (z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
+			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
+			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
+			for (uint64_t current_z_index = z_index + size_in_indices; current_z_index < z_index + 2 * size_in_indices; current_z_index += index_increase) {
+				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+				assert(neighbour > 0);
+				assert(neighbour <= this->max_cell_number);
+				assert(neighbour == this->get_child(neighbour));
+				unique_neighbours.insert(neighbour);
+			}}}}
+
+			return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
+			return return_neighbours;
+		}
+
+
+		// don't start searching outside of the grid
+		uint64_t current_x_index;
+		if (x_index < size_in_indices * this->neighbourhood_size) {
+			current_x_index = 0;
+		} else {
+			current_x_index = x_index - size_in_indices * this->neighbourhood_size;
+		}
+
+		// search for neighbours in cells that share a vertex with the given cell
+		for (; current_x_index < x_index + size_in_indices * (1 + this->neighbourhood_size); current_x_index += index_increase) {
+
+			// don't search outside of the grid
+			if (current_x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
+				continue;
+			}
+
+			// don't start searching outside of the grid
+			uint64_t current_y_index;
+			if (y_index < size_in_indices * this->neighbourhood_size) {
+				current_y_index = 0;
 			} else {
-				std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(*peer);
-				for (std::vector<uint64_t>::const_iterator neighbour = temp_neighbours.begin(); neighbour != temp_neighbours.end(); neighbour++) {
-					if (this->is_neighbour(parent, *neighbour)) {
-						new_neighbours.insert(*neighbour);
-					}
-				}
+				current_y_index = y_index - size_in_indices * this->neighbourhood_size;
 			}
-		}
 
-		// continue searching until all neighbours have been found
-		while (new_neighbours.size() > 0) {
+			for (; current_y_index < y_index + size_in_indices * (1 + this->neighbourhood_size); current_y_index += index_increase) {
 
-			// stop when a neighbour isn't really a neighbour to given cell's parent
-			boost::unordered_set<uint64_t> search_neighbours;
-			for (boost::unordered_set<uint64_t>::const_iterator new_neighbour = new_neighbours.begin(); new_neighbour != new_neighbours.end(); new_neighbour++) {
-
-				if (!this->is_neighbour(parent, *new_neighbour)) {
+				if (current_y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
 					continue;
 				}
 
-				// stop also if neighbour has already been considered
-				if (return_neighbours.count(*new_neighbour) > 0) {
-					continue;
-				}
-
-				search_neighbours.insert(*new_neighbour);
-			}
-			new_neighbours.clear();
-
-			// get new neighbours
-			for (boost::unordered_set<uint64_t>::const_iterator search_neighbour = search_neighbours.begin(); search_neighbour != search_neighbours.end(); search_neighbour++) {
-
-				return_neighbours.insert(*search_neighbour);
-
-				// try to use existing neighbour list
-				if (this->cells.count(*search_neighbour) > 0) {
-					for (std::vector<uint64_t>::const_iterator neigh_of_new_neigh = this->neighbours.at(*search_neighbour).begin(); neigh_of_new_neigh != this->neighbours.at(*search_neighbour).end(); neigh_of_new_neigh++)  {
-						if (this->is_neighbour(parent, *neigh_of_new_neigh) && return_neighbours.count(*neigh_of_new_neigh) == 0) {
-							new_neighbours.insert(*neigh_of_new_neigh);
-						}
-					}
+				// don't start searching outside of the grid
+				uint64_t current_z_index;
+				if (z_index < size_in_indices * this->neighbourhood_size) {
+					current_z_index = 0;
 				} else {
-					std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(*search_neighbour);
-					for (std::vector<uint64_t>::const_iterator neigh_of_new_neigh = temp_neighbours.begin(); neigh_of_new_neigh != temp_neighbours.end(); neigh_of_new_neigh++)  {
-						if (this->is_neighbour(parent, *neigh_of_new_neigh) && return_neighbours.count(*neigh_of_new_neigh) == 0) {
-							new_neighbours.insert(*neigh_of_new_neigh);
-						}
+					current_z_index = z_index - size_in_indices * this->neighbourhood_size;
+				}
+
+				for (; current_z_index < z_index + size_in_indices * (1 + this->neighbourhood_size); current_z_index += index_increase) {
+
+					if (current_z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+						continue;
 					}
+
+					// don't search inside of the given cell's parent
+					if (current_x_index >= x_index
+					    && current_y_index >= y_index
+					    && current_z_index >= z_index
+					    && current_x_index < x_index + size_in_indices
+					    && current_y_index < y_index + size_in_indices
+					    && current_z_index < z_index + size_in_indices) {
+						continue;
+					}
+
+					const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
+					assert(neighbour > 0);
+					assert(neighbour <= this->max_cell_number);
+					assert(neighbour == this->get_child(neighbour));
+					unique_neighbours.insert(neighbour);
 				}
 			}
 		}
 
+		// a cell isn't a neighbour to itself
+		unique_neighbours.erase(parent);
+
+		return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
 		return return_neighbours;
 	}
 
@@ -2562,11 +2755,11 @@ private:
 	void induce_refines(void)
 	{
 		std::vector<uint64_t> new_refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
-		while (all_reduce(this->comm, new_refines.size(), plus<uint64_t>()) > 0) {
+		while (all_reduce(this->comm, new_refines.size(), std::plus<uint64_t>()) > 0) {
 
-			this->cells_to_refine.insert(new_refines.begin(), new_refines.end());
 			std::vector<std::vector<uint64_t> > all_new_refines;
 			all_gather(this->comm, new_refines, all_new_refines);
+			new_refines.clear();
 
 			boost::unordered_set<uint64_t> unique_induced_refines;
 
@@ -2578,7 +2771,7 @@ private:
 
 					#ifndef NDEBUG
 					if (this->cell_process.count(*neighbour) == 0) {
-						std::cerr << "Process " << this->comm.rank() ": Cell " << *refined << " had a non-existing neighbour in neighbour list: " << *neighbour << std::endl;
+						std::cerr << "Process " << this->comm.rank() << ": Cell " << *refined << " had a non-existing neighbour in neighbour list: " << *neighbour << std::endl;
 					}
 					#endif
 
@@ -2586,8 +2779,28 @@ private:
 						continue;
 					}
 
-					if (this->get_refinement_level(*neighbour) > this->get_refinement_level(*refined)) {
-						unique_induced_refines.insert(*neighbour)
+					if (this->get_refinement_level(*neighbour) < this->get_refinement_level(*refined)) {
+						if (this->cells_to_refine.count(*neighbour) == 0) {
+							unique_induced_refines.insert(*neighbour);
+						}
+					}
+				}
+				for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to[*refined].begin(); neighbour_to != this->neighbours_to[*refined].end(); neighbour_to++) {
+
+					#ifndef NDEBUG
+					if (this->cell_process.count(*neighbour_to) == 0) {
+						std::cerr << "Process " << this->comm.rank() << ": Cell " << *refined << " had a non-existing neighbour in neighbour list: " << *neighbour_to << std::endl;
+					}
+					#endif
+
+					if (this->cell_process[*neighbour_to] != this->comm.rank()) {
+						continue;
+					}
+
+					if (this->get_refinement_level(*neighbour_to) < this->get_refinement_level(*refined)) {
+						if (this->cells_to_refine.count(*neighbour_to) == 0) {
+							unique_induced_refines.insert(*neighbour_to);
+						}
 					}
 				}
 			}
@@ -2608,7 +2821,9 @@ private:
 					// refine all local cells that are too large and neighbouring the refined cell
 					// TODO: probably faster to search for local neighbours of refined cell, even faster would be to also store neighbours lists of remote cells with local neighbours
 					for (boost::unordered_set<uint64_t>::const_iterator local = this->cells_with_remote_neighbours.begin(); local != this->cells_with_remote_neighbours.end(); local++) {
-						if (this->is_neighbour(*local, *refined)) {
+						if (this->is_neighbour(*local, *refined)
+						&& this->get_refinement_level(*local) < this->get_refinement_level(*refined)
+						&& this->cells_to_refine.count(*local) == 0) {
 							unique_induced_refines.insert(*local);
 						}
 					}
@@ -2616,8 +2831,8 @@ private:
 			}
 			all_new_refines.clear();
 
-			new_refines.clear();
-			new_refines.insert(new_refines.begin(), unique_induced_refines.begin(), unique_induced_refines.end());
+			new_refines.insert(new_refines.end(), unique_induced_refines.begin(), unique_induced_refines.end());
+			this->cells_to_refine.insert(unique_induced_refines.begin(), unique_induced_refines.end());
 			unique_induced_refines.clear();
 		}
 
@@ -2627,10 +2842,42 @@ private:
 		all_gather(this->comm, refines, all_refines);
 
 		for (int process = 0; process < this->comm.size(); process++) {
-			for (std::vector<uint64_t>::const_iterator refined = all_refines[process].begin(); refined != all_refines[process].end(); refined++) {
-				this->cells_to_refine.insert(*refined);
+			this->cells_to_refine.insert(all_refines[process].begin(), all_refines[process].end());
+		}
+
+		#ifndef NDEBUG
+		// check that all required refines have been induced
+		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
+
+			// neighbours_of
+			std::vector<uint64_t> neighbours_of = this->find_neighbours_of(*refined);
+
+			for (std::vector<uint64_t>::const_iterator neighbour_of = neighbours_of.begin(); neighbour_of != neighbours_of.end(); neighbour_of++) {
+
+				if (this->get_refinement_level(*neighbour_of) < this->get_refinement_level(*refined)
+				&& this->cells_to_refine.count(*neighbour_of) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour (" << *neighbour_of << ") of cell that will be refined (" << *refined << ", ref lvl " << this->get_refinement_level(*refined) << ") has too small refinement level: " << this->get_refinement_level(*neighbour_of) << std::endl;
+					exit(EXIT_FAILURE);
+				}
+			}
+
+			// neighbours_to
+			std::vector<uint64_t> neighbours_to = this->find_neighbours_to(*refined);
+			for (std::vector<uint64_t>::const_iterator neighbour_to = neighbours_to.begin(); neighbour_to != neighbours_to.end(); neighbour_to++) {
+
+				if (this->get_refinement_level(*neighbour_to) < this->get_refinement_level(*refined)
+				&& this->cells_to_refine.count(*neighbour_to) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour (" << *neighbour_to << ") of cell that will be refined (" << *refined << ", ref lvl " << this->get_refinement_level(*refined) << ") has too small refinement level: " << this->get_refinement_level(*neighbour_to) << std::endl;
+					exit(EXIT_FAILURE);
+				}
 			}
 		}
+
+		if (!this->is_consistent()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 	}
 
 
@@ -2647,16 +2894,20 @@ private:
 
 		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
 
-			if (this->cells_to_refine.count(*unrefined) > 0) {
-				continue;
+			bool can_unrefine = true;
+
+			// any sibling being refined will override this unrefine
+			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(*unrefined));
+			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+				if (this->cells_to_refine.count(*sibling) > 0) {
+					can_unrefine = false;
+					break;
+				}
 			}
 
 			// TODO improve performance by first using local neighbour lists to override unrefines
-
-			boost::unordered_set<uint64_t> neighbours_of_parent = this->get_neighbours_of_parent(*unrefined);
-
-			bool can_unrefine = true;
-			for (boost::unordered_set<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
+			std::vector<uint64_t> neighbours_of_parent = this->find_neighbours_of_parent(*unrefined);
+			for (std::vector<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
 
 				if (this->get_refinement_level(*neighbour_of_parent) < this->get_refinement_level(*unrefined)) {
 					can_unrefine = false;
@@ -2682,10 +2933,15 @@ private:
 		all_gather(this->comm, unrefines, all_unrefines);
 
 		for (int process = 0; process < this->comm.size(); process++) {
-			for (std::vector<uint64_t>::const_iterator unrefined = all_unrefines[process].begin(); unrefined != all_unrefines[process].end(); unrefined++) {
-				this->cells_to_unrefine.insert(*unrefined);
-			}
+			this->cells_to_unrefine.insert(all_unrefines[process].begin(), all_unrefines[process].end());
 		}
+
+		#ifndef NDEBUG
+		if (!this->is_consistent()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 	}
 
 
@@ -2700,286 +2956,185 @@ private:
 	{
 		std::vector<uint64_t> new_cells;
 
-		// add new cells to the cell to process mappings
-		for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
-
-				this->cell_process[*created_cell] = cell_creator;
-
-				// cells should be created on the same process as their parent
-				assert(this->cell_process[this->get_parent(*created_cell)] == cell_creator);
-
-				if (this->comm.rank() == cell_creator) {
-					this->cells[*created_cell];
-					// tell the user which cells were created on this process
-					new_cells.push_back(*created_cell);
-				}
-			}
-		}
-		...
-
-			// all cells whose neighbour and _to list will be updated
-			boost::unordered_set<uint64_t> neighbour_lists_to_update;
-
-			// locally created cells' neighbour lists
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
-				neighbour_lists_to_update.insert(*created_cell);
-			}
-
-			// locally created cells' parent's neighbours' neighbour lists and those that considered these their neighbours
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
-
-				uint64_t parent_of_created = this->get_parent(*created_cell);
-
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[parent_of_created].begin(); neighbour != this->neighbours[parent_of_created].end(); neighbour++) {
-					neighbour_lists_to_update.insert(*neighbour);
-				}
-
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[parent_of_created].begin(); neighbour != this->neighbours_to[parent_of_created].end(); neighbour++) {
-					neighbour_lists_to_update.insert(*neighbour);
-				}
-			}
-
-			// local cells that should be refined because their neighbours on other processes are too small
-			boost::unordered_set<uint64_t> induced_refines;
-
-			// local neighbours of remotely created cells
-			for (boost::unordered_set<uint64_t>::const_iterator cell = this->cells_with_remote_neighbours.begin(); cell != this->cells_with_remote_neighbours.end(); cell++) {
-
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
-
-					if (*neighbour == this->get_child(*neighbour)) {
-						// neighbour wasn't refined
-						continue;
-					}
-
-					if (*cell == this->get_child(*cell)) {
-						neighbour_lists_to_update.insert(*cell);
-					// if cell was refined update its childrens' neighbour lists instead
-					} else {
-						std::vector<uint64_t> children = this->get_all_children(*cell);
-						neighbour_lists_to_update.insert(children.begin(), children.end());
-					}
-
-					// remote refined cell doesn't count as a neighbour anymore
-					this->remote_cells_with_local_neighbours.erase(*neighbour);
-					this->remote_neighbours.erase(*neighbour);
-
-					// induced refinement
-					if (this->get_refinement_level(*neighbour) > this->get_refinement_level(*cell)) {
-						induced_refines.insert(*cell);
-					}
-				}
-
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[*cell].begin(); neighbour != this->neighbours_to[*cell].end(); neighbour++) {
-
-					if (*neighbour == this->get_child(*neighbour)) {
-						// neighbour wasn't refined
-						continue;
-					}
-
-					if (*cell == this->get_child(*cell)) {
-						neighbour_lists_to_update.insert(*cell);
-					// if cell was refined update its childrens' neighbour lists instead
-					} else {
-						std::vector<uint64_t> children = this->get_all_children(*cell);
-						neighbour_lists_to_update.insert(children.begin(), children.end());
-					}
-
-					// remote refined cell doesn't count as a neighbour anymore
-					this->remote_cells_with_local_neighbours.erase(*neighbour);
-					this->remote_neighbours.erase(*neighbour);
-
-					// induced refinement
-					if (this->get_refinement_level(*neighbour) > this->get_refinement_level(*cell)) {
-						induced_refines.insert(*cell);
-					}
-				}
-			}
-
-			// update neighbour lists
-			for (boost::unordered_set<uint64_t>::const_iterator cell = neighbour_lists_to_update.begin(); cell != neighbour_lists_to_update.end(); cell++) {
-
-				if (this->cells.count(*cell) == 0) {
-					continue;
-				}
-
-				if (*cell != this->get_child(*cell)) {
-					continue;
-				}
-
-				// cell was just created if parent's neighbour list still exists
-				if (this->neighbours.count(this->get_parent(*cell)) > 0) {
-					this->neighbours[*cell] = this->get_neighbours_of(*cell, &(this->neighbours[this->get_parent(*cell)]));
-				// cell's neighbourhood changed, start from its old neighbour list
-				} else {
-					this->neighbours[*cell] = this->get_neighbours_of(*cell, &(this->neighbours[*cell]));
-				}
-			}
-
-			// update neighbour_to lists
-			for (boost::unordered_set<uint64_t>::const_iterator cell = neighbour_lists_to_update.begin(); cell != neighbour_lists_to_update.end(); cell++) {
-				if (this->cells.count(*cell) == 0) {
-					continue;
-				}
-
-				if (*cell != this->get_child(*cell)) {
-					continue;
-				}
-
-				// cell was just created if parent's neighbour_to list still exists
-				if (this->neighbours_to.count(this->get_parent(*cell)) > 0) {
-					this->neighbours_to[*cell] = this->get_neighbours_to(*cell, &(this->neighbours[this->get_parent(*cell)]), &(this->neighbours_to[this->get_parent(*cell)]));
-				// cell's neighbourhood changed, start from its old neighbour_to lists
-				} else {
-					this->neighbours_to[*cell] = this->get_neighbours_to(*cell, &(this->neighbours[*cell]), &(this->neighbours_to[*cell]));
-				}
-				this->update_remote_neighbour_info(*cell);
-			}
-
-			// override obvious unrefines locally
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
-				this->removed_cells.erase(*created_cell);
-				this->removed_cells.erase(this->get_parent(*created_cell));
-			}
-
-			// remove locally created cells' parent's neighbour info
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
-				uint64_t parent_of_created = this->get_parent(*created_cell);
-				this->neighbours.erase(parent_of_created);
-				this->neighbours_to.erase(parent_of_created);
-				this->cells_with_remote_neighbours.erase(parent_of_created);
-			}
-
-			// induce refines
-			for (boost::unordered_set<uint64_t>::const_iterator cell = induced_refines.begin(); cell != induced_refines.end(); cell++) {
-				this->refine_completely(*cell);
-			}
-		}
-
-		// since the grid has been refined globally, finally really override local unrefines
-		boost::unordered_set<uint64_t> final_removed_cells;
-		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = this->removed_cells.begin(); removed_cell != this->removed_cells.end(); removed_cell++) {
-
-			bool unrefine = true;
-
-			// override if any of the neighbours of the removed cell would be too small
-			if (this->cells.count(*removed_cell) > 0) {
-
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*removed_cell].begin(); neighbour != this->neighbours[*removed_cell].end(); neighbour++) {
-					if (this->get_refinement_level(*removed_cell) < this->get_refinement_level(*neighbour)) {
-						unrefine = false;
-						break;
-					}
-				}
-
-			} else {
-
-				std::vector<uint64_t> temp_neighbours = this->get_neighbours_of(*removed_cell);
-				for (std::vector<uint64_t>::const_iterator neighbour = temp_neighbours.begin(); neighbour != temp_neighbours.end(); neighbour++) {
-					if (this->get_refinement_level(*removed_cell) < this->get_refinement_level(*neighbour)) {
-						unrefine = false;
-						break;
-					}
-				}
-			}
-			if (!unrefine) {
-				continue;
-			}
-
-			// override if any of the neighbours of the removed cell's parent would be too small
-			boost::unordered_set<uint64_t> neighbours_of_parent = this->get_neighbours_of_parent(*removed_cell);
-			for (boost::unordered_set<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
-
-				if (this->get_refinement_level(*removed_cell) < this->get_refinement_level(*neighbour_of_parent)) {
-					unrefine = false;
-					break;
-				}
-			}
-			if (!unrefine) {
-				continue;
-			}
-
-			final_removed_cells.insert(*removed_cell);
-		}
-		this->removed_cells.clear();
-
-
-		/*
-		Unrefine
-		*/
-		std::vector<std::vector<uint64_t> > all_removed_cells;
-		std::vector<uint64_t> temp_removed_cells(final_removed_cells.begin(), final_removed_cells.end());
-		all_gather(this->comm, temp_removed_cells, all_removed_cells);
-
-		this->cells_to_receive.clear();
 		this->cells_to_send.clear();
+		this->cells_to_receive.clear();
+		this->incoming_data.clear();
+		this->outgoing_data.clear();
+		this->refined_cell_data.clear();
+		this->unrefined_cell_data.clear();
 
-		// send user data of removed cells to their parent cell's process
-		this->removed_cell_data.clear();
+		#ifndef NDEBUG
+		// check that cells_to_refine is identical between processes
+		std::vector<uint64_t> ordered_cells_to_refine(this->cells_to_refine.begin(), this->cells_to_refine.end());
+		sort(ordered_cells_to_refine.begin(), ordered_cells_to_refine.end());
 
-		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
-			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
+		std::vector<std::vector<uint64_t> > all_ordered_cells_to_refine;
+		all_gather(this->comm, ordered_cells_to_refine, all_ordered_cells_to_refine);
 
-				int process_of_parent = this->cell_process[this->get_parent(*removed_cell)];
+		for (int process = 0; process < this->comm.size(); process++) {
+			if (!std::equal(all_ordered_cells_to_refine[process].begin(), all_ordered_cells_to_refine[process].end(), all_ordered_cells_to_refine[0].begin())) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " cells_to_refine differ between processes 0 and " << process << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
 
-				std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(*removed_cell));
-				for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+		// check that cells_to_unrefine is identical between processes
+		std::vector<uint64_t> ordered_cells_to_unrefine(this->cells_to_unrefine.begin(), this->cells_to_unrefine.end());
+		sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
 
-					if (process_of_parent == this->cell_process[*sibling] && process_of_parent == this->comm.rank()) {
-						// don't send to self, but still save user data
-						this->removed_cell_data[*sibling] = this->cells[*sibling];
-						continue;
+		std::vector<std::vector<uint64_t> > all_ordered_cells_to_unrefine;
+		all_gather(this->comm, ordered_cells_to_unrefine, all_ordered_cells_to_unrefine);
+
+		for (int process = 0; process < this->comm.size(); process++) {
+			if (!std::equal(all_ordered_cells_to_unrefine[process].begin(), all_ordered_cells_to_unrefine[process].end(), all_ordered_cells_to_unrefine[0].begin())) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " cells_to_unrefine differ between processes 0 and " << process << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+		#endif
+
+		// cells whose neighbour lists have to be updated afterwards
+		boost::unordered_set<uint64_t> update_neighbours;
+
+		// a separate neighbourhood update function has to be used for cells whose children were removed by unrefining
+		boost::unordered_set<uint64_t> update_neighbours_unrefined;
+
+		// refines
+		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
+
+			const int process_of_refined = this->cell_process[*refined];
+
+			if (this->comm.rank() == process_of_refined) {
+				// TODO: move data instead of copying, using boost::move or c++0x move?
+				this->refined_cell_data[*refined] = this->cells[*refined];
+				this->cells.erase(*refined);
+			}
+
+			// add children of refined cells into the grid
+			std::vector<uint64_t> children = this->get_all_children(*refined);
+			for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
+				this->cell_process[*child] = process_of_refined;
+
+				if (this->comm.rank() == process_of_refined) {
+					this->cells[*child];
+					new_cells.push_back(*child);
+				}
+			}
+
+			// use local neighbour lists to find cells whose neighbour lists have to updated
+			if (process_of_refined == this->comm.rank()) {
+				// update the neighbour lists of created local cells
+				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
+						update_neighbours.insert(*child);
+
+						#ifndef NDEBUG
+						if (this->neighbours.count(*child) > 0) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Neighbours for cell " << *child << " shouldn't exist yet" << std::endl;
+							exit(EXIT_FAILURE);
+						}
+						#endif
+				}
+
+				// update neighbour lists of all the parent's neighbours
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*refined).begin(); neighbour != this->neighbours.at(*refined).end(); neighbour++) {
+					if (this->cell_process[*neighbour] == this->comm.rank()) {
+						update_neighbours.insert(*neighbour);
 					}
-
-					// TODO: duplicate sends?
-					if (this->comm.rank() == process_of_parent) {
-						this->cells_to_receive[this->cell_process[*sibling]].push_back(*sibling);
+				}
+				for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(*refined).begin(); neighbour_to != this->neighbours_to.at(*refined).end(); neighbour_to++) {
+					if (this->cell_process[*neighbour_to] == this->comm.rank()) {
+						update_neighbours.insert(*neighbour_to);
 					}
+				}
+			}
 
-					if (this->comm.rank() == this->cell_process[*sibling]) {
-						this->cells_to_send[process_of_parent].push_back(*sibling);
-					}
+			// without using local neighbour lists figure out rest of the neighbour lists that need updating
+			for (boost::unordered_set<uint64_t>::const_iterator with_remote_neighbour = this->cells_with_remote_neighbours.begin(); with_remote_neighbour != this->cells_with_remote_neighbours.end(); with_remote_neighbour++) {
+				if (this->is_neighbour(*with_remote_neighbour, *refined)
+				|| this->is_neighbour(*refined , *with_remote_neighbour)) {
+					update_neighbours.insert(*with_remote_neighbour);
+				}
+			}
+
+			this->cells_with_remote_neighbours.erase(*refined);
+			this->remote_cells_with_local_neighbours.erase(*refined);
+		}
+
+		// needed for checking which neighbourhoods to update due to unrefining
+		boost::unordered_set<uint64_t> parents_of_unrefined;
+
+		// unrefines
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
+
+			const uint64_t parent_of_unrefined = this->get_parent(*unrefined);
+			const int process_of_parent = this->cell_process[parent_of_unrefined];
+
+			parents_of_unrefined.insert(parent_of_unrefined);
+
+			std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
+			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+
+				int process_of_removed = this->cell_process[*sibling];
+
+				// remove unrefined cells and their siblings from the grid, but don't remove user data yet
+				this->cell_process.erase(*sibling);
+				this->cells_with_remote_neighbours.erase(*sibling);
+				this->remote_cells_with_local_neighbours.erase(*sibling);
+				update_neighbours.erase(*sibling);
+
+				// don't send unrefined cells' user data to self
+				if (this->comm.rank() == process_of_removed
+				&& this->comm.rank() == process_of_parent) {
+					this->unrefined_cell_data[*sibling] = this->cells[*sibling];
+					this->cells.erase(*sibling);
+				}
+
+				// send user data of removed cell to the parent's process
+				if (this->comm.rank() == process_of_removed) {
+					this->cells_to_send[process_of_parent].push_back(*sibling);
+
+					// receive user data of removed cell from its process
+				} else if (this->comm.rank() == process_of_parent) {
+					this->cells_to_receive[process_of_removed].push_back(*sibling);
 				}
 			}
 		}
 
+
+		// start sending unrefined cells' user data to the process of their parent
+		// TODO: use the same function for all data transfer stuff
 		// post all receives
 		for (int sender = 0; sender < this->comm.size(); sender++) {
 
+			if (sender == this->comm.rank()) {
+				continue;
+			}
+
 			if (this->cells_to_receive.count(sender) == 0) {
+				// no data to send / receive
 				continue;
 			}
 
 			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
 
-			// receive data in known order
-			sort(this->cells_to_receive[sender].begin(), this->cells_to_receive[sender].end());
-
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-
-			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-			this->load_balance_requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-			#else
-			this->requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-			#endif
-
-			#else
-			this->requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-			#endif
+			this->receive_requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
 		}
 
-		// gather data to send
+		// gather all data to send
 		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
-			if (this->cells_to_send.count(receiver) == 0) {
+			if (receiver == this->comm.rank()) {
+				// don't send to self
 				continue;
 			}
 
-			// send data in known order
-			sort(this->cells_to_send[receiver].begin(), this->cells_to_send[receiver].end());
+			if (this->cells_to_send.count(receiver) == 0) {
+				// no data to send / receive
+				continue;
+			}
 
 			// construct the outgoing data vector
+			sort(this->cells_to_send[receiver].begin(), this->cells_to_send[receiver].end());
 			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_send[receiver].begin(); cell != this->cells_to_send[receiver].end(); cell++) {
 				UserData* user_data = (*this)[*cell];
 				assert(user_data != NULL);
@@ -2991,51 +3146,116 @@ private:
 		// post all sends
 		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
 
+			if (receiver == this->comm.rank()) {
+				continue;
+			}
+
 			if (this->cells_to_send.count(receiver) == 0) {
+				// no data to send / receive
 				continue;
 			}
 
 			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
 
-			#ifdef DCCRG_SEND_SINGLE_CELLS
+			this->send_requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+		}
 
-			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-			this->load_balance_requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-			#else
-			this->requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+		// update data for parents of unrefined cells
+		for (boost::unordered_set<uint64_t>::const_iterator parent = parents_of_unrefined.begin(); parent != parents_of_unrefined.end(); parent++) {
+
+			// find neighbours of unrefined cells' parents, update also those neighbourhoods
+			// neighbours_of is sufficient because unrefined cells shouldn't have had a neighbour with ref. lvl. + 2
+			std::vector<uint64_t> found_neighbours = find_neighbours_of(*parent);
+
+			if (this->cell_process[*parent] == this->comm.rank()) {
+				this->neighbours.erase(*parent);
+				this->neighbours_to.erase(*parent);
+
+				this->neighbours[*parent] = found_neighbours;
+				// neighbours_to should be empty
+				this->neighbours_to[*parent];
+
+				this->update_remote_neighbour_info(*parent);
+			}
+
+			for (std::vector<uint64_t>::const_iterator neighbour = found_neighbours.begin(); neighbour != found_neighbours.end(); neighbour++) {
+
+				if (this->cell_process[*neighbour] == this->comm.rank()
+				&& parents_of_unrefined.count(*neighbour) == 0) {
+					update_neighbours.insert(*neighbour);
+				}
+			}
+
+			// default construct user data for local parents of unrefined cells
+			if (this->cell_process[*parent] == this->comm.rank()) {
+				this->cells[*parent];
+			}
+		}
+
+		// update neighbour lists of cells affected by refining / unrefining
+		for (boost::unordered_set<uint64_t>::const_iterator cell = update_neighbours.begin(); cell != update_neighbours.end(); cell++) {
+			this->update_neighbours(*cell);
+			this->update_remote_neighbour_info(*cell);
+		}
+
+		// remove neighbour lists of refined cells' parents
+		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
+			if (this->cell_process[*refined] == this->comm.rank()) {
+
+				#ifndef NDEBUG
+				if (this->neighbours.count(*refined) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list for cell " << *refined << " doesn't exist" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+
+				if (this->neighbours_to.count(*refined) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour_to list for cell " << *refined << " doesn't exist" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				#endif
+
+				this->neighbours.erase(*refined);
+				this->neighbours_to.erase(*refined);
+			}
+		}
+
+
+		// remove neighbour lists of removed cells
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
+
+			// only one sibling of cells to unrefine is stored, but all have to be removed
+			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent_for_removed(*unrefined));
+			#ifndef NDEBUG
+			if (siblings.size() != 8) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Wrong number of siblings for cell " << *unrefined << ": " << siblings.size() - 1 << " but 7 expected" << std::endl;
+				exit(EXIT_FAILURE);
+			}
 			#endif
 
-			#else
-			this->requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-			#endif
+			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+				if (this->cell_process[*sibling] == this->comm.rank()) {
+
+					#ifndef NDEBUG
+					if (this->neighbours.count(*sibling) == 0) {
+						std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list for cell " << *sibling << " doesn't exist" << std::endl;
+						exit(EXIT_FAILURE);
+					}
+
+					if (this->neighbours_to.count(*sibling) == 0) {
+						std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour_to list for cell " << *sibling << " doesn't exist" << std::endl;
+						exit(EXIT_FAILURE);
+					}
+					#endif
+
+					this->neighbours.erase(*sibling);
+					this->neighbours_to.erase(*sibling);
+				}
+			}
 		}
 
-		// wait for transfers to complete
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->load_balance_requests.begin(); process != this->load_balance_requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-			process->second.clear();
-		}
-		this->load_balance_requests.clear();
-		#else
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->requests.begin(); process != this->requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-			process->second.clear();
-		}
-		this->requests.clear();
-		#endif
-
-		#else
-
-		boost::mpi::wait_all(this->requests.begin(), this->requests.end());
-		this->requests.clear();
-
-		#endif
-
-		this->cells_to_send.clear();
-		this->outgoing_data.clear();
+		// wait for receives to complete
+		boost::mpi::wait_all(this->receive_requests.begin(), this->receive_requests.end());
+		this->receive_requests.clear();
 
 		// incorporate received data
 		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
@@ -3043,102 +3263,32 @@ private:
 			assert(this->incoming_data[sender->first].size() == this->cells_to_receive[sender->first].size());
 
 			int i = 0;
+			sort(this->cells_to_receive[sender->first].begin(), this->cells_to_receive[sender->first].end());
 			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_receive[sender->first].begin(); cell != this->cells_to_receive[sender->first].end(); cell++, i++) {
-				this->removed_cell_data[*cell] = this->incoming_data[sender->first][i];
+				this->unrefined_cell_data[*cell] = this->incoming_data[sender->first][i];
 			}
 		}
-		this->cells_to_receive.clear();
 		this->incoming_data.clear();
 
+		// remove user data of unrefined cells from this->cells
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
 
-		// all cells whose neighbour and _to list will be updated
-		boost::unordered_set<uint64_t> neighbour_lists_to_update;
-
-		// local cells whose data structures will be updated
-		boost::unordered_set<uint64_t> all_locally_removed_cells;
-
-		// remove cells from cell to process mappings
-		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
-			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
-
-				// initial cells can't be removed
-				assert(this->get_refinement_level(*removed_cell) > 0);
-
-				if (this->cell_process.count(*removed_cell) == 0) {
-					continue;
-				}
-
-				neighbour_lists_to_update.insert(this->get_parent(*removed_cell));
-
-				// update neighbour and _to lists of all cells that are close enough to a removed cells parent...
-				boost::unordered_set<uint64_t> neighbours_of_parent = this->get_neighbours_of_parent(*removed_cell);
-
-
-				std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(*removed_cell));
-				for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
-
-					if (this->cell_process[*sibling] == this->comm.rank()) {
-						this->cells.erase(*sibling);
-						all_locally_removed_cells.insert(*sibling);
-					}
-
-					this->cell_process.erase(*sibling);
-				}
-
-				// ...already here because next removed cell might have had these as a neighbour
-				for (boost::unordered_set<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
-					if (*neighbour_of_parent != this->get_child(*neighbour_of_parent)) {
-						continue;
-					}
-					if (this->cells.count(*neighbour_of_parent) > 0) {
-						this->update_neighbours(*neighbour_of_parent);
-					}
-				}
-				for (boost::unordered_set<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
-					if (*neighbour_of_parent != this->get_child(*neighbour_of_parent)) {
-						continue;
-					}
-					if (this->cells.count(*neighbour_of_parent) > 0) {
-						this->update_neighbours_to(*neighbour_of_parent);
-					}
-				}
+			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent_for_removed(*unrefined));
+			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+				this->cells.erase(*sibling);
 			}
 		}
 
-		// update local neighbour and _to lists
-		for (boost::unordered_set<uint64_t>::const_iterator cell = neighbour_lists_to_update.begin(); cell != neighbour_lists_to_update.end(); cell++) {
+		// wait for sends to complete
+		boost::mpi::wait_all(this->send_requests.begin(), this->send_requests.end());
+		this->send_requests.clear();
+		this->outgoing_data.clear();
 
-			if (this->cells.count(*cell) == 0) {
-				continue;
-			}
-
-			if (*cell != this->get_child(*cell)) {
-				continue;
-			}
-
-			this->update_neighbours(*cell);
-		}
-		for (boost::unordered_set<uint64_t>::const_iterator cell = neighbour_lists_to_update.begin(); cell != neighbour_lists_to_update.end(); cell++) {
-
-			if (this->cells.count(*cell) == 0) {
-				continue;
-			}
-
-			if (*cell != this->get_child(*cell)) {
-				continue;
-			}
-
-			this->update_neighbours_to(*cell);
-		}
-
-		// update locally removed cells' data structures
-		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = all_locally_removed_cells.begin(); removed_cell != all_locally_removed_cells.end(); removed_cell++) {
-			this->neighbours.erase(*removed_cell);
-			this->neighbours_to.erase(*removed_cell);
-			this->cells_with_remote_neighbours.erase(*removed_cell);
-		}
+		this->cells_to_refine.clear();
+		this->cells_to_unrefine.clear();
 
 		this->recalculate_neighbour_update_send_receive_lists();
+
 		return new_cells;
 	}
 
@@ -3650,6 +3800,50 @@ private:
 			}
 		}
 	}
+
+
+	#ifndef NDEBUG
+	/*!
+	Returns false if the same cells don't exist on the same process for all processes.
+	*/
+	bool is_consistent(void)
+	{
+		// sort existing cells from this process
+		std::vector<uint64_t> local_cells;
+		local_cells.reserve(this->cell_process.size());
+		for (typename boost::unordered_map<uint64_t, int>::const_iterator cell = this->cell_process.begin(); cell != this->cell_process.end(); cell++) {
+			local_cells.push_back(cell->first);
+		}
+		sort(local_cells.begin(), local_cells.end());
+
+		// processes of existing cells from this process
+		std::vector<int> local_processes;
+		local_processes.reserve(this->cell_process.size());
+		for (std::vector<uint64_t>::const_iterator cell = local_cells.begin(); cell != local_cells.end(); cell++) {
+			local_processes.push_back(this->cell_process[*cell]);
+		}
+
+		// compare the above between processes
+		std::vector<std::vector<uint64_t> > all_cells;
+		all_gather(this->comm, local_cells, all_cells);
+		std::vector<std::vector<int> > all_processes;
+		all_gather(this->comm, local_processes, all_processes);
+
+		for (int process = 0; process < this->comm.size(); process++) {
+			if (!std::equal(all_cells[process].begin(), all_cells[process].end(), all_cells[0].begin())) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Grid has different cells between processes 0 and " << process << std::endl;
+				return false;
+			}
+
+			if (!std::equal(all_processes[process].begin(), all_processes[process].end(), all_processes[0].begin())) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Grid's cells have different processes between processes 0 and " << process << std::endl;
+				return false;
+			}
+		}
+
+		return true;
+	}
+	#endif
 
 };
 
