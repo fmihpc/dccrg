@@ -1322,7 +1322,7 @@ public:
 	*/
 	void refine_completely_at(const double x, const double y, const double z)
 	{
-		uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
+		const uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
 		if (cell == 0) {
 			return;
 		}
@@ -1358,9 +1358,9 @@ public:
 		}
 
 		// record only one sibling to unrefine / process
-		std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
+		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
 		for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
-			if (this->cells_to_unrefine.count(cell) > 0) {
+			if (this->cells_to_unrefine.count(*sibling) > 0) {
 				return;
 			}
 		}
@@ -1375,7 +1375,7 @@ public:
 	*/
 	void unrefine_completely_at(const double x, const double y, const double z)
 	{
-		uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
+		const uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
 		if (cell == 0) {
 			return;
 		}
@@ -1432,7 +1432,7 @@ public:
 			return cell;
 		}
 
-		uint64_t parent = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), this->get_refinement_level(cell) - 1);
+		const uint64_t parent = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), this->get_refinement_level(cell) - 1);
 		if (this->cell_process.count(parent) > 0) {
 			return parent;
 		} else {
@@ -1447,7 +1447,7 @@ public:
 	*/
 	uint64_t get_parent_for_removed(const uint64_t cell) const
 	{
-		int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->get_refinement_level(cell);
 		if (refinement_level == 0 || refinement_level > this->max_refinement_level) {
 			return cell;
 		}
