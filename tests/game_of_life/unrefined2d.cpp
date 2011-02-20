@@ -155,14 +155,17 @@ int main(int argc, char* argv[])
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
+
 			for (int i = 0; i < int(cells.size()) && refined < GRID_SIZE * GRID_SIZE / 4 / comm.size(); i++) {
 				if (game_grid.get_refinement_level(cells[i]) == 0) {
 					game_grid.refine_completely(cells[i]);
 					refined++;
 				}
 			}
+
 		} else {
-			for (int i = 0; i < int(cells.size()) && unrefined < GRID_SIZE * GRID_SIZE / 3 / comm.size(); i++) {
+
+			for (int i = 0; i < int(cells.size()) && unrefined < GRID_SIZE * GRID_SIZE / 2 / comm.size(); i++) {
 				if (game_grid.get_refinement_level(cells[i]) > 0) {
 					game_grid.unrefine_completely(cells[i]);
 					unrefined++;
@@ -204,7 +207,7 @@ int main(int argc, char* argv[])
 		}
 
 
-		//game_grid.balance_load();
+		game_grid.balance_load();
 		game_grid.update_remote_neighbour_data();
 		cells = game_grid.get_cells();
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
