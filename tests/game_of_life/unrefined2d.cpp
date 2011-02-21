@@ -150,13 +150,12 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		// refine random unrefined cells and unrefine random refined cells
-		int refined = 0, unrefined = 0;
 		vector<uint64_t> cells = game_grid.get_cells();
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
 
-			for (int i = 0; i < int(cells.size()) && refined < GRID_SIZE * GRID_SIZE / 4 / comm.size(); i++) {
+			for (int i = 0, refined = 0; i < int(cells.size()) && refined <= GRID_SIZE * GRID_SIZE / 5 / comm.size(); i++) {
 				if (game_grid.get_refinement_level(cells[i]) == 0) {
 					game_grid.refine_completely(cells[i]);
 					refined++;
@@ -165,7 +164,7 @@ int main(int argc, char* argv[])
 
 		} else {
 
-			for (int i = 0; i < int(cells.size()) && unrefined < GRID_SIZE * GRID_SIZE / 2 / comm.size(); i++) {
+			for (int i = 0, unrefined = 0; i < int(cells.size()) && unrefined <= GRID_SIZE * GRID_SIZE / 2 / comm.size(); i++) {
 				if (game_grid.get_refinement_level(cells[i]) > 0) {
 					game_grid.unrefine_completely(cells[i]);
 					unrefined++;
@@ -190,7 +189,7 @@ int main(int argc, char* argv[])
 			new_cell_data->is_alive = parent_data->is_alive;
 		}
 
-		// "interpolate" previously parent cells' value from unrefined cells
+		// "interpolate" parent cell's value from unrefined children
 		vector<uint64_t> removed_cells = game_grid.get_removed_cells();
 		for (vector<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
 			game_of_life_cell* removed_cell_data = game_grid[*removed_cell];
@@ -205,6 +204,7 @@ int main(int argc, char* argv[])
 			}
 			parent_data->is_alive = removed_cell_data->is_alive;
 		}
+		game_grid.clear_refined_unrefined_data();
 
 
 		game_grid.balance_load();
@@ -295,7 +295,7 @@ int main(int argc, char* argv[])
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 			if (cell_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data cell: " << *cell << endl;
+				cout << __FILE__ << ":" << __LINE__ << " no data for cell: " << *cell << endl;
 				exit(EXIT_FAILURE);
 			}
 
@@ -354,6 +354,7 @@ int main(int argc, char* argv[])
 						}
 					}
 				}
+
 			// refined cells total the neighbour counts of siblings
 			} else {
 
@@ -374,7 +375,7 @@ int main(int argc, char* argv[])
 								}
 							}
 						}
-					// consider only one sibling of neighbouring parent
+					// consider only one sibling of all parents of neighbouring cells...
 					} else {
 
 						// ignore own siblings
@@ -402,7 +403,7 @@ int main(int argc, char* argv[])
 							}
 						}
 
-						// ...by recording its parent
+						// ...by recording which parents have been considered
 						if (neighbour_data->is_alive) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->live_unrefined_neighbours[i] == 0) {
@@ -463,7 +464,6 @@ int main(int argc, char* argv[])
 				cell_data->is_alive = false;
 			}
 		}
-
 	}
 
 	if (comm.rank() == 0) {

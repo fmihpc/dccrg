@@ -400,8 +400,6 @@ public:
 	*/
 	void balance_load(void)
 	{
-		this->cells_to_refine.clear();
-		this->cells_to_unrefine.clear();
 		this->comm.barrier();
 
 		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
@@ -409,8 +407,7 @@ public:
 		int *sender_processes, *receiver_processes;
 
 		// here these record where cells have migrated
-		assert(this->added_cells.size() == 0);
-		assert(this->removed_cells.size() == 0);
+		boost::unordered_set<uint64_t> added_cells, removed_cells;
 
 		if (Zoltan_LB_Balance(this->zoltan, &partition_changed, &global_id_size, &local_id_size, &number_to_receive, &global_ids_to_receive, &local_ids_to_receive, &sender_processes, &number_to_send, &global_ids_to_send, &local_ids_to_send, &receiver_processes) != ZOLTAN_OK) {
 			if (!this->no_load_balancing) {
@@ -425,7 +422,12 @@ public:
 		}
 
 		// clear user data which is about to get old
+		this->cells_with_remote_neighbours.clear();
 		this->remote_neighbours.clear();
+		this->cells_to_refine.clear();
+		this->refined_cell_data.clear();
+		this->cells_to_unrefine.clear();
+		this->unrefined_cell_data.clear();
 		this->remote_cells_with_local_neighbours.clear();
 
 		// clear send / receive lists, here they mean cells that will be moved between processes
@@ -439,7 +441,7 @@ public:
 			assert(this->cell_process[global_ids_to_receive[i]] == sender_processes[i]);
 
 			this->cells_to_receive[sender_processes[i]].push_back(global_ids_to_receive[i]);
-			this->added_cells.insert(global_ids_to_receive[i]);
+			added_cells.insert(global_ids_to_receive[i]);
 		}
 
 		// post all receives
@@ -482,7 +484,7 @@ public:
 			assert(this->cells.count(global_ids_to_send[i]) > 0);
 
 			this->cells_to_send[receiver_processes[i]].push_back(global_ids_to_send[i]);
-			this->removed_cells.insert(global_ids_to_send[i]);
+			removed_cells.insert(global_ids_to_send[i]);
 		}
 
 		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
@@ -592,15 +594,15 @@ public:
 		Any cell can end up on any process and any neighbour of any cell can end up on yet another process
 		*/
 		// removed cells on all processes
-		std::vector<uint64_t> temp_removed_cells(this->removed_cells.begin(), this->removed_cells.end());
+		std::vector<uint64_t> temp_removed_cells(removed_cells.begin(), removed_cells.end());
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
-		this->removed_cells.clear();
+		removed_cells.clear();
 		// created cells on all processes
-		std::vector<uint64_t> temp_added_cells(this->added_cells.begin(), this->added_cells.end());
+		std::vector<uint64_t> temp_added_cells(added_cells.begin(), added_cells.end());
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
-		this->added_cells.clear();
+		added_cells.clear();
 
 		// check that cells were removed by their process
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
@@ -700,7 +702,7 @@ public:
 		}
 
 		// free user data from migrated cells
-		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = this->removed_cells.begin(); removed_cell != this->removed_cells.end(); removed_cell++) {
+		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
 			this->cells.erase(*removed_cell);
 		}
 
@@ -778,7 +780,7 @@ public:
 
 				#else
 
-				this->send_requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells[*cell]));
+				this->send_requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells.at(*cell)));
 
 				#endif
 			}
@@ -2166,9 +2168,6 @@ private:
 	// remote neighbours and their data, of cells on this process
 	boost::unordered_map<uint64_t, UserData> remote_neighbours;
 
-	// cells added to or removed from the grid on this process that haven't been communicated to other processes yet
-	boost::unordered_set<uint64_t> added_cells, removed_cells;
-
 	#ifdef DCCRG_SEND_SINGLE_CELLS	// user data is sent to another process one cell at a time
 	// list of pending transfers between this process and the process as the key
 	#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -3055,6 +3054,13 @@ private:
 
 		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
 
+			#ifndef NDEBUG
+			if (*unrefined == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell to unrefine" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
 			bool can_unrefine = true;
 
 			// any sibling being refined will override this unrefine
@@ -3117,6 +3123,7 @@ private:
 	{
 		std::vector<uint64_t> new_cells;
 
+		this->remote_neighbours.clear();
 		this->cells_to_send.clear();
 		this->cells_to_receive.clear();
 		this->incoming_data.clear();
@@ -3163,11 +3170,11 @@ private:
 		// refines
 		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
 
-			const int process_of_refined = this->cell_process[*refined];
+			const int process_of_refined = this->cell_process.at(*refined);
 
 			if (this->comm.rank() == process_of_refined) {
 				// TODO: move data instead of copying, using boost::move or c++0x move?
-				this->refined_cell_data[*refined] = this->cells[*refined];
+				this->refined_cell_data[*refined] = this->cells.at(*refined);
 				this->cells.erase(*refined);
 			}
 
@@ -3224,39 +3231,50 @@ private:
 		// needed for checking which neighbourhoods to update due to unrefining
 		boost::unordered_set<uint64_t> parents_of_unrefined;
 
-		// unrefines
+		// initially only one sibling is recorded per process when unrefining, insert the rest of them now
+		boost::unordered_set<uint64_t> all_to_unrefine;
 		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(*unrefined);
-			const int process_of_parent = this->cell_process[parent_of_unrefined];
+			#ifndef NDEBUG
+			if (parent_of_unrefined == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
 
 			parents_of_unrefined.insert(parent_of_unrefined);
 
 			std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
-			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+			all_to_unrefine.insert(siblings.begin(), siblings.end());
+		}
 
-				int process_of_removed = this->cell_process[*sibling];
+		// unrefines
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = all_to_unrefine.begin(); unrefined != all_to_unrefine.end(); unrefined++) {
 
-				// remove unrefined cells and their siblings from the grid, but don't remove user data yet
-				this->cell_process.erase(*sibling);
-				this->cells_with_remote_neighbours.erase(*sibling);
-				this->remote_cells_with_local_neighbours.erase(*sibling);
-				update_neighbours.erase(*sibling);
+			const uint64_t parent_of_unrefined = this->get_parent(*unrefined);
+			const int process_of_parent = this->cell_process.at(parent_of_unrefined);
+			const int process_of_unrefined = this->cell_process.at(*unrefined);
 
-				// don't send unrefined cells' user data to self
-				if (this->comm.rank() == process_of_removed
-				&& this->comm.rank() == process_of_parent) {
-					this->unrefined_cell_data[*sibling] = this->cells[*sibling];
-					this->cells.erase(*sibling);
+			// remove unrefined cells and their siblings from the grid, but don't remove user data yet
+			this->cell_process.erase(*unrefined);
+			this->cells_with_remote_neighbours.erase(*unrefined);
+			this->remote_cells_with_local_neighbours.erase(*unrefined);
+			update_neighbours.erase(*unrefined);
 
-				// send user data of removed cell to the parent's process
-				} else if (this->comm.rank() == process_of_removed) {
-					this->cells_to_send[process_of_parent].push_back(*sibling);
+			// don't send unrefined cells' user data to self
+			if (this->comm.rank() == process_of_unrefined
+			&& this->comm.rank() == process_of_parent) {
+				this->unrefined_cell_data[*unrefined] = this->cells.at(*unrefined);
+				this->cells.erase(*unrefined);
 
-				// receive user data of removed cell from its process
-				} else if (this->comm.rank() == process_of_parent) {
-					this->cells_to_receive[process_of_removed].push_back(*sibling);
-				}
+			// send user data of removed cell to the parent's process
+			} else if (this->comm.rank() == process_of_unrefined) {
+				this->cells_to_send[process_of_parent].push_back(*unrefined);
+
+			// receive user data of removed cell from its process
+			} else if (this->comm.rank() == process_of_parent) {
+				this->cells_to_receive[process_of_unrefined].push_back(*unrefined);
 			}
 		}
 
@@ -3298,6 +3316,8 @@ private:
 				UserData* user_data = (*this)[*cell];
 				assert(user_data != NULL);
 				this->outgoing_data[receiver].push_back(*user_data);
+				// remove local data of unrefined cell
+				this->cells.erase(*cell);
 			}
 			assert(this->outgoing_data[receiver].size() == this->cells_to_send[receiver].size());
 		}
@@ -3326,7 +3346,7 @@ private:
 			// neighbours_of is sufficient because unrefined cells shouldn't have had a neighbour with ref. lvl. + 2
 			std::vector<uint64_t> found_neighbours = find_neighbours_of(*parent);
 
-			if (this->cell_process[*parent] == this->comm.rank()) {
+			if (this->cell_process.at(*parent) == this->comm.rank()) {
 				this->neighbours.erase(*parent);
 				this->neighbours_to.erase(*parent);
 
@@ -3339,14 +3359,14 @@ private:
 
 			for (std::vector<uint64_t>::const_iterator neighbour = found_neighbours.begin(); neighbour != found_neighbours.end(); neighbour++) {
 
-				if (this->cell_process[*neighbour] == this->comm.rank()
+				if (this->cell_process.at(*neighbour) == this->comm.rank()
 				&& parents_of_unrefined.count(*neighbour) == 0) {
 					update_neighbours.insert(*neighbour);
 				}
 			}
 
 			// default construct user data for local parents of unrefined cells
-			if (this->cell_process[*parent] == this->comm.rank()) {
+			if (this->cell_process.at(*parent) == this->comm.rank()) {
 				this->cells[*parent];
 			}
 		}
@@ -3737,8 +3757,17 @@ private:
 	 */
 	std::vector<uint64_t> get_all_children(const uint64_t id) const
 	{
-		assert(id > 0);
-		assert(this->cell_process.count(id) > 0);
+		#ifndef NDEBUG
+		if (id == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (this->cell_process.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Given cell doesn't exist: " << id << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 
 		std::vector<uint64_t> children;
 		children.reserve(8);
