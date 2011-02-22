@@ -112,16 +112,14 @@ public:
 	{
 		this->comm = comm;
 
-		// Setup Zoltan
+		/*
+		Setup Zoltan
+		*/
 		this->zoltan = Zoltan_Create(this->comm);
 		if (this->zoltan == NULL) {
 			std::cerr << "Zoltan_Create failed"  << std::endl;
 			exit(EXIT_FAILURE);
 		}
-
-		// Set Zoltan parameters
-		// http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
-		Zoltan_Set_Param(this->zoltan, "LB_METHOD", load_balancing_method);
 
 		// check whether Zoltan_LB_Partition is expected to fail
 		if (strncmp(load_balancing_method, "NONE", sizeof("NONE")) == 0) {
@@ -130,34 +128,29 @@ public:
 			this->no_load_balancing = false;
 		}
 
-		// default load balancing options, use one level of hierarchy when partitioning
-		/*this->number_of_partitions.push_back(this->comm.size());
-		boost::unordered_map<std::string, std::string> default_load_balance_options;
-		default_load_balance_options["DEBUG_LEVEL"] = "0";
-		default_load_balance_options["EDGE_WEIGHT_DIM"] = "1";
-		default_load_balance_options["HIER_DEBUG_LEVEL"] = "0";
-		default_load_balance_options["HIER_CHECKS"] = "0";
-		default_load_balance_options["IMBALANCE_TOL"] = "1.05";
-		default_load_balance_options["LB_METHOD"] = load_balancing_method;
-		default_load_balance_options["NUM_GID_ENTRIES"] = "1";
-		default_load_balance_options["OBJ_WEIGHT_DIM"] = "1";
-		default_load_balance_options["PHG_CUT_OBJECTIVE"] = "CONNECTIVITY";
-		default_load_balance_options["PHG_REFINEMENT_QUALITY"] = "1.5";
-		default_load_balance_options["REMAP"] = "1";
-		default_load_balance_options["RETURN_LISTS"] = "ALL";
-		this->load_balancing_options.push_back(default_load_balance_options);*/
+		// reserved options that the user cannot change
+		this->reserved_options.insert("EDGE_WEIGHT_DIM");
+		this->reserved_options.insert("NUM_GID_ENTRIES");
+		this->reserved_options.insert("OBJ_WEIGHT_DIM");
+		this->reserved_options.insert("RETURN_LISTS");
+
+		// set reserved options
+		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");	// 0 because Zoltan crashes with larger values
+		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
+		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
+		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
+
+		// set other options
 		Zoltan_Set_Param(this->zoltan, "DEBUG_LEVEL", "0");
+		Zoltan_Set_Param(this->zoltan, "HIER_DEBUG_LEVEL", "0");
+		Zoltan_Set_Param(this->zoltan, "HIER_CHECKS", "0");
+		Zoltan_Set_Param(this->zoltan, "LB_METHOD", load_balancing_method);
+		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
+
+
 		// size of cells id in unsigned ints, but has to be 1 even when global id is uint64_t, for some reason
 		/*char global_id_length_string[10];
 		snprintf(global_id_length_string, 10, "%0i", int(sizeof(uint64_t) / sizeof(unsigned int)));*/
-		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
-		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
-		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "1");
-		//Zoltan_Set_Param(this->zoltan, "PHG_REFINEMENT_QUALITY", "1.5");
-		// try to minimize moving of data between processes, doesn't work between processes?
-		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
-		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
-		Zoltan_Set_Param(this->zoltan, "IMBALANCE_TOL", "1.05");
 
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
@@ -170,9 +163,9 @@ public:
 		Zoltan_Set_HG_CS_Fn(this->zoltan, &dccrg<UserData>::fill_hyperedge_lists, this);
 		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_edge_weights, this);
 		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &dccrg<UserData>::fill_edge_weights, this);
-		/*Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &dccrg<UserData>:get_number_of_load_balancing_hierarchies, this);
-		Zoltan_Set_Hier_Part_Fn(
-		Zoltan_Set_Hier_Method_Fn(*/
+		Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &dccrg<UserData>::get_number_of_load_balancing_hierarchies, this);
+		Zoltan_Set_Hier_Part_Fn(this->zoltan, &dccrg<UserData>::get_part_number, this);
+		Zoltan_Set_Hier_Method_Fn(this->zoltan, &dccrg<UserData>::set_partitioning_options, this);
 
 
 		/*
@@ -2112,6 +2105,155 @@ public:
 	}
 
 
+	/*!
+	Sets the given option for non-hierarchial partitioning.
+
+	Does nothing if option name is one of: RETURN_LISTS, EDGE_WEIGHT_DIM, NUM_GID_ENTRIES, OBJ_WEIGHT_DIM
+	Call this with name = LB_METHOD and value = HIER to use hierarchial partitioning and set those options using the other function with this name.
+	*/
+	void set_partitioning_option(const std::string name, const std::string value)
+	{
+		if (this->reserved_options.count(name) > 0) {
+			#ifndef NDEBUG
+			std::cerr << "User tried to set an option reserved for dccrg (" << name << ": " << value << ")" << std::endl;
+			#endif
+			return;
+		}
+
+		Zoltan_Set_Param(this->zoltan, name.c_str(), value.c_str());
+	}
+
+
+	/*!
+	Adds a new level for hierarchial partitioning, with each part of that level having given number of processes.
+
+	Assigns default partitioning options for the added level.
+	Does nothing if processes_per_part < 1.
+	*/
+	void add_partitioning_level(const int processes)
+	{
+		if (processes < 1) {
+			#ifndef NDEBUG
+			std::cerr << "User tried to assign " << processes << " processes per part for a new hierarchial partitioning level" << std::endl;
+			#endif
+			return;
+		}
+
+		this->processes_per_part.push_back(processes);
+
+		// create default partitioning options for the level
+		boost::unordered_map<std::string, std::string> default_load_balance_options;
+		default_load_balance_options["LB_METHOD"] = "HYPERGRAPH";
+		default_load_balance_options["PHG_CUT_OBJECTIVE"] = "CONNECTIVITY";
+		this->partitioning_options.push_back(default_load_balance_options);
+	}
+
+
+	/*!
+	Rremoves the given hierarhchial partitioning level.
+
+	Level numbering starts from 0.
+	Does nothing if given level doesn't exist.
+	*/
+	void remove_partitioning_level(const int hierarchial_partitioning_level)
+	{
+		if (hierarchial_partitioning_level < 0
+		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
+			return;
+		}
+
+		this->processes_per_part.erase(this->processes_per_part.begin() + hierarchial_partitioning_level);
+		this->partitioning_options.erase(this->partitioning_options.begin() + hierarchial_partitioning_level);
+	}
+
+
+	/*!
+	Adds (or overwrites) the given option and its value for hierarchial partitioning of given level.
+
+	Level numbering starts from 0.
+	Does nothing in the following cases:
+		-option name is one of: RETURN_LISTS, ...
+		-given level doesn't exist
+	*/
+	void add_partitioning_option(const int hierarchial_partitioning_level, const std::string name, const std::string value)
+	{
+		if (hierarchial_partitioning_level < 0
+		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
+			return;
+		}
+
+		if (this->reserved_options.count(name) > 0) {
+			#ifndef NDEBUG
+			std::cerr << "User tried to set an option reserved for dccrg (" << name << ": " << value << ") for level " << hierarchial_partitioning_level << " of hierarchial partitioning" << std::endl;
+			#endif
+			return;
+		}
+
+		this->partitioning_options[hierarchial_partitioning_level][name] = value;
+	}
+
+
+	/*!
+	Removes the given option from the given level of hierarchial partitioning.
+
+	Level numbering starts from 0.
+	Does nothing if given level doesn't exist.
+	*/
+	void remove_partitioning_option(const int hierarchial_partitioning_level, const std::string name)
+	{
+		if (hierarchial_partitioning_level < 0
+		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
+			return;
+		}
+
+		this->partitioning_options[hierarchial_partitioning_level].erase(name);
+	}
+
+
+	/*!
+	Returns the names of partitioning options for hierarchial partitioning at given level.
+
+	Returns nothing if given level doesn't exist.
+	*/
+	std::vector<std::string> get_partitioning_options(const int hierarchial_partitioning_level) const
+	{
+		std::vector<std::string> partitioning_options;
+
+		if (hierarchial_partitioning_level < 0
+		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
+			return partitioning_options;
+		}
+
+		for (boost::unordered_map<std::string, std::string>::const_iterator option = this->partitioning_options[hierarchial_partitioning_level].begin(); option != this->partitioning_options[hierarchial_partitioning_level].end(); option++) {
+			partitioning_options.push_back(option->first);
+		}
+
+		return partitioning_options;
+	}
+
+
+	/*!
+	Returns the value of given non-hierarchial partitioning option.
+
+	Returns an empty string if given option or given level doesn't exist.
+	*/
+	std::string get_partitioning_option_value(const int hierarchial_partitioning_level, const std::string name) const
+	{
+		std::string value;
+
+		if (hierarchial_partitioning_level < 0
+		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
+			return value;
+		}
+
+		if (this->partitioning_options.count(name) > 0) {
+			value = this->partitioning_options.at(name);
+		}
+
+		return value;
+	}
+
+
 
 private:
 
@@ -2201,12 +2343,14 @@ private:
 
 	// variables for load balancing using Zoltan
 	Zoltan_Struct* zoltan;
-	// number of partitions per hierarchy level, 1st item for 1st level, etc.
-	std::vector<unsigned int> number_of_partitions;
-	// options for each level of hierarchial load balancing, 1st item for 1st level, etc.
-	std::vector<boost::unordered_map<std::string, std::string> > load_balancing_options;
+	// number of processes per part in a hierarchy level (numbering starts from 0)
+	std::vector<unsigned int> processes_per_part;
+	// options for each level of hierarchial load balancing (numbering start from 0)
+	std::vector<boost::unordered_map<std::string, std::string> > partitioning_options;
 	// record whether Zoltan_LB_Partition is expected to fail (when the user selects NONE as the load balancing algorithm)
 	bool no_load_balancing;
+	// reserved options that the user cannot change
+	boost::unordered_set<std::string> reserved_options;
 
 
 	/*!
@@ -4016,19 +4160,69 @@ private:
 
 
 	/*!
-	Returns the number of hierarchies to use for load balancing
+	Returns the number of hierarchies to use for load balancing.
 	*/
-	static void get_number_of_load_balancing_hierarchies(void* data, int* error)
+	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
 		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
-		return dccrg_instance->number_of_partitions.size();
+		return dccrg_instance->processes_per_part.size();
 	}
 
 
 	/*!
-	Returns the partition number of this process...
+	Returns the part number of this process on given hierarchy level of load balancing.
 	*/
+	static int get_part_number(void* data, int level, int* error)
+	{
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+
+		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
+			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
+			*error = ZOLTAN_FATAL;
+			return -1;
+		} else {
+			*error = ZOLTAN_OK;
+		}
+
+		int process = dccrg_instance->comm.rank();
+		int part;
+
+		for (int i = 0; i <= level; i++) {
+			part = process / dccrg_instance->processes_per_part[i];
+			process %= dccrg_instance->processes_per_part[i];
+		}
+
+		return part;
+	}
+
+
+	/*!
+	Sets the partitioning options of given zoltan instance for given level.
+	*/
+	static void set_partitioning_options(void* data, int level, struct Zoltan_Struct* zz, int* error)
+	{
+		if (zz == NULL) {
+			std::cerr << "Zoltan gave a NULL pointer for zz" << std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
+		}
+
+		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+
+		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
+			std::cerr << "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
+		} else {
+			*error = ZOLTAN_OK;
+		}
+
+		for (boost::unordered_map<std::string, std::string>::const_iterator option = dccrg_instance->partitioning_options[level].begin(); option != dccrg_instance->partitioning_options[level].end(); option++) {
+			Zoltan_Set_Param(zz, option->first.c_str(), option->second.c_str());
+		}
+	}
+
 
 
 	#ifndef NDEBUG
