@@ -157,7 +157,7 @@ public:
 		The maximum number of times an unrefined cell can be refined (replacing it with 8 smaller cells).
 		If not given the maximum refinement level is maximized based on the grids initial size.
 
-	Depending on the type of geometry selected when compiling programs using the grid, one of the following sets parameters are needed:
+	Depending on the type of geometry selected when compiling programs using the grid, one of the following sets of parameters is needed:
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
 
