@@ -72,44 +72,139 @@ template <class UserData> class dccrg
 public:
 
 	/*!
-	Creates a new grid where each cell stores one instance of given UserData
-	Zoltan_Initialize must be called before calling this constructor
+	Creates an uninitialized instance of the grid.
+
+	The instance's initialize function must be called before doing anything else, otherwise the results will be undefined.
+	*/
+	dccrg()
+	{
+		this->initialized = false;
+	}
+
+
+	/*!
+	Initializes the grid with given parameters, see the initialize function for their description.
+
+	Zoltan_Initialize must have been called before calling this constructor.
+	The instance's initialize function must not be called after using this constuctor to create an instance of the grid.
+	 */
+	dccrg(
+		boost::mpi::communicator comm,
+		const char* load_balancing_method,
+		#ifdef DCCRG_ARBITRARY_STRETCH
+		const std::vector<double> x_coordinates,
+		const std::vector<double> y_coordinates,
+		const std::vector<double> z_coordinates,
+		#else
+		const double x_start,
+		const double y_start,
+		const double z_start,
+		const double cell_x_size,
+		const double cell_y_size,
+		const double cell_z_size,
+		const uint64_t x_length,
+		const uint64_t y_length,
+		const uint64_t z_length,
+		#endif
+		const unsigned int neighbourhood_size,
+		const int maximum_refinement_level = -1
+	)
+	{
+		this->initialized = false;
+
+		this->initialize(
+			comm,
+			load_balancing_method,
+			#ifdef DCCRG_ARBITRARY_STRETCH
+			x_coordinates,
+			y_coordinates,
+			z_coordinates,
+			#else
+			x_start,
+			y_start,
+			z_start,
+			cell_x_size,
+			cell_y_size,
+			cell_z_size,
+			x_length,
+			y_length,
+			z_length,
+			#endif
+			neighbourhood_size,
+			maximum_refinement_level
+		);
+	}
+
+
+	/*!
+	Initializes this instance of the grid with given parameters.
+
+	Zoltan_Initialize must have been called before calling this function.
 
 	comm: the grid will span all the processes in the communicator comm
 
 	load_balancing_method:
-		The method that Zoltan will use for load balancing given as a string
-		Currently supported methods: NONE, BLOCK, RANDOM, RCB, RIB, HSFC, GRAPH and HYPERGRAPH
-
-	#ifdef DCCRG_ARBITRARY_STRETCH
-	x, y and z_coordinates:
-		The coordinates of unrefined cells in the respective direction
-		First coordinate is the starting point of the grid, the following ith value is the endpoint of the ith unrefined cell
-	#else
-	x_start, y_start, z_start:
-		the starting corner of the grid
-	cell_size:
-		the size of each unrefined cell in every direction
-	x_length, y_length, z_length:
-		the number of cells in the grid in x, y and z direction
-	#endif
+		The method that Zoltan will use for load balancing, given as a string.
+		All methods except REFTREE are supported, see this page for a list of available methods: http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
 
 	neighbourhood_size:
 		Determines which cells are considered neighbours.
 		When calculating the neighbours of a given cell a cube of length neighbourhood_size + 1 in every direction is considered, centered at the cell for which neighbours are being calculated.
 		The unit lenght of the cube is the cell for which neighbours are being calculated.
-		If neighbourhood_size == 0, only cells within the volume of cells that share a face are considered.
+		If neighbourhood_size == 0, only cells (or children within the volume of cells of the same size as the current cell) that share a face are considered.
 
 	maximum_refinement_level:
-		The maximum number of times an unrefined cell can be refined (replacing it with 8 smaller cells)
-		Optional: if not given it is maximized based on the grids initial size
-	 */
+		The maximum number of times an unrefined cell can be refined (replacing it with 8 smaller cells).
+		If not given the maximum refinement level is maximized based on the grids initial size.
+
+	Depending on the type of geometry selected when compiling programs using the grid, one of the following sets parameters are needed:
+
 	#ifdef DCCRG_ARBITRARY_STRETCH
-	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+
+	x, y and z_coordinates:
+		The coordinates of unrefined cells in the respective directions.
+		First coordinate is the starting point of the grid, the following ith value is the endpoint of the ith unrefined cell.
+
 	#else
-	dccrg(boost::mpi::communicator comm, const char* load_balancing_method, const double x_start, const double y_start, const double z_start, const double cell_x_size, const double cell_y_size, const double cell_z_size, const uint64_t x_length, const uint64_t y_length, const uint64_t z_length, const unsigned int neighbourhood_size, const int maximum_refinement_level = -1)
+
+	x_start, y_start, z_start:
+		The starting corner of the grid.
+	cell_size:
+		The size of each unrefined cell in every direction.
+	x_length, y_length, z_length:
+		The number of cells in the grid in x, y and z direction.
+
 	#endif
+
+	*/
+	void initialize(
+		boost::mpi::communicator comm,
+		const char* load_balancing_method,
+		#ifdef DCCRG_ARBITRARY_STRETCH
+		const std::vector<double> x_coordinates,
+		const std::vector<double> y_coordinates,
+		const std::vector<double> z_coordinates,
+		#else
+		const double x_start,
+		const double y_start,
+		const double z_start,
+		const double cell_x_size,
+		const double cell_y_size,
+		const double cell_z_size,
+		const uint64_t x_length,
+		const uint64_t y_length,
+		const uint64_t z_length,
+		#endif
+		const unsigned int neighbourhood_size,
+		const int maximum_refinement_level = -1
+	)
 	{
+		if (this->initialized) {
+			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
+			// TODO: throw an exception instead
+			exit(EXIT_FAILURE);
+		}
+
 		this->comm = comm;
 
 		/*
@@ -118,6 +213,7 @@ public:
 		this->zoltan = Zoltan_Create(this->comm);
 		if (this->zoltan == NULL) {
 			std::cerr << "Zoltan_Create failed"  << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 		}
 
@@ -187,18 +283,21 @@ public:
 
 		if (x_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 		}
 		this->geometry.set_x_length(x_length);
 
 		if (y_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the y direction" << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 		}
 		this->geometry.set_y_length(y_length);
 
 		if (z_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the z direction" << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 		}
 		this->geometry.set_z_length(z_length);
@@ -219,6 +318,7 @@ public:
 		// grid is too large even without refinement
 		if (refinement_level < 0) {
 			std::cerr << "Given grid would contain more than 2^64 - 1 unrefined cells" << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 		}
 
@@ -226,6 +326,7 @@ public:
 		if (maximum_refinement_level > refinement_level) {
 
 			std::cerr << "Given max_refinement_level (" << maximum_refinement_level << ") is too large: " << "x_length * this->geometry.get_y_length() * this->geometry.get_z_length() * 8^max_refinement_level / (2^64 - 1) >= " << this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << maximum_refinement_level * 3) / max_id << " but must be < 1" << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 
 		} else if (maximum_refinement_level < 0) {
@@ -260,6 +361,7 @@ public:
 		#ifndef NDEBUG
 		if (!this->verify_neighbours()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour lists are inconsistent" << std::endl;
+			// TODO: throw an exception instead when debugging?
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -269,6 +371,8 @@ public:
 		}
 
 		this->recalculate_neighbour_update_send_receive_lists();
+
+		this->initialized = true;
 	}
 
 
@@ -406,6 +510,7 @@ public:
 			if (!this->no_load_balancing) {
 				std::cerr << "Zoltan_LB_Partition failed" << std::endl;
 				Zoltan_Destroy(&this->zoltan);
+				// TODO: throw an exception instead
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -1260,6 +1365,7 @@ public:
 		std::ofstream outfile(file_name);
 		if (!outfile.is_open()) {
 			std::cerr << "Couldn't open file " << file_name << std::endl;
+			// TODO: throw an exception instead
 			exit(1);
 		}
 
@@ -1301,6 +1407,7 @@ public:
 
 		if (!outfile.good()) {
 			std::cerr << "Writing of vtk file probably failed" << std::endl;
+			// TODO: throw an exception instead
 			exit(EXIT_FAILURE);
 		}
 
@@ -2256,6 +2363,8 @@ public:
 
 
 private:
+
+	bool initialized;
 
 	CellGeometry geometry;
 	#ifdef DCCRG_ARBITRARY_STRETCH
