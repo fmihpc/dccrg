@@ -25,7 +25,7 @@ struct game_of_life_cell {
 
 	static size_t size(void)
 	{
-		return sizeof(data);
+		return sizeof(game_of_life_cell);
 	}
 
 	// load balancing and refining code still always uses boost for sends
