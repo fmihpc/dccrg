@@ -269,7 +269,10 @@ public:
 		*/
 
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		this->geometry.set_coordinates(x_coordinates, y_coordinates, z_coordinates);
+		if (!this->geometry.set_coordinates(x_coordinates, y_coordinates, z_coordinates)) {
+			std::cerr << "Failed to set grid geometry" << std::endl;
+			exit(EXIT_FAILURE);
+		}
 		#else
 		this->geometry.set_x_start(x_start);
 		this->geometry.set_y_start(y_start);
@@ -369,6 +372,12 @@ public:
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
 			this->update_remote_neighbour_info(cell->first);
 		}
+		#ifndef NDEBUG
+		if (!this->verify_remote_neighbour_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 
 		this->recalculate_neighbour_update_send_receive_lists();
 
@@ -497,6 +506,13 @@ public:
 	*/
 	void balance_load(void)
 	{
+		#ifndef NDEBUG
+		if (!this->verify_remote_neighbour_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
 		this->comm.barrier();
 
 		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
@@ -805,6 +821,23 @@ public:
 		}
 
 		this->recalculate_neighbour_update_send_receive_lists();
+
+		#ifndef NDEBUG
+		if (!this->is_consistent()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " The grid is inconsistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_neighbours()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour lists are incorrect" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_remote_neighbour_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 	}
 
 
@@ -4436,6 +4469,74 @@ private:
 				}
 				std::cerr << ")" << std::endl;
 				return false;
+			}
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns false if remote neighbour info on this process is inconsistent.
+
+	Remote neighbour info consists of cells_with_remote_neighbours and remote_cells_with_local_neighbours.
+	*/
+	bool verify_remote_neighbour_info(void)
+	{
+		for (boost::unordered_map<uint64_t, int>::const_iterator item = this->cell_process.begin(); item != this->cell_process.end(); item++) {
+
+			// check whether this cell should be in remote_cells_with_local_neighbours
+			if (item->second != this->comm.rank()) {
+
+				bool should_be_in_remote_cells = false;
+
+				for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+					if (this->is_neighbour(item->first, cell->first)
+					|| this->is_neighbour(cell->first, item->first)) {
+						should_be_in_remote_cells = true;
+					}
+				}
+
+				if (should_be_in_remote_cells) {
+					if (this->remote_cells_with_local_neighbours.count(item->first) == 0) {
+						std::cerr << "Remote cell " << item->first << " should be in remove_cells_with_local_neighbours" << std::endl;
+						return false;
+					}
+				} else {
+					if (this->remote_cells_with_local_neighbours.count(item->first) > 0) {
+						std::cerr << "Remote cell " << item->first << " should not be in remove_cells_with_local_neighbours" << std::endl;
+						return false;
+					}
+				}
+
+			// check whether this cell should be in cells_with_remote_neighbour
+			} else {
+
+				bool no_remote_neighbour = true;
+
+				std::vector<uint64_t> neighbours_of = this->find_neighbours_of(item->first);
+				for (std::vector<uint64_t>::const_iterator neighbour = neighbours_of.begin(); neighbour != neighbours_of.end(); neighbour++) {
+					if (this->cell_process[*neighbour] != this->comm.rank()) {
+						no_remote_neighbour = false;
+					}
+
+					if (!this->is_neighbour(item->first, *neighbour)) {
+						std::cerr << "Cell " << item->first << " should be a neighbour of cell " << *neighbour << std::endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+
+				if (no_remote_neighbour) {
+					if (this->cells_with_remote_neighbours.count(item->first) > 0) {
+						std::cerr << "Local cell " << item->first << " should not be in cells_with_remote_neighbours" << std::endl;
+						return false;
+					}
+				} else {
+					if (this->cells_with_remote_neighbours.count(item->first) == 0) {
+						std::cerr << "Local cell " << item->first << " should be in cells_with_remote_neighbours" << std::endl;
+						return false;
+					}
+				}
 			}
 		}
 
