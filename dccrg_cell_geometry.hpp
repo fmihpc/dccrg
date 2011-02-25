@@ -1,7 +1,7 @@
 /*
 The mapping logic between a cell's id and its geometry (location, size and comparable stuff)
 
-Copyright 2009, 2010, 2011 Ilja Honkonen
+Copyright 2009, 2010, 2011 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
