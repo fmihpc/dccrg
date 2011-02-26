@@ -535,6 +535,24 @@ public:
 			return;
 		}
 
+		#ifndef NDEBUG
+		// check that processes have the cells they're supposed to send
+		for (int i = 0; i < number_to_send; i++) {
+			if (this->cells.count(global_ids_to_send[i]) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cannot send cell " << global_ids_to_send[i] << " to process " << receiver_processes[i] << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		// check that cells to be received are on the sending process
+		for (int i = 0; i < number_to_receive; i++) {
+			if (this->cell_process.at(global_ids_to_receive[i]) != sender_processes[i]) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cannot receive cell " << global_ids_to_receive[i] << " from process " << sender_processes[i] << std::endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+		#endif
+
 		// clear user data which is about to get old
 		this->cells_with_remote_neighbours.clear();
 		this->remote_neighbours.clear();
@@ -552,7 +570,12 @@ public:
 
 		// processes and the cells for which data has to be received by this process
 		for (int i = 0; i < number_to_receive; i++) {
-			assert(this->cell_process[global_ids_to_receive[i]] == sender_processes[i]);
+			assert(this->cell_process.at(global_ids_to_receive[i]) == sender_processes[i]);
+
+			// don't send / receive from self
+			if (sender_processes[i] == this->comm.rank()) {
+				continue;
+			}
 
 			this->cells_to_receive[sender_processes[i]].push_back(global_ids_to_receive[i]);
 			added_cells.insert(global_ids_to_receive[i]);
@@ -591,13 +614,23 @@ public:
 
 		// processes and the cells for which data has to be sent by this process
 		for (int i = 0; i < number_to_send; i++) {
-			if (this->cell_process[global_ids_to_send[i]] != this->comm.rank()) {
-				std::cout << "Process " << this->comm.rank() << ", requested to send cell " << global_ids_to_send[i] << " but that cell is currently on process " << this->cell_process[global_ids_to_send[i]] << std::endl;
-			}
-			assert(this->cell_process[global_ids_to_send[i]] == this->comm.rank());
+			assert(this->cell_process.at(global_ids_to_send[i]) == this->comm.rank());
 			assert(this->cells.count(global_ids_to_send[i]) > 0);
 
+			// don't send / receive from self
+			if (receiver_processes[i] == this->comm.rank()) {
+				continue;
+			}
+
 			this->cells_to_send[receiver_processes[i]].push_back(global_ids_to_send[i]);
+
+			#ifndef NDEBUG
+			if (removed_cells.count(global_ids_to_send[i]) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_send[i] << " has already been sent from process " << this->comm.rank() << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
 			removed_cells.insert(global_ids_to_send[i]);
 		}
 
@@ -624,6 +657,7 @@ public:
 				this->outgoing_data[receiver].push_back(*user_data);
 				this->cells.erase(*cell);
 				this->cells_with_remote_neighbours.erase(*cell);
+				this->remote_cells_with_local_neighbours.erase(*cell);
 			}
 			assert(this->outgoing_data[receiver].size() == this->cells_to_send[receiver].size());
 		}
@@ -707,21 +741,48 @@ public:
 		Calculate where cells have migrated to update internal data structures
 		Any cell can end up on any process and any neighbour of any cell can end up on yet another process
 		*/
+
 		// removed cells on all processes
 		std::vector<uint64_t> temp_removed_cells(removed_cells.begin(), removed_cells.end());
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
 		removed_cells.clear();
+
 		// created cells on all processes
 		std::vector<uint64_t> temp_added_cells(added_cells.begin(), added_cells.end());
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
 		added_cells.clear();
 
+		#ifndef NDEBUG
+		// check that there are no duplicate adds / removes
+		boost::unordered_set<uint64_t> all_adds, all_removes;
+
+		for (std::vector<std::vector<uint64_t> >::const_iterator item = all_removed_cells.begin(); item != all_removed_cells.end(); item++) {
+			for (std::vector<uint64_t>::const_iterator removed_cell = item->begin(); removed_cell != item->end(); removed_cell++) {
+				if (all_removes.count(*removed_cell) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *removed_cell << " was already removed" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				all_removes.insert(*removed_cell);
+			}
+		}
+
+		for (std::vector<std::vector<uint64_t> >::const_iterator item = all_added_cells.begin(); item != all_added_cells.end(); item++) {
+			for (std::vector<uint64_t>::const_iterator added_cell = item->begin(); added_cell != item->end(); added_cell++) {
+				if (all_adds.count(*added_cell) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *added_cell << " was already removed" << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				all_adds.insert(*added_cell);
+			}
+		}
+		#endif
+
 		// check that cells were removed by their process
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
 			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
-				assert(this->cell_process[*removed_cell] == cell_remover);
+				assert(this->cell_process.at(*removed_cell) == cell_remover);
 			}
 		}
 
@@ -732,28 +793,12 @@ public:
 			}
 		}
 
-		// if a child cell left this process, update remote neighbour info of nearby cells
-		for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[this->comm.rank()].begin(); removed_cell != all_removed_cells[this->comm.rank()].end(); removed_cell++) {
-
-			if (*removed_cell != this->get_child(*removed_cell)) {
-				continue;
-			}
-
-			// neighbours of removed child
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*removed_cell].begin(); neighbour != this->neighbours[*removed_cell].end(); neighbour++) {
-				if (this->cells.count(*neighbour) > 0) {
-					this->update_remote_neighbour_info(*neighbour);
-				}
-			}
-			this->neighbours.erase(*removed_cell);
-			// cells with removed child as neighbour
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[*removed_cell].begin(); neighbour != this->neighbours_to[*removed_cell].end(); neighbour++) {
-				if (this->cells.count(*neighbour) > 0) {
-					this->update_remote_neighbour_info(*neighbour);
-				}
-			}
-			this->neighbours_to.erase(*removed_cell);
+		#ifndef NDEBUG
+		if (!this->is_consistent()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Grid is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
 		}
+		#endif
 
 		// create neighbour lists for children that came to this process
 		for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
@@ -766,54 +811,7 @@ public:
 			this->neighbours_to[*created_cell] = this->find_neighbours_to(*created_cell);
 		}
 
-		// if a child cell came to this process, update remote neighbour info of nearby cells
-		for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
-
-			if (*created_cell != this->get_child(*created_cell)) {
-				continue;
-			}
-
-			this->update_remote_neighbour_info(*created_cell);
-
-			// neighbours of added child
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*created_cell].begin(); neighbour != this->neighbours[*created_cell].end(); neighbour++) {
-				if (this->cells.count(*neighbour) > 0) {
-					this->update_remote_neighbour_info(*neighbour);
-				}
-			}
-
-			// cells with added child as neighbour
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[*created_cell].begin(); neighbour != this->neighbours_to[*created_cell].end(); neighbour++) {
-				if (this->cells.count(*neighbour) > 0) {
-					this->update_remote_neighbour_info(*neighbour);
-				}
-			}
-		}
-
-		// if a child cell changed its process and is neighbouring a local cell update the local cells neighbourhood
-		for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
-
-				if (this->comm.rank() == cell_creator) {
-					continue;
-				}
-
-				if (*created_cell != this->get_child(*created_cell)) {
-					continue;
-				}
-
-				if (this->remote_cells_with_local_neighbours.count(*created_cell) == 0) {
-					continue;
-				}
-
-				std::vector<uint64_t> temp_neighbours = this->find_neighbours_to(*created_cell);
-				for (std::vector<uint64_t>::const_iterator neighbour = temp_neighbours.begin(); neighbour != temp_neighbours.end(); neighbour++) {
-					if (this->cells.count(*neighbour)) {
-						this->update_remote_neighbour_info(*neighbour);
-					}
-				}
-			}
-		}
+		this->update_remote_neighbour_info();
 
 		// free user data from migrated cells
 		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
@@ -2810,53 +2808,8 @@ private:
 		}
 
 		#ifndef NDEBUG
-		// verify the result for neighbours_of
-		sort(this->neighbours[cell].begin(), this->neighbours[cell].end());
-		std::vector<uint64_t> compare_neighbours = this->find_neighbours_of(cell);
-		sort(compare_neighbours.begin(), compare_neighbours.end());
-
-		if (!std::equal(this->neighbours[cell].begin(), this->neighbours[cell].end(), compare_neighbours.begin())) {
-			std::cerr << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " don't match: " << this->neighbours[cell].size() << " (";
-			for (std::vector<uint64_t>::const_iterator c = this->neighbours[cell].begin(); c != this->neighbours[cell].end(); c++) {
-				std::cerr << *c << " ";
-			}
-			std::cerr << ") should be " << compare_neighbours.size() << " (";
-			for (std::vector<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
-				std::cerr << *c << " ";
-			}
-			std::cerr << ")" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		// verify the result for neighbours_to
-		sort(this->neighbours_to[cell].begin(), this->neighbours_to[cell].end());
-		std::vector<uint64_t> compare_neighbours_to = this->find_neighbours_to(cell);
-		sort(compare_neighbours_to.begin(), compare_neighbours_to.end());
-
-		if (!std::equal(this->neighbours_to[cell].begin(), this->neighbours_to[cell].end(), compare_neighbours_to.begin())) {
-			std::cerr << "Process " << this->comm.rank() << " neighbour_to counts for cell " << cell << " at indices " << this->get_x_index(cell) << ", " << this->get_y_index(cell) << ", " << this->get_z_index(cell) << " (child of " << this->get_parent(cell) << " at indices " << this->get_x_index(this->get_parent(cell)) << ", " << this->get_y_index(this->get_parent(cell)) << ", " << this->get_z_index(this->get_parent(cell)) << ") don't match: " << this->neighbours_to[cell].size() << " (";
-			for (std::vector<uint64_t>::const_iterator c = this->neighbours_to[cell].begin(); c != this->neighbours_to[cell].end(); c++) {
-				std::cerr << *c << " ";
-			}
-			std::cerr << ") should be " << compare_neighbours_to.size() << " (";
-			for (std::vector<uint64_t>::const_iterator c = compare_neighbours_to.begin(); c != compare_neighbours_to.end(); c++) {
-				std::cerr << *c << " ";
-			}
-			std::cerr << ")" << std::endl;
-
-			std::cerr << "Neighbour candidates of cell " << cell << ": ";
-			for (boost::unordered_set<uint64_t>::const_iterator candidate = neighbour_candidates.begin(); candidate != neighbour_candidates.end(); candidate++) {
-				std::cerr << *candidate << " ";
-			}
-			std::cerr << std::endl;
-
-			if (cell_result_of_refining) {
-				std::cerr << "Neighbours of parent " << parent << ": ";
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(parent).begin(); neighbour != this->neighbours.at(parent).end(); neighbour++) {
-					std::cerr << *neighbour << " ";
-				}
-				std::cerr << std::endl;
-			}
+		if (!this->verify_neighbours(cell)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour update failed for cell " << cell << std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -2883,19 +2836,48 @@ private:
 		this->cells_with_remote_neighbours.erase(cell);
 
 		// neighbours of given cell
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[cell].begin(); neighbour != this->neighbours[cell].end(); neighbour++) {
-			if (this->cell_process[*neighbour] != this->comm.rank()) {
+		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
+			if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 				this->cells_with_remote_neighbours.insert(cell);
 				this->remote_cells_with_local_neighbours.insert(*neighbour);
 			}
 		}
 		// cells with given cell as neighbour
-		for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to[cell].begin(); neighbour_to != this->neighbours_to[cell].end(); neighbour_to++) {
-			if (this->cell_process[*neighbour_to] != this->comm.rank()) {
+		for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(cell).begin(); neighbour_to != this->neighbours_to.at(cell).end(); neighbour_to++) {
+			if (this->cell_process.at(*neighbour_to) != this->comm.rank()) {
 				this->cells_with_remote_neighbours.insert(cell);
 				this->remote_cells_with_local_neighbours.insert(*neighbour_to);
 			}
 		}
+	}
+
+
+	/*!
+	Updates the remote neighbour info of all cells on this process without children.
+
+	Uses current neighbour lists.
+	*/
+	void update_remote_neighbour_info(void)
+	{
+		// TODO this probably can't be optimized without storing neighbour lists also for remote neighbours
+		this->cells_with_remote_neighbours.clear();
+		this->remote_cells_with_local_neighbours.clear();
+
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+
+			if (cell->first != this->get_child(cell->first)) {
+				continue;
+			}
+
+			this->update_remote_neighbour_info(cell->first);
+		}
+
+		#ifndef NDEBUG
+		if (!this->verify_remote_neighbour_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 	}
 
 
@@ -3407,6 +3389,13 @@ private:
 	*/
 	std::vector<uint64_t> execute_refines(void)
 	{
+		#ifndef NDEBUG
+		if (!this->verify_remote_neighbour_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
 		std::vector<uint64_t> new_cells;
 
 		this->remote_neighbours.clear();
@@ -3509,9 +3498,6 @@ private:
 					update_neighbours.insert(*with_remote_neighbour);
 				}
 			}
-
-			this->cells_with_remote_neighbours.erase(*refined);
-			this->remote_cells_with_local_neighbours.erase(*refined);
 		}
 
 		// needed for checking which neighbourhoods to update due to unrefining
@@ -3544,8 +3530,6 @@ private:
 
 			// remove unrefined cells and their siblings from the grid, but don't remove user data yet
 			this->cell_process.erase(*unrefined);
-			this->cells_with_remote_neighbours.erase(*unrefined);
-			this->remote_cells_with_local_neighbours.erase(*unrefined);
 			update_neighbours.erase(*unrefined);
 
 			// don't send unrefined cells' user data to self
@@ -3639,8 +3623,6 @@ private:
 				this->neighbours[*parent] = found_neighbours;
 				// neighbours_to should be empty due to max refinement level difference <= 1
 				this->neighbours_to[*parent];
-
-				this->update_remote_neighbour_info(*parent);
 			}
 
 			for (std::vector<uint64_t>::const_iterator neighbour = found_neighbours.begin(); neighbour != found_neighbours.end(); neighbour++) {
@@ -3660,12 +3642,11 @@ private:
 		// update neighbour lists of cells affected by refining / unrefining
 		for (boost::unordered_set<uint64_t>::const_iterator cell = update_neighbours.begin(); cell != update_neighbours.end(); cell++) {
 			this->update_neighbours(*cell);
-			this->update_remote_neighbour_info(*cell);
 		}
 
-		// remove neighbour lists of refined cells' parents
+		// remove neighbour lists of added cells' parents
 		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
-			if (this->cell_process[*refined] == this->comm.rank()) {
+			if (this->cell_process.at(*refined) == this->comm.rank()) {
 
 				#ifndef NDEBUG
 				if (this->neighbours.count(*refined) == 0) {
@@ -3681,6 +3662,7 @@ private:
 
 				this->neighbours.erase(*refined);
 				this->neighbours_to.erase(*refined);
+				update_neighbours.erase(*refined);
 			}
 		}
 
@@ -3694,6 +3676,8 @@ private:
 				this->neighbours_to.erase(*sibling);
 			}
 		}
+
+		this->update_remote_neighbour_info();
 
 		#ifndef NDEBUG
 		if (!this->verify_neighbours()) {
@@ -4139,6 +4123,14 @@ private:
 
 		int i = 0;
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
+
+			#ifndef NDEBUG
+			if (cell->first == 0) {
+				std::cerr << "User data exist for an illegal cell" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
 			global_ids[i] = cell->first;
 
 			if (number_of_weights_per_object > 0) {
@@ -4411,6 +4403,91 @@ private:
 
 
 	/*!
+	Return false if neighbours lists of the given cell aren't consistent
+	*/
+	bool verify_neighbours(const uint64_t cell)
+	{
+		if (this->cell_process.count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " doesn't exist" << std::endl;
+			return false;
+		}
+
+		if (cell == this->get_child(cell)) {
+
+			if (this->neighbours.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " No neighbour list for cell " << cell << std::endl;
+				return false;
+			}
+
+			if (this->neighbours_to.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " No neighbour_to list for cell " << cell << std::endl;
+				return false;
+			}
+
+		} else {
+
+			if (this->neighbours.count(cell) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list for cell " << cell << " shouldn't exist" << std::endl;
+				return false;
+			}
+
+			if (this->neighbours_to.count(cell) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour_to list for cell " << cell << " shouldn't exist" << std::endl;
+				return false;
+			}
+
+		}
+
+		if (cell != this->get_child(cell)) {
+			return true;
+		}
+
+		// neighbours
+		sort(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end());
+		std::vector<uint64_t> compare_neighbours = this->find_neighbours_of(cell);
+		sort(compare_neighbours.begin(), compare_neighbours.end());
+
+		if (!std::equal(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end(), compare_neighbours.begin())) {
+			std::cerr << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " don't match: " << this->neighbours.at(cell).size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = this->neighbours.at(cell).begin(); c != this->neighbours.at(cell).end(); c++) {
+				std::cerr << *c << " ";
+			}
+			std::cerr << ") should be " << compare_neighbours.size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
+				std::cerr << *c << " ";
+			}
+			std::cerr << ")" << std::endl;
+			return false;
+		}
+
+		// neighbours_to
+		sort(this->neighbours_to.at(cell).begin(), this->neighbours_to.at(cell).end());
+		std::vector<uint64_t> compare_neighbours_to = this->find_neighbours_to(cell);
+		sort(compare_neighbours_to.begin(), compare_neighbours_to.end());
+
+		if (!std::equal(this->neighbours_to.at(cell).begin(), this->neighbours_to.at(cell).end(), compare_neighbours_to.begin())) {
+			std::cerr << "Process " << this->comm.rank() << " neighbour_to counts for cell " << cell << " (child of " << this->get_parent(cell) << ") don't match: " << this->neighbours_to.at(cell).size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = this->neighbours_to.at(cell).begin(); c != this->neighbours_to.at(cell).end(); c++) {
+				std::cerr << *c;
+				if (*c != this->get_child(*c)) {
+					std::cerr << " [has a child " << this->get_child(*c) << "], ";
+				} else {
+					std::cerr << ", ";
+				}
+			}
+			std::cerr << ") should be " << compare_neighbours_to.size() << " (";
+			for (std::vector<uint64_t>::const_iterator c = compare_neighbours_to.begin(); c != compare_neighbours_to.end(); c++) {
+				std::cerr << *c << ", ";
+			}
+			std::cerr << ")" << std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
 	Returns false if neighbour lists on this process aren't consistent
 	*/
 	bool verify_neighbours(void)
@@ -4421,53 +4498,7 @@ private:
 				continue;
 			}
 
-			if (cell->first != this->get_child(cell->first)) {
-				continue;
-			}
-
-			if (this->neighbours.count(cell->first) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " No neighbour list for cell " << cell->first << std::endl;
-				return false;
-			}
-
-			// neighbours
-			sort(this->neighbours[cell->first].begin(), this->neighbours[cell->first].end());
-			std::vector<uint64_t> compare_neighbours = this->find_neighbours_of(cell->first);
-			sort(compare_neighbours.begin(), compare_neighbours.end());
-
-			if (!std::equal(this->neighbours[cell->first].begin(), this->neighbours[cell->first].end(), compare_neighbours.begin())) {
-				std::cerr << "Process " << this->comm.rank() << " neighbour counts for cell " << cell->first << " don't match: " << this->neighbours[cell->first].size() << " (";
-				for (std::vector<uint64_t>::const_iterator c = this->neighbours[cell->first].begin(); c != this->neighbours[cell->first].end(); c++) {
-					std::cerr << *c << " ";
-				}
-				std::cerr << ") should be " << compare_neighbours.size() << " (";
-				for (std::vector<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
-					std::cerr << *c << " ";
-				}
-				std::cerr << ")" << std::endl;
-				return false;
-			}
-
-			// neighbours_to
-			sort(this->neighbours_to[cell->first].begin(), this->neighbours_to[cell->first].end());
-			std::vector<uint64_t> compare_neighbours_to = this->find_neighbours_to(cell->first);
-			sort(compare_neighbours_to.begin(), compare_neighbours_to.end());
-
-			if (!std::equal(this->neighbours_to[cell->first].begin(), this->neighbours_to[cell->first].end(), compare_neighbours_to.begin())) {
-				std::cerr << "Process " << this->comm.rank() << " neighbour_to counts for cell " << cell->first << " (child of " << this->get_parent(cell->first) << ") don't match: " << this->neighbours_to[cell->first].size() << " (";
-				for (std::vector<uint64_t>::const_iterator c = this->neighbours_to[cell->first].begin(); c != this->neighbours_to[cell->first].end(); c++) {
-					std::cerr << *c;
-					if (*c != this->get_child(*c)) {
-						std::cerr << " [has a child " << this->get_child(*c) << "], ";
-					} else {
-						std::cerr << ", ";
-					}
-				}
-				std::cerr << ") should be " << compare_neighbours_to.size() << " (";
-				for (std::vector<uint64_t>::const_iterator c = compare_neighbours_to.begin(); c != compare_neighbours_to.end(); c++) {
-					std::cerr << *c << ", ";
-				}
-				std::cerr << ")" << std::endl;
+			if (!this->verify_neighbours(cell->first)) {
 				return false;
 			}
 		}
@@ -4485,6 +4516,10 @@ private:
 	{
 		for (boost::unordered_map<uint64_t, int>::const_iterator item = this->cell_process.begin(); item != this->cell_process.end(); item++) {
 
+			if (item->first != this->get_child(item->first)) {
+				continue;
+			}
+
 			// check whether this cell should be in remote_cells_with_local_neighbours
 			if (item->second != this->comm.rank()) {
 
@@ -4498,13 +4533,23 @@ private:
 				}
 
 				if (should_be_in_remote_cells) {
+
 					if (this->remote_cells_with_local_neighbours.count(item->first) == 0) {
-						std::cerr << "Remote cell " << item->first << " should be in remove_cells_with_local_neighbours" << std::endl;
+						std::cerr << "Remote cell " << item->first << " should be in remote_cells_with_local_neighbours because:" << std::endl;
+
+						for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+							if (this->is_neighbour(item->first, cell->first)
+							|| this->is_neighbour(cell->first, item->first)) {
+								std::cout << "\tremote cell " << item->first << " has a local neighbour " << cell->first << std::endl;
+							}
+						}
 						return false;
 					}
+
 				} else {
+
 					if (this->remote_cells_with_local_neighbours.count(item->first) > 0) {
-						std::cerr << "Remote cell " << item->first << " should not be in remove_cells_with_local_neighbours" << std::endl;
+						std::cerr << "Remote cell " << item->first << " should not be in remote_cells_with_local_neighbours" << std::endl;
 						return false;
 					}
 				}
@@ -4514,13 +4559,27 @@ private:
 
 				bool no_remote_neighbour = true;
 
+				// search in neighbours_of
 				std::vector<uint64_t> neighbours_of = this->find_neighbours_of(item->first);
 				for (std::vector<uint64_t>::const_iterator neighbour = neighbours_of.begin(); neighbour != neighbours_of.end(); neighbour++) {
-					if (this->cell_process[*neighbour] != this->comm.rank()) {
+					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 						no_remote_neighbour = false;
 					}
 
 					if (!this->is_neighbour(item->first, *neighbour)) {
+						std::cerr << "Cell " << *neighbour << " should be a neighbour of cell " << item->first << std::endl;
+						exit(EXIT_FAILURE);
+					}
+				}
+
+				// search in neighbours_to
+				std::vector<uint64_t> neighbours_to = this->find_neighbours_to(item->first);
+				for (std::vector<uint64_t>::const_iterator neighbour = neighbours_to.begin(); neighbour != neighbours_to.end(); neighbour++) {
+					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
+						no_remote_neighbour = false;
+					}
+
+					if (!this->is_neighbour(*neighbour, item->first)) {
 						std::cerr << "Cell " << item->first << " should be a neighbour of cell " << *neighbour << std::endl;
 						exit(EXIT_FAILURE);
 					}

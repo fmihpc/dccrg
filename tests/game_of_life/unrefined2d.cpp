@@ -144,6 +144,8 @@ int main(int argc, char* argv[])
 	if (comm.rank() == 0) {
 		visit_file.open("unrefined2d.visit");
 		visit_file << "!NBLOCKS " << comm.size() << endl;
+		cout << "step: ";
+		cout.flush();
 	}
 
 	#define TIME_STEPS 25
@@ -214,7 +216,8 @@ int main(int argc, char* argv[])
 		sort(cells.begin(), cells.end());
 
 		if (comm.rank() == 0) {
-			cout << "step: " << step << endl;
+			cout << step << " ";
+			cout.flush();
 		}
 
 		// write the game state into a file named according to the current time step
@@ -468,6 +471,7 @@ int main(int argc, char* argv[])
 
 	if (comm.rank() == 0) {
 		visit_file.close();
+		cout << endl;
 	}
 
 	return EXIT_SUCCESS;
