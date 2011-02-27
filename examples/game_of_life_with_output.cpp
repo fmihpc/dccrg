@@ -150,6 +150,8 @@ bool write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>
 		return false;
 	}
 
+	delete [] output_name_c_string;
+
 	MPI_Status status;
 	MPI_Offset offset;
 
