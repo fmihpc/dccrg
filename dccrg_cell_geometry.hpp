@@ -444,7 +444,7 @@ public:
 	Returns the refinement level of given cell (0 means unrefined)
 	Returns -1 if given cell cannot exist in the current grid
 	*/
-	int get_refinement_level(uint64_t cell) const
+	int get_refinement_level(const uint64_t cell) const
 	{
 		if (cell == 0) {
 			return -1;

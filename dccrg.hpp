@@ -231,7 +231,7 @@ public:
 		this->reserved_options.insert("RETURN_LISTS");
 
 		// set reserved options
-		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");	// 0 because Zoltan crashes with larger values
+		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");	// 0 because Zoltan crashes in hierarchial with larger values
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
 		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
@@ -496,6 +496,45 @@ public:
 		} else {
 			return NULL;
 		}
+	}
+
+
+	/*!
+	Refines the grid so that at least the given cells whose parents are on this process will exist in the grid.
+
+	Must be called simultaneously on all processes.
+	Does not store the user data of any refined cell.
+	Returns true on this process if successful and false if given an invalid cell (0 or a cell with a too large refinement level).
+	*/
+	bool load(const std::vector<uint64_t>& cells)
+	{
+		// see for example http://www.informit.com/articles/article.aspx?p=376878&rll=1 for an explanation about template<template...
+		this->comm.barrier();
+
+		// calculate which cells must be refined...
+		boost::unordered_set<uint64_t> cells_to_refine;
+
+		// ...and check for invalid cells
+		for (std::vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+			if (*cell == 0) {
+				return false;
+			}
+
+			if (this->get_refinement_level(*cell) < 0) {
+				return false;
+			}
+
+			// refine all parents of current cell
+			uint64_t parent = this->get_parent_for_removed(*cell);
+			while (parent != this->get_parent_for_removed(parent)) {
+				cells_to_refine.insert(parent);
+			}
+			cells_to_refine.insert(parent);
+		}
+
+		// keep refining until no more refines on any process, TODO
+
+		return true;
 	}
 
 
@@ -1380,7 +1419,7 @@ public:
 	Returns the refinement level of given cell, even if it doesn't exist
 	Returns -1 if cell == 0 or cell would exceed maximum refinement level
 	*/
-	int get_refinement_level(uint64_t cell) const
+	int get_refinement_level(const uint64_t cell) const
 	{
 		return this->geometry.get_refinement_level(cell);
 	}
