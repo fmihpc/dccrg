@@ -3,6 +3,7 @@ A simple 2 D game of life program to demonstrate the efficient usage of dccrg an
 */
 
 #include "boost/mpi.hpp"
+#include "cstddef"
 #include "cstdio"
 #include "cstdlib"
 #include "cstring"
@@ -98,16 +99,19 @@ Fileformat:
 double x_start
 double y_start
 double z_start
-double cell_size
+double cell_x_size
+double cell_y_size
+double cell_z_size
 uint64_t x_length
 uint64_t y_length
 uint64_t z_length
+int8_t maximum_refinement_level
 uint64_t cell1
-uint64_t is_alive1
+uint8_t is_alive1
 uint64_t cell2
-uint64_t is_alive2
+uint8_t is_alive2
 uint64_t cell3
-uint64_t is_alive3
+uint8_t is_alive3
 ...
 */
 bool write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>* game_grid)
@@ -152,70 +156,85 @@ bool write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>
 
 	delete [] output_name_c_string;
 
-	MPI_Status status;
-	MPI_Offset offset;
+	// figure out how many bytes each process will write
+	size_t bytes = 0;
 
-	// first process writes the header
-	MPI_File_set_view(outfile, 0, MPI_DOUBLE, MPI_DOUBLE, (char*)"native", MPI_INFO_NULL);
+	// header
 	if (comm.rank() == 0) {
-		// for file writes the offset is in units of sizeof(MPI_DOUBLE)
-		offset = 0;
-		double x_start = game_grid->get_x_start();
-		MPI_File_write_at(outfile, offset, &x_start, 1, MPI_DOUBLE, &status);
-
-		offset = 1;
-		double y_start = game_grid->get_y_start();
-		MPI_File_write_at(outfile, offset, &y_start, 1, MPI_DOUBLE, &status);
-
-		offset = 2;
-		double z_start = game_grid->get_z_start();
-		MPI_File_write_at(outfile, offset, &z_start, 1, MPI_DOUBLE, &status);
-
-		offset = 3;
-		double cell_size = game_grid->get_cell_x_size(1);
-		MPI_File_write_at(outfile, offset, &cell_size, 1, MPI_DOUBLE, &status);
+		bytes += 6 * sizeof(double) + 3 * sizeof(uint64_t) + sizeof(int);
 	}
-
-	// for file views the offset is in bytes
-	MPI_File_set_view(outfile, 4 * sizeof(double), MPI_UNSIGNED_LONG_LONG, MPI_UNSIGNED_LONG_LONG, (char*)"native", MPI_INFO_NULL);
-	if (comm.rank() == 0) {
-		// for file writes the offset is in units of sizeof(uint64_t), starting from the offset given in set_view
-		offset = 0;
-		uint64_t x_length = game_grid->get_x_length();
-		MPI_File_write_at(outfile, offset, &x_length, 1, MPI_UNSIGNED_LONG_LONG, &status);
-
-		offset = 1;
-		uint64_t y_length = game_grid->get_y_length();
-		MPI_File_write_at(outfile, offset, &y_length, 1, MPI_UNSIGNED_LONG_LONG, &status);
-
-		offset = 2;
-		uint64_t z_length = game_grid->get_z_length();
-		MPI_File_write_at(outfile, offset, &z_length, 1, MPI_UNSIGNED_LONG_LONG, &status);
-	}
-
-	// figure out how many bytes every process will write
 	vector<uint64_t> cells = game_grid->get_cells();
-	vector<uint64_t> all_bytes;
-	all_gather(comm, 2 * sizeof(uint64_t) * cells.size(), all_bytes);
+	bytes += cells.size() * (sizeof(uint64_t) + sizeof(uint8_t));
 
-	// add the header to every process' offset
-	offset = 4 * sizeof(double) + 3 * sizeof(uint64_t);
+	// collect data from this process into one buffer
+	uint8_t* buffer = new uint8_t [bytes];
+
+	size_t offset = 0;
+
+	// header
+	if (comm.rank() == 0) {
+		{
+		double value = game_grid->get_x_start();
+		memcpy(buffer + offset, &value, sizeof(double));
+		offset += sizeof(double);
+		value = game_grid->get_y_start();
+		memcpy(buffer + offset, &value, sizeof(double));
+		offset += sizeof(double);
+		value = game_grid->get_z_start();
+		memcpy(buffer + offset, &value, sizeof(double));
+		offset += sizeof(double);
+		value = game_grid->get_cell_x_size(1);
+		memcpy(buffer + offset, &value, sizeof(double));
+		offset += sizeof(double);
+		value = game_grid->get_cell_y_size(1);
+		memcpy(buffer + offset, &value, sizeof(double));
+		offset += sizeof(double);
+		value = game_grid->get_cell_z_size(1);
+		memcpy(buffer + offset, &value, sizeof(double));
+		offset += sizeof(double);
+		}
+		{
+		uint64_t value = game_grid->get_x_length();
+		memcpy(buffer + offset, &value, sizeof(uint64_t));
+		offset += sizeof(uint64_t);
+		value = game_grid->get_y_length();
+		memcpy(buffer + offset, &value, sizeof(uint64_t));
+		offset += sizeof(uint64_t);
+		value = game_grid->get_z_length();
+		memcpy(buffer + offset, &value, sizeof(uint64_t));
+		offset += sizeof(uint64_t);
+		}
+		{
+		int value = game_grid->get_max_refinement_level();
+		memcpy(buffer + offset, &value, sizeof(int));
+		offset += sizeof(int);
+		}
+	}
+
+	for (uint64_t i = 0; i < cells.size(); i++) {
+		const uint64_t cell = cells[i];
+		memcpy(buffer + offset, &cell, sizeof(uint64_t));
+		offset += sizeof(uint64_t);
+
+		game_of_life_cell* data = (*game_grid)[cells[i]];
+		const uint8_t alive = data->is_alive ? 1 : 0;
+		memcpy(buffer + offset, &alive, sizeof(uint8_t));
+		offset += sizeof(uint8_t);
+	}
+
+	vector<size_t> all_bytes;
+	all_gather(comm, bytes, all_bytes);
+
+	// calculate offset of this process in the file
+	MPI_Offset mpi_offset = 0;
 	for (int i = 0; i < comm.rank(); i++) {
-		offset += all_bytes[i];
+		mpi_offset += all_bytes[i];
 	}
+	MPI_File_set_view(outfile, mpi_offset, MPI_BYTE, MPI_BYTE, (char*)"native", MPI_INFO_NULL);
 
-	// every process writes its cells after the previous processes
-	MPI_File_set_view(outfile, offset, MPI_UNSIGNED_LONG_LONG, MPI_UNSIGNED_LONG_LONG, (char*)"native", MPI_INFO_NULL);
-	offset = 0;
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		uint64_t current_cell = *cell;
-		MPI_File_write_at(outfile, offset, &current_cell, 1, MPI_UNSIGNED_LONG_LONG, &status);
-		offset++;
-
-		uint64_t current_is_alive = uint64_t((*game_grid)[*cell]->is_alive);
-		MPI_File_write_at(outfile, offset, &current_is_alive, 1, MPI_UNSIGNED_LONG_LONG, &status);
-		offset++;
-	}
+	MPI_Status status;
+	MPI_File_write_at_all(outfile, 0, (void*)buffer, bytes, MPI_BYTE, &status);
+	//if (status...
 
 	MPI_File_close(&outfile);
 	return true;

@@ -50,13 +50,29 @@ int main(int argc, char* argv[])
 		}
 		//cout << "z_start: " << z_start  << endl;
 
-		double cell_size;
-		result = fread(&cell_size, sizeof(double), 1, infile);
+		double cell_x_size;
+		result = fread(&cell_x_size, sizeof(double), 1, infile);
 		if (result != 1) {
-			cerr << "Couldn't read cell_size" << endl;
+			cerr << "Couldn't read cell_x_size" << endl;
 			exit(EXIT_FAILURE);
 		}
-		//cout << "cell_size: " << cell_size << endl;
+		//cout << "cell_x_size: " << cell_x_size << endl;
+
+		double cell_y_size;
+		result = fread(&cell_y_size, sizeof(double), 1, infile);
+		if (result != 1) {
+			cerr << "Couldn't read cell_y_size" << endl;
+			exit(EXIT_FAILURE);
+		}
+		//cout << "cell_y_size: " << cell_y_size << endl;
+
+		double cell_z_size;
+		result = fread(&cell_z_size, sizeof(double), 1, infile);
+		if (result != 1) {
+			cerr << "Couldn't read cell_z_size" << endl;
+			exit(EXIT_FAILURE);
+		}
+		//cout << "cell_z_size: " << cell_z_size << endl;
 
 		uint64_t x_length;
 		result = fread(&x_length, sizeof(uint64_t), 1, infile);
@@ -82,8 +98,16 @@ int main(int argc, char* argv[])
 		}
 		//cout << "z_length: " << z_length << endl;
 
+		int max_ref_level;
+		result = fread(&max_ref_level, sizeof(int), 1, infile);
+		if (result != 1) {
+			cerr << "Couldn't read maximum refinemen level" << endl;
+			exit(EXIT_FAILURE);
+		}
+		//cout << "max_ref_level: " << max_ref_level << endl;
+
 		// read in game data
-		boost::unordered_map<uint64_t, int> game_data;
+		boost::unordered_map<uint64_t, uint8_t> game_data;
 		do {
 			uint64_t cell;
 			result = fread(&cell, sizeof(uint64_t), 1, infile);
@@ -91,24 +115,26 @@ int main(int argc, char* argv[])
 				break;
 			}
 
-			uint64_t is_alive;
-			result = fread(&is_alive, sizeof(uint64_t), 1, infile);
+			uint8_t is_alive;
+			result = fread(&is_alive, sizeof(uint8_t), 1, infile);
 			if (result != 1) {
 				cerr << "Couldn't read is_alive for cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
+			cout << cell << ": " << uint16_t(is_alive) << "; ";
 
 			//cout << "cell " << cell << ", is_alive " << is_alive << endl;
-			game_data[cell] = int(is_alive);
+			game_data[cell] = is_alive;
 		} while (result == 1);
+		cout << endl;
 
 		CellGeometry geometry;
 		geometry.set_x_start(x_start);
 		geometry.set_y_start(y_start);
 		geometry.set_z_start(z_start);
-		geometry.set_cell_x_size(cell_size);
-		geometry.set_cell_y_size(cell_size);
-		geometry.set_cell_z_size(cell_size);
+		geometry.set_cell_x_size(cell_x_size);
+		geometry.set_cell_y_size(cell_y_size);
+		geometry.set_cell_z_size(cell_z_size);
 		geometry.set_x_length(x_length);
 		geometry.set_y_length(y_length);
 		geometry.set_z_length(z_length);
@@ -132,7 +158,7 @@ int main(int argc, char* argv[])
 		// write cells in a known order
 		vector<uint64_t> cells;
 		cells.reserve(game_data.size());
-		for (boost::unordered_map<uint64_t, int>::const_iterator data = game_data.begin(); data != game_data.end(); data++) {
+		for (boost::unordered_map<uint64_t, uint8_t>::const_iterator data = game_data.begin(); data != game_data.end(); data++) {
 			cells.push_back(data->first);
 		}
 		sort(cells.begin(), cells.end());
@@ -170,7 +196,8 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS is_alive int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << game_data[*cell] << endl;
+			// uint8_t seems to be unsigned char, which gets formatted wrong
+			outfile << uint16_t(game_data[*cell]) << endl;
 		}
 
 		fclose(infile);
