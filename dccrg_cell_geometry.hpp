@@ -737,7 +737,7 @@ public:
 			return 0;
 		}
 
-		return get_cell_from_indices(this->get_x_index(x), this->get_x_index(y), this->get_x_index(z), refinement_level);
+		return get_cell_from_indices(this->get_x_index(x), this->get_y_index(y), this->get_z_index(z), refinement_level);
 	}
 
 
