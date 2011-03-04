@@ -850,6 +850,12 @@ public:
 			this->neighbours_to[*created_cell] = this->find_neighbours_to(*created_cell);
 		}
 
+		// remove neighbour lists of cells that went to other processes
+		for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[this->comm.rank()].begin(); removed_cell != all_removed_cells[this->comm.rank()].end(); removed_cell++) {
+			this->neighbours.erase(*removed_cell);
+			this->neighbours_to.erase(*removed_cell);
+		}
+
 		this->update_remote_neighbour_info();
 
 		// free user data from migrated cells
@@ -1755,127 +1761,57 @@ public:
 		// don't add the same neighbour more than once
 		boost::unordered_set<uint64_t> unique_neighbours;
 
-		// if neighbour_size == 0 just check the volume inside cells of the same size and that share a face with the given cell
-		if (this->neighbourhood_size == 0) {
+		// don't search outside of the grid
+		const uint64_t x_length_in_indices = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t y_length_in_indices = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t z_length_in_indices = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
 
-			// -x direction
-			if (x_index >= size_in_indices) {
-			for (uint64_t current_x_index = x_index - size_in_indices; current_x_index < x_index; current_x_index += index_increase) {
-			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
-			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
-				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-				assert(neighbour > 0);
-				assert(neighbour <= this->max_cell_number);
-				assert(neighbour == this->get_child(neighbour));
-				unique_neighbours.insert(neighbour);
-			}}}}
-
-			// +x direction
-			if (x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
-			for (uint64_t current_x_index = x_index + size_in_indices; current_x_index < x_index + 2 * size_in_indices; current_x_index += index_increase) {
-			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
-			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
-				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-				assert(neighbour > 0);
-				assert(neighbour <= this->max_cell_number);
-				assert(neighbour == this->get_child(neighbour));
-				unique_neighbours.insert(neighbour);
-			}}}}
-
-			// -y direction
-			if (y_index >= size_in_indices) {
-			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
-			for (uint64_t current_y_index = y_index - size_in_indices; current_y_index < y_index; current_y_index += index_increase) {
-			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
-				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-				assert(neighbour > 0);
-				assert(neighbour <= this->max_cell_number);
-				assert(neighbour == this->get_child(neighbour));
-				unique_neighbours.insert(neighbour);
-			}}}}
-
-			// +y direction
-			if (y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
-			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
-			for (uint64_t current_y_index = y_index + size_in_indices; current_y_index < y_index + 2 * size_in_indices; current_y_index += index_increase) {
-			for (uint64_t current_z_index = z_index; current_z_index < z_index + size_in_indices; current_z_index += index_increase) {
-				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-				assert(neighbour > 0);
-				assert(neighbour <= this->max_cell_number);
-				assert(neighbour == this->get_child(neighbour));
-				unique_neighbours.insert(neighbour);
-			}}}}
-
-			// -z direction
-			if (z_index >= size_in_indices) {
-			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
-			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
-			for (uint64_t current_z_index = z_index - size_in_indices; current_z_index < z_index; current_z_index += index_increase) {
-				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-				assert(neighbour > 0);
-				assert(neighbour <= this->max_cell_number);
-				assert(neighbour == this->get_child(neighbour));
-				unique_neighbours.insert(neighbour);
-			}}}}
-
-			// +z direction
-			if (z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level) - size_in_indices) {
-			for (uint64_t current_x_index = x_index; current_x_index < x_index + size_in_indices; current_x_index += index_increase) {
-			for (uint64_t current_y_index = y_index; current_y_index < y_index + size_in_indices; current_y_index += index_increase) {
-			for (uint64_t current_z_index = z_index + size_in_indices; current_z_index < z_index + 2 * size_in_indices; current_z_index += index_increase) {
-				const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
-				assert(neighbour > 0);
-				assert(neighbour <= this->max_cell_number);
-				assert(neighbour == this->get_child(neighbour));
-				unique_neighbours.insert(neighbour);
-			}}}}
-
-			return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
-			return return_neighbours;
-		}
-
+		// must have some neighbours even if neighbourhood_size == 0
+		const int temp_neighbourhood_size = (this->neighbourhood_size > 0) ? this->neighbourhood_size : 1;
 
 		// don't start searching outside of the grid
 		uint64_t current_x_index;
-		if (x_index < size_in_indices * this->neighbourhood_size) {
+		if (x_index < size_in_indices * temp_neighbourhood_size) {
 			current_x_index = 0;
 		} else {
-			current_x_index = x_index - size_in_indices * this->neighbourhood_size;
+			current_x_index = x_index - size_in_indices * temp_neighbourhood_size;
 		}
 
 		// search for neighbours in cells that share a vertex with the given cell
-		for (; current_x_index < x_index + size_in_indices * (1 + this->neighbourhood_size); current_x_index += index_increase) {
+		for (; current_x_index < x_index + size_in_indices * (1 + temp_neighbourhood_size); current_x_index += index_increase) {
 
 			// don't search outside of the grid
-			if (current_x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
+			if (current_x_index >= x_length_in_indices) {
 				continue;
 			}
 
 			// don't start searching outside of the grid
 			uint64_t current_y_index;
-			if (y_index < size_in_indices * this->neighbourhood_size) {
+			if (y_index < size_in_indices * temp_neighbourhood_size) {
 				current_y_index = 0;
 			} else {
-				current_y_index = y_index - size_in_indices * this->neighbourhood_size;
+				current_y_index = y_index - size_in_indices * temp_neighbourhood_size;
 			}
 
-			for (; current_y_index < y_index + size_in_indices * (1 + this->neighbourhood_size); current_y_index += index_increase) {
+			for (; current_y_index < y_index + size_in_indices * (1 + temp_neighbourhood_size); current_y_index += index_increase) {
 
-				if (current_y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
+				// don't search outside of the grid
+				if (current_y_index >= y_length_in_indices) {
 					continue;
 				}
 
 				// don't start searching outside of the grid
 				uint64_t current_z_index;
-				if (z_index < size_in_indices * this->neighbourhood_size) {
+				if (z_index < size_in_indices * temp_neighbourhood_size) {
 					current_z_index = 0;
 				} else {
-					current_z_index = z_index - size_in_indices * this->neighbourhood_size;
+					current_z_index = z_index - size_in_indices * temp_neighbourhood_size;
 				}
 
-				for (; current_z_index < z_index + size_in_indices * (1 + this->neighbourhood_size); current_z_index += index_increase) {
+				for (; current_z_index < z_index + size_in_indices * (1 + temp_neighbourhood_size); current_z_index += index_increase) {
 
-					if (current_z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+					// don't search outside of the grid
+					if (current_z_index >= z_length_in_indices) {
 						continue;
 					}
 
@@ -1887,6 +1823,25 @@ public:
 					    && current_y_index < y_index + size_in_indices
 					    && current_z_index < z_index + size_in_indices) {
 						continue;
+					}
+
+					if (this->neighbourhood_size == 0) {
+
+						// don't search diagonally
+						int overlaps = 0;
+						if (this->indices_overlap(x_index, size_in_indices, current_x_index, 1)) {
+							overlaps++;
+						}
+						if (this->indices_overlap(y_index, size_in_indices, current_y_index, 1)) {
+							overlaps++;
+						}
+						if (this->indices_overlap(z_index, size_in_indices, current_z_index, 1)) {
+							overlaps++;
+						}
+
+						if (overlaps < 2) {
+							continue;
+						}
 					}
 
 					const uint64_t neighbour = this->get_cell_from_indices(current_x_index, current_y_index, current_z_index, search_min_ref_level, search_max_ref_level);
