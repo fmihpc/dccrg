@@ -395,7 +395,19 @@ public:
 
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
 
-			uint64_t child = this->get_child(cell->first);
+			#ifndef NDEBUG
+			if (this->cell_process.count(cell->first) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell->first << " shouldn't exist" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+
+			if (this->cell_process.at(cell->first) != this->comm.rank()) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->comm.rank() << ": Cell " << cell->first << " should be on process " << this->cell_process.at(cell->first) << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
+			const uint64_t child = this->get_child(cell->first);
 			assert(child > 0);
 
 			if (child == cell->first) {
@@ -558,7 +570,7 @@ public:
 		ZOLTAN_ID_PTR global_ids_to_receive, local_ids_to_receive, global_ids_to_send, local_ids_to_send;
 		int *sender_processes, *receiver_processes;
 
-		// here these record where cells have migrated
+		// here these record which cells have migrated
 		boost::unordered_set<uint64_t> added_cells, removed_cells;
 
 		if (Zoltan_LB_Balance(this->zoltan, &partition_changed, &global_id_size, &local_id_size, &number_to_receive, &global_ids_to_receive, &local_ids_to_receive, &sender_processes, &number_to_send, &global_ids_to_send, &local_ids_to_send, &receiver_processes) != ZOLTAN_OK) {
@@ -573,6 +585,9 @@ public:
 		if (partition_changed == 0) {
 			return;
 		}
+
+		this->cells_to_receive.clear();
+		this->cells_to_send.clear();
 
 		#ifndef NDEBUG
 		// check that processes have the cells they're supposed to send
@@ -594,22 +609,15 @@ public:
 
 		// clear user data which is about to get old
 		this->cells_with_remote_neighbours.clear();
+		this->remote_cells_with_local_neighbours.clear();
 		this->remote_neighbours.clear();
 		this->cells_to_refine.clear();
 		this->refined_cell_data.clear();
 		this->cells_to_unrefine.clear();
 		this->unrefined_cell_data.clear();
-		this->remote_cells_with_local_neighbours.clear();
-
-		// clear send / receive lists, here they mean cells that will be moved between processes
-		this->cells_to_receive.clear();
-		this->cells_to_send.clear();
-
-		// TODO: move identical code from here and start_neighbour_data_update into a separate function
 
 		// processes and the cells for which data has to be received by this process
 		for (int i = 0; i < number_to_receive; i++) {
-			assert(this->cell_process.at(global_ids_to_receive[i]) == sender_processes[i]);
 
 			// don't send / receive from self
 			if (sender_processes[i] == this->comm.rank()) {
@@ -617,44 +625,19 @@ public:
 			}
 
 			this->cells_to_receive[sender_processes[i]].push_back(global_ids_to_receive[i]);
+
+			#ifndef NDEBUG
+			if (added_cells.count(global_ids_to_receive[i]) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_receive[i] << " has already been received from process " << this->comm.rank() << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
 			added_cells.insert(global_ids_to_receive[i]);
-		}
-
-		// post all receives
-		for (int sender = 0; sender < this->comm.size(); sender++) {
-
-			// Zoltan returns cell migration info also for cells that don't chage their process
-			if (sender == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_receive.count(sender) == 0) {
-				continue;
-			}
-
-			sort(this->cells_to_receive[sender].begin(), this->cells_to_receive[sender].end());
-
-			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
-
-			// don't actually send one cell at a time or anything, just use the correct request structures
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-
-			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-			this->load_balance_requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-			#else
-			this->receive_requests[sender].push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-			#endif
-
-
-			#else
-			this->receive_requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-			#endif
 		}
 
 		// processes and the cells for which data has to be sent by this process
 		for (int i = 0; i < number_to_send; i++) {
-			assert(this->cell_process.at(global_ids_to_send[i]) == this->comm.rank());
-			assert(this->cells.count(global_ids_to_send[i]) > 0);
 
 			// don't send / receive from self
 			if (receiver_processes[i] == this->comm.rank()) {
@@ -673,108 +656,13 @@ public:
 			removed_cells.insert(global_ids_to_send[i]);
 		}
 
-		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
-
-		// gather data to send
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
-
-			// Zoltan returns cell migration info also for cells that don't change their process
-			if (receiver == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_send.count(receiver) == 0) {
-				continue;
-			}
-
-			sort(this->cells_to_send[receiver].begin(), this->cells_to_send[receiver].end());
-
-			// construct the outgoing data vector
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_send[receiver].begin(); cell != this->cells_to_send[receiver].end(); cell++) {
-				UserData* user_data = (*this)[*cell];
-				assert(user_data != NULL);
-				this->outgoing_data[receiver].push_back(*user_data);
-				this->cells.erase(*cell);
-				this->cells_with_remote_neighbours.erase(*cell);
-				this->remote_cells_with_local_neighbours.erase(*cell);
-			}
-			assert(this->outgoing_data[receiver].size() == this->cells_to_send[receiver].size());
-		}
-
-		// post all sends
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
-
-			if (receiver == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_send.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
-
-			// don't actually receive one cell at a time or anything, just use the correct request structures
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-
-			#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-			this->load_balance_requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-			#else
-			this->send_requests[receiver].push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-			#endif
-
-			#else
-			this->send_requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-			#endif
-		}
-
-		// wait for transfers to complete
+		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
-
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->load_balance_requests.begin(); process != this->load_balance_requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-			process->second.clear();
-		}
-		this->load_balance_requests.clear();
-
-		#else
-
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-			process->second.clear();
-		}
-		this->receive_requests.clear();
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-			process->second.clear();
-		}
-		this->send_requests.clear();
-
+		this->cells
 		#endif
+		);
 
-		#else
-
-		boost::mpi::wait_all(this->receive_requests.begin(), this->receive_requests.end());
-		this->receive_requests.clear();
-		boost::mpi::wait_all(this->send_requests.begin(), this->send_requests.end());
-		this->send_requests.clear();
-
-		#endif
-
-		this->outgoing_data.clear();
-
-		// incorporate received data
-		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
-
-			int i = 0;
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_receive[sender->first].begin(); cell != this->cells_to_receive[sender->first].end(); cell++, i++) {
-				this->cells[*cell] = this->incoming_data[sender->first][i];
-			}
-		}
-		this->cells_to_receive.clear();
-		this->incoming_data.clear();
+		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
 
 		/*
 		Calculate where cells have migrated to update internal data structures
@@ -785,13 +673,11 @@ public:
 		std::vector<uint64_t> temp_removed_cells(removed_cells.begin(), removed_cells.end());
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
-		removed_cells.clear();
 
 		// created cells on all processes
 		std::vector<uint64_t> temp_added_cells(added_cells.begin(), added_cells.end());
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
-		added_cells.clear();
 
 		#ifndef NDEBUG
 		// check that there are no duplicate adds / removes
@@ -839,29 +725,36 @@ public:
 		}
 		#endif
 
-		// create neighbour lists for children that came to this process
-		for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[this->comm.rank()].begin(); created_cell != all_added_cells[this->comm.rank()].end(); created_cell++) {
+		// create neighbour lists for cells without children that came to this process
+		for (boost::unordered_set<uint64_t>::const_iterator added_cell = added_cells.begin(); added_cell != added_cells.end(); added_cell++) {
 
-			if (*created_cell != this->get_child(*created_cell)) {
+			if (*added_cell != this->get_child(*added_cell)) {
 				continue;
 			}
 
-			this->neighbours[*created_cell] = this->find_neighbours_of(*created_cell);
-			this->neighbours_to[*created_cell] = this->find_neighbours_to(*created_cell);
+			this->neighbours[*added_cell] = this->find_neighbours_of(*added_cell);
+			this->neighbours_to[*added_cell] = this->find_neighbours_to(*added_cell);
 		}
+		added_cells.clear();
 
-		// remove neighbour lists of cells that went to other processes
-		for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[this->comm.rank()].begin(); removed_cell != all_removed_cells[this->comm.rank()].end(); removed_cell++) {
+		this->wait_user_data_transfer_receives(
+		#ifndef DCCRG_SEND_SINGLE_CELLS
+		this->cells
+		#endif
+		);
+		this->wait_user_data_transfer_sends();
+		this->cells_to_send.clear();
+		this->cells_to_receive.clear();
+
+		// free user data and neighbour lists of cells removed from this process
+		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
+			this->cells.erase(*removed_cell);
 			this->neighbours.erase(*removed_cell);
 			this->neighbours_to.erase(*removed_cell);
 		}
+		removed_cells.clear();
 
 		this->update_remote_neighbour_info();
-
-		// free user data from migrated cells
-		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
-			this->cells.erase(*removed_cell);
-		}
 
 		this->recalculate_neighbour_update_send_receive_lists();
 
@@ -902,127 +795,11 @@ public:
 	void start_remote_neighbour_data_update(void)
 	{
 		this->comm.barrier();
-
-		/*
-		TODO: Find out why setting the message tags to zero here leads to this in wait_neighbour_data_update(), at least when using OpenMPI:
-		terminate called after throwing an instance of 'boost::exception_detail::clone_impl<boost::exception_detail::error_info_injector<boost::mpi::exception> >'
-		  what():  MPI_Wait: MPI_ERR_TRUNCATE: message truncated
-		*/
-
-		// user data is sent to another process one cell at a time
+		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
-
-		#ifdef DCCRG_USER_MPI_DATA_TYPE
-		MPI_Datatype data_type = UserData::mpi_data_type();
-		MPI_Type_commit(&data_type);
+		this->remote_neighbours
 		#endif
-
-		// post all receives, messages are unique between different senders so just iterate over processes in random order
-		for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
-
-			for (std::vector<uint64_t>::const_iterator cell = sender->second.begin(); cell != sender->second.end(); cell++) {
-
-				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-				this->receive_requests[sender->first].push_back(MPI_Request());
-
-				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Irecv(this->remote_neighbours[*cell].at(), 1, data_type, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->receive_requests[sender->first].back()));
-				#else
-				MPI_Irecv(this->remote_neighbours[*cell].at(), UserData::size(), MPI_BYTE, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->receive_requests[sender->first].back()));
-				#endif
-
-				#else
-
-				this->receive_requests[sender->first].push_back(this->comm.irecv(sender->first, *cell % boost::mpi::environment::max_tag(), this->remote_neighbours[*cell]));	// FIXME: make sure message tags between two processes are unique
-
-				#endif
-			}
-		}
-
-		// post all sends
-		for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
-
-			for (std::vector<uint64_t>::const_iterator cell = receiver->second.begin(); cell != receiver->second.end(); cell++) {
-				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-				this->send_requests[receiver->first].push_back(MPI_Request());
-
-				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Isend(this->cells[*cell].at(), 1, data_type, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->send_requests[receiver->first].back()));
-				#else
-				MPI_Isend(this->cells[*cell].at(), UserData::size(), MPI_BYTE, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->send_requests[receiver->first].back()));
-				#endif
-
-				#else
-
-				this->send_requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells.at(*cell)));
-
-				#endif
-			}
-		}
-
-		#ifdef DCCRG_USER_MPI_DATA_TYPE
-		MPI_Type_free(&data_type);
-		#endif
-
-		// user data is packed into a vector which is sent to another process
-		#else
-
-		// post all receives
-		for (int sender = 0; sender < this->comm.size(); sender++) {
-
-			if (sender == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_receive.count(sender) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
-
-			this->receive_requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-		}
-
-		// gather all data to send
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
-
-			if (receiver == this->comm.rank()) {
-				// don't send to self
-				continue;
-			}
-
-			if (this->cells_to_send.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			// construct the outgoing data vector
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_send[receiver].begin(); cell != this->cells_to_send[receiver].end(); cell++) {
-				UserData* user_data = (*this)[*cell];
-				assert(user_data != NULL);
-				this->outgoing_data[receiver].push_back(*user_data);
-			}
-			assert(this->outgoing_data[receiver].size() == this->cells_to_send[receiver].size());
-		}
-
-		// post all sends
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
-
-			if (receiver == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_send.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
-
-			this->send_requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-		}
-		#endif // ifdef DCCRG_SEND_SINGLE_CELLS
+		);
 	}
 
 
@@ -1043,41 +820,7 @@ public:
 	*/
 	void wait_neighbour_data_update_sends(void)
 	{
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-
-		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
-
-			std::vector<MPI_Status> statuses;
-			statuses.resize(process->second.size());
-
-			if (MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0])) != MPI_SUCCESS) {
-				for (std::vector<MPI_Status>::const_iterator status = statuses.begin(); status != statuses.end(); status++) {
-					if (status->MPI_ERROR != MPI_SUCCESS) {
-						std::cerr << "MPI receive failed from process " << status->MPI_SOURCE << " with tag " << status->MPI_TAG << std::endl;
-					}
-				}
-			}
-		}
-		this->send_requests.clear();
-
-		#else
-
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-		}
-		this->send_requests.clear();
-
-		#endif
-
-		#else
-
-		boost::mpi::wait_all(this->send_requests.begin(), this->send_requests.end());
-		this->send_requests.clear();
-		this->outgoing_data.clear();
-
-		#endif
+		this->wait_user_data_transfer_sends();
 	}
 
 
@@ -1087,52 +830,11 @@ public:
 	*/
 	void wait_neighbour_data_update_receives(void)
 	{
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-
-		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
-
-			std::vector<MPI_Status> statuses;
-			statuses.resize(process->second.size());
-
-			if (MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0])) != MPI_SUCCESS) {
-				for (std::vector<MPI_Status>::const_iterator status = statuses.begin(); status != statuses.end(); status++) {
-					if (status->MPI_ERROR != MPI_SUCCESS) {
-						std::cerr << "MPI receive failed from process " << status->MPI_SOURCE << " with tag " << status->MPI_TAG << std::endl;
-					}
-				}
-			}
-		}
-		this->receive_requests.clear();
-
-		#else
-
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-		}
-		this->receive_requests.clear();
-
+		this->wait_user_data_transfer_receives(
+		#ifndef DCCRG_SEND_SINGLE_CELLS
+		this->remote_neighbours
 		#endif
-
-		#else
-
-		boost::mpi::wait_all(this->receive_requests.begin(), this->receive_requests.end());
-		this->receive_requests.clear();
-
-		// incorporate received data
-		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
-
-			assert(this->incoming_data[sender->first].size() == this->cells_to_receive[sender->first].size());
-
-			int i = 0;
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_receive[sender->first].begin(); cell != this->cells_to_receive[sender->first].end(); cell++, i++) {
-				this->remote_neighbours[*cell] = this->incoming_data[sender->first][i];
-			}
-		}
-		this->incoming_data.clear();
-
-		#endif
+		);
 	}
 
 
@@ -1172,6 +874,12 @@ public:
 	const std::vector<uint64_t>* get_neighbours(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
+			#ifndef NDEBUG
+			if (this->neighbours.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->comm.rank() << ": Neighbour list for cell " << cell << " doesn't exist" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
 			return &(this->neighbours.at(cell));
 		} else {
 			return NULL;
@@ -1186,6 +894,12 @@ public:
 	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
+			#ifndef NDEBUG
+			if (this->neighbours_to.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbours_to list for cell " << cell << " doesn't exist" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
 			return &(this->neighbours_to.at(cell));
 		} else {
 			return NULL;
@@ -2793,6 +2507,18 @@ private:
 		// TODO: also update remote_cells_with_local_neighbours
 		this->cells_with_remote_neighbours.erase(cell);
 
+		#ifndef NDEBUG
+		if (this->neighbours.count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list for cell " << cell << " doesn't exist" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (this->neighbours_to.count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbours_to list for cell " << cell << " doesn't exist" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
 		// neighbours of given cell
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 			if (this->cell_process.at(*neighbour) != this->comm.rank()) {
@@ -3349,6 +3075,7 @@ private:
 			// don't send unrefined cells' user data to self
 			if (this->comm.rank() == process_of_unrefined
 			&& this->comm.rank() == process_of_parent) {
+				// TODO move data instead of copying
 				this->unrefined_cell_data[*unrefined] = this->cells.at(*unrefined);
 				this->cells.erase(*unrefined);
 
@@ -3362,66 +3089,11 @@ private:
 			}
 		}
 
-		// start sending unrefined cells' user data to the process of their parent
-		// TODO: use the same function for all data transfer stuff
-		// post all receives
-		for (int sender = 0; sender < this->comm.size(); sender++) {
-
-			if (sender == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_receive.count(sender) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
-
-			this->receive_requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
-		}
-
-		// gather all data to send
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
-
-			if (receiver == this->comm.rank()) {
-				// don't send to self
-				continue;
-			}
-
-			if (this->cells_to_send.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			// construct the outgoing data vector
-			sort(this->cells_to_send[receiver].begin(), this->cells_to_send[receiver].end());
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_send[receiver].begin(); cell != this->cells_to_send[receiver].end(); cell++) {
-				UserData* user_data = (*this)[*cell];
-				assert(user_data != NULL);
-				this->outgoing_data[receiver].push_back(*user_data);
-				// remove local data of unrefined cell
-				this->cells.erase(*cell);
-			}
-			assert(this->outgoing_data[receiver].size() == this->cells_to_send[receiver].size());
-		}
-
-		// post all sends
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
-
-			if (receiver == this->comm.rank()) {
-				continue;
-			}
-
-			if (this->cells_to_send.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
-
-			this->send_requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
-		}
+		this->start_user_data_transfers(
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+		this->unrefined_cell_data
+		#endif
+		);
 
 		// update data for parents of unrefined cells
 		for (boost::unordered_set<uint64_t>::const_iterator parent = parents_of_unrefined.begin(); parent != parents_of_unrefined.end(); parent++) {
@@ -3481,14 +3153,9 @@ private:
 		}
 
 		// remove neighbour lists of removed cells
-		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
-
-			// only one sibling of cells to unrefine is stored, but were removed
-			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent_for_removed(*unrefined));
-			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
-				this->neighbours.erase(*sibling);
-				this->neighbours_to.erase(*sibling);
-			}
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = all_to_unrefine.begin(); unrefined != all_to_unrefine.end(); unrefined++) {
+			this->neighbours.erase(*unrefined);
+			this->neighbours_to.erase(*unrefined);
 		}
 
 		this->update_remote_neighbour_info();
@@ -3500,36 +3167,19 @@ private:
 		}
 		#endif
 
-		// wait for receives to complete
-		boost::mpi::wait_all(this->receive_requests.begin(), this->receive_requests.end());
-		this->receive_requests.clear();
-
-		// incorporate received data
-		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
-
-			assert(this->incoming_data[sender->first].size() == this->cells_to_receive[sender->first].size());
-
-			int i = 0;
-			sort(this->cells_to_receive[sender->first].begin(), this->cells_to_receive[sender->first].end());
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_receive[sender->first].begin(); cell != this->cells_to_receive[sender->first].end(); cell++, i++) {
-				this->unrefined_cell_data[*cell] = this->incoming_data[sender->first][i];
-			}
-		}
-		this->incoming_data.clear();
+		this->wait_user_data_transfer_receives(
+		#ifndef DCCRG_SEND_SINGLE_CELLS
+		this->unrefined_cell_data
+		#endif
+		);
+		this->wait_user_data_transfer_sends();
+		this->cells_to_send.clear();
+		this->cells_to_receive.clear();
 
 		// remove user data of unrefined cells from this->cells
-		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
-
-			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent_for_removed(*unrefined));
-			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
-				this->cells.erase(*sibling);
-			}
+		for (boost::unordered_set<uint64_t>::const_iterator unrefined = all_to_unrefine.begin(); unrefined != all_to_unrefine.end(); unrefined++) {
+			this->cells.erase(*unrefined);
 		}
-
-		// wait for sends to complete
-		boost::mpi::wait_all(this->send_requests.begin(), this->send_requests.end());
-		this->send_requests.clear();
-		this->outgoing_data.clear();
 
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
@@ -3537,6 +3187,265 @@ private:
 		this->recalculate_neighbour_update_send_receive_lists();
 
 		return new_cells;
+	}
+
+
+	/*!
+	Starts user data transfers between processes based on cells_to_send and cells_to_receive.
+
+	User data arriving to this process is saved in given destination.
+	*/
+	void start_user_data_transfers(
+	#ifdef DCCRG_SEND_SINGLE_CELLS
+	boost::unordered_map<uint64_t, UserData>& destination
+	#endif
+	)
+	{
+		/*
+		TODO: Find out why setting the message tags to zero here leads to this in wait_neighbour_data_update(), at least when using OpenMPI:
+		terminate called after throwing an instance of 'boost::exception_detail::clone_impl<boost::exception_detail::error_info_injector<boost::mpi::exception> >'
+		  what():  MPI_Wait: MPI_ERR_TRUNCATE: message truncated
+		*/
+
+		// user data is sent to another process one cell at a time
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+
+		#ifdef DCCRG_USER_MPI_DATA_TYPE
+		MPI_Datatype data_type = UserData::mpi_data_type();
+		MPI_Type_commit(&data_type);
+		#endif
+
+		// post all receives, messages are unique between different senders so just iterate over processes in random order
+		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
+
+			#ifndef NDEBUG
+			if (sender->first == this->comm.rank()
+			&& sender->second.size() > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
+			std::sort(sender->second.begin(), sender->second.end());
+			for (std::vector<uint64_t>::const_iterator cell = sender->second.begin(); cell != sender->second.end(); cell++) {
+
+				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+				this->receive_requests[sender->first].push_back(MPI_Request());
+
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Irecv(destination[*cell].at(), 1, data_type, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->receive_requests[sender->first].back()));
+				#else
+				MPI_Irecv(destination[*cell].at(), UserData::size(), MPI_BYTE, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->receive_requests[sender->first].back()));
+				#endif
+
+				#else
+
+				this->receive_requests[sender->first].push_back(this->comm.irecv(sender->first, *cell % boost::mpi::environment::max_tag(), destination[*cell]));	// FIXME: make sure message tags between two processes are unique
+
+				#endif
+			}
+		}
+
+		// post all sends
+		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
+
+			#ifndef NDEBUG
+			if (receiver->first == this->comm.rank()
+			&& receiver->second.size() > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
+
+			std::sort(receiver->second.begin(), receiver->second.end());
+			for (std::vector<uint64_t>::const_iterator cell = receiver->second.begin(); cell != receiver->second.end(); cell++) {
+				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+				this->send_requests[receiver->first].push_back(MPI_Request());
+
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Isend(this->cells.at(*cell).at(), 1, data_type, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->send_requests[receiver->first].back()));
+				#else
+				MPI_Isend(this->cells.at(*cell).at(), UserData::size(), MPI_BYTE, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->send_requests[receiver->first].back()));
+				#endif
+
+				#else
+
+				this->send_requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells.at(*cell)));
+
+				#endif
+			}
+		}
+
+		#ifdef DCCRG_USER_MPI_DATA_TYPE
+		MPI_Type_free(&data_type);
+		#endif
+
+		// user data is packed into a vector which is sent to another process
+		#else
+
+		// post all receives
+		for (int sender = 0; sender < this->comm.size(); sender++) {
+
+			if (sender == this->comm.rank()) {
+				continue;
+			}
+
+			if (this->cells_to_receive.count(sender) == 0) {
+				// no data to send / receive
+				continue;
+			}
+
+			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
+
+			this->receive_requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+		}
+
+		// gather all data to send
+		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
+
+			if (receiver == this->comm.rank()) {
+				// don't send to self
+				continue;
+			}
+
+			if (this->cells_to_send.count(receiver) == 0) {
+				// no data to send / receive
+				continue;
+			}
+
+			std::sort(this->cells_to_send.at(receiver).begin(), this->cells_to_send.at(receiver).end());
+			// construct the outgoing data vector
+			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_send[receiver].begin(); cell != this->cells_to_send[receiver].end(); cell++) {
+				UserData* user_data = (*this)[*cell];
+				assert(user_data != NULL);
+				this->outgoing_data[receiver].push_back(*user_data);
+			}
+			assert(this->outgoing_data[receiver].size() == this->cells_to_send[receiver].size());
+		}
+
+		// post all sends
+		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
+
+			if (receiver == this->comm.rank()) {
+				continue;
+			}
+
+			if (this->cells_to_send.count(receiver) == 0) {
+				// no data to send / receive
+				continue;
+			}
+
+			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
+
+			this->send_requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+		}
+		#endif // ifdef DCCRG_SEND_SINGLE_CELLS
+	}
+
+
+	/*!
+	Waits for the receives of user data transfers between processes to complete.
+
+	User data arriving to this process is saved in given destination.
+	*/
+	void wait_user_data_transfer_receives(
+	#ifndef DCCRG_SEND_SINGLE_CELLS
+	boost::unordered_map<uint64_t, UserData>& destination
+	#endif
+	)
+	{
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+
+		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
+
+			std::vector<MPI_Status> statuses;
+			statuses.resize(process->second.size());
+
+			if (MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0])) != MPI_SUCCESS) {
+				for (std::vector<MPI_Status>::const_iterator status = statuses.begin(); status != statuses.end(); status++) {
+					if (status->MPI_ERROR != MPI_SUCCESS) {
+						std::cerr << "MPI receive failed from process " << status->MPI_SOURCE << " with tag " << status->MPI_TAG << std::endl;
+					}
+				}
+			}
+		}
+		this->receive_requests.clear();
+
+		#else
+
+		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
+			boost::mpi::wait_all(process->second.begin(), process->second.end());
+		}
+		this->receive_requests.clear();
+
+		#endif
+
+		#else
+
+		boost::mpi::wait_all(this->receive_requests.begin(), this->receive_requests.end());
+		this->receive_requests.clear();
+
+		// incorporate received data
+		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
+
+			assert(this->incoming_data.at(sender->first).size() == this->cells_to_receive.at(sender->first).size());
+
+			std::sort(this->cells_to_receive.at(sender->first).begin(), this->cells_to_receive.at(sender->first).end());
+
+			int i = 0;
+			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_receive.at(sender->first).begin(); cell != this->cells_to_receive.at(sender->first).end(); cell++, i++) {
+				// TODO move data instead of copying
+				destination[*cell] = this->incoming_data.at(sender->first)[i];
+			}
+		}
+		this->incoming_data.clear();
+
+		#endif
+	}
+
+
+	/*!
+	Waits for the sends of user data transfers between processes to complete.
+	*/
+	void wait_user_data_transfer_sends(void)
+	{
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+
+		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
+
+			std::vector<MPI_Status> statuses;
+			statuses.resize(process->second.size());
+
+			if (MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0])) != MPI_SUCCESS) {
+				for (std::vector<MPI_Status>::const_iterator status = statuses.begin(); status != statuses.end(); status++) {
+					if (status->MPI_ERROR != MPI_SUCCESS) {
+						std::cerr << "MPI receive failed from process " << status->MPI_SOURCE << " with tag " << status->MPI_TAG << std::endl;
+					}
+				}
+			}
+		}
+		this->send_requests.clear();
+
+		#else
+
+		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
+			boost::mpi::wait_all(process->second.begin(), process->second.end());
+		}
+		this->send_requests.clear();
+
+		#endif
+
+		#else
+
+		boost::mpi::wait_all(this->send_requests.begin(), this->send_requests.end());
+		this->send_requests.clear();
+		this->outgoing_data.clear();
+
+		#endif
 	}
 
 

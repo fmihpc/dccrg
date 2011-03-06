@@ -385,18 +385,14 @@ int main(int argc, char* argv[])
 				outfile << "0";
 			}
 			outfile << endl;
-
 		}
 
 		// write each cells live neighbour count
 		outfile << "SCALARS live_neighbour_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-
 			game_of_life_cell* cell_data = game_grid[*cell];
-
 			outfile << cell_data->live_neighbour_count << endl;
-
 		}
 
 		// write each cells neighbour count
