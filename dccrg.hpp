@@ -562,6 +562,11 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
 			exit(EXIT_FAILURE);
 		}
+
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
+			exit(EXIT_FAILURE);
+		}
 		#endif
 
 		this->comm.barrier();
@@ -771,6 +776,11 @@ public:
 
 		if (!this->verify_remote_neighbour_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -1549,7 +1559,7 @@ public:
 		#endif
 
 		// can limit search due to maximum refinement level difference of 1 between neighbours
-		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
+		const int search_min_ref_level = (refinement_level == 0) ? refinement_level : refinement_level - 1;
 		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
 
 		// search first for neighbours of the parent, then discard neighbours_of given cell
@@ -1675,6 +1685,17 @@ public:
 			exit(EXIT_FAILURE);
 		}
 
+		// check that inner shell is at least partially inside of the outer shell
+		if (inner_min_x == outer_min_x
+		&& inner_min_y == outer_min_y
+		&& inner_min_z == outer_min_z
+		&& inner_max_x == outer_max_x
+		&& inner_max_y == outer_max_y
+		&& inner_max_z == outer_max_z) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Nothing to search" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
 		// check that inner shell isn't outside of the outer shell
 		if (inner_min_x < outer_min_x
 		|| inner_min_y < outer_min_y
@@ -1682,10 +1703,8 @@ public:
 		|| inner_max_x > outer_max_x
 		|| inner_max_y > outer_max_y
 		|| inner_max_z > outer_max_z) {
-
 			std::cerr << __FILE__ << ":" << __LINE__ << " Inner shell is outside of the outer shell" << std::endl;
 			exit(EXIT_FAILURE);
-
 		}
 		#endif
 
@@ -1710,13 +1729,13 @@ public:
 
 						// don't search diagonally
 						int overlaps = 0;
-						if (this->indices_overlap(inner_min_x, inner_max_x - inner_min_x, x, 1)) {
+						if (this->indices_overlap(inner_min_x, 1 + inner_max_x - inner_min_x, x, 1)) {
 							overlaps++;
 						}
-						if (this->indices_overlap(inner_min_y, inner_max_y - inner_min_y, y, 1)) {
+						if (this->indices_overlap(inner_min_y, 1 + inner_max_y - inner_min_y, y, 1)) {
 							overlaps++;
 						}
-						if (this->indices_overlap(inner_min_z, inner_max_z - inner_min_z, z, 1)) {
+						if (this->indices_overlap(inner_min_z, 1 + inner_max_z - inner_min_z, z, 1)) {
 							overlaps++;
 						}
 
@@ -1738,12 +1757,14 @@ public:
 						std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour can't exist" << std::endl;
 						exit(EXIT_FAILURE);
 					}
-
-					if (neighbour != this->get_child(neighbour)) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour has children" << std::endl;
-						exit(EXIT_FAILURE);
-					}
 					#endif
+
+					/*
+					When searching for neighbours_to cells may exist with larger refinement level than given in find_neighbours_to and they don't consider this cell as a neighbour.
+					*/
+					if (neighbour != this->get_child(neighbour)) {
+						continue;
+					}
 
 					result.insert(neighbour);
 				}
@@ -2254,7 +2275,7 @@ private:
 		}
 		#endif
 
-		if (this->cell_process[cell] != this->comm.rank()) {
+		if (this->cell_process.at(cell) != this->comm.rank()) {
 			return;
 		}
 
@@ -2934,6 +2955,11 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
 			exit(EXIT_FAILURE);
 		}
+
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " User data is inconsistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
 		#endif
 
 		std::vector<uint64_t> new_cells;
@@ -2987,6 +3013,7 @@ private:
 
 			const int process_of_refined = this->cell_process.at(*refined);
 
+			// move user data of refined cells into refined_cell_data
 			if (this->comm.rank() == process_of_refined) {
 				// TODO: move data instead of copying, using boost::move or c++0x move?
 				this->refined_cell_data[*refined] = this->cells.at(*refined);
@@ -3020,12 +3047,12 @@ private:
 
 				// update neighbour lists of all the parent's neighbours
 				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*refined).begin(); neighbour != this->neighbours.at(*refined).end(); neighbour++) {
-					if (this->cell_process[*neighbour] == this->comm.rank()) {
+					if (this->cell_process.at(*neighbour) == this->comm.rank()) {
 						update_neighbours.insert(*neighbour);
 					}
 				}
 				for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(*refined).begin(); neighbour_to != this->neighbours_to.at(*refined).end(); neighbour_to++) {
-					if (this->cell_process[*neighbour_to] == this->comm.rank()) {
+					if (this->cell_process.at(*neighbour_to) == this->comm.rank()) {
 						update_neighbours.insert(*neighbour_to);
 					}
 				}
@@ -3175,6 +3202,13 @@ private:
 		this->wait_user_data_transfer_sends();
 		this->cells_to_send.clear();
 		this->cells_to_receive.clear();
+
+		#ifndef NDEBUG
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 
 		// remove user data of unrefined cells from this->cells
 		for (boost::unordered_set<uint64_t>::const_iterator unrefined = all_to_unrefine.begin(); unrefined != all_to_unrefine.end(); unrefined++) {
@@ -3561,16 +3595,22 @@ private:
 
 	/*!
 	Returns true if cells with given index properties overlap.
+
+	Sizes are also given in indices.
 	*/
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
 		#ifndef NDEBUG
-		if (index1 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index1 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index1 >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index1 >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (index2 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index2 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index2 >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index2 >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
@@ -3586,7 +3626,7 @@ private:
 		}
 		#endif
 
-		if (index2 + size2 > index1 && index2 < index1 + size1) {
+		if (index1 + size1 > index2 && index1 < index2 + size2) {
 			return true;
 		} else {
 			return false;
@@ -4165,6 +4205,16 @@ private:
 	*/
 	bool verify_neighbours(const uint64_t cell)
 	{
+		if (cell == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			return false;
+		}
+
+		if (cell > this->max_cell_number) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't exist" << std::endl;
+			return false;
+		}
+
 		if (this->cell_process.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " doesn't exist" << std::endl;
 			return false;
@@ -4205,8 +4255,14 @@ private:
 		std::vector<uint64_t> compare_neighbours = this->find_neighbours_of(cell);
 		sort(compare_neighbours.begin(), compare_neighbours.end());
 
-		if (!std::equal(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end(), compare_neighbours.begin())) {
-			std::cerr << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " don't match " << this->neighbours.at(cell).size() << ": ";
+		if ((
+			this->neighbours.at(cell).size() != compare_neighbours.size())
+		|| (
+			this->neighbours.at(cell).size() > 0
+			&& compare_neighbours.size() > 0
+			&& !std::equal(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end(), compare_neighbours.begin()))
+		) {
+			std::cerr << "Process " << this->comm.rank() << " neighbour counts for cell " << cell << " (child of " << this->get_parent(cell) << ") don't match " << this->neighbours.at(cell).size() << ": ";
 			for (std::vector<uint64_t>::const_iterator c = this->neighbours.at(cell).begin(); c != this->neighbours.at(cell).end(); c++) {
 				std::cerr << *c << " ";
 			}
@@ -4214,14 +4270,18 @@ private:
 			for (std::vector<uint64_t>::const_iterator c = compare_neighbours.begin(); c != compare_neighbours.end(); c++) {
 				std::cerr << *c << "(" << this->get_parent(*c) << ") ";
 			}
-			std::cerr << ")" << std::endl;
+			std::cerr << std::endl;
 			return false;
 		}
 
 		// neighbours_to
-		sort(this->neighbours_to.at(cell).begin(), this->neighbours_to.at(cell).end());
+		if (this->neighbours_to.at(cell).size() > 0) {
+			sort(this->neighbours_to.at(cell).begin(), this->neighbours_to.at(cell).end());
+		}
 		std::vector<uint64_t> compare_neighbours_to = this->find_neighbours_to(cell);
-		sort(compare_neighbours_to.begin(), compare_neighbours_to.end());
+		if (compare_neighbours_to.size() > 0) {
+			sort(compare_neighbours_to.begin(), compare_neighbours_to.end());
+		}
 
 		if (!std::equal(this->neighbours_to.at(cell).begin(), this->neighbours_to.at(cell).end(), compare_neighbours_to.begin())) {
 			std::cerr << "Process " << this->comm.rank() << " neighbour_to counts for cell " << cell << " (child of " << this->get_parent(cell) << ") don't match: " << this->neighbours_to.at(cell).size() << " (";
@@ -4354,6 +4414,29 @@ private:
 						return false;
 					}
 				}
+			}
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns true if user data exists for local cells.
+	*/
+	bool verify_user_data(void)
+	{
+		for (auto item = this->cell_process.cbegin(); item != this->cell_process.cend(); item++) {
+			if (item->second == this->comm.rank()
+			&& item->first == this->get_child(item->first)
+			&& this->cells.count(item->first) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " User data for local cell " << item->first << " should exist" << std::endl;
+				return false;
+			}
+			if (item->second != this->comm.rank()
+			&& this->cells.count(item->first) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " User data for local cell " << item->first << " shouldn't exist" << std::endl;
+				return false;
 			}
 		}
 
