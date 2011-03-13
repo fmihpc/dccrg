@@ -229,6 +229,9 @@ public:
 		this->reserved_options.insert("NUM_GID_ENTRIES");
 		this->reserved_options.insert("OBJ_WEIGHT_DIM");
 		this->reserved_options.insert("RETURN_LISTS");
+		this->reserved_options.insert("NUM_GLOBAL_PARTS");
+		this->reserved_options.insert("NUM_LOCAL_PARTS");
+		this->reserved_options.insert("AUTO_MIGRATE");
 
 		// set reserved options
 		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");	// 0 because Zoltan crashes in hierarchial with larger values
@@ -571,12 +574,11 @@ public:
 
 		this->comm.barrier();
 
+		this->update_pin_requests();
+
 		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
 		ZOLTAN_ID_PTR global_ids_to_receive, local_ids_to_receive, global_ids_to_send, local_ids_to_send;
 		int *sender_processes, *receiver_processes;
-
-		// here these record which cells have migrated
-		boost::unordered_set<uint64_t> added_cells, removed_cells;
 
 		if (Zoltan_LB_Balance(this->zoltan, &partition_changed, &global_id_size, &local_id_size, &number_to_receive, &global_ids_to_receive, &local_ids_to_receive, &sender_processes, &number_to_send, &global_ids_to_send, &local_ids_to_send, &receiver_processes) != ZOLTAN_OK) {
 			if (!this->no_load_balancing) {
@@ -585,10 +587,6 @@ public:
 				// TODO: throw an exception instead
 				exit(EXIT_FAILURE);
 			}
-		}
-
-		if (partition_changed == 0) {
-			return;
 		}
 
 		this->cells_to_receive.clear();
@@ -621,11 +619,35 @@ public:
 		this->cells_to_unrefine.clear();
 		this->unrefined_cell_data.clear();
 
-		// processes and the cells for which data has to be received by this process
+		/*
+		Processes and the cells for which data has to be received by this process
+		*/
+
+		// cells added to / removed from this process by load balancing
+		boost::unordered_set<uint64_t> added_cells, removed_cells;
+
+		// migration from user
+		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
+
+			const int current_process_of_cell = this->cell_process.at(pin_request->first);
+
+			if (pin_request->second == this->comm.rank()
+			&& current_process_of_cell != this->comm.rank()) {
+				this->cells_to_receive[current_process_of_cell].push_back(pin_request->first);
+				added_cells.insert(pin_request->first);
+			}
+		}
+
+		// migration from Zoltan
 		for (int i = 0; i < number_to_receive; i++) {
 
 			// don't send / receive from self
 			if (sender_processes[i] == this->comm.rank()) {
+				continue;
+			}
+
+			// skip user-migrated cells
+			if (this->pin_requests.count(global_ids_to_receive[i]) > 0) {
 				continue;
 			}
 
@@ -641,11 +663,33 @@ public:
 			added_cells.insert(global_ids_to_receive[i]);
 		}
 
-		// processes and the cells for which data has to be sent by this process
+		/*
+		Processes and the cells for which data has to be sent by this process
+		*/
+
+		// migration from user
+		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
+
+			const int current_process_of_cell = this->cell_process.at(pin_request->first);
+			const int destination_process = pin_request->second;
+
+			if (destination_process != this->comm.rank()
+			&& current_process_of_cell == this->comm.rank()) {
+				this->cells_to_send[destination_process].push_back(pin_request->first);
+				removed_cells.insert(pin_request->first);
+			}
+		}
+
+		// migration from Zoltan
 		for (int i = 0; i < number_to_send; i++) {
 
 			// don't send / receive from self
 			if (receiver_processes[i] == this->comm.rank()) {
+				continue;
+			}
+
+			// skip user-migrated cells
+			if (this->pin_requests.count(global_ids_to_send[i]) > 0) {
 				continue;
 			}
 
@@ -719,13 +763,18 @@ public:
 		// update cell to process mappings
 		for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
 			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
-				this->cell_process[*created_cell] = cell_creator;
+				this->cell_process.at(*created_cell) = cell_creator;
 			}
 		}
 
 		#ifndef NDEBUG
 		if (!this->is_consistent()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Grid is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->pin_requests_succeeded()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Pin requests didn't succeed" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -2098,6 +2147,77 @@ public:
 	}
 
 
+	/*!
+	Given cell is kept on this process during subsequent load balancing.
+
+	Does nothing in the same cases as pin(cell, process).
+	*/
+	void pin(const uint64_t cell)
+	{
+		this->pin(cell, this->comm.rank());
+	}
+
+	/*!
+	Given cell is sent to the given process and kept there during subsequent load balancing.
+
+	Does nothing in the following cases:
+		-given cell has children
+		-given cell doesn't exist
+		-given cell exists on another process
+	*/
+	void pin(const uint64_t cell, const int process)
+	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
+		if (this->cell_process.at(cell) != this->comm.rank()) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		// do nothing if the request already exists
+		if (this->pin_requests.count(cell) > 0
+		&& this->pin_requests.at(cell) == process) {
+			return;
+		}
+
+		this->new_pin_requests[cell] = process;
+	}
+
+	/*!
+	Allows the given cell to be moved to another process during subsequent load balancing.
+
+	Does nothing in the following cases:
+		-given cell has children
+		-given cell doesn't exist
+		-given cell exists on another process
+	*/
+	void unpin(const uint64_t cell)
+	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
+		if (this->cell_process.at(cell) != this->comm.rank()) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		if (this->pin_requests.count(cell) > 0) {
+			this->new_pin_requests[cell] = -1;
+		} else {
+			this->new_pin_requests.erase(cell);
+		}
+	}
+
+
 
 private:
 
@@ -2187,6 +2307,11 @@ private:
 	// stores user data of cells that were removed while unrefining
 	boost::unordered_map<uint64_t, UserData> unrefined_cell_data;
 
+	// cell that should be kept on a particular process
+	boost::unordered_map<uint64_t, int> pin_requests;
+	// pin requests given since that last time load was balanced
+	boost::unordered_map<uint64_t, int> new_pin_requests;
+
 	// variables for load balancing using Zoltan
 	Zoltan_Struct* zoltan;
 	// number of processes per part in a hierarchy level (numbering starts from 0)
@@ -2197,6 +2322,50 @@ private:
 	bool no_load_balancing;
 	// reserved options that the user cannot change
 	boost::unordered_set<std::string> reserved_options;
+
+
+	/*!
+	Updates user pin requests globally based on new_pin_requests.
+
+	Must be called simultaneously on all processes.
+	*/
+	void update_pin_requests(void)
+	{
+		std::vector<uint64_t> new_pinned_cells, new_pinned_processes;
+
+		new_pinned_cells.reserve(this->new_pin_requests.size());
+		new_pinned_processes.reserve(this->new_pin_requests.size());
+		for (auto item = this->new_pin_requests.cbegin(); item != this->new_pin_requests.cend(); item++) {
+			new_pinned_cells.push_back(item->first);
+			new_pinned_processes.push_back(item->second);
+		}
+
+		std::vector<std::vector<uint64_t> > all_new_pinned_cells, all_new_pinned_processes;
+		all_gather(this->comm, new_pinned_cells, all_new_pinned_cells);
+		all_gather(this->comm, new_pinned_processes, all_new_pinned_processes);
+
+		for (int process = 0; process < int(all_new_pinned_cells.size()); process++) {
+			for (unsigned int i = 0; i < all_new_pinned_cells[process].size(); i++) {
+
+				const int requested_process = all_new_pinned_processes[process][i];
+
+				if (requested_process == -1) {
+					this->pin_requests.erase(all_new_pinned_cells[process][i]);
+				} else {
+					this->pin_requests[all_new_pinned_cells[process][i]] = requested_process;
+				}
+
+				#ifndef NDEBUG
+				if (this->cell_process.at(all_new_pinned_cells[process][i]) != process) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Process " << process << " tried pin cell " << all_new_pinned_cells[process][i] << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				#endif
+			}
+		}
+
+		this->new_pin_requests.clear();
+	}
 
 
 	/*!
@@ -2567,6 +2736,13 @@ private:
 				this->remote_cells_with_local_neighbours.insert(*neighbour_to);
 			}
 		}
+
+		#ifndef NDEBUG
+		if (!this->verify_remote_neighbour_info(cell)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info for cell " << cell << " is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 	}
 
 
@@ -2588,6 +2764,13 @@ private:
 			}
 
 			this->update_remote_neighbour_info(cell->first);
+
+			#ifndef NDEBUG
+			if (!this->verify_remote_neighbour_info(cell->first)) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info for cell " << cell->first << " is not consistent" << std::endl;
+				exit(EXIT_FAILURE);
+			}
+			#endif
 		}
 
 		#ifndef NDEBUG
@@ -3044,6 +3227,20 @@ private:
 				}
 			}
 
+			// children of refined cells inherit their pin request status
+			if (this->pin_requests.count(*refined) > 0) {
+				for (auto child = children.cbegin(); child != children.cend(); child++) {
+					this->pin_requests[*child] = this->pin_requests.at(*refined);
+				}
+				this->pin_requests.erase(*refined);
+			}
+			if (this->new_pin_requests.count(*refined) > 0) {
+				for (auto child = children.cbegin(); child != children.cend(); child++) {
+					this->new_pin_requests[*child] = this->new_pin_requests.at(*refined);
+				}
+				this->new_pin_requests.erase(*refined);
+			}
+
 			// use local neighbour lists to find cells whose neighbour lists have to updated
 			if (process_of_refined == this->comm.rank()) {
 				// update the neighbour lists of created local cells
@@ -3111,6 +3308,8 @@ private:
 			// remove unrefined cells and their siblings from the grid, but don't remove user data yet
 			this->cell_process.erase(*unrefined);
 			update_neighbours.erase(*unrefined);
+			this->pin_requests.erase(*unrefined);
+			this->new_pin_requests.erase(*unrefined);
 
 			// don't send unrefined cells' user data to self
 			if (this->comm.rank() == process_of_unrefined
@@ -4339,6 +4538,43 @@ private:
 
 
 	/*!
+	Returns false if remote neighbour info for given cell is inconsistent.
+
+	Remote neighbour info consists of cells_with_remote_neighbours and remote_cells_with_local_neighbours.
+	*/
+	bool verify_remote_neighbour_info(const uint64_t cell)
+	{
+		if (!this->verify_neighbours(cell)) {
+			return false;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return true;
+		}
+
+		std::vector<uint64_t> all_neighbours(this->neighbours.at(cell).cbegin(), this->neighbours.at(cell).cend());
+		all_neighbours.insert(all_neighbours.end(), this->neighbours_to.at(cell).cbegin(), this->neighbours_to.at(cell).cend());
+
+		for (auto neighbour = all_neighbours.cbegin(); neighbour != all_neighbours.cend(); neighbour++) {
+			if (this->cell_process.at(*neighbour) != this->comm.rank()) {
+
+				if (this->cells_with_remote_neighbours.count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Local cell " << cell << " should be in cells_with_remote_neighbours" << std::endl;
+					return false;
+				}
+
+				if (this->remote_cells_with_local_neighbours.count(*neighbour) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Remote cell " << *neighbour << " should be in remote_cells_with_local_neighbours" << std::endl;
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+
+	/*!
 	Returns false if remote neighbour info on this process is inconsistent.
 
 	Remote neighbour info consists of cells_with_remote_neighbours and remote_cells_with_local_neighbours.
@@ -4357,6 +4593,11 @@ private:
 				bool should_be_in_remote_cells = false;
 
 				for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+
+					if (cell->first != this->get_child(cell->first)) {
+						continue;
+					}
+
 					if (this->is_neighbour(item->first, cell->first)
 					|| this->is_neighbour(cell->first, item->first)) {
 						should_be_in_remote_cells = true;
@@ -4449,6 +4690,22 @@ private:
 			if (item->second != this->comm.rank()
 			&& this->cells.count(item->first) > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " User data for local cell " << item->first << " shouldn't exist" << std::endl;
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns true if all cells are where pin reqests should have placed them.
+	*/
+	bool pin_requests_succeeded(void)
+	{
+		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
+			if (this->cell_process.at(pin_request->first) != pin_request->second) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << pin_request->first << " not at requested process " << pin_request->second << " but at " << this->cell_process.at(pin_request->first) << std::endl;
 				return false;
 			}
 		}

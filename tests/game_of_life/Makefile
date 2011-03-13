@@ -2,7 +2,7 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-all: game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d hierarchial_test
+all: game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d hierarchial_test pinned_cells
 
 game_of_life_test_all_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells
@@ -37,6 +37,9 @@ refined_scalability3d: refined_scalability3d.cpp ../../dccrg.hpp Makefile
 hierarchial_test: hierarchial_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) hierarchial_test.cpp $(INCLUDES) -o hierarchial_test
 
+pinned_cells: pinned_cells.cpp ../../dccrg.hpp Makefile
+	$(CXX) pinned_cells.cpp $(INCLUDES) -o pinned_cells
+
 c: clean
 clean:
-	rm -f game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d hierarchial_test *vtk *visit
+	rm -f game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d hierarchial_test pinned_cells *vtk *visit
