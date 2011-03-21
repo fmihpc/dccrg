@@ -495,6 +495,27 @@ public:
 
 
 	/*!
+	Returns all cells in the grid that don't have children (e.g. leaf cells)
+	*/
+	std::vector<uint64_t> get_all_cells(void) const
+	{
+		std::vector<uint64_t> all_cells;
+		all_cells.reserve(this->cell_process.size());
+
+		for (auto item = this->cell_process.cbegin(); item != this->cell_process.cend(); item++) {
+
+			const uint64_t child = this->get_child(item->first);
+
+			if (child == item->first) {
+				all_cells.push_back(item->first);
+			}
+		}
+
+		return all_cells;
+	}
+
+
+	/*!
 	Returns a pointer to the user supplied data of given cell
 	Return NULL if the given cell isn't on this process and if the given cell isn't a neighbour of any cell on this process
 	*/
