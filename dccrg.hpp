@@ -726,14 +726,6 @@ public:
 			removed_cells.insert(global_ids_to_send[i]);
 		}
 
-		this->start_user_data_transfers(
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-		this->cells
-		#endif
-		);
-
-		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
-
 		/*
 		Calculate where cells have migrated to update internal data structures
 		Any cell can end up on any process and any neighbour of any cell can end up on yet another process
@@ -748,6 +740,15 @@ public:
 		std::vector<uint64_t> temp_added_cells(added_cells.begin(), added_cells.end());
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
+
+
+		this->start_user_data_transfers(
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+		this->cells
+		#endif
+		);
+
+		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
 
 		#ifndef NDEBUG
 		// check that there are no duplicate adds / removes
