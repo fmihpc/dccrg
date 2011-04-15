@@ -38,7 +38,7 @@ hierarchial_test: hierarchial_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) hierarchial_test.cpp $(INCLUDES) -o hierarchial_test
 
 pinned_cells: pinned_cells.cpp ../../dccrg.hpp Makefile
-	$(CXX) pinned_cells.cpp $(INCLUDES) -o pinned_cells
+	$(CXX) -DDEBUG pinned_cells.cpp $(INCLUDES) -o pinned_cells
 
 c: clean
 clean:

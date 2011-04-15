@@ -2183,9 +2183,10 @@ public:
 	Given cell is sent to the given process and kept there during subsequent load balancing.
 
 	Does nothing in the following cases:
-		-given cell has children
 		-given cell doesn't exist
 		-given cell exists on another process
+		-given cell has children
+		-given process doesn't exist
 	*/
 	void pin(const uint64_t cell, const int process)
 	{
@@ -2198,6 +2199,10 @@ public:
 		}
 
 		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		if (process < 0 || process >= this->comm.size()) {
 			return;
 		}
 
@@ -2237,6 +2242,51 @@ public:
 		} else {
 			this->new_pin_requests.erase(cell);
 		}
+	}
+
+	/*!
+	Executes unpin(cell) for all cells on this process.
+	*/
+	void unpin_local_cells(void)
+	{
+		#ifdef DEBUG
+		// check that all child cells on this process are also in this->cells.
+		for (auto i = this->cell_process.cbegin(); i != this->cell_process.cend(); i++) {
+			const uint64_t cell = i->first;
+
+			if (this->cell_process.at(cell) != this->comm.rank()) {
+				return;
+			}
+
+			if (cell == this->get_child(cell)) {
+				if (this->cells.count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " should be in this->cells of process " << this->comm.rank() << std::endl;
+					abort();
+				}
+			} else {
+				if (this->cells.count(cell) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't be in this->cells of process " << this->comm.rank() << std::endl;
+					abort();
+				}
+			}
+		}
+		#endif
+
+		for (auto i = this->cells.cbegin(); i != this->cells.cend(); i++) {
+			this->unpin(i->first);
+		}
+	}
+
+	/*!
+	Allows all cells of all processes to be moved to another process during subsequent load balancing.
+
+	Must be called simultaneously on all processes.
+	*/
+	void unpin_all_cells(void)
+	{
+		this->comm.barrier();
+		this->new_pin_requests.clear();
+		this->pin_requests.clear();
 	}
 
 
