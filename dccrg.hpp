@@ -3599,62 +3599,106 @@ private:
 		#endif
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
-		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
+		for (auto sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (sender->first == this->comm.rank()
 			&& sender->second.size() > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
-				exit(EXIT_FAILURE);
+				abort();
 			}
 			#endif
 
 			std::sort(sender->second.begin(), sender->second.end());
-			for (std::vector<uint64_t>::const_iterator cell = sender->second.begin(); cell != sender->second.end(); cell++) {
+			for (auto cell = sender->second.cbegin(); cell != sender->second.cend(); cell++) {
 
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->receive_requests[sender->first].push_back(MPI_Request());
 
+				// FIXME: make sure message tags between two processes are unique
+
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Irecv(destination[*cell].at(), 1, data_type, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->receive_requests[sender->first].back()));
+				MPI_Irecv(
+					destination[*cell].at(),
+					UserData::size(),
+					data_type,
+					sender->first,
+					*cell % boost::mpi::environment::max_tag(),
+					this->comm,
+					&(this->receive_requests[sender->first].back())
+				);
 				#else
-				MPI_Irecv(destination[*cell].at(), UserData::size(), MPI_BYTE, sender->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->receive_requests[sender->first].back()));
+				MPI_Irecv(
+					destination[*cell].at(),
+					UserData::size(),
+					MPI_BYTE,
+					sender->first,
+					*cell % boost::mpi::environment::max_tag(),
+					this->comm,
+					&(this->receive_requests[sender->first].back())
+				);
 				#endif
 
 				#else
 
-				this->receive_requests[sender->first].push_back(this->comm.irecv(sender->first, *cell % boost::mpi::environment::max_tag(), destination[*cell]));	// FIXME: make sure message tags between two processes are unique
-
+				this->receive_requests[sender->first].push_back(
+					this->comm.irecv(
+						sender->first,
+						*cell % boost::mpi::environment::max_tag(),
+						destination[*cell]
+					)
+				);
 				#endif
 			}
 		}
 
 		// post all sends
-		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
+		for (auto receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (receiver->first == this->comm.rank()
 			&& receiver->second.size() > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
-				exit(EXIT_FAILURE);
+				abort();
 			}
 			#endif
 
 			std::sort(receiver->second.begin(), receiver->second.end());
-			for (std::vector<uint64_t>::const_iterator cell = receiver->second.begin(); cell != receiver->second.end(); cell++) {
+			for (auto cell = receiver->second.cbegin(); cell != receiver->second.cend(); cell++) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->send_requests[receiver->first].push_back(MPI_Request());
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Isend(this->cells.at(*cell).at(), 1, data_type, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->send_requests[receiver->first].back()));
+				MPI_Isend(
+					this->cells.at(*cell).at(),
+					UserData::size(),
+					data_type,
+					receiver->first,
+					*cell % boost::mpi::environment::max_tag(),
+					this->comm,
+					&(this->send_requests[receiver->first].back())
+				);
 				#else
-				MPI_Isend(this->cells.at(*cell).at(), UserData::size(), MPI_BYTE, receiver->first, *cell % boost::mpi::environment::max_tag(), this->comm, &(this->send_requests[receiver->first].back()));
+				MPI_Isend(
+					this->cells.at(*cell).at(),
+					UserData::size(),
+					MPI_BYTE,
+					receiver->first,
+					*cell % boost::mpi::environment::max_tag(),
+					this->comm,
+					&(this->send_requests[receiver->first].back())
+				);
 				#endif
 
 				#else
 
-				this->send_requests[receiver->first].push_back(this->comm.isend(receiver->first, *cell % boost::mpi::environment::max_tag(), this->cells.at(*cell)));
-
+				this->send_requests[receiver->first].push_back(
+					this->comm.isend(
+						receiver->first,
+						*cell % boost::mpi::environment::max_tag(),
+						this->cells.at(*cell)
+					)
+				);
 				#endif
 			}
 		}
@@ -3680,7 +3724,13 @@ private:
 
 			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
 
-			this->receive_requests.push_back(this->comm.irecv(sender, send_receive_tag, this->incoming_data[sender]));
+			this->receive_requests.push_back(
+				this->comm.irecv(
+					sender,
+					send_receive_tag,
+					this->incoming_data[sender]
+				)
+			);
 		}
 
 		// gather all data to send
@@ -3698,7 +3748,7 @@ private:
 
 			std::sort(this->cells_to_send.at(receiver).begin(), this->cells_to_send.at(receiver).end());
 			// construct the outgoing data vector
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_send[receiver].begin(); cell != this->cells_to_send[receiver].end(); cell++) {
+			for (auto cell = this->cells_to_send[receiver].cbegin(); cell != this->cells_to_send[receiver].cend(); cell++) {
 				UserData* user_data = (*this)[*cell];
 				assert(user_data != NULL);
 				this->outgoing_data[receiver].push_back(*user_data);
@@ -3720,7 +3770,13 @@ private:
 
 			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
 
-			this->send_requests.push_back(this->comm.isend(receiver, send_receive_tag, this->outgoing_data[receiver]));
+			this->send_requests.push_back(
+				this->comm.isend(
+					receiver,
+					send_receive_tag,
+					this->outgoing_data[receiver]
+				)
+			);
 		}
 		#endif // ifdef DCCRG_SEND_SINGLE_CELLS
 	}
@@ -3741,7 +3797,7 @@ private:
 
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
+		for (auto process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
 
 			std::vector<MPI_Status> statuses;
 			statuses.resize(process->second.size());
@@ -3758,7 +3814,7 @@ private:
 
 		#else
 
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
+		for (auto process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
 		this->receive_requests.clear();
@@ -3771,14 +3827,18 @@ private:
 		this->receive_requests.clear();
 
 		// incorporate received data
-		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator sender = this->incoming_data.begin(); sender != this->incoming_data.end(); sender++) {
+		for (auto sender = this->incoming_data.cbegin(); sender != this->incoming_data.cend(); sender++) {
 
 			assert(this->incoming_data.at(sender->first).size() == this->cells_to_receive.at(sender->first).size());
 
 			std::sort(this->cells_to_receive.at(sender->first).begin(), this->cells_to_receive.at(sender->first).end());
 
 			int i = 0;
-			for (std::vector<uint64_t>::const_iterator cell = this->cells_to_receive.at(sender->first).begin(); cell != this->cells_to_receive.at(sender->first).end(); cell++, i++) {
+			for (
+				auto cell = this->cells_to_receive.at(sender->first).cbegin();
+				cell != this->cells_to_receive.at(sender->first).cend();
+				cell++, i++
+			) {
 				// TODO move data instead of copying
 				destination[*cell] = this->incoming_data.at(sender->first)[i];
 			}
@@ -3798,7 +3858,7 @@ private:
 
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
+		for (auto process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
 
 			std::vector<MPI_Status> statuses;
 			statuses.resize(process->second.size());
@@ -3815,7 +3875,7 @@ private:
 
 		#else
 
-		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
+		for (auto process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
 		this->send_requests.clear();
