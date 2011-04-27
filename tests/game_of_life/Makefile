@@ -11,7 +11,7 @@ game_of_life_test_single_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_single_cells
 
 game_of_life_user_data_size: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
+	$(CXX) -DDEBUG game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
 
 scalability: scalability.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DNDEBUG scalability.cpp $(INCLUDES) -o scalability

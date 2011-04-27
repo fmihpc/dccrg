@@ -11,6 +11,8 @@ Tests the grid with some simple game of life patters using cell data of fixed si
 #include "zoltan.h"
 
 #define DCCRG_ARBITRARY_STRETCH
+#define DCCRG_SEND_SINGLE_CELLS
+#define DCCRG_CELL_DATA_SIZE_FROM_USER
 #include "../../dccrg.hpp"
 
 struct game_of_life_cell {
@@ -26,11 +28,6 @@ struct game_of_life_cell {
 	static size_t size(void)
 	{
 		return sizeof(game_of_life_cell);
-	}
-
-	// load balancing and refining code still always uses boost for sends
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & data[0];
 	}
 };
 
