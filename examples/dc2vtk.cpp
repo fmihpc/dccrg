@@ -121,9 +121,8 @@ int main(int argc, char* argv[])
 				cerr << "Couldn't read is_alive for cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
-			cout << cell << ": " << uint16_t(is_alive) << "; ";
 
-			//cout << "cell " << cell << ", is_alive " << is_alive << endl;
+			//cout << "cell " << cell << ", is_alive " << uint16_t(is_alive) << endl;
 			game_data[cell] = is_alive;
 		} while (result == 1);
 		cout << endl;

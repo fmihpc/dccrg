@@ -364,7 +364,7 @@ public:
 			this->neighbours[cell->first] = this->find_neighbours_of(cell->first);
 			this->neighbours_to[cell->first] = this->find_neighbours_to(cell->first);
 		}
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_neighbours()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour lists are inconsistent" << std::endl;
 			// TODO: throw an exception instead when debugging?
@@ -375,7 +375,7 @@ public:
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
 			this->update_remote_neighbour_info(cell->first);
 		}
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_remote_neighbour_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
 			exit(EXIT_FAILURE);
@@ -398,7 +398,7 @@ public:
 
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (this->cell_process.count(cell->first) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell->first << " shouldn't exist" << std::endl;
 				exit(EXIT_FAILURE);
@@ -859,7 +859,7 @@ public:
 	const std::vector<uint64_t>* get_neighbours(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (this->neighbours.count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->comm.rank() << ": Neighbour list for cell " << cell << " doesn't exist" << std::endl;
 				exit(EXIT_FAILURE);
@@ -879,7 +879,7 @@ public:
 	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (this->neighbours_to.count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbours_to list for cell " << cell << " doesn't exist" << std::endl;
 				exit(EXIT_FAILURE);
@@ -1441,7 +1441,7 @@ public:
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
 		const int refinement_level = this->get_refinement_level(cell);
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (refinement_level > this->max_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
 			exit(EXIT_FAILURE);
@@ -1521,7 +1521,7 @@ public:
 			// largest cell cannot have neighbours_to
 			return return_neighbours;
 		}
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (refinement_level > this->max_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
 			exit(EXIT_FAILURE);
@@ -1546,7 +1546,7 @@ public:
 		// search neighbours in cells of the same size as the given cell's parent (times neighbourhood size)
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (refinement_level > this->max_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
 			exit(EXIT_FAILURE);
@@ -1622,7 +1622,7 @@ public:
 		const int maximum_refinement_level
 	) const
 	{
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (minimum_refinement_level > maximum_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement levels given" << std::endl;
 			exit(EXIT_FAILURE);
@@ -1721,7 +1721,7 @@ public:
 
 					const uint64_t neighbour = this->get_cell_from_indices(x, y, z, minimum_refinement_level, maximum_refinement_level);
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (neighbour == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " No neighbour found between refinement levels [" << minimum_refinement_level << ", " << maximum_refinement_level << "] at indices " << x << " " << y << " " << z << std::endl;
 						const uint64_t smallest = this->get_cell_from_indices(x, y, z, minimum_refinement_level, maximum_refinement_level);
@@ -1920,7 +1920,7 @@ public:
 	void set_partitioning_option(const std::string name, const std::string value)
 	{
 		if (this->reserved_options.count(name) > 0) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << "User tried to set an option reserved for dccrg (" << name << ": " << value << ")" << std::endl;
 			#endif
 			return;
@@ -1939,7 +1939,7 @@ public:
 	void add_partitioning_level(const int processes)
 	{
 		if (processes < 1) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << "User tried to assign " << processes << " processes per part for a new hierarchial partitioning level" << std::endl;
 			#endif
 			return;
@@ -1989,7 +1989,7 @@ public:
 		}
 
 		if (this->reserved_options.count(name) > 0) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << "User tried to set an option reserved for dccrg (" << name << ": " << value << ") for level " << hierarchial_partitioning_level << " of hierarchial partitioning" << std::endl;
 			#endif
 			return;
@@ -2492,7 +2492,7 @@ private:
 					this->pin_requests[all_new_pinned_cells[process][i]] = requested_process;
 				}
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (this->cell_process.at(all_new_pinned_cells[process][i]) != process) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Process " << process << " tried pin cell " << all_new_pinned_cells[process][i] << std::endl;
 					exit(EXIT_FAILURE);
@@ -2572,7 +2572,7 @@ private:
 	{
 		const uint64_t parent = this->get_parent(cell);
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (cell == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given: " << cell << std::endl;
 			exit(EXIT_FAILURE);
@@ -2614,7 +2614,7 @@ private:
 		// use given cell's parent's neighbour lists
 		if (cell_result_of_refining) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (this->neighbours.count(parent) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list of cell's " << cell << " parent " << this->get_parent(cell) << " doesn't exist" << std::endl;
 				exit(EXIT_FAILURE);
@@ -2634,7 +2634,7 @@ private:
 				if (*sibling != cell) {
 					old_neighbours.push_back(*sibling);
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (*sibling == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " Invalid sibling" << std::endl;
 						exit(EXIT_FAILURE);
@@ -2646,7 +2646,7 @@ private:
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(parent).begin(); neighbour != this->neighbours.at(parent).end(); neighbour++) {
 				old_neighbours.push_back(*neighbour);
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (*neighbour == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Invalid neighbour for parent of cell " << cell << std::endl;
 					exit(EXIT_FAILURE);
@@ -2657,7 +2657,7 @@ private:
 			for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(parent).begin(); neighbour_to != this->neighbours_to.at(parent).end(); neighbour_to++) {
 				old_neighbours.push_back(*neighbour_to);
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (*neighbour_to == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Invalid neighbour_to for parent of cell " << cell << std::endl;
 					exit(EXIT_FAILURE);
@@ -2668,7 +2668,7 @@ private:
 		// use given cell's neighbour lists
 		} else {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (this->neighbours.count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list of cell " << cell << " doesn't exist" << std::endl;
 				exit(EXIT_FAILURE);
@@ -2683,7 +2683,7 @@ private:
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 				old_neighbours.push_back(*neighbour);
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (*neighbour == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Invalid neighbour for cell " << cell << std::endl;
 					exit(EXIT_FAILURE);
@@ -2694,7 +2694,7 @@ private:
 			for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(cell).begin(); neighbour_to != this->neighbours_to.at(cell).end(); neighbour_to++) {
 				old_neighbours.push_back(*neighbour_to);
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (*neighbour_to == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Invalid neighbour_to for cell " << cell << std::endl;
 					exit(EXIT_FAILURE);
@@ -2711,7 +2711,7 @@ private:
 
 		for (std::vector<uint64_t>::const_iterator old_neighbour = old_neighbours.begin(); old_neighbour != old_neighbours.end(); old_neighbour++) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (*old_neighbour == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid old neighbour for cell " << cell << std::endl;
 				exit(EXIT_FAILURE);
@@ -2731,7 +2731,7 @@ private:
 			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
 				if (this->cells_to_unrefine.count(*sibling) > 0) {
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (this->cell_process.count(*sibling) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *sibling << " shouldn't exist" << std::endl;
 						exit(EXIT_FAILURE);
@@ -2744,7 +2744,7 @@ private:
 			}
 
 			if (add_parent) {
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (this->cells_to_refine.count(*old_neighbour) > 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Old neighbour " << *old_neighbour << " was refined and it or its sibling was also unrefined" << std::endl;
 					exit(EXIT_FAILURE);
@@ -2759,7 +2759,7 @@ private:
 			if (this->cells_to_refine.count(*old_neighbour) == 0) {
 				neighbour_candidates.insert(*old_neighbour);
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (this->cell_process.count(*old_neighbour) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Old neighbour " << *old_neighbour << " doesn't exist but was supposed to have been refined" << std::endl;
 					exit(EXIT_FAILURE);
@@ -2777,7 +2777,7 @@ private:
 				std::vector<uint64_t> children = this->get_all_children(*old_neighbour);
 				neighbour_candidates.insert(children.begin(), children.end());
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
 					if (this->cell_process.count(*child) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *child << " doesn't exist" << std::endl;
@@ -2796,7 +2796,7 @@ private:
 		// don't include self as a neighbour candidate
 		neighbour_candidates.erase(cell);
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (neighbour_candidates.count(0) > 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell in neighbour candidates" << std::endl;
 			exit(EXIT_FAILURE);
@@ -2811,7 +2811,7 @@ private:
 				this->neighbours_to[cell].push_back(*candidate);
 			}
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (*candidate != this->get_child(*candidate)) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour candidate " << *candidate << " of cell " << cell << " has children" << std::endl;
 				exit(EXIT_FAILURE);
@@ -2819,7 +2819,7 @@ private:
 			#endif
 		}
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_neighbours(cell)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour update failed for cell " << cell << " (child of " << this->get_parent(cell) << ")" << std::endl;
 			exit(EXIT_FAILURE);
@@ -2847,7 +2847,7 @@ private:
 		// TODO: also update remote_cells_with_local_neighbours
 		this->cells_with_remote_neighbours.erase(cell);
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (this->neighbours.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list for cell " << cell << " doesn't exist" << std::endl;
 			exit(EXIT_FAILURE);
@@ -2874,7 +2874,7 @@ private:
 			}
 		}
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_remote_neighbour_info(cell)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info for cell " << cell << " is not consistent" << std::endl;
 			exit(EXIT_FAILURE);
@@ -2902,7 +2902,7 @@ private:
 
 			this->update_remote_neighbour_info(cell->first);
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (!this->verify_remote_neighbour_info(cell->first)) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info for cell " << cell->first << " is not consistent" << std::endl;
 				exit(EXIT_FAILURE);
@@ -2910,7 +2910,7 @@ private:
 			#endif
 		}
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_remote_neighbour_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
 			exit(EXIT_FAILURE);
@@ -2924,7 +2924,7 @@ private:
 	*/
 	std::vector<uint64_t> find_neighbours_of_parent(const uint64_t cell) const
 	{
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (cell == 0
 		|| cell > this->max_cell_number) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
@@ -2939,7 +2939,7 @@ private:
 		}
 
 		const uint64_t parent = this->get_parent(cell);	// TODO just use find_neighbours_of(parent)?
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (parent == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent for cell " << cell << std::endl;
 			exit(EXIT_FAILURE);
@@ -2954,7 +2954,7 @@ private:
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
 		const int refinement_level = this->get_refinement_level(parent);
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (refinement_level > this->max_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << parent << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
 			exit(EXIT_FAILURE);
@@ -3091,7 +3091,7 @@ private:
 				// refine local neighbours that are too large
 				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*refined].begin(); neighbour != this->neighbours[*refined].end(); neighbour++) {
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (this->cell_process.count(*neighbour) == 0) {
 						std::cerr << "Process " << this->comm.rank() << ": Cell " << *refined << " had a non-existing neighbour in neighbour list: " << *neighbour << std::endl;
 					}
@@ -3109,7 +3109,7 @@ private:
 				}
 				for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to[*refined].begin(); neighbour_to != this->neighbours_to[*refined].end(); neighbour_to++) {
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (this->cell_process.count(*neighbour_to) == 0) {
 						std::cerr << "Process " << this->comm.rank() << ": Cell " << *refined << " had a non-existing neighbour in neighbour list: " << *neighbour_to << std::endl;
 					}
@@ -3167,7 +3167,7 @@ private:
 			this->cells_to_refine.insert(all_refines[process].begin(), all_refines[process].end());
 		}
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		// check that all required refines have been induced
 		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
 
@@ -3216,7 +3216,7 @@ private:
 
 		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (*unrefined == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell to unrefine" << std::endl;
 				exit(EXIT_FAILURE);
@@ -3265,7 +3265,7 @@ private:
 			this->cells_to_unrefine.insert(all_unrefines[process].begin(), all_unrefines[process].end());
 		}
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->is_consistent()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
 			exit(EXIT_FAILURE);
@@ -3283,7 +3283,7 @@ private:
 	*/
 	std::vector<uint64_t> execute_refines(void)
 	{
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_remote_neighbour_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
 			exit(EXIT_FAILURE);
@@ -3305,7 +3305,7 @@ private:
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		// check that cells_to_refine is identical between processes
 		std::vector<uint64_t> ordered_cells_to_refine(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		sort(ordered_cells_to_refine.begin(), ordered_cells_to_refine.end());
@@ -3384,7 +3384,7 @@ private:
 				for (std::vector<uint64_t>::const_iterator child = children.begin(); child != children.end(); child++) {
 						update_neighbours.insert(*child);
 
-						#ifndef NDEBUG
+						#ifdef DEBUG
 						if (this->neighbours.count(*child) > 0) {
 							std::cerr << __FILE__ << ":" << __LINE__ << " Neighbours for cell " << *child << " shouldn't exist yet" << std::endl;
 							exit(EXIT_FAILURE);
@@ -3422,7 +3422,7 @@ private:
 		for (boost::unordered_set<uint64_t>::const_iterator unrefined = this->cells_to_unrefine.begin(); unrefined != this->cells_to_unrefine.end(); unrefined++) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(*unrefined);
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (parent_of_unrefined == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
 				exit(EXIT_FAILURE);
@@ -3510,7 +3510,7 @@ private:
 		for (boost::unordered_set<uint64_t>::const_iterator refined = this->cells_to_refine.begin(); refined != this->cells_to_refine.end(); refined++) {
 			if (this->cell_process.at(*refined) == this->comm.rank()) {
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (this->neighbours.count(*refined) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour list for cell " << *refined << " doesn't exist" << std::endl;
 					exit(EXIT_FAILURE);
@@ -3536,7 +3536,7 @@ private:
 
 		this->update_remote_neighbour_info();
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_neighbours()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour lists are inconsistent" << std::endl;
 			exit(EXIT_FAILURE);
@@ -3552,7 +3552,7 @@ private:
 		this->cells_to_send.clear();
 		this->cells_to_receive.clear();
 
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (!this->verify_user_data()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
 			exit(EXIT_FAILURE);
@@ -4009,7 +4009,7 @@ private:
 	*/
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (index1 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)
 		&& index1 >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)
 		&& index1 >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
@@ -4131,28 +4131,28 @@ private:
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level) const
 	{
 		if (x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell for x index " << x_index << std::endl;
 			#endif
 			return 0;
 		}
 
 		if (y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell for y index " << y_index << std::endl;
 			#endif
 			return 0;
 		}
 
 		if (z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell for z index " << z_index << std::endl;
 			#endif
 			return 0;
 		}
 
 		if (minimum_refinement_level > maximum_refinement_level) {
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell because of refinement levels: " << minimum_refinement_level << " > " << maximum_refinement_level << std::endl;
 			#endif
 			return 0;
@@ -4168,7 +4168,7 @@ private:
 
 				uint64_t smaller_refinement_value_cell = this->get_cell_from_indices(x_index, y_index, z_index, minimum_refinement_level, average_refinement_level - 1);
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (this->cell_process.count(smaller_refinement_value_cell) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell: " << smaller_refinement_value_cell << std::endl;
 					exit(EXIT_FAILURE);
@@ -4190,7 +4190,7 @@ private:
 
 				if (larger_refinement_value_cell > 0) {
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (this->cell_process.count(larger_refinement_value_cell) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell: " << larger_refinement_value_cell << std::endl;
 						exit(EXIT_FAILURE);
@@ -4203,7 +4203,7 @@ private:
 
 					// current cell has the largest refinement value at given indices
 
-					#ifndef NDEBUG
+					#ifdef DEBUG
 					if (this->cell_process.count(id) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell: " << id << std::endl;
 						exit(EXIT_FAILURE);
@@ -4215,7 +4215,7 @@ private:
 			} else {
 				// nothing left to search
 
-				#ifndef NDEBUG
+				#ifdef DEBUG
 				if (this->cell_process.count(id) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell: " << id << std::endl;
 					exit(EXIT_FAILURE);
@@ -4234,7 +4234,7 @@ private:
 	 */
 	std::vector<uint64_t> get_all_children(const uint64_t id) const
 	{
-		#ifndef NDEBUG
+		#ifdef DEBUG
 		if (id == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			exit(EXIT_FAILURE);
@@ -4331,7 +4331,7 @@ private:
 		int i = 0;
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
 
-			#ifndef NDEBUG
+			#ifdef DEBUG
 			if (cell->first == 0) {
 				std::cerr << "User data exist for an illegal cell" << std::endl;
 				exit(EXIT_FAILURE);
@@ -4566,7 +4566,7 @@ private:
 
 
 
-	#ifndef NDEBUG
+	#ifdef DEBUG
 	/*!
 	Returns false if the same cells don't exist on the same process for all processes.
 	*/

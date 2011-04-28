@@ -1,22 +1,23 @@
-EXTRA_WARNINGS = -ansi -Winit-self -Wswitch-enum -Wunused-parameter  -Wformat=2  -Wshadow -Wconversion -Wcast-align -Wconversion -Wsign-conversion -Wlogical-op -Wmissing-declarations -Wpacked -Wpadded -Wredundant-decls -Wunreachable-code -Winline -Winvalid-pch -Wdisabled-optimization -Wfatal-errors 
-FLAGS = -O3 -W -Wall -Wextra -pedantic -DNDEBUG -std=c++0x #$(EXTRA_WARNINGS)
-#FLAGS = -O0 -W -Wall -Wextra -pedantic
+EXTRA_WARNINGS = -ansi -Winit-self -Wswitch-enum -Wunused-parameter  -Wformat=2  -Wshadow -Wconversion -Wcast-align -Wsign-conversion -Wlogical-op -Wmissing-declarations -Wpacked -Wpadded -Wredundant-decls -Wunreachable-code -Winline -Winvalid-pch -Wdisabled-optimization -Wfatal-errors 
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x #$(EXTRA_WARNINGS)
+#FLAGS = -O0 -g -W -Wall -Wextra -pedantic -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
-CXX = mpic++ $(FLAGS)
+MPICXX = mpic++ $(FLAGS)
+CXX = g++ $(FLAGS)
 
 all: simple_game_of_life game_of_life game_of_life_with_output dc2vtk
 
 game_of_life: game_of_life.cpp ../dccrg.hpp Makefile
-	$(CXX) game_of_life.cpp $(INCLUDES) -o game_of_life
+	$(MPICXX) game_of_life.cpp $(INCLUDES) -o game_of_life
 
 simple_game_of_life: simple_game_of_life.cpp ../dccrg.hpp Makefile
-	$(CXX) simple_game_of_life.cpp $(INCLUDES) -o simple_game_of_life
+	$(MPICXX) simple_game_of_life.cpp $(INCLUDES) -o simple_game_of_life
 
 game_of_life_with_output: game_of_life_with_output.cpp ../dccrg.hpp Makefile
-	$(CXX) game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
+	$(MPICXX) game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
 
 dc2vtk: dc2vtk.cpp ../dccrg.hpp Makefile
-	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
+	$(CXX) dc2vtk.cpp -o dc2vtk
 
 c: clean
 clean:

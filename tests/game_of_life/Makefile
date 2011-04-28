@@ -32,13 +32,13 @@ game_of_life_user_datatype: game_of_life_user_data_size.cpp ../../dccrg.hpp Make
 	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_datatype
 
 scalability: scalability.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DNDEBUG scalability.cpp $(INCLUDES) -o scalability
+	$(CXX) scalability.cpp $(INCLUDES) -o scalability
 
 scalability3d: scalability3d.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DNDEBUG scalability3d.cpp $(INCLUDES) -o scalability3d
+	$(CXX) scalability3d.cpp $(INCLUDES) -o scalability3d
 
 scalability1d: scalability1d.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DNDEBUG scalability1d.cpp $(INCLUDES) -o scalability1d
+	$(CXX) scalability1d.cpp $(INCLUDES) -o scalability1d
 
 refined: refined.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDEBUG refined.cpp $(INCLUDES) -o refined
@@ -50,7 +50,7 @@ unrefined2d: unrefined2d.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) -o unrefined2d
 
 refined_scalability3d: refined_scalability3d.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DNDEBUG refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d
+	$(CXX) refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d
 
 hierarchial_test: hierarchial_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDEBUG hierarchial_test.cpp $(INCLUDES) -o hierarchial_test
@@ -61,3 +61,4 @@ pinned_cells: pinned_cells.cpp ../../dccrg.hpp Makefile
 c: clean
 clean:
 	rm -f $(PROGRAMS) *.vtk *visit
+
