@@ -3594,8 +3594,8 @@ private:
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
 		#ifdef DCCRG_USER_MPI_DATA_TYPE
-		MPI_Datatype data_type = UserData::mpi_data_type();
-		MPI_Type_commit(&data_type);
+		MPI_Datatype user_datatype = UserData::mpi_datatype();
+		MPI_Type_commit(&user_datatype);
 		#endif
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
@@ -3621,7 +3621,7 @@ private:
 				MPI_Irecv(
 					destination[*cell].at(),
 					UserData::size(),
-					data_type,
+					user_datatype,
 					sender->first,
 					*cell % boost::mpi::environment::max_tag(),
 					this->comm,
@@ -3672,7 +3672,7 @@ private:
 				MPI_Isend(
 					this->cells.at(*cell).at(),
 					UserData::size(),
-					data_type,
+					user_datatype,
 					receiver->first,
 					*cell % boost::mpi::environment::max_tag(),
 					this->comm,
@@ -3704,7 +3704,7 @@ private:
 		}
 
 		#ifdef DCCRG_USER_MPI_DATA_TYPE
-		MPI_Type_free(&data_type);
+		MPI_Type_free(&user_datatype);
 		#endif
 
 		// user data is packed into a vector which is sent to another process
