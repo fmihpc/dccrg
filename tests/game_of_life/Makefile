@@ -2,7 +2,22 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-all: game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d hierarchial_test pinned_cells
+PROGRAMS = \
+	game_of_life_test_all_cells \
+	game_of_life_test_single_cells \
+	game_of_life_user_data_size \
+	game_of_life_user_datatype \
+	scalability \
+	scalability3d \
+	refined \
+	refined2d \
+	unrefined2d \
+	refined_scalability3d \
+	scalability1d \
+	hierarchial_test \
+	pinned_cells
+
+all: $(PROGRAMS)
 
 game_of_life_test_all_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells
@@ -11,7 +26,10 @@ game_of_life_test_single_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_single_cells
 
 game_of_life_user_data_size: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDEBUG game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
+
+game_of_life_user_datatype: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_datatype
 
 scalability: scalability.cpp ../../dccrg.hpp Makefile
 	$(CXX) -DNDEBUG scalability.cpp $(INCLUDES) -o scalability
@@ -42,4 +60,4 @@ pinned_cells: pinned_cells.cpp ../../dccrg.hpp Makefile
 
 c: clean
 clean:
-	rm -f game_of_life_test_all_cells game_of_life_test_single_cells game_of_life_user_data_size scalability scalability3d refined refined2d unrefined2d refined_scalability3d scalability1d hierarchial_test pinned_cells *vtk *visit
+	rm -f $(PROGRAMS) *.vtk *visit

@@ -11,8 +11,13 @@ Tests the grid with some simple game of life patters using cell data of fixed si
 #include "zoltan.h"
 
 #define DCCRG_ARBITRARY_STRETCH
-#define DCCRG_SEND_SINGLE_CELLS
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
+
+#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#ifndef DCCRG_USER_MPI_DATA_TYPE
+		#error Only one of DCCRG_CELL_DATA_SIZE_FROM_USER and DCCRG_USER_MPI_DATA_TYPE must be defined
+	#endif
+#endif
+
 #include "../../dccrg.hpp"
 
 struct game_of_life_cell {
@@ -22,13 +27,27 @@ struct game_of_life_cell {
 
 	void* at(void)
 	{
-		return (void*) data;
+		return this;
 	}
 
 	static size_t size(void)
 	{
-		return sizeof(game_of_life_cell);
+		// number of live neighbours need not be sent in either case
+		#ifndef DCCRG_USER_MPI_DATA_TYPE
+		return sizeof(unsigned int);
+		#else
+		return 1;
+		#endif
 	}
+
+	#ifdef DCCRG_USER_MPI_DATA_TYPE
+	static MPI_Datatype mpi_datatype(void)
+	{
+		MPI_Datatype type;
+		MPI_Type_contiguous(1, MPI_UNSIGNED, &type);
+		return type;
+	}
+	#endif
 };
 
 
