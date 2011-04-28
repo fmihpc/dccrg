@@ -45,6 +45,11 @@ If the size of the data in every cell is known in advance by the user, neighbour
 	#endif
 #endif
 
+#ifdef DCCRG_USER_MPI_DATA_TYPE
+	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		#error DCCRG_CELL_DATA_SIZE_FROM_USER must defined when using DCCRG_USER_MPI_DATA_TYPE
+	#endif
+#endif
 
 #include "algorithm"
 #include "boost/mpi.hpp"
