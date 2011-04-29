@@ -16,12 +16,44 @@ Tests the grid with some simple game of life patters, returns EXIT_SUCCESS if ev
 
 struct game_of_life_cell {
 
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
+	// use boost::mpi for data transfers over MPI
+	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	bool is_alive;
+	unsigned int live_neighbour_count;
+
+	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/)
+	{
 		ar & is_alive;
 	}
 
-	bool is_alive;
-	unsigned int live_neighbour_count;
+	// use MPI directly for data transfers
+	#else
+
+	// data[0] == 1 if cell is alive, data[1] holds the number of live neighbours
+	unsigned int data[2];
+
+	void* at(void)
+	{
+		return this;
+	}
+
+	#ifdef DCCRG_USER_MPI_DATA_TYPE
+	static MPI_Datatype mpi_datatype(void)
+	{
+		MPI_Datatype type;
+		// processes don't need other processes' live neighbour info
+		MPI_Type_contiguous(1, MPI_UNSIGNED, &type);
+		return type;
+	}
+	#else
+	static size_t size(void)
+	{
+		// processes don't need other processes' live neighbour info
+		return sizeof(unsigned int);
+	}
+	#endif
+
+	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 };
 
 
@@ -36,7 +68,7 @@ timestep == 0 means before any turns have been taken.
 int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 {
 	vector<uint64_t> cells = grid->get_cells();
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+	for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
 
 		game_of_life_cell* data = (*grid)[*cell];
 		if (data == NULL) {
@@ -65,7 +97,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 		case 188:
 		case 199:
 		case 206:
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			if (!data->is_alive) {
+			#else
+			if (!data->data[0]) {
+			#endif
 				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 				return EXIT_FAILURE;
 			}
@@ -86,7 +122,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 		case 200:
 		case 204:
 		case 205:
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			if (!data->is_alive) {
+			#else
+			if (!data->data[0]) {
+			#endif
 				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 				return EXIT_FAILURE;
 			}
@@ -102,7 +142,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 		case 184:
 		case 214:
 		case 220:
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			if (!data->is_alive) {
+			#else
+			if (!data->data[0]) {
+			#endif
 				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 				return EXIT_FAILURE;
 			}
@@ -123,7 +167,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 			case 45:
 			case 60:
 			case 74:
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (!data->is_alive) {
+				#else
+				if (!data->data[0]) {
+				#endif
 					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 					return EXIT_FAILURE;
 				}
@@ -140,7 +188,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 			case 45:
 			case 58:
 			case 60:
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (!data->is_alive) {
+				#else
+				if (!data->data[0]) {
+				#endif
 					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 					return EXIT_FAILURE;
 				}
@@ -157,7 +209,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 			case 43:
 			case 45:
 			case 60:
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (!data->is_alive) {
+				#else
+				if (!data->data[0]) {
+				#endif
 					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 					return EXIT_FAILURE;
 				}
@@ -173,7 +229,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 			case 30:
 			case 45:
 			case 59:
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (!data->is_alive) {
+				#else
+				if (!data->data[0]) {
+				#endif
 					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 					return EXIT_FAILURE;
 				}
@@ -188,7 +248,11 @@ int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 			case 29:
 			case 30:
 			case 45:
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (!data->is_alive) {
+				#else
+				if (!data->data[0]) {
+				#endif
 					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
 					return EXIT_FAILURE;
 				}
@@ -214,7 +278,7 @@ int main(int argc, char* argv[])
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
-	    exit(EXIT_FAILURE);
+	    abort();
 	}
 	if (comm.rank() == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
@@ -243,72 +307,96 @@ int main(int argc, char* argv[])
 	#define BLINKER_START 198
 	uint64_t tmp1[] = {BLINKER_START, BLINKER_START + 1, BLINKER_START + 2};
 	vector<uint64_t> blinker_cells(tmp1, tmp1 + sizeof(tmp1) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = blinker_cells.begin(); cell != blinker_cells.end(); cell++) {
+	for (auto cell = blinker_cells.cbegin(); cell != blinker_cells.cend(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
 		}
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->is_alive = true;
+		#else
+		cell_data->data[0] = 1;
+		#endif
 	}
 
 	// create a toad
 	#define TOAD_START 188
 	uint64_t tmp2[] = {TOAD_START, TOAD_START + 1, TOAD_START + 2, TOAD_START + 1 + GRID_SIZE, TOAD_START + 2 + GRID_SIZE, TOAD_START + 3 + GRID_SIZE};
 	vector<uint64_t> toad_cells(tmp2, tmp2 + sizeof(tmp2) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = toad_cells.begin(); cell != toad_cells.end(); cell++) {
+	for (auto cell = toad_cells.cbegin(); cell != toad_cells.cend(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
 		}
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->is_alive = true;
+		#else
+		cell_data->data[0] = 1;
+		#endif
 	}
 
 	// create a beacon
 	#define BEACON_START 137
 	uint64_t tmp3[] = {BEACON_START, BEACON_START + 1, BEACON_START - GRID_SIZE, BEACON_START + 1 - GRID_SIZE, BEACON_START + 2 - 2 * GRID_SIZE, BEACON_START + 3 - 2 * GRID_SIZE, BEACON_START + 2 - 3 * GRID_SIZE, BEACON_START + 3 - 3 * GRID_SIZE};
 	vector<uint64_t> beacon_cells(tmp3, tmp3 + sizeof(tmp3) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = beacon_cells.begin(); cell != beacon_cells.end(); cell++) {
+	for (auto cell = beacon_cells.cbegin(); cell != beacon_cells.cend(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
 		}
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->is_alive = true;
+		#else
+		cell_data->data[0] = 1;
+		#endif
 	}
 
 	// create a glider
 	#define GLIDER_START 143
 	uint64_t tmp4[] = {GLIDER_START + 1, GLIDER_START + 2 - GRID_SIZE, GLIDER_START - 2 * GRID_SIZE, GLIDER_START + 1 - 2 * GRID_SIZE, GLIDER_START + 2 - 2 * GRID_SIZE};
 	vector<uint64_t> glider_cells(tmp4, tmp4 + sizeof(tmp4) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = glider_cells.begin(); cell != glider_cells.end(); cell++) {
+	for (auto cell = glider_cells.cbegin(); cell != glider_cells.cend(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
 		}
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->is_alive = true;
+		#else
+		cell_data->data[0] = 1;
+		#endif
 	}
 
 	// create a block
 	#define BLOCK_START 47
 	uint64_t tmp5[] = {BLOCK_START, BLOCK_START + 1, BLOCK_START - GRID_SIZE, BLOCK_START + 1 - GRID_SIZE};
 	vector<uint64_t> block_cells(tmp5, tmp5 + sizeof(tmp5) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = block_cells.begin(); cell != block_cells.end(); cell++) {
+	for (auto cell = block_cells.cbegin(); cell != block_cells.cend(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
 		}
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->is_alive = true;
+		#else
+		cell_data->data[0] = 1;
+		#endif
 	}
 
 	// create a beehive
 	#define BEEHIVE_START 51
 	uint64_t tmp6[] = {BEEHIVE_START - GRID_SIZE, BEEHIVE_START + 1, BEEHIVE_START + 2, BEEHIVE_START + 1 - 2 * GRID_SIZE, BEEHIVE_START + 2 - 2 * GRID_SIZE, BEEHIVE_START + 3 - GRID_SIZE};
 	vector<uint64_t> beehive_cells(tmp6, tmp6 + sizeof(tmp6) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = beehive_cells.begin(); cell != beehive_cells.end(); cell++) {
+	for (auto cell = beehive_cells.cbegin(); cell != beehive_cells.cend(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
 		}
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->is_alive = true;
+		#else
+		cell_data->data[0] = 1;
+		#endif
 	}
 
 
@@ -337,7 +425,7 @@ int main(int argc, char* argv[])
 		int result = check_game_of_life_state(step, &game_grid);
 		if (GRID_SIZE != 15 || result != EXIT_SUCCESS) {
 			cout << "Process " << comm.rank() << ": Game of Life test failed on timestep: " << step << endl;
-			return EXIT_FAILURE;
+			abort();
 		}
 
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
@@ -375,11 +463,15 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			if (cell_data->is_alive == true) {
+			#else
+			if (cell_data->data[0] == 1) {
+			#endif
 				outfile << "1";
 			} else {
 				outfile << "0";
@@ -390,9 +482,13 @@ int main(int argc, char* argv[])
 		// write each cells live neighbour count
 		outfile << "SCALARS live_neighbour_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
 			game_of_life_cell* cell_data = game_grid[*cell];
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			outfile << cell_data->live_neighbour_count << endl;
+			#else
+			outfile << cell_data->data[1] << endl;
+			#endif
 		}
 
 		// write each cells neighbour count
@@ -421,73 +517,109 @@ int main(int argc, char* argv[])
 
 		// get the neighbour counts of every cell, starting with the cells whose neighbour data doesn't come from other processes
 		vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
-		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+		for (auto cell = cells_with_local_neighbours.cbegin(); cell != cells_with_local_neighbours.cend(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			cell_data->live_neighbour_count = 0;
+			#else
+			cell_data->data[1] = 0;
+			#endif
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			if (neighbours == NULL) {
 				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
-				exit(EXIT_FAILURE);
+				abort();
 			}
 
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+			for (auto neighbour = neighbours->cbegin(); neighbour != neighbours->cend(); neighbour++) {
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
 					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
-					exit(EXIT_FAILURE);
+					abort();
 				}
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (neighbour_data->is_alive) {
 					cell_data->live_neighbour_count++;
 				}
+				#else
+				if (neighbour_data->data[0] == 1) {
+					cell_data->data[1]++;
+				}
+				#endif
 			}
 		}
 
 		vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
-		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+		for (auto cell = cells_with_remote_neighbour.cbegin(); cell != cells_with_remote_neighbour.cend(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			cell_data->live_neighbour_count = 0;
+			#else
+			cell_data->data[1] = 0;
+			#endif
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			if (neighbours == NULL) {
 				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
-				exit(EXIT_FAILURE);
+				abort();
 			}
 
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+			for (auto neighbour = neighbours->cbegin(); neighbour != neighbours->cend(); neighbour++) {
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
 					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
-					exit(EXIT_FAILURE);
+					abort();
 				}
+				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 				if (neighbour_data->is_alive) {
 					cell_data->live_neighbour_count++;
 				}
+				#else
+				if (neighbour_data->data[0] == 1) {
+					cell_data->data[1]++;
+				}
+				#endif
 			}
 		}
 
 		// calculate the next turn
-		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+		for (auto cell = cells_with_local_neighbours.cbegin(); cell != cells_with_local_neighbours.cend(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			if (cell_data->live_neighbour_count == 3) {
 				cell_data->is_alive = true;
 			} else if (cell_data->live_neighbour_count != 2) {
 				cell_data->is_alive = false;
 			}
+			#else
+			if (cell_data->data[1] == 3) {
+				cell_data->data[0] = 1;
+			} else if (cell_data->data[1] != 2) {
+				cell_data->data[0] = 0;
+			}
+			#endif
 		}
-		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+		for (auto cell = cells_with_remote_neighbour.cbegin(); cell != cells_with_remote_neighbour.cend(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
+			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			if (cell_data->live_neighbour_count == 3) {
 				cell_data->is_alive = true;
 			} else if (cell_data->live_neighbour_count != 2) {
 				cell_data->is_alive = false;
 			}
+			#else
+			if (cell_data->data[1] == 3) {
+				cell_data->data[0] = 1;
+			} else if (cell_data->data[1] != 2) {
+				cell_data->data[0] = 0;
+			}
+			#endif
 		}
 
 	}
@@ -499,3 +631,4 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
+

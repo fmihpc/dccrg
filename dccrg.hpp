@@ -23,8 +23,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 /*
 By default dccrg creates unrefined cells of constant size in x, y and z directions.
-Cells of arbitrary size in x, y and z directions can be created by defining DCCRG_ARBITRARY_STRETCH
-DCCRG_CONSTANT_STRETCH is not supported at the moment
+Cells of arbitrary size in x, y and z directions can be created by defining DCCRG_ARBITRARY_STRETCH.
+DCCRG_CONSTANT_STRETCH is not supported at the moment.
 */
 #ifdef DCCRG_ARBITRARY_STRETCH
 	#ifdef DCCRG_CONSTANT_STRETCH
@@ -37,14 +37,15 @@ DCCRG_CONSTANT_STRETCH is not supported at the moment
 If the size of the data in every cell is known in advance by the user, neighbour data updates can be optimized by defining DCCRG_CELL_DATA_SIZE_FROM_USER, in which case:
 	-UserData class must have a static function size() which returns the size of data in bytes of all cells.
 	-UserData instances must have a function at() which returns the starting address of their data.
-	-At the moment neighbour data updates are supported only one cell at a time, hence DCCRG_SEND_SINGLE_CELLS must also be defined.
-*/
-#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-	#ifndef DCCRG_SEND_SINGLE_CELLS
-		#error Using cells with user defined size of data requires that DCCRG_SEND_SINGLE_CELLS also be defined
-	#endif
-#endif
 
+Additionally if DCCRG_USER_MPI_DATA_TYPE is defined:
+	-UserData class must have a static function mpi_datatype() which returns the MPI_Datatype of all cells.
+	-UserData function size() is not needed (size() == 1 is assumed).
+	-Cells can have non-contiguous data.
+
+If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
+
+*/
 #ifdef DCCRG_USER_MPI_DATA_TYPE
 	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		#error DCCRG_CELL_DATA_SIZE_FROM_USER must defined when using DCCRG_USER_MPI_DATA_TYPE
@@ -788,6 +789,10 @@ public:
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 		this->remote_neighbours
+		#else
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->remote_neighbours
+		#endif
 		#endif
 		);
 	}
@@ -822,7 +827,9 @@ public:
 	{
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		this->remote_neighbours
+		#endif
 		#endif
 		);
 	}
@@ -2257,28 +2264,21 @@ private:
 	// remote neighbours and their data, of cells on this process
 	boost::unordered_map<uint64_t, UserData> remote_neighbours;
 
-	#ifdef DCCRG_SEND_SINGLE_CELLS	// user data is sent to another process one cell at a time
-	// list of pending transfers between this process and the process as the key
 	#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-	boost::unordered_map<int, std::vector<MPI_Request> > send_requests;
-	boost::unordered_map<int, std::vector<MPI_Request> > receive_requests;
-	boost::unordered_map<int, std::vector<boost::mpi::request> > load_balance_requests;	// TODO: get rid of this
+	boost::unordered_map<int, std::vector<MPI_Request> > send_requests, receive_requests;
 	#else
-	boost::unordered_map<int, std::vector<boost::mpi::request> > send_requests;
-	boost::unordered_map<int, std::vector<boost::mpi::request> > receive_requests;
-	#endif
-	#else	// user data is packed into a vector which is sent to another process
-	// pending neighbour data requests for this process
-	std::vector<boost::mpi::request> send_requests;
-	std::vector<boost::mpi::request> receive_requests;
+	boost::unordered_map<int, std::vector<boost::mpi::request> > send_requests, receive_requests;
 	#endif
 
 	// cells whose data has to be received / sent by this process from the process as the key
-	boost::unordered_map<int, std::vector<uint64_t> > cells_to_receive;
-	boost::unordered_map<int, std::vector<uint64_t> > cells_to_send;
+	boost::unordered_map<int, std::vector<uint64_t> > cells_to_send, cells_to_receive;
 
+	#ifndef DCCRG_SEND_SINGLE_CELLS
+	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 	// storage for cells' user data that awaits transfer to or from this process
 	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
+	#endif
+	#endif
 
 	// cells to be refined / unrefined after a call to stop_refining()
 	boost::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
@@ -2354,6 +2354,10 @@ private:
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 		this->cells
+		#else
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->cells
+		#endif
 		#endif
 		);
 
@@ -2424,7 +2428,9 @@ private:
 
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		this->cells
+		#endif
 		#endif
 		);
 		this->wait_user_data_transfer_sends();
@@ -3305,10 +3311,14 @@ private:
 		this->remote_neighbours.clear();
 		this->cells_to_send.clear();
 		this->cells_to_receive.clear();
-		this->incoming_data.clear();
-		this->outgoing_data.clear();
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
+		#ifndef DCCRG_SEND_SINGLE_CELLS
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->incoming_data.clear();
+		this->outgoing_data.clear();
+		#endif
+		#endif
 
 		#ifdef DEBUG
 		// check that cells_to_refine is identical between processes
@@ -3473,6 +3483,10 @@ private:
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 		this->unrefined_cell_data
+		#else
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->unrefined_cell_data
+		#endif
 		#endif
 		);
 
@@ -3550,7 +3564,9 @@ private:
 
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		this->unrefined_cell_data
+		#endif
 		#endif
 		);
 		this->wait_user_data_transfer_sends();
@@ -3586,22 +3602,19 @@ private:
 	void start_user_data_transfers(
 	#ifdef DCCRG_SEND_SINGLE_CELLS
 	boost::unordered_map<uint64_t, UserData>& destination
+	#else
+	#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+	boost::unordered_map<uint64_t, UserData>& destination
+	#endif
 	#endif
 	)
 	{
-		/*
-		TODO: Find out why setting the message tags to zero here leads to this in wait_neighbour_data_update(), at least when using OpenMPI:
-		terminate called after throwing an instance of 'boost::exception_detail::clone_impl<boost::exception_detail::error_info_injector<boost::mpi::exception> >'
-		  what():  MPI_Wait: MPI_ERR_TRUNCATE: message truncated
-		*/
-
-		// user data is sent to another process one cell at a time
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-
 		#ifdef DCCRG_USER_MPI_DATA_TYPE
 		MPI_Datatype user_datatype = UserData::mpi_datatype();
 		MPI_Type_commit(&user_datatype);
 		#endif
+
+		#ifdef DCCRG_SEND_SINGLE_CELLS
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
 		for (auto sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
@@ -3622,29 +3635,22 @@ private:
 
 				// FIXME: make sure message tags between two processes are unique
 
-				#ifdef DCCRG_USER_MPI_DATA_TYPE
 				MPI_Irecv(
 					destination[*cell].at(),
-					UserData::size(),
+					#ifdef DCCRG_USER_MPI_DATA_TYPE
+					1,
 					user_datatype,
-					sender->first,
-					*cell % boost::mpi::environment::max_tag(),
-					this->comm,
-					&(this->receive_requests[sender->first].back())
-				);
-				#else
-				MPI_Irecv(
-					destination[*cell].at(),
+					#else
 					UserData::size(),
 					MPI_BYTE,
+					#endif
 					sender->first,
 					*cell % boost::mpi::environment::max_tag(),
 					this->comm,
 					&(this->receive_requests[sender->first].back())
 				);
-				#endif
 
-				#else
+				#else // ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 				this->receive_requests[sender->first].push_back(
 					this->comm.irecv(
@@ -3673,27 +3679,20 @@ private:
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->send_requests[receiver->first].push_back(MPI_Request());
 
-				#ifdef DCCRG_USER_MPI_DATA_TYPE
 				MPI_Isend(
 					this->cells.at(*cell).at(),
-					UserData::size(),
+					#ifdef DCCRG_USER_MPI_DATA_TYPE
+					1,
 					user_datatype,
-					receiver->first,
-					*cell % boost::mpi::environment::max_tag(),
-					this->comm,
-					&(this->send_requests[receiver->first].back())
-				);
-				#else
-				MPI_Isend(
-					this->cells.at(*cell).at(),
+					#else
 					UserData::size(),
 					MPI_BYTE,
+					#endif
 					receiver->first,
 					*cell % boost::mpi::environment::max_tag(),
 					this->comm,
 					&(this->send_requests[receiver->first].back())
 				);
-				#endif
 
 				#else
 
@@ -3708,12 +3707,120 @@ private:
 			}
 		}
 
+		// all user data is sent using one MPI message / process
+		#else	// ifdef DCCRG_SEND_SINGLE_CELLS
+
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		// receive one MPI datatype per process
+		for (auto sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
+
+			std::sort(sender->second.begin(), sender->second.end());
+
+			// reserve space for incoming user data at our end
+			for (uint64_t i = 0; i < sender->second.size(); i++) {
+				destination[sender->second[i]];
+			}
+
+			// get displacements in bytes for incoming user data
+			std::vector<MPI_Aint> displacements(sender->second.size(), 0);
+			for (uint64_t i = 0; i < sender->second.size(); i++) {
+				displacements[i] = (uint8_t*) destination.at(sender->second[i]).at() - (uint8_t*) destination.at(sender->second[0]).at();
+			}
+
+			MPI_Datatype receive_datatype;
+
+			#ifdef DCCRG_USER_MPI_DATA_TYPE
+			std::vector<int> block_lengths(displacements.size(), 1);
+			#else
+			std::vector<int> block_lengths(displacements.size(), UserData::size());
+			#endif
+
+			MPI_Type_create_hindexed(
+				displacements.size(),
+				&block_lengths[0],
+				&displacements[0],
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				user_datatype,
+				#else
+				MPI_BYTE,
+				#endif
+				&receive_datatype
+			);
+
+			MPI_Type_commit(&receive_datatype);
+
+			int receive_tag = sender->first * this->comm.size() + this->comm.rank();
+
+			this->receive_requests[sender->first].push_back(MPI_Request());
+
+			MPI_Irecv(
+				destination.at(sender->second[0]).at(),
+				1,
+				receive_datatype,
+				sender->first,
+				receive_tag,
+				this->comm,
+				&(this->receive_requests[sender->first].back())
+			);
+
+			MPI_Type_free(&receive_datatype);
+		}
+
+		// send one MPI datatype per process
+		for (auto receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
+
+			std::sort(receiver->second.begin(), receiver->second.end());
+
+			// get displacements in bytes for outgoing user data
+			std::vector<MPI_Aint> displacements(receiver->second.size(), 0);
+			for (uint64_t i = 0; i < receiver->second.size(); i++) {
+				displacements[i] = (uint8_t*) this->cells.at(receiver->second[i]).at() - (uint8_t*) this->cells.at(receiver->second[0]).at();
+			}
+
+			MPI_Datatype send_datatype;
+
+			#ifdef DCCRG_USER_MPI_DATA_TYPE
+			std::vector<int> block_lengths(displacements.size(), 1);
+			#else
+			std::vector<int> block_lengths(displacements.size(), UserData::size());
+			#endif
+
+			MPI_Type_create_hindexed(
+				displacements.size(),
+				&block_lengths[0],
+				&displacements[0],
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				user_datatype,
+				#else
+				MPI_BYTE,
+				#endif
+				&send_datatype
+			);
+
+			MPI_Type_commit(&send_datatype);
+
+			int send_tag = this->comm.rank() * this->comm.size() + receiver->first;
+
+			this->send_requests[receiver->first].push_back(MPI_Request());
+
+			MPI_Isend(
+				this->cells.at(receiver->second[0]).at(),
+				1,
+				send_datatype,
+				receiver->first,
+				send_tag,
+				this->comm,
+				&(this->send_requests[receiver->first].back())
+			);
+
+			MPI_Type_free(&send_datatype);
+		}
+
 		#ifdef DCCRG_USER_MPI_DATA_TYPE
 		MPI_Type_free(&user_datatype);
 		#endif
 
-		// user data is packed into a vector which is sent to another process
-		#else
+		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		// post all receives
 		for (int sender = 0; sender < this->comm.size(); sender++) {
@@ -3727,12 +3834,12 @@ private:
 				continue;
 			}
 
-			int send_receive_tag = sender * this->comm.size() + this->comm.rank();
+			int receive_tag = sender * this->comm.size() + this->comm.rank();
 
-			this->receive_requests.push_back(
+			this->receive_requests[sender].push_back(
 				this->comm.irecv(
 					sender,
-					send_receive_tag,
+					receive_tag,
 					this->incoming_data[sender]
 				)
 			);
@@ -3773,17 +3880,18 @@ private:
 				continue;
 			}
 
-			int send_receive_tag = this->comm.rank() * this->comm.size() + receiver;
+			int send_tag = this->comm.rank() * this->comm.size() + receiver;
 
-			this->send_requests.push_back(
+			this->send_requests[receiver].push_back(
 				this->comm.isend(
 					receiver,
-					send_receive_tag,
+					send_tag,
 					this->outgoing_data[receiver]
 				)
 			);
 		}
-		#endif // ifdef DCCRG_SEND_SINGLE_CELLS
+		#endif	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		#endif	// ifdef DCCRG_SEND_SINGLE_CELLS
 	}
 
 
@@ -3794,12 +3902,12 @@ private:
 	*/
 	void wait_user_data_transfer_receives(
 	#ifndef DCCRG_SEND_SINGLE_CELLS
+	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 	boost::unordered_map<uint64_t, UserData>& destination
+	#endif
 	#endif
 	)
 	{
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		for (auto process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
@@ -3815,21 +3923,14 @@ private:
 				}
 			}
 		}
-		this->receive_requests.clear();
 
-		#else
+		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		for (auto process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
-		this->receive_requests.clear();
 
-		#endif
-
-		#else
-
-		boost::mpi::wait_all(this->receive_requests.begin(), this->receive_requests.end());
-		this->receive_requests.clear();
+		#ifndef DCCRG_SEND_SINGLE_CELLS
 
 		// incorporate received data
 		for (auto sender = this->incoming_data.cbegin(); sender != this->incoming_data.cend(); sender++) {
@@ -3850,7 +3951,10 @@ private:
 		}
 		this->incoming_data.clear();
 
-		#endif
+		#endif	// ifndef DCCRG_SEND_SINGLE_CELLS
+		#endif	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+
+		this->receive_requests.clear();
 	}
 
 
@@ -3859,8 +3963,6 @@ private:
 	*/
 	void wait_user_data_transfer_sends(void)
 	{
-		#ifdef DCCRG_SEND_SINGLE_CELLS
-
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		for (auto process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
@@ -3876,24 +3978,21 @@ private:
 				}
 			}
 		}
-		this->send_requests.clear();
 
-		#else
+		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		for (auto process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
-		this->send_requests.clear();
 
-		#endif
+		#ifndef DCCRG_SEND_SINGLE_CELLS
 
-		#else
-
-		boost::mpi::wait_all(this->send_requests.begin(), this->send_requests.end());
-		this->send_requests.clear();
 		this->outgoing_data.clear();
 
-		#endif
+		#endif	// ifndef DCCRG_SEND_SINGLE_CELLS
+		#endif	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+
+		this->send_requests.clear();
 	}
 
 

@@ -2,34 +2,42 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-PROGRAMS = \
-	game_of_life_test_all_cells \
-	game_of_life_test_single_cells \
-	game_of_life_user_data_size \
-	game_of_life_user_datatype \
-	scalability \
-	scalability3d \
-	refined \
-	refined2d \
-	unrefined2d \
-	refined_scalability3d \
-	scalability1d \
-	hierarchial_test \
+PROGRAMS =						\
+	game_of_life_test_all_cells_boost_mpi		\
+	game_of_life_test_all_cells_mpi			\
+	game_of_life_test_all_cells_mpi_datatype	\
+	game_of_life_test_boost_mpi			\
+	game_of_life_test_mpi				\
+	game_of_life_test_mpi_datatype			\
+	scalability					\
+	scalability3d					\
+	refined						\
+	refined2d					\
+	unrefined2d					\
+	refined_scalability3d				\
+	scalability1d					\
+	hierarchial_test				\
 	pinned_cells
 
 all: $(PROGRAMS)
 
-game_of_life_test_all_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells
+game_of_life_test_all_cells_boost_mpi: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_boost_mpi
 
-game_of_life_test_single_cells: game_of_life_test.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_single_cells
+game_of_life_test_all_cells_mpi: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi
 
-game_of_life_user_data_size: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_data_size
+game_of_life_test_all_cells_mpi_datatype: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi_datatype
 
-game_of_life_user_datatype: game_of_life_user_data_size.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_user_data_size.cpp $(INCLUDES) -o game_of_life_user_datatype
+game_of_life_test_boost_mpi: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_boost_mpi
+
+game_of_life_test_mpi: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi
+
+game_of_life_test_mpi_datatype: game_of_life_test.cpp ../../dccrg.hpp Makefile
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi_datatype
 
 scalability: scalability.cpp ../../dccrg.hpp Makefile
 	$(CXX) scalability.cpp $(INCLUDES) -o scalability
