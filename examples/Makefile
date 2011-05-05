@@ -1,5 +1,6 @@
 EXTRA_WARNINGS = -ansi -Winit-self -Wswitch-enum -Wunused-parameter  -Wformat=2  -Wshadow -Wconversion -Wcast-align -Wsign-conversion -Wlogical-op -Wmissing-declarations -Wpacked -Wpadded -Wredundant-decls -Wunreachable-code -Winline -Winvalid-pch -Wdisabled-optimization -Wfatal-errors 
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x #$(EXTRA_WARNINGS)
+# Use -Wno-missing-braces until GCC stops warning about valid C++ (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=25137)
+FLAGS = -O3 -W -Wall -Wextra -pedantic -Wno-missing-braces -std=c++0x #$(EXTRA_WARNINGS)
 #FLAGS = -O0 -g -W -Wall -Wextra -pedantic -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 MPICXX = mpic++ $(FLAGS)

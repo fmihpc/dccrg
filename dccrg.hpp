@@ -53,6 +53,7 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #endif
 
 #include "algorithm"
+#include "boost/array.hpp"
 #include "boost/mpi.hpp"
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
@@ -71,6 +72,30 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #include "boost/serialization/serialization.hpp"
 #include "dccrg_cell_geometry.hpp"
 
+namespace Dccrg
+{
+
+/*
+Defines the indices of a cell in the grid, first value is the cell's index in x direction, second in the y direction, etc.
+
+Indices start from 0 and the index of a cell is the one within the cell closest to the starting corner of the grid.
+Indices are of the same size as the smallest possible cell in the grid, e.g. the size in indices of cells of maximum refinement level is 1.
+For example in the following 2d grid the indices of cell 2 are (2, 0) and cell 8 are (1, 1) assiming a maximum refinement level of 1.
+---------> x
+|3|4|   |
+|-|-| 2 |
+|7|8|   |
+|--------
+V
+
+y
+
+*/
+typedef boost::array<uint64_t, 3> indices_t;
+
+}	// namespace dccrg
+
+using namespace Dccrg;	// until the dccrg class is moved to its namespace
 
 template <class UserData> class dccrg
 {
@@ -1346,7 +1371,7 @@ public:
 			return cell;
 		}
 
-		const uint64_t parent = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), this->get_refinement_level(cell) - 1);
+		const uint64_t parent = get_cell_from_indices(this->get_indices(cell), this->get_refinement_level(cell) - 1);
 		if (this->cell_process.count(parent) > 0) {
 			return parent;
 		} else {
@@ -1367,7 +1392,7 @@ public:
 			return cell;
 		}
 
-		return get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), refinement_level - 1);
+		return get_cell_from_indices(this->get_indices(cell), refinement_level - 1);
 	}
 
 
@@ -1812,6 +1837,68 @@ public:
 
 
 	/*!
+	Returns the indices of given cell.
+
+	See the definition of indices_t for an explanation about them.
+	Returned indices are invalid if given a cell outside the valid range.
+	*/
+	indices_t get_indices(uint64_t cell) const
+	{
+		#ifdef DEBUG
+		const uint64_t original_cell = cell;
+
+		if (original_cell == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			abort();
+		}
+
+		if (original_cell > this->max_cell_number) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			abort();
+		}
+		#endif
+
+		const uint64_t x_length = this->geometry.get_x_length();
+		const uint64_t y_length = this->geometry.get_y_length();
+		const uint64_t z_length = this->geometry.get_z_length();
+
+		// substract ids of larger cells
+		const int refinement_level = this->get_refinement_level(cell);
+		for (int i = 0; i < refinement_level; i++) {
+			cell -= x_length *  y_length * z_length * (uint64_t(1) << (i * 3));
+		}
+
+		cell -= 1;	// cell numbering starts from 1
+		const indices_t indices = {
+			(cell % (x_length * (uint64_t(1) << refinement_level)))
+				* (uint64_t(1) << (max_refinement_level - refinement_level)),
+			((cell / (x_length * (uint64_t(1) << refinement_level))) % (y_length * (uint64_t(1) << refinement_level)))
+				* (uint64_t(1) << (max_refinement_level - refinement_level)),
+			(cell / (x_length * y_length * (uint64_t(1) << (2 * refinement_level))))
+				* (uint64_t(1) << (max_refinement_level - refinement_level))
+		};
+
+		#ifdef DEBUG
+		if (indices[0] != this->get_x_index(original_cell)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " X index for cell " << original_cell << " differs between get_x_index and get_indices" << std::endl;
+			abort();
+		}
+
+		if (indices[1] != this->get_y_index(original_cell)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Y index for cell " << original_cell << " differs between get_y_index and get_indices" << std::endl;
+			abort();
+		}
+
+		if (indices[2] != this->get_z_index(original_cell)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Z index for cell " << original_cell << " differs between get_z_index and get_indices" << std::endl;
+			abort();
+		}
+		#endif
+
+		return indices;
+	}
+
+	/*!
 	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0
 	For cells that are larger than the smallest possible according to max_refinement_level, the index closest to the grids starting corner is returned
 	 */
@@ -1823,7 +1910,7 @@ public:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
 		}
 
 		// get the index at this cells refinement level
@@ -1842,12 +1929,12 @@ public:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+			id -= this->geometry.get_x_length() * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  (id / (this->geometry.get_x_length() * (uint64_t(1) << refinement_level))) % (this->geometry.get_y_length()  * (uint64_t(1) << refinement_level));
+		uint64_t this_level_index = (id / (this->geometry.get_x_length() * (uint64_t(1) << refinement_level))) % (this->geometry.get_y_length() * (uint64_t(1) << refinement_level));
 
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
@@ -1860,12 +1947,12 @@ public:
 		// substract ids of larger cells
 		int refinement_level = get_refinement_level(id);
 		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+			id -= this->geometry.get_x_length() * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
 		}
 
 		// get the index at this cells refinement level
 		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  id / (this->geometry.get_x_length() * this->geometry.get_y_length() *  (uint64_t(1) << 2 * refinement_level));
+		uint64_t this_level_index = id / (this->geometry.get_x_length() * this->geometry.get_y_length() * (uint64_t(1) << 2 * refinement_level));
 
 		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
 	}
@@ -1873,6 +1960,64 @@ public:
 
 	/*!
 	Returns the cell of given refinement level at given indices even if it doesn't exist.
+	*/
+	uint64_t get_cell_from_indices(const indices_t indices, const int refinement_level) const
+	{
+		const uint64_t x_length = this->geometry.get_x_length();
+		const uint64_t y_length = this->geometry.get_y_length();
+		const uint64_t z_length = this->geometry.get_z_length();
+
+		#ifdef DEBUG
+		if (indices[0] >= x_length * (uint64_t(1) << this->max_refinement_level)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Given x index is outside of range" << std::endl;
+			abort();
+		}
+		if (indices[1] >= y_length * (uint64_t(1) << this->max_refinement_level)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Given y index is outside of range" << std::endl;
+			abort();
+		}
+		if (indices[2] >= z_length * (uint64_t(1) << this->max_refinement_level)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Given z index is outside of range" << std::endl;
+			abort();
+		}
+
+		if (refinement_level < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level given" << std::endl;
+			abort();
+		}
+		if (refinement_level > this->max_refinement_level) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Given refinement level is too large" << std::endl;
+			abort();
+		}
+		#endif
+
+		// cell numbering starts at 1
+		uint64_t cell = 1;
+
+		// add ids of larger cells
+		for (int i = 0; i < refinement_level; i++) {
+			cell += x_length * y_length * z_length * (uint64_t(1) << (i * 3));
+		}
+
+		// convert to indices of this cell's refinement level
+		const indices_t this_level_indices = {
+			indices[0] / (uint64_t(1) << (max_refinement_level - refinement_level)),
+			indices[1] / (uint64_t(1) << (max_refinement_level - refinement_level)),
+			indices[2] / (uint64_t(1) << (max_refinement_level - refinement_level))
+		};
+
+		// get the size of the grid in terms of cells of this refinement level
+		const uint64_t this_level_x_length = x_length * (uint64_t(1) << refinement_level);
+		const uint64_t this_level_y_length = y_length * (uint64_t(1) << refinement_level);
+
+		cell += this_level_indices[0] + this_level_indices[1] * this_level_x_length + this_level_indices[2] * this_level_x_length * this_level_y_length;
+
+		return cell;
+	}
+
+
+	/*!
+	Same as the indices_t version.
 	*/
 	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
 	{
@@ -1885,7 +2030,7 @@ public:
 
 		// add ids of larger cells
 		for (int i = 0; i < refinement_level; i++) {
-			id += this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << i * 3);
+			id += this->geometry.get_x_length() * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
 		}
 
 		// convert to indices of this cells refinement level
@@ -1894,8 +2039,8 @@ public:
 		uint64_t this_level_z_index = z_index / (uint64_t(1) << (max_refinement_level - refinement_level));
 
 		// get the size of the grid in terms of cells of this level
-		uint64_t this_level_x_length = this->geometry.get_x_length() *  (uint64_t(1) << refinement_level);
-		uint64_t this_level_y_length = this->geometry.get_y_length() *  (uint64_t(1) << refinement_level);
+		uint64_t this_level_x_length = this->geometry.get_x_length() * (uint64_t(1) << refinement_level);
+		uint64_t this_level_y_length = this->geometry.get_y_length() * (uint64_t(1) << refinement_level);
 
 		id += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
 
@@ -3027,8 +3172,8 @@ private:
 		assert(cell2 > 0);
 		assert(cell2 <= this->max_cell_number);
 
-		const uint64_t cell1_x_index = this->get_x_index(cell1), cell1_y_index = this->get_y_index(cell1), cell1_z_index = this->get_z_index(cell1);
-		const uint64_t cell2_x_index = this->get_x_index(cell2), cell2_y_index = this->get_y_index(cell2), cell2_z_index = this->get_z_index(cell2);
+		const indices_t indices1 = this->get_indices(cell1);
+		const indices_t indices2 = this->get_indices(cell2);
 		const uint64_t cell1_size = this->get_cell_size_in_indices(cell1);
 		const uint64_t cell2_size = this->get_cell_size_in_indices(cell2);
 
@@ -3038,12 +3183,12 @@ private:
 		const uint64_t dindex1 = cell2_size + cell1_size * temp_neighbourhood_size;
 		const uint64_t dindex2 = (cell2_size < cell1_size) ? cell1_size * temp_neighbourhood_size + cell2_size : cell1_size * temp_neighbourhood_size;
 
-		if (cell1_x_index < cell2_x_index + dindex1
-		&& cell1_y_index < cell2_y_index + dindex1
-		&& cell1_z_index < cell2_z_index + dindex1
-		&& cell1_x_index + dindex2 >= cell2_x_index
-		&& cell1_y_index + dindex2 >= cell2_y_index
-		&& cell1_z_index + dindex2 >= cell2_z_index) {
+		if (indices1[0] < indices2[0] + dindex1
+		&& indices1[1] < indices2[1] + dindex1
+		&& indices1[2] < indices2[2] + dindex1
+		&& indices1[0] + dindex2 >= indices2[0]
+		&& indices1[1] + dindex2 >= indices2[1]
+		&& indices1[2] + dindex2 >= indices2[2]) {
 			if (this->neighbourhood_size == 0 && this->overlapping_indices(cell1, cell2) < 2) {
 				// diagonal cell isn't a neighbour
 				return false;
@@ -3071,7 +3216,7 @@ private:
 			return cell;
 		}
 
-		const uint64_t child = get_cell_from_indices(this->get_x_index(cell), this->get_y_index(cell), this->get_z_index(cell), refinement_level + 1);
+		const uint64_t child = get_cell_from_indices(this->get_indices(cell), refinement_level + 1);
 		if (this->cell_process.count(child) > 0) {
 			return child;
 		} else {
@@ -4204,24 +4349,51 @@ private:
 
 	/*!
 	Returns the number of directions in which given cells' indices overlap
-	Returns 0 if even one of given cell's doesn't exist
+	Returns 0 if even one of given cells doesn't exist
 	*/
 	int overlapping_indices(const uint64_t cell1, const uint64_t cell2) const
 	{
+		#ifdef DEBUG
+		if (cell1 == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			abort();
+		}
+		if (cell2 == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			abort();
+		}
+
+		if (cell1 > this->max_cell_number) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			abort();
+		}
+		if (cell2 > this->max_cell_number) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
 			return 0;
 		}
 
+		const indices_t indices1 = this->get_indices(cell1);
+		const indices_t indices2 = this->get_indices(cell2);
+
+		const uint64_t size1 = this->get_cell_size_in_indices(cell1);
+		const uint64_t size2 = this->get_cell_size_in_indices(cell2);
+
 		int ret = 0;
-		if (this->x_indices_overlap(cell1, cell2)) {
+		if (this->indices_overlap(indices1[0], size1, indices2[0], size2)) {
 			ret++;
 		}
-		if (this->y_indices_overlap(cell1, cell2)) {
+		if (this->indices_overlap(indices1[1], size1, indices2[1], size2)) {
 			ret++;
 		}
-		if (this->z_indices_overlap(cell1, cell2)) {
+		if (this->indices_overlap(indices1[2], size1, indices2[2], size2)) {
 			ret++;
 		}
+
 		return ret;
 	}
 
