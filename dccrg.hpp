@@ -361,7 +361,6 @@ public:
 		#endif
 
 		this->neighbourhood_size = neighbourhood_size;
-		// create a neighbourhood for neighbourhood size 0
 		if (this->neighbourhood_size == 0) {
 			{
 			neighbourhood_item_t item = {0, 0, -1};
@@ -386,6 +385,16 @@ public:
 			{
 			neighbourhood_item_t item = {0, 0, 1};
 			this->neighbourhood_of.push_back(item);
+			}
+		} else {
+			for (int z = -neighbourhood_size; abs(z) < neighbourhood_size + 1; z++)
+			for (int y = -neighbourhood_size; abs(y) < neighbourhood_size + 1; y++)
+			for (int x = -neighbourhood_size; abs(x) < neighbourhood_size + 1; x++) {
+				if (x == 0 && y == 0 && z == 0) {
+					continue;
+				}
+				neighbourhood_item_t item = {x, y, z};
+				this->neighbourhood_of.push_back(item);
 			}
 		}
 
@@ -1543,91 +1552,59 @@ public:
 		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
 		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
 
-		if (this->neighbourhood_size == 0) {
+		for (auto offsets = this->neighbourhood_of.cbegin(); offsets != this->neighbourhood_of.cend(); offsets++) {
 
-			for (auto offsets = this->neighbourhood_of.cbegin(); offsets != this->neighbourhood_of.cend(); offsets++) {
+			const int x_offset = (*offsets)[0];
+			const int y_offset = (*offsets)[1];
+			const int z_offset = (*offsets)[2];
 
-				const int x_offset = (*offsets)[0];
-				const int y_offset = (*offsets)[1];
-				const int z_offset = (*offsets)[2];
-
-				// don't search outside of the grid
-				if (x_offset < 0) {
-					if (indices[0] < abs(x_offset) * size_in_indices) {
-						continue;
-					}
-				} else {
-					if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length_in_indices) {
-						continue;
-					}
+			// don't search outside of the grid
+			if (x_offset < 0) {
+				if (indices[0] < abs(x_offset) * size_in_indices) {
+					continue;
 				}
-
-				if (y_offset < 0) {
-					if (indices[1] < abs(y_offset) * size_in_indices) {
-						continue;
-					}
-				} else {
-					if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length_in_indices) {
-						continue;
-					}
+			} else {
+				if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length_in_indices) {
+					continue;
 				}
-
-				if (z_offset < 0) {
-					if (indices[2] < abs(z_offset) * size_in_indices) {
-						continue;
-					}
-				} else {
-					if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length_in_indices) {
-						continue;
-					}
-				}
-
-				const indices_t search_indices_min = {
-					indices[0] + x_offset * size_in_indices,
-					indices[1] + y_offset * size_in_indices,
-					indices[2] + z_offset * size_in_indices
-				};
-
-				const indices_t search_indices_max = {
-					indices[0] + (1 + x_offset) * size_in_indices - 1,
-					indices[1] + (1 + y_offset) * size_in_indices - 1,
-					indices[2] + (1 + z_offset) * size_in_indices - 1
-				};
-
-				std::vector<uint64_t> result = this->find_cells(search_indices_min, search_indices_max, search_min_ref_level, search_max_ref_level);
-				return_neighbours.insert(return_neighbours.end(), result.begin(), result.end());
 			}
 
-			return return_neighbours;
+			if (y_offset < 0) {
+				if (indices[1] < abs(y_offset) * size_in_indices) {
+					continue;
+				}
+			} else {
+				if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length_in_indices) {
+					continue;
+				}
+			}
+
+			if (z_offset < 0) {
+				if (indices[2] < abs(z_offset) * size_in_indices) {
+					continue;
+				}
+			} else {
+				if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length_in_indices) {
+					continue;
+				}
+			}
+
+			const indices_t search_indices_min = {
+				indices[0] + x_offset * size_in_indices,
+				indices[1] + y_offset * size_in_indices,
+				indices[2] + z_offset * size_in_indices
+			};
+
+			const indices_t search_indices_max = {
+				indices[0] + (1 + x_offset) * size_in_indices - 1,
+				indices[1] + (1 + y_offset) * size_in_indices - 1,
+				indices[2] + (1 + z_offset) * size_in_indices - 1
+			};
+
+			std::vector<uint64_t> result = this->find_cells(search_indices_min, search_indices_max, search_min_ref_level, search_max_ref_level);
+			return_neighbours.insert(return_neighbours.end(), result.begin(), result.end());
 		}
 
-		// must have some neighbours even if neighbourhood_size == 0
-		const int temp_neighbourhood_size = (this->neighbourhood_size > 0) ? this->neighbourhood_size : 1;
-
-		// search neighbourhood_size number of cells (of given cell's size) away from the given cell and not outside of the grid
-		const uint64_t outer_min_x = (indices[0] < size_in_indices * temp_neighbourhood_size) ? 0 : indices[0] - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_x = (indices[0] + size_in_indices * (1 + temp_neighbourhood_size) - 1 < x_length_in_indices) ? indices[0] + size_in_indices * (1 + temp_neighbourhood_size) - 1 : x_length_in_indices - 1;
-
-		const uint64_t outer_min_y = (indices[1] < size_in_indices * temp_neighbourhood_size) ? 0 : indices[1] - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_y = (indices[1] + size_in_indices * (1 + temp_neighbourhood_size) - 1 < y_length_in_indices) ? indices[1] + size_in_indices * (1 + temp_neighbourhood_size) - 1 : y_length_in_indices - 1;
-
-		const uint64_t outer_min_z = (indices[2] < size_in_indices * temp_neighbourhood_size) ? 0 : indices[2] - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_z = (indices[2] + size_in_indices * (1 + temp_neighbourhood_size) - 1 < z_length_in_indices) ? indices[2] + size_in_indices * (1 + temp_neighbourhood_size) - 1 : z_length_in_indices - 1;
-
-		// don't search within the given cell
-		const uint64_t inner_max_x = indices[0] + size_in_indices - 1;
-		const uint64_t inner_max_y = indices[1] + size_in_indices - 1;
-		const uint64_t inner_max_z = indices[2] + size_in_indices - 1;
-
-		boost::unordered_set<uint64_t> unique_neighbours = find_cells(
-			outer_min_x, outer_min_y, outer_min_z,
-			outer_max_x, outer_max_y, outer_max_z,
-			indices[0], indices[1], indices[2],
-			inner_max_x, inner_max_y, inner_max_z,
-			search_min_ref_level, search_max_ref_level);
-
-		return_neighbours.reserve(unique_neighbours.size());
-		return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
 		return return_neighbours;
 	}
 
@@ -1796,7 +1773,7 @@ public:
 				abort();
 			}
 
-			if (neighbour > this->max_cell_number) {
+			if (cell > this->max_cell_number) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Cell can't exist" << std::endl;
 				abort();
 			}
@@ -3167,47 +3144,41 @@ private:
 		}
 
 		// reorder neighbours to the order given by user in neighbourhood
-		if (this->neighbourhood_size == 0) {
+		const indices_t indices = this->get_indices(cell);
+		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
-			const indices_t indices = this->get_indices(cell);
-			const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
+		// starting indices corresponding to neighbourhood items
+		// TODO: create a separate function
+		std::vector<indices_t> offset_indices;
+		for (auto offset = this->neighbourhood_of.cbegin(); offset != this->neighbourhood_of.cend(); offset++) {
+			const int x_offset = (*offset)[0];
+			const int y_offset = (*offset)[1];
+			const int z_offset = (*offset)[2];
 
-			// starting indices corresponding to neighbourhood items
-			// TODO: create a separate function
-			std::vector<indices_t> offset_indices;
-			for (auto offset = this->neighbourhood_of.cbegin(); offset != this->neighbourhood_of.cend(); offset++) {
-				const int x_offset = (*offset)[0];
-				const int y_offset = (*offset)[1];
-				const int z_offset = (*offset)[2];
+			const indices_t offset_indices_temp = {
+				indices[0] + x_offset * size_in_indices,
+				indices[1] + y_offset * size_in_indices,
+				indices[2] + z_offset * size_in_indices
+			};
 
-				const indices_t offset_indices_temp = {
-					indices[0] + x_offset * size_in_indices,
-					indices[1] + y_offset * size_in_indices,
-					indices[2] + z_offset * size_in_indices
-				};
+			offset_indices.push_back(offset_indices_temp);
+		}
 
-				offset_indices.push_back(offset_indices_temp);
-			}
+		// collect cells by neighbourhood item
+		for (unsigned int i = 0; i < offset_indices.size(); i++) {
 
-			// collect cells by neighbourhood item
-			for (unsigned int i = 0; i < offset_indices.size(); i++) {
+			std::vector<uint64_t> cells_in_neigh_item;
+			for (auto neighbour = unordered_neighbours.cbegin(); neighbour != unordered_neighbours.cend(); neighbour++) {
 
-				std::vector<uint64_t> cells_in_neigh_item;
-				for (auto neighbour = unordered_neighbours.cbegin(); neighbour != unordered_neighbours.cend(); neighbour++) {
-
-					const indices_t neigh_indices = this->get_indices(*neighbour);
-					const uint64_t neigh_size = this->get_cell_size_in_indices(*neighbour);
-					if (this->indices_overlap(offset_indices[i], size_in_indices, neigh_indices, neigh_size)) {
-						cells_in_neigh_item.push_back(*neighbour);
-					}
+				const indices_t neigh_indices = this->get_indices(*neighbour);
+				const uint64_t neigh_size = this->get_cell_size_in_indices(*neighbour);
+				if (this->indices_overlap(offset_indices[i], size_in_indices, neigh_indices, neigh_size)) {
+					cells_in_neigh_item.push_back(*neighbour);
 				}
-
-				std::sort(cells_in_neigh_item.begin(), cells_in_neigh_item.end());
-				this->neighbours.at(cell).insert(this->neighbours.at(cell).end(), cells_in_neigh_item.begin(), cells_in_neigh_item.end());
 			}
 
-		} else {
-			this->neighbours.at(cell).insert(this->neighbours.at(cell).begin(), unordered_neighbours.begin(), unordered_neighbours.end());
+			std::sort(cells_in_neigh_item.begin(), cells_in_neigh_item.end());
+			this->neighbours.at(cell).insert(this->neighbours.at(cell).end(), cells_in_neigh_item.begin(), cells_in_neigh_item.end());
 		}
 
 		#ifdef DEBUG

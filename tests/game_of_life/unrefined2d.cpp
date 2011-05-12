@@ -370,6 +370,27 @@ int main(int argc, char* argv[])
 					}
 
 					if (game_grid.get_refinement_level(*neighbour) == 0) {
+
+						// larger neighbours appear several times in the neighbour list
+						bool neighbour_processed = false;
+						for (int i = 0; i < 8; i++) {
+							if (cell_data->child_of_processed[i] == *neighbour) {
+								neighbour_processed = true;
+								break;
+							}
+						}
+
+						if (neighbour_processed) {
+							continue;
+						} else {
+							for (int i = 0; i < 8; i++) {
+								if (cell_data->child_of_processed[i] == 0) {
+									cell_data->child_of_processed[i] = *neighbour;
+									break;
+								}
+							}
+						}
+
 						if (neighbour_data->is_alive) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->live_unrefined_neighbours[i] == 0) {
@@ -378,6 +399,7 @@ int main(int argc, char* argv[])
 								}
 							}
 						}
+
 					// consider only one sibling of all parents of neighbouring cells...
 					} else {
 
