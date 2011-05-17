@@ -387,9 +387,9 @@ public:
 			this->neighbourhood_of.push_back(item);
 			}
 		} else {
-			for (int z = -neighbourhood_size; abs(z) < neighbourhood_size + 1; z++)
-			for (int y = -neighbourhood_size; abs(y) < neighbourhood_size + 1; y++)
-			for (int x = -neighbourhood_size; abs(x) < neighbourhood_size + 1; x++) {
+			for (int z = -neighbourhood_size; (unsigned int) abs(z) < neighbourhood_size + 1; z++)
+			for (int y = -neighbourhood_size; (unsigned int) abs(y) < neighbourhood_size + 1; y++)
+			for (int x = -neighbourhood_size; (unsigned int) abs(x) < neighbourhood_size + 1; x++) {
 				if (x == 0 && y == 0 && z == 0) {
 					continue;
 				}
@@ -529,6 +529,11 @@ public:
 
 			assert(this->neighbours.count(cell->first) > 0);
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell->first).begin(); neighbour != this->neighbours.at(cell->first).end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 					has_remote_neighbour = true;
 					break;
@@ -565,6 +570,11 @@ public:
 
 			assert(this->neighbours.count(cell->first) > 0);
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell->first).begin(); neighbour != this->neighbours.at(cell->first).end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 					has_remote_neighbour = true;
 					break;
@@ -1003,6 +1013,10 @@ public:
 
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 
+			if (*neighbour == 0) {
+				continue;
+			}
+
 			if (direction > 0) {
 				if (this->get_cell_x(*neighbour) < x) {
 					continue;
@@ -1043,6 +1057,10 @@ public:
 		double y = this->get_cell_y(cell);
 
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
+
+			if (*neighbour == 0) {
+				continue;
+			}
 
 			if (direction > 0) {
 				if (this->get_cell_y(*neighbour) < y) {
@@ -1085,6 +1103,10 @@ public:
 
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
 
+			if (*neighbour == 0) {
+				continue;
+			}
+
 			if (direction > 0) {
 				if (this->get_cell_z(*neighbour) < z) {
 					continue;
@@ -1124,6 +1146,11 @@ public:
 		}
 
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
+
+			if (*neighbour == 0) {
+				continue;
+			}
+
 			if (this->cell_process[*neighbour] != this->comm.rank()) {
 				result.push_back(*neighbour);
 			}
@@ -1558,33 +1585,39 @@ public:
 			const int y_offset = (*offsets)[1];
 			const int z_offset = (*offsets)[2];
 
-			// don't search outside of the grid
+			// insert 0 as neighbour for offsets outside of the grid
 			if (x_offset < 0) {
 				if (indices[0] < abs(x_offset) * size_in_indices) {
+					return_neighbours.push_back(0);
 					continue;
 				}
 			} else {
 				if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length_in_indices) {
+					return_neighbours.push_back(0);
 					continue;
 				}
 			}
 
 			if (y_offset < 0) {
 				if (indices[1] < abs(y_offset) * size_in_indices) {
+					return_neighbours.push_back(0);
 					continue;
 				}
 			} else {
 				if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length_in_indices) {
+					return_neighbours.push_back(0);
 					continue;
 				}
 			}
 
 			if (z_offset < 0) {
 				if (indices[2] < abs(z_offset) * size_in_indices) {
+					return_neighbours.push_back(0);
 					continue;
 				}
 			} else {
 				if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length_in_indices) {
+					return_neighbours.push_back(0);
 					continue;
 				}
 			}
@@ -1602,6 +1635,7 @@ public:
 			};
 
 			std::vector<uint64_t> result = this->find_cells(search_indices_min, search_indices_max, search_min_ref_level, search_max_ref_level);
+			std::sort(result.begin(), result.end());
 			return_neighbours.insert(return_neighbours.end(), result.begin(), result.end());
 		}
 
@@ -2849,22 +2883,32 @@ private:
 
 			int current_process = this->comm.rank();
 
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*cell].begin(); neighbour != this->neighbours[*cell].end(); neighbour++) {
-				if (this->cell_process[*neighbour] != current_process) {
+			for (auto neighbour = this->neighbours.at(*cell).cbegin(); neighbour != this->neighbours.at(*cell).cend(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
+				if (this->cell_process.at(*neighbour) != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
-					unique_cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
+					unique_cells_to_receive[this->cell_process.at(*neighbour)].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
-					unique_cells_to_send[this->cell_process[*neighbour]].insert(*cell);
+					unique_cells_to_send[this->cell_process.at(*neighbour)].insert(*cell);
 				}
 			}
 
 			// also cells that have this one as neighbour
-			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours_to[*cell].begin(); neighbour != this->neighbours_to[*cell].end(); neighbour++) {
-				if (this->cell_process[*neighbour] != current_process) {
+			for (auto neighbour = this->neighbours_to.at(*cell).cbegin(); neighbour != this->neighbours_to.at(*cell).cend(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
+				if (this->cell_process.at(*neighbour) != current_process) {
 					// *neighbours process has to send *neighbours cell data to current_process
-					unique_cells_to_receive[this->cell_process[*neighbour]].insert(*neighbour);
+					unique_cells_to_receive[this->cell_process.at(*neighbour)].insert(*neighbour);
 					// current process has to send currents cell data to neighbour
-					unique_cells_to_send[this->cell_process[*neighbour]].insert(*cell);
+					unique_cells_to_send[this->cell_process.at(*neighbour)].insert(*cell);
 				}
 			}
 		}
@@ -2967,6 +3011,11 @@ private:
 			}
 
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(parent).begin(); neighbour != this->neighbours.at(parent).end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				old_neighbours.push_back(*neighbour);
 
 				#ifdef DEBUG
@@ -2978,6 +3027,11 @@ private:
 			}
 
 			for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(parent).begin(); neighbour_to != this->neighbours_to.at(parent).end(); neighbour_to++) {
+
+				if (*neighbour_to == 0) {
+					continue;
+				}
+
 				old_neighbours.push_back(*neighbour_to);
 
 				#ifdef DEBUG
@@ -3004,6 +3058,11 @@ private:
 			#endif
 
 			for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				old_neighbours.push_back(*neighbour);
 
 				#ifdef DEBUG
@@ -3015,6 +3074,11 @@ private:
 			}
 
 			for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(cell).begin(); neighbour_to != this->neighbours_to.at(cell).end(); neighbour_to++) {
+
+				if (*neighbour_to == 0) {
+					continue;
+				}
+
 				old_neighbours.push_back(*neighbour_to);
 
 				#ifdef DEBUG
@@ -3147,32 +3211,67 @@ private:
 		const indices_t indices = this->get_indices(cell);
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
-		// starting indices corresponding to neighbourhood items
-		// TODO: create a separate function
-		std::vector<indices_t> offset_indices;
+		// grid length
+		const uint64_t x_length_in_indices = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t y_length_in_indices = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t z_length_in_indices = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
+
+		// find and sort collected cells per neighbourhood offset, inserting 0 if offset would be outside of the grid
 		for (auto offset = this->neighbourhood_of.cbegin(); offset != this->neighbourhood_of.cend(); offset++) {
 			const int x_offset = (*offset)[0];
 			const int y_offset = (*offset)[1];
 			const int z_offset = (*offset)[2];
 
-			const indices_t offset_indices_temp = {
+			// insert 0 as neighbour for offsets outside of the grid
+			if (x_offset < 0) {
+				if (indices[0] < abs(x_offset) * size_in_indices) {
+					this->neighbours.at(cell).push_back(0);
+					continue;
+				}
+			} else {
+				if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length_in_indices) {
+					this->neighbours.at(cell).push_back(0);
+					continue;
+				}
+			}
+
+			if (y_offset < 0) {
+				if (indices[1] < abs(y_offset) * size_in_indices) {
+					this->neighbours.at(cell).push_back(0);
+					continue;
+				}
+			} else {
+				if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length_in_indices) {
+					this->neighbours.at(cell).push_back(0);
+					continue;
+				}
+			}
+
+			if (z_offset < 0) {
+				if (indices[2] < abs(z_offset) * size_in_indices) {
+					this->neighbours.at(cell).push_back(0);
+					continue;
+				}
+			} else {
+				if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length_in_indices) {
+					this->neighbours.at(cell).push_back(0);
+					continue;
+				}
+			}
+
+			const indices_t offset_indices = {
 				indices[0] + x_offset * size_in_indices,
 				indices[1] + y_offset * size_in_indices,
 				indices[2] + z_offset * size_in_indices
 			};
 
-			offset_indices.push_back(offset_indices_temp);
-		}
-
-		// collect cells by neighbourhood item
-		for (unsigned int i = 0; i < offset_indices.size(); i++) {
-
+			// insert cells at this neighbourhood item, e.g. offset
 			std::vector<uint64_t> cells_in_neigh_item;
 			for (auto neighbour = unordered_neighbours.cbegin(); neighbour != unordered_neighbours.cend(); neighbour++) {
 
 				const indices_t neigh_indices = this->get_indices(*neighbour);
 				const uint64_t neigh_size = this->get_cell_size_in_indices(*neighbour);
-				if (this->indices_overlap(offset_indices[i], size_in_indices, neigh_indices, neigh_size)) {
+				if (this->indices_overlap(offset_indices, size_in_indices, neigh_indices, neigh_size)) {
 					cells_in_neigh_item.push_back(*neighbour);
 				}
 			}
@@ -3223,6 +3322,11 @@ private:
 
 		// neighbours of given cell
 		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
+
+			if (*neighbour == 0) {
+				continue;
+			}
+
 			if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 				this->cells_with_remote_neighbours.insert(cell);
 				this->remote_cells_with_local_neighbours.insert(*neighbour);
@@ -3230,6 +3334,11 @@ private:
 		}
 		// cells with given cell as neighbour
 		for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(cell).begin(); neighbour_to != this->neighbours_to.at(cell).end(); neighbour_to++) {
+
+			if (*neighbour_to == 0) {
+				continue;
+			}
+
 			if (this->cell_process.at(*neighbour_to) != this->comm.rank()) {
 				this->cells_with_remote_neighbours.insert(cell);
 				this->remote_cells_with_local_neighbours.insert(*neighbour_to);
@@ -3451,7 +3560,11 @@ private:
 			for (std::vector<uint64_t>::const_iterator refined = all_new_refines[this->comm.rank()].begin(); refined != all_new_refines[this->comm.rank()].end(); refined++) {
 
 				// refine local neighbours that are too large
-				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours[*refined].begin(); neighbour != this->neighbours[*refined].end(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*refined).begin(); neighbour != this->neighbours.at(*refined).end(); neighbour++) {
+
+					if (*neighbour == 0) {
+						continue;
+					}
 
 					#ifdef DEBUG
 					if (this->cell_process.count(*neighbour) == 0) {
@@ -3470,6 +3583,10 @@ private:
 					}
 				}
 				for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to[*refined].begin(); neighbour_to != this->neighbours_to[*refined].end(); neighbour_to++) {
+
+					if (*neighbour_to == 0) {
+						continue;
+					}
 
 					#ifdef DEBUG
 					if (this->cell_process.count(*neighbour_to) == 0) {
@@ -3538,6 +3655,10 @@ private:
 
 			for (std::vector<uint64_t>::const_iterator neighbour_of = neighbours_of.begin(); neighbour_of != neighbours_of.end(); neighbour_of++) {
 
+				if (*neighbour_of == 0) {
+					continue;
+				}
+
 				if (this->get_refinement_level(*neighbour_of) < this->get_refinement_level(*refined)
 				&& this->cells_to_refine.count(*neighbour_of) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour (" << *neighbour_of << ") of cell that will be refined (" << *refined << ", ref lvl " << this->get_refinement_level(*refined) << ") has too small refinement level: " << this->get_refinement_level(*neighbour_of) << std::endl;
@@ -3548,6 +3669,10 @@ private:
 			// neighbours_to
 			std::vector<uint64_t> neighbours_to = this->find_neighbours_to(*refined);
 			for (std::vector<uint64_t>::const_iterator neighbour_to = neighbours_to.begin(); neighbour_to != neighbours_to.end(); neighbour_to++) {
+
+				if (*neighbour_to == 0) {
+					continue;
+				}
 
 				if (this->get_refinement_level(*neighbour_to) < this->get_refinement_level(*refined)
 				&& this->cells_to_refine.count(*neighbour_to) == 0) {
@@ -3760,11 +3885,21 @@ private:
 
 				// update neighbour lists of all the parent's neighbours
 				for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(*refined).begin(); neighbour != this->neighbours.at(*refined).end(); neighbour++) {
+
+					if (*neighbour == 0) {
+						continue;
+					}
+
 					if (this->cell_process.at(*neighbour) == this->comm.rank()) {
 						update_neighbours.insert(*neighbour);
 					}
 				}
 				for (std::vector<uint64_t>::const_iterator neighbour_to = this->neighbours_to.at(*refined).begin(); neighbour_to != this->neighbours_to.at(*refined).end(); neighbour_to++) {
+
+					if (*neighbour_to == 0) {
+						continue;
+					}
+
 					if (this->cell_process.at(*neighbour_to) == this->comm.rank()) {
 						update_neighbours.insert(*neighbour_to);
 					}
@@ -3858,6 +3993,10 @@ private:
 			}
 
 			for (std::vector<uint64_t>::const_iterator neighbour = found_neighbours.begin(); neighbour != found_neighbours.end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
 
 				if (this->cell_process.at(*neighbour) == this->comm.rank()
 				&& parents_of_unrefined.count(*neighbour) == 0) {
@@ -4830,7 +4969,12 @@ private:
 				return;
 			}
 
-			number_of_neighbours[i] = dccrg_instance->neighbours[cell].size();
+			number_of_neighbours[i] = 0;
+			for (auto neighbour = dccrg_instance->neighbours.at(cell).cbegin(); neighbour != dccrg_instance->neighbours.at(cell).cend(); neighbour++) {
+				if (*neighbour != 0) {
+					number_of_neighbours[i]++;
+				}
+			}
 		}
 	}
 
@@ -4852,24 +4996,32 @@ private:
 				return;
 			}
 
-			number_of_neighbours[i] = dccrg_instance->neighbours[cell].size();
+			number_of_neighbours[i] = 0;
 
-			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell].begin(); neighbour != dccrg_instance->neighbours[cell].end(); neighbour++, current_neighbour_number++) {
+			for (auto neighbour = dccrg_instance->neighbours.at(cell).cbegin(); neighbour != dccrg_instance->neighbours.at(cell).cend(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
+				number_of_neighbours[i]++;
 
 				neighbours[current_neighbour_number] = *neighbour;
-				processes_of_neighbours[current_neighbour_number] = dccrg_instance->cell_process[*neighbour];
+				processes_of_neighbours[current_neighbour_number] = dccrg_instance->cell_process.at(*neighbour);
 
 				// weight of edge from cell to *neighbour
 				if (number_of_weights_per_edge > 0) {
 					edge_weights[current_neighbour_number] = 1.0;
 				}
+
+				current_neighbour_number++;
 			}
 		}
 	}
 
 
 	/*!
-	Writes the number of hyperedges (one per existing cell) in the grid on this process.
+	Writes the number of hyperedges (self + one per neighbour cell) in the grid for all cells on this process.
 	*/
 	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
 	{
@@ -4880,8 +5032,14 @@ private:
 		*format = ZOLTAN_COMPRESSED_EDGE;
 
 		*number_of_connections = 0;
-		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++) {
-			*number_of_connections += 1 + dccrg_instance->neighbours[cell->first].size();
+		for (auto cell = dccrg_instance->cells.cbegin(); cell != dccrg_instance->cells.cend(); cell++) {
+			(*number_of_connections)++;
+
+			for (auto neighbour = dccrg_instance->neighbours.at(cell->first).cbegin(); neighbour != dccrg_instance->neighbours.at(cell->first).cend(); neighbour++) {
+				if (*neighbour != 0) {
+					(*number_of_connections)++;
+				}
+			}
 		}
 	}
 
@@ -4908,7 +5066,7 @@ private:
 
 		int i = 0;
 		int connection_number = 0;
-		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
+		for (auto cell = dccrg_instance->cells.cbegin(); cell != dccrg_instance->cells.cend(); cell++, i++) {
 
 			hyperedges[i] = cell->first;
 			hyperedge_connection_offsets[i] = connection_number;
@@ -4916,8 +5074,13 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = cell->first;
 
-			for (std::vector<uint64_t>::const_iterator neighbour = dccrg_instance->neighbours[cell->first].begin(); neighbour != dccrg_instance->neighbours[cell->first].end(); neighbour++, connection_number++) {
-				connections[connection_number] = *neighbour;
+			for (auto neighbour = dccrg_instance->neighbours.at(cell->first).cbegin(); neighbour != dccrg_instance->neighbours.at(cell->first).cend(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
+				connections[connection_number++] = *neighbour;
 			}
 		}
 
@@ -4957,11 +5120,19 @@ private:
 		}
 
 		int i = 0;
-		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = dccrg_instance->cells.begin(); cell != dccrg_instance->cells.end(); cell++, i++) {
+		for (auto cell = dccrg_instance->cells.cbegin(); cell != dccrg_instance->cells.cend(); cell++, i++) {
 			hyperedges[i] = cell->first;
 
 			if (number_of_weights_per_hyperedge > 0) {
-				hyperedge_weights[i] = 1.0 * dccrg_instance->neighbours[cell->first].size();
+				int number_of_hyperedges = 0;
+
+				for (auto neighbour = dccrg_instance->neighbours.at(cell->first).cbegin(); neighbour != dccrg_instance->neighbours.at(cell->first).cend(); neighbour++) {
+					if (*neighbour != 0) {
+						number_of_hyperedges++;
+					}
+				}
+
+				hyperedge_weights[i] = 1.0 * number_of_hyperedges;
 			}
 		}
 	}
@@ -5220,6 +5391,11 @@ private:
 		all_neighbours.insert(all_neighbours.end(), this->neighbours_to.at(cell).cbegin(), this->neighbours_to.at(cell).cend());
 
 		for (auto neighbour = all_neighbours.cbegin(); neighbour != all_neighbours.cend(); neighbour++) {
+
+			if (*neighbour == 0) {
+				continue;
+			}
+
 			if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 
 				if (this->cells_with_remote_neighbours.count(cell) == 0) {
@@ -5298,6 +5474,11 @@ private:
 				// search in neighbours_of
 				std::vector<uint64_t> neighbours_of = this->find_neighbours_of(item->first);
 				for (std::vector<uint64_t>::const_iterator neighbour = neighbours_of.begin(); neighbour != neighbours_of.end(); neighbour++) {
+
+					if (*neighbour == 0) {
+						continue;
+					}
+
 					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 						no_remote_neighbour = false;
 					}
@@ -5311,6 +5492,11 @@ private:
 				// search in neighbours_to
 				std::vector<uint64_t> neighbours_to = this->find_neighbours_to(item->first);
 				for (std::vector<uint64_t>::const_iterator neighbour = neighbours_to.begin(); neighbour != neighbours_to.end(); neighbour++) {
+
+					if (*neighbour == 0) {
+						continue;
+					}
+
 					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 						no_remote_neighbour = false;
 					}

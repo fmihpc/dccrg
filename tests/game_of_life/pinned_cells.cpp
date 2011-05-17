@@ -339,6 +339,10 @@ int main(int argc, char* argv[])
 
 				for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 
+					if (*neighbour == 0) {
+						continue;
+					}
+
 					game_of_life_cell* neighbour_data = game_grid[*neighbour];
 					if (neighbour_data == NULL) {
 						cout << __FILE__ << ":" << __LINE__ << " no data for neighbour of cell " << *cell << ": " << *neighbour << endl;
@@ -383,6 +387,10 @@ int main(int argc, char* argv[])
 			} else {
 
 				for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+
+					if (*neighbour == 0) {
+						continue;
+					}
 
 					game_of_life_cell* neighbour_data = game_grid[*neighbour];
 					if (neighbour_data == NULL) {
@@ -458,6 +466,11 @@ int main(int argc, char* argv[])
 
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				if (game_grid.get_refinement_level(*neighbour) == 0) {
 					continue;
 				}

@@ -117,6 +117,10 @@ int main(int argc, char* argv[])
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data->is_alive) {
 					cell_data->live_neighbour_count++;
@@ -133,6 +137,10 @@ int main(int argc, char* argv[])
 
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
 
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data->is_alive) {

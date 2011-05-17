@@ -210,6 +210,10 @@ int main(int argc, char* argv[])
 
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
 
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				// only consider neighbours in the same z plane
 				if (game_grid.get_cell_z(*cell) != game_grid.get_cell_z(*neighbour)) {
 					continue;

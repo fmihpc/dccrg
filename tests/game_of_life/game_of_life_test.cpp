@@ -533,6 +533,11 @@ int main(int argc, char* argv[])
 			}
 
 			for (auto neighbour = neighbours->cbegin(); neighbour != neighbours->cend(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
 					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
@@ -567,6 +572,11 @@ int main(int argc, char* argv[])
 			}
 
 			for (auto neighbour = neighbours->cbegin(); neighbour != neighbours->cend(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				game_of_life_cell* neighbour_data = game_grid[*neighbour];
 				if (neighbour_data == NULL) {
 					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
