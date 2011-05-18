@@ -2351,6 +2351,29 @@ public:
 	}
 
 
+	/*!
+	Returns a pointer to the send lists of this process.
+
+	These lists record which cells' user data this process will send during neighbour data updates.
+	The key is the target process.
+	*/
+	const boost::unordered_map<int, std::vector<uint64_t> >* get_send_lists(void)
+	{
+		return &(this->cells_to_send);
+	}
+
+	/*!
+	Returns a pointer to the receive lists of this process.
+
+	These lists record which cells' user data this process will receive during neighbour data updates.
+	The key is the source process.
+	*/
+	const boost::unordered_map<int, std::vector<uint64_t> >* get_receive_lists(void)
+	{
+		return &(this->cells_to_receive);
+	}
+
+
 
 private:
 
