@@ -83,6 +83,11 @@ int main(int argc, char* argv[])
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
 
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+
+				/*
+				neighbours that would be outside of the grid
+				are recorded as 0, skip them
+				*/
 				if (*neighbour == 0) {
 					continue;
 				}
