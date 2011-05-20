@@ -196,6 +196,7 @@ int main(int argc, char* argv[])
 		outfile.close();
 
 		// get the neighbour counts of every cell
+		// FIXME: use the (at some point common) solver from (un)refined2d and only include x and y directions in neighbourhood
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -208,6 +209,10 @@ int main(int argc, char* argv[])
 			}
 
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+
+				if (*neighbour == 0) {
+					continue;
+				}
 
 				// only consider neighbours in the same z plane
 				if (game_grid.get_cell_z(*cell) != game_grid.get_cell_z(*neighbour)) {

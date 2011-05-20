@@ -86,6 +86,10 @@ int main(int argc, char* argv[])
 
 			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				CellData* neighbour_data = grid[*neighbour];
 
 				for (vector<int>::const_iterator variable = neighbour_data->variables2.begin(); variable != neighbour_data->variables2.end(); variable++) {
@@ -123,6 +127,10 @@ int main(int argc, char* argv[])
 
 			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				CellData* neighbour_data = grid[*neighbour];
 
 				for (vector<int>::const_iterator variable = neighbour_data->variables2.begin(); variable != neighbour_data->variables2.end(); variable++) {
@@ -163,6 +171,10 @@ int main(int argc, char* argv[])
 
 			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
 			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+				if (*neighbour == 0) {
+					continue;
+				}
+
 				CellData* neighbour_data = grid[*neighbour];
 
 				for (vector<int>::const_iterator variable = neighbour_data->variables2.begin(); variable != neighbour_data->variables2.end(); variable++) {
