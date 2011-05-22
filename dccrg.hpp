@@ -360,6 +360,7 @@ public:
 
 		#endif
 
+		// set / check neighbourhood_of
 		this->neighbourhood_size = neighbourhood_size;
 		if (this->neighbourhood_size == 0) {
 			{
@@ -396,6 +397,12 @@ public:
 				neighbourhood_item_t item = {x, y, z};
 				this->neighbourhood_of.push_back(item);
 			}
+		}
+
+		// set neighbourhood_to
+		for (auto offset = this->neighbourhood_of.cbegin(); offset != this->neighbourhood_of.cend(); offset++) {
+			neighbourhood_item_t item = {-(*offset)[0], -(*offset)[1], -(*offset)[2]};
+			this->neighbourhood_of.push_back(item);
 		}
 
 		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
