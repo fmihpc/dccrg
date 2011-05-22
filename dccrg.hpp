@@ -360,6 +360,8 @@ public:
 
 		#endif
 
+		this->periodic = { false, false, false };
+
 		// set / check neighbourhood_of
 		this->neighbourhood_size = neighbourhood_size;
 		if (this->neighbourhood_size == 0) {
@@ -402,7 +404,7 @@ public:
 		// set neighbourhood_to
 		for (auto offset = this->neighbourhood_of.cbegin(); offset != this->neighbourhood_of.cend(); offset++) {
 			neighbourhood_item_t item = {-(*offset)[0], -(*offset)[1], -(*offset)[2]};
-			this->neighbourhood_of.push_back(item);
+			this->neighbourhood_to.push_back(item);
 		}
 
 		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
@@ -1578,9 +1580,9 @@ public:
 		#endif
 
 		// grid length in indices
-		const uint64_t x_length_in_indices = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t y_length_in_indices = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t z_length_in_indices = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t x_length = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t y_length = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t z_length = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
 
 		// can limit search due to maximum refinement level difference of 1 between neighbours
 		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
@@ -1592,53 +1594,171 @@ public:
 			const int y_offset = (*offsets)[1];
 			const int z_offset = (*offsets)[2];
 
-			// insert 0 as neighbour for offsets outside of the grid
+			indices_t search_indices_min = { indices[0], indices[1], indices[2] };
+
+			// TODO: iterate over directions using a loop
 			if (x_offset < 0) {
-				if (indices[0] < abs(x_offset) * size_in_indices) {
-					return_neighbours.push_back(0);
-					continue;
+				if (this->periodic[0]) {
+					for (int i = 0; i > x_offset; i--) {
+
+						#ifdef DEBUG
+						if (search_indices_min[0] < size_in_indices - 1) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+							abort();
+						}
+						#endif
+
+						if (search_indices_min[0] >= size_in_indices) {
+							search_indices_min[0] -= size_in_indices;
+						} else {
+							search_indices_min[0] = x_length - size_in_indices - 1;
+						}
+					}
+				// insert 0 as neighbour for x offset outside of the grid
+				} else {
+					if (indices[0] < abs(x_offset) * size_in_indices) {
+						return_neighbours.push_back(0);
+						continue;
+					}
+
+					search_indices_min[0] += x_offset * size_in_indices;
 				}
 			} else {
-				if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length_in_indices) {
-					return_neighbours.push_back(0);
-					continue;
+				if (this->periodic[0]) {
+					for (int i = 0; i < x_offset; i++) {
+
+						#ifdef DEBUG
+						if (search_indices_min[0] > x_length - size_in_indices) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+							abort();
+						}
+						#endif
+
+						if (search_indices_min[0] < x_length - size_in_indices) {
+							search_indices_min[0] += size_in_indices;
+						} else {
+							search_indices_min[0] = 0;
+						}
+					}
+				} else {
+					if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length) {
+						return_neighbours.push_back(0);
+						continue;
+					}
+
+					search_indices_min[0] += x_offset * size_in_indices;
 				}
 			}
 
 			if (y_offset < 0) {
-				if (indices[1] < abs(y_offset) * size_in_indices) {
-					return_neighbours.push_back(0);
-					continue;
+				if (this->periodic[1]) {
+					for (int i = 0; i > y_offset; i--) {
+
+						#ifdef DEBUG
+						if (search_indices_min[1] < size_in_indices - 1) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+							abort();
+						}
+						#endif
+
+						if (search_indices_min[1] >= size_in_indices) {
+							search_indices_min[1] -= size_in_indices;
+						} else {
+							search_indices_min[1] = y_length - size_in_indices - 1;
+						}
+					}
+				} else {
+					if (indices[1] < abs(y_offset) * size_in_indices) {
+						return_neighbours.push_back(0);
+						continue;
+					}
+
+					search_indices_min[1] += y_offset * size_in_indices;
 				}
 			} else {
-				if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length_in_indices) {
-					return_neighbours.push_back(0);
-					continue;
+				if (this->periodic[1]) {
+					for (int i = 0; i < y_offset; i++) {
+
+						#ifdef DEBUG
+						if (search_indices_min[1] > y_length - size_in_indices) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+							abort();
+						}
+						#endif
+
+						if (search_indices_min[1] < y_length - size_in_indices) {
+							search_indices_min[1] += size_in_indices;
+						} else {
+							search_indices_min[1] = 0;
+						}
+					}
+				} else {
+					if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length) {
+						return_neighbours.push_back(0);
+						continue;
+					}
+
+					search_indices_min[1] += y_offset * size_in_indices;
 				}
 			}
 
 			if (z_offset < 0) {
-				if (indices[2] < abs(z_offset) * size_in_indices) {
-					return_neighbours.push_back(0);
-					continue;
+				if (this->periodic[2]) {
+					for (int i = 0; i > z_offset; i--) {
+
+						#ifdef DEBUG
+						if (search_indices_min[2] < size_in_indices - 1) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+							abort();
+						}
+						#endif
+
+						if (search_indices_min[2] >= size_in_indices) {
+							search_indices_min[2] -= size_in_indices;
+						} else {
+							search_indices_min[2] = z_length - size_in_indices - 1;
+						}
+					}
+				} else {
+					if (indices[2] < abs(z_offset) * size_in_indices) {
+						return_neighbours.push_back(0);
+						continue;
+					}
+
+					search_indices_min[2] += z_offset * size_in_indices;
 				}
 			} else {
-				if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length_in_indices) {
-					return_neighbours.push_back(0);
-					continue;
+				if (this->periodic[2]) {
+					for (int i = 0; i < z_offset; i++) {
+
+						#ifdef DEBUG
+						if (search_indices_min[2] > z_length - size_in_indices) {
+							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+							abort();
+						}
+						#endif
+
+						if (search_indices_min[2] < z_length - size_in_indices) {
+							search_indices_min[2] += size_in_indices;
+						} else {
+							search_indices_min[2] = 0;
+						}
+					}
+				} else {
+					if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length) {
+						return_neighbours.push_back(0);
+						continue;
+					}
+
+					search_indices_min[2] += z_offset * size_in_indices;
 				}
 			}
 
-			const indices_t search_indices_min = {
-				indices[0] + x_offset * size_in_indices,
-				indices[1] + y_offset * size_in_indices,
-				indices[2] + z_offset * size_in_indices
-			};
-
+			// assume grid doesn't wrap around in the middle of the search volume
 			const indices_t search_indices_max = {
-				indices[0] + (1 + x_offset) * size_in_indices - 1,
-				indices[1] + (1 + y_offset) * size_in_indices - 1,
-				indices[2] + (1 + z_offset) * size_in_indices - 1
+				search_indices_min[0] + size_in_indices - 1,
+				search_indices_min[1] + size_in_indices - 1,
+				search_indices_min[2] + size_in_indices - 1
 			};
 
 			std::vector<uint64_t> result = this->find_cells(search_indices_min, search_indices_max, search_min_ref_level, search_max_ref_level);
@@ -2600,6 +2720,9 @@ private:
 	unsigned int neighbourhood_size;
 	// the grid is distributed between these processes
 	boost::mpi::communicator comm;
+
+	// periodic[0] == true means that the grid wraps around in x direction
+	bool periodic[3];
 
 	// cells and their data on this process
 	boost::unordered_map<uint64_t, UserData> cells;
