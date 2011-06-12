@@ -1589,7 +1589,8 @@ public:
 						for (int i = 0; i > (*offsets)[dimension]; i--) {
 
 							#ifdef DEBUG
-							if (temp_indices[dimension] < size_in_indices - 1) {
+							if (temp_indices[dimension] < size_in_indices - 1
+							&& temp_indices[dimension] > 0) {
 								std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
 								abort();
 							}
@@ -3667,7 +3668,7 @@ private:
 					}
 					#endif
 
-					if (this->cell_process[*neighbour] != this->comm.rank()) {
+					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 						continue;
 					}
 
@@ -3689,7 +3690,7 @@ private:
 					}
 					#endif
 
-					if (this->cell_process[*neighbour_to] != this->comm.rank()) {
+					if (this->cell_process.at(*neighbour_to) != this->comm.rank()) {
 						continue;
 					}
 
@@ -4930,6 +4931,30 @@ private:
 
 
 	/*!
+	Returns the siblings of given cell regardless of whether they exist.
+
+	If given a cell of refinement level 0 returns the given cell.
+	Returns nothing if given cell's refinement level exceeds the maximum of this grid.
+	*/
+	std::vector<uint64_t> get_siblings(const uint64_t cell) const
+	{
+		std::vector<uint64_t> siblings;
+
+		const int refinement_level = this->get_refinement_level(cell);
+		if (refinement_level < 0) {
+			return siblings;
+		}
+
+		if (refinement_level == 0) {
+			siblings.push_back(cell);
+			return siblings;
+		}
+
+		return this->get_all_children(this->get_parent(cell));
+	}
+
+
+	/*!
 	Returns all children of given cell regardless of whether they exist
 	Returns no cells if childrens' refinement level would exceed max_refinement_level
 	 */
@@ -4963,12 +4988,10 @@ private:
 		// get indices of next refinement level within this cell
 		refinement_level++;
 		uint64_t index_offset = (uint64_t(1) << (max_refinement_level - refinement_level));
+		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
+		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
 		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
-			for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset) {
-				for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset) {
-					children.push_back(get_cell_from_indices(x_index + x_index_offset, y_index + y_index_offset, z_index + z_index_offset, refinement_level));
-				}
-			}
+			children.push_back(get_cell_from_indices(x_index + x_index_offset, y_index + y_index_offset, z_index + z_index_offset, refinement_level));
 		}
 
 		return children;
