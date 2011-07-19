@@ -63,6 +63,7 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #include "cstring"
 #include "fstream"
 #include "functional"
+#include "limits"
 #include "stdint.h"
 #include "utility"
 #include "vector"
@@ -78,10 +79,10 @@ namespace Dccrg
 /*
 Defines the indices of a cell in the grid, first value is the cell's index in x direction, second in the y direction, etc.
 
-Indices start from 0 and the index of a cell is the one within the cell closest to the starting corner of the grid.
+Indices start from 0 and the index of a cell is the one closest to the starting corner of the grid within the cell.
 Indices are of the same size as the smallest possible cell in the grid, e.g. the size in indices of cells of maximum refinement level is 1.
-For example in the following 2d grid the indices of cell 2 are (2, 0) and cell 8 are (1, 1) assiming a maximum refinement level of 1.
----------> x
+For example in the following 2d grid the indices of cell 2 are (2, 0) and cell 8 are (1, 1) assuming a maximum refinement level of 1.
+--------->  x
 |3|4|   |
 |-|-| 2 |
 |7|8|   |
@@ -93,6 +94,8 @@ y
 */
 typedef boost::array<uint64_t, 3> indices_t;
 
+// Indicates a non-existing index or an error when dealing with indices
+static const uint64_t error_index = std::numeric_limits<uint64_t>::max();
 
 /*
 Defines one item of cells' neighbourhood in the grid.
@@ -437,6 +440,10 @@ public:
 		}
 
 		this->geometry.set_maximum_refinement_level(this->max_refinement_level);
+
+
+		// TODO: check that the last index in the grid in every direction is less than error_index
+
 
 		// the number of the last cell at maximum refinement level
 		uint64_t id = 0;
@@ -1540,6 +1547,112 @@ public:
 
 
 	/*!
+	Returns the indices corresponding to the given neighbourhood (with given neighbour size in indices) at given indices.
+
+	If grid is not periodic those indices will be error_indices that would fall outside of the grid.
+	*/
+	std::vector<indices_t> indices_from_neighbourhood(
+		const indices_t indices,
+		const uint64_t size_in_indices,
+		const std::vector<neighbourhood_item_t>* neighbourhood
+	) const
+	{
+		std::vector<indices_t> return_indices;
+		return_indices.reserve(neighbourhood->size());
+
+		// grid length in indices
+		const uint64_t grid_length[3] = {
+			this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level),
+			this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level),
+			this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)
+		};
+
+		//#ifdef DEBUG
+		for (unsigned int dimension = 0; dimension < 3; dimension++) {
+			if (indices[dimension] >= grid_length[dimension]) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Given indices outside of the grid in dimension " << dimension << std::endl;
+				abort();
+			}
+		}
+		//#endif
+
+		for (auto offsets = neighbourhood->cbegin(); offsets != neighbourhood->cend(); offsets++) {
+
+			indices_t temp_indices = { indices[0], indices[1], indices[2] };
+
+			for (unsigned int dimension = 0; dimension < 3; dimension++) {
+				if ((*offsets)[dimension] < 0) {
+
+					if (this->periodic[dimension]) {
+
+						// neighbourhood might wrap around the grid several times
+						for (int i = 0; i > (*offsets)[dimension]; i--) {
+
+							#ifdef DEBUG
+							if (temp_indices[dimension] < size_in_indices - 1
+							&& temp_indices[dimension] > 0) {
+								std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+								abort();
+							}
+							#endif
+
+							if (temp_indices[dimension] >= size_in_indices) {
+								temp_indices[dimension] -= size_in_indices;
+							} else {
+								temp_indices[dimension] = grid_length[dimension] - size_in_indices;
+							}
+						}
+					// use error_indices to signal that this neighbourhood item is outside of the grid
+					} else {
+						if (indices[dimension] < abs((*offsets)[dimension]) * size_in_indices) {
+							temp_indices[0] = error_index;
+							temp_indices[1] = error_index;
+							temp_indices[2] = error_index;
+							break;
+						}
+
+						temp_indices[dimension] += (*offsets)[dimension] * size_in_indices;
+					}
+
+				} else {
+
+					if (this->periodic[dimension]) {
+						for (int i = 0; i < (*offsets)[dimension]; i++) {
+
+							#ifdef DEBUG
+							if (temp_indices[dimension] > grid_length[dimension] - size_in_indices) {
+								std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+								abort();
+							}
+							#endif
+
+							if (temp_indices[dimension] < grid_length[dimension] - size_in_indices) {
+								temp_indices[dimension] += size_in_indices;
+							} else {
+								temp_indices[dimension] = 0;
+							}
+						}
+					} else {
+						if (indices[dimension] + (*offsets)[dimension] * size_in_indices >= grid_length[dimension]) {
+							temp_indices[0] = error_index;
+							temp_indices[1] = error_index;
+							temp_indices[2] = error_index;
+							break;
+						}
+
+						temp_indices[dimension] += (*offsets)[dimension] * size_in_indices;
+					}
+				}
+			}
+
+			return_indices.push_back(temp_indices);
+		}
+
+		return return_indices;
+	}
+
+
+	/*!
 	Returns the existing neighbours (that don't have children) of given cell even if it is on another process.
 
 	Returns nothing if the following cases:
@@ -1562,206 +1675,30 @@ public:
 		}
 
 		const indices_t indices = this->get_indices(cell);
-
-		// search neighbours in cells of the same size as the given cell (times neighbourhood size)
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
-		const int refinement_level = this->get_refinement_level(cell);
-		#ifdef DEBUG
-		if (refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << cell << " is less than 0: " << refinement_level << std::endl;
-			abort();
-		}
-		#endif
-
-		// grid length in indices
-		const uint64_t x_length = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t y_length = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t z_length = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
-
 		// can limit search due to maximum refinement level difference of 1 between neighbours
+		const int refinement_level = this->get_refinement_level(cell);
 		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
 		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
 
-		for (auto offsets = this->neighbourhood_of.cbegin(); offsets != this->neighbourhood_of.cend(); offsets++) {
+		std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_of));
 
-			const int x_offset = (*offsets)[0];
-			const int y_offset = (*offsets)[1];
-			const int z_offset = (*offsets)[2];
+		for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
 
-			indices_t search_indices_min = { indices[0], indices[1], indices[2] };
-
-			// TODO: iterate over directions using a loop
-			if (x_offset < 0) {
-				if (this->periodic[0]) {
-					for (int i = 0; i > x_offset; i--) {
-
-						#ifdef DEBUG
-						if (search_indices_min[0] < size_in_indices - 1) {
-							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
-							abort();
-						}
-						#endif
-
-						if (search_indices_min[0] >= size_in_indices) {
-							search_indices_min[0] -= size_in_indices;
-						} else {
-							search_indices_min[0] = x_length - size_in_indices - 1;
-						}
-					}
-				// insert 0 as neighbour for x offset outside of the grid
-				} else {
-					if (indices[0] < abs(x_offset) * size_in_indices) {
-						return_neighbours.push_back(0);
-						continue;
-					}
-
-					search_indices_min[0] += x_offset * size_in_indices;
-				}
-			} else {
-				if (this->periodic[0]) {
-					for (int i = 0; i < x_offset; i++) {
-
-						#ifdef DEBUG
-						if (search_indices_min[0] > x_length - size_in_indices) {
-							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
-							abort();
-						}
-						#endif
-
-						if (search_indices_min[0] < x_length - size_in_indices) {
-							search_indices_min[0] += size_in_indices;
-						} else {
-							search_indices_min[0] = 0;
-						}
-					}
-				} else {
-					if (indices[0] + (1 + x_offset) * size_in_indices - 1 >= x_length) {
-						return_neighbours.push_back(0);
-						continue;
-					}
-
-					search_indices_min[0] += x_offset * size_in_indices;
-				}
-			}
-
-			if (y_offset < 0) {
-				if (this->periodic[1]) {
-					for (int i = 0; i > y_offset; i--) {
-
-						#ifdef DEBUG
-						if (search_indices_min[1] < size_in_indices - 1) {
-							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
-							abort();
-						}
-						#endif
-
-						if (search_indices_min[1] >= size_in_indices) {
-							search_indices_min[1] -= size_in_indices;
-						} else {
-							search_indices_min[1] = y_length - size_in_indices - 1;
-						}
-					}
-				} else {
-					if (indices[1] < abs(y_offset) * size_in_indices) {
-						return_neighbours.push_back(0);
-						continue;
-					}
-
-					search_indices_min[1] += y_offset * size_in_indices;
-				}
-			} else {
-				if (this->periodic[1]) {
-					for (int i = 0; i < y_offset; i++) {
-
-						#ifdef DEBUG
-						if (search_indices_min[1] > y_length - size_in_indices) {
-							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
-							abort();
-						}
-						#endif
-
-						if (search_indices_min[1] < y_length - size_in_indices) {
-							search_indices_min[1] += size_in_indices;
-						} else {
-							search_indices_min[1] = 0;
-						}
-					}
-				} else {
-					if (indices[1] + (1 + y_offset) * size_in_indices - 1 >= y_length) {
-						return_neighbours.push_back(0);
-						continue;
-					}
-
-					search_indices_min[1] += y_offset * size_in_indices;
-				}
-			}
-
-			if (z_offset < 0) {
-				if (this->periodic[2]) {
-					for (int i = 0; i > z_offset; i--) {
-
-						#ifdef DEBUG
-						if (search_indices_min[2] < size_in_indices - 1) {
-							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
-							abort();
-						}
-						#endif
-
-						if (search_indices_min[2] >= size_in_indices) {
-							search_indices_min[2] -= size_in_indices;
-						} else {
-							search_indices_min[2] = z_length - size_in_indices - 1;
-						}
-					}
-				} else {
-					if (indices[2] < abs(z_offset) * size_in_indices) {
-						return_neighbours.push_back(0);
-						continue;
-					}
-
-					search_indices_min[2] += z_offset * size_in_indices;
-				}
-			} else {
-				if (this->periodic[2]) {
-					for (int i = 0; i < z_offset; i++) {
-
-						#ifdef DEBUG
-						if (search_indices_min[2] > z_length - size_in_indices) {
-							std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
-							abort();
-						}
-						#endif
-
-						if (search_indices_min[2] < z_length - size_in_indices) {
-							search_indices_min[2] += size_in_indices;
-						} else {
-							search_indices_min[2] = 0;
-						}
-					}
-				} else {
-					if (indices[2] + (1 + z_offset) * size_in_indices - 1 >= z_length) {
-						return_neighbours.push_back(0);
-						continue;
-					}
-
-					search_indices_min[2] += z_offset * size_in_indices;
-				}
+			if ((*search_index)[0] == error_index) {
+				return_neighbours.push_back(0);
+				continue;
 			}
 
 			// assume grid doesn't wrap around in the middle of the search volume
-			const indices_t search_indices_max = {
-				search_indices_min[0] + size_in_indices - 1,
-				search_indices_min[1] + size_in_indices - 1,
-				search_indices_min[2] + size_in_indices - 1
+			const indices_t search_index_max = {
+				(*search_index)[0] + size_in_indices - 1,
+				(*search_index)[1] + size_in_indices - 1,
+				(*search_index)[2] + size_in_indices - 1
 			};
 
-			std::vector<uint64_t> result = this->find_cells(search_indices_min, search_indices_max, search_min_ref_level, search_max_ref_level);
+			std::vector<uint64_t> result = this->find_cells(*search_index, search_index_max, search_min_ref_level, search_max_ref_level);
 			std::sort(result.begin(), result.end());
 			return_neighbours.insert(return_neighbours.end(), result.begin(), result.end());
 		}
@@ -1772,12 +1709,14 @@ public:
 
 
 	/*!
-	Returns cells (which don't have children) that consider given cell as a neighbour but aren't considered neighbours by given cell.
+	Returns cells (which don't have children) that consider given cell as a neighbour.
 
 	Returns nothing if the following cases:
 		-given cell has children
 		-given doesn't exist on any process
 	Doesn't use existing neighbour lists and hence is slow but works if for example given cell was moved to another process by load balancing.
+	Returned cells might not be in any particular order.
+	Assumes a maximum refinement level difference of one between neighbours (both cases: neighbours_of, neighbours_to).
 	*/
 	std::vector<uint64_t> find_neighbours_to(const uint64_t cell) const
 	{
@@ -1785,91 +1724,99 @@ public:
 
 		if (cell == 0
 		|| cell > this->max_cell_number
-		|| this->cell_process.count(cell) == 0) {
-			return return_neighbours;
-		}
-
-		if (cell != this->get_child(cell)) {
+		|| this->cell_process.count(cell) == 0
+		|| cell != this->get_child(cell)) {
 			return return_neighbours;
 		}
 
 		const int refinement_level = this->get_refinement_level(cell);
-		if (refinement_level == 0) {
-			// largest cell cannot have neighbours_to
-			return return_neighbours;
-		}
-		#ifdef DEBUG
-		if (refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << cell << " is less than 0: " << refinement_level << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
-		// can limit search due to maximum refinement level difference of 1 between neighbours
-		const int search_min_ref_level = (refinement_level == 0) ? refinement_level : refinement_level - 1;
-		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
-
-		// search first for neighbours of the parent, then discard neighbours_of given cell
-		const uint64_t parent = this->get_parent(cell);
-		const uint64_t x_index = this->get_x_index(parent);
-		const uint64_t y_index = this->get_y_index(parent);
-		const uint64_t z_index = this->get_z_index(parent);
-
-		// search neighbours in cells of the same size as the given cell's parent (times neighbourhood size)
-		const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
 		#ifdef DEBUG
 		if (refinement_level > this->max_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
-			exit(EXIT_FAILURE);
+			abort();
 		}
 
 		if (refinement_level < 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << cell << " is less than 0: " << refinement_level << std::endl;
-			exit(EXIT_FAILURE);
+			abort();
 		}
 		#endif
 
-		// must have some neighbours even if neighbourhood_size == 0
-		const int temp_neighbourhood_size = (this->neighbourhood_size > 0) ? this->neighbourhood_size : 1;
+		boost::unordered_set<uint64_t> unique_neighbours;
 
-		// grid length in indices
-		const uint64_t x_length_in_indices = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t y_length_in_indices = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t z_length_in_indices = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
+		// neighbours_to larger than given cell
+		if (refinement_level > 0) {
+			const uint64_t parent = this->get_parent(cell);
+			const indices_t indices = this->get_indices(parent);
+			const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
-		const uint64_t outer_min_x = (x_index < size_in_indices * temp_neighbourhood_size) ? 0 : x_index - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_x = (x_index + size_in_indices * temp_neighbourhood_size < x_length_in_indices) ? x_index + size_in_indices * temp_neighbourhood_size : x_length_in_indices - 1;
+			std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
+			for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
 
-		const uint64_t outer_min_y = (y_index < size_in_indices * temp_neighbourhood_size) ? 0 : y_index - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_y = (y_index + size_in_indices * temp_neighbourhood_size < y_length_in_indices) ? y_index + size_in_indices * temp_neighbourhood_size : y_length_in_indices - 1;
+				if ((*search_index)[0] == error_index) {
+					continue;
+				}
 
-		const uint64_t outer_min_z = (z_index < size_in_indices * temp_neighbourhood_size) ? 0 : z_index - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_z = (z_index + size_in_indices * temp_neighbourhood_size < z_length_in_indices) ? z_index + size_in_indices * temp_neighbourhood_size : z_length_in_indices - 1;
+				const uint64_t found = this->get_cell_from_indices(*search_index, refinement_level - 1);
+				// only add if found cell doesn't have children
+				if (found == this->get_child(found)) {
+					unique_neighbours.insert(found);
+				}
+			}
+		}
 
-		// don't search within the given cell's parent
-		const uint64_t inner_max_x = x_index + size_in_indices - 1;
-		const uint64_t inner_max_y = y_index + size_in_indices - 1;
-		const uint64_t inner_max_z = z_index + size_in_indices - 1;
+		// neighbours_to smaller than given cell
+		if (refinement_level < this->max_refinement_level) {
+			std::vector<uint64_t> children = this->get_all_children(cell);
+			#ifdef DEBUG
+			if (children.size() == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Got no children for cell " << cell << std::endl;
+				abort();
+			}
+			#endif
 
-		boost::unordered_set<uint64_t> unique_neighbours = find_cells(
-			outer_min_x, outer_min_y, outer_min_z,
-			outer_max_x, outer_max_y, outer_max_z,
-			x_index, y_index, z_index,
-			inner_max_x, inner_max_y, inner_max_z,
-			search_min_ref_level, search_max_ref_level);
+			const uint64_t size_in_indices = this->get_cell_size_in_indices(children[0]);
+
+			for (auto child = children.cbegin(); child != children.cend(); child++) {
+				const indices_t indices = this->get_indices(*child);
+
+				std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
+				for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
+
+					if ((*search_index)[0] == error_index) {
+						continue;
+					}
+
+					const uint64_t found = this->get_cell_from_indices(*search_index, refinement_level + 1);
+
+					if (found == this->get_child(found)) {
+						unique_neighbours.insert(found);
+					}
+				}
+			}
+		}
+
+		// neighbours_to of the same size as given cell
+		const indices_t indices = this->get_indices(cell);
+		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
+
+		std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
+		for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
+
+			if ((*search_index)[0] == error_index) {
+				continue;
+			}
+
+			const uint64_t found = this->get_cell_from_indices(*search_index, refinement_level);
+			if (found == this->get_child(found)) {
+				unique_neighbours.insert(found);
+			}
+		}
 
 		return_neighbours.reserve(unique_neighbours.size());
-		for (boost::unordered_set<uint64_t>::const_iterator neighbour = unique_neighbours.begin(); neighbour != unique_neighbours.end(); neighbour++) {
-			if (!this->is_neighbour(cell, *neighbour)
-			&& this->is_neighbour(*neighbour, cell)) {
-				return_neighbours.push_back(*neighbour);
-			}
+		for (auto neighbour = unique_neighbours.cbegin(); neighbour != unique_neighbours.cend(); neighbour++) {
+			return_neighbours.push_back(*neighbour);
 		}
 
 		return return_neighbours;
@@ -3036,6 +2983,7 @@ private:
 
 			int current_process = this->comm.rank();
 
+			// data must be received from neighbours_of
 			for (auto neighbour = this->neighbours.at(*cell).cbegin(); neighbour != this->neighbours.at(*cell).cend(); neighbour++) {
 
 				if (*neighbour == 0) {
@@ -3043,14 +2991,11 @@ private:
 				}
 
 				if (this->cell_process.at(*neighbour) != current_process) {
-					// *neighbours process has to send *neighbours cell data to current_process
 					unique_cells_to_receive[this->cell_process.at(*neighbour)].insert(*neighbour);
-					// current process has to send currents cell data to neighbour
-					unique_cells_to_send[this->cell_process.at(*neighbour)].insert(*cell);
 				}
 			}
 
-			// also cells that have this one as neighbour
+			// data must be sent to neighbours_to
 			for (auto neighbour = this->neighbours_to.at(*cell).cbegin(); neighbour != this->neighbours_to.at(*cell).cend(); neighbour++) {
 
 				if (*neighbour == 0) {
@@ -3058,9 +3003,6 @@ private:
 				}
 
 				if (this->cell_process.at(*neighbour) != current_process) {
-					// *neighbours process has to send *neighbours cell data to current_process
-					unique_cells_to_receive[this->cell_process.at(*neighbour)].insert(*neighbour);
-					// current process has to send currents cell data to neighbour
 					unique_cells_to_send[this->cell_process.at(*neighbour)].insert(*cell);
 				}
 			}
@@ -3247,6 +3189,7 @@ private:
 		this->neighbours_to[cell].clear();
 
 		// neighbour candidates of given cell based on old neighbour lists
+		// TODO: don't put neighbours_of and _to into the same set since they are separate lists now
 		boost::unordered_set<uint64_t> neighbour_candidates;
 
 		for (std::vector<uint64_t>::const_iterator old_neighbour = old_neighbours.begin(); old_neighbour != old_neighbours.end(); old_neighbour++) {
@@ -3725,7 +3668,7 @@ private:
 					}
 					#endif
 
-					if (this->cell_process[*neighbour] != this->comm.rank()) {
+					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 						continue;
 					}
 
@@ -3747,7 +3690,7 @@ private:
 					}
 					#endif
 
-					if (this->cell_process[*neighbour_to] != this->comm.rank()) {
+					if (this->cell_process.at(*neighbour_to) != this->comm.rank()) {
 						continue;
 					}
 
@@ -5017,6 +4960,30 @@ private:
 
 
 	/*!
+	Returns the siblings of given cell regardless of whether they exist.
+
+	If given a cell of refinement level 0 returns the given cell.
+	Returns nothing if given cell's refinement level exceeds the maximum of this grid.
+	*/
+	std::vector<uint64_t> get_siblings(const uint64_t cell) const
+	{
+		std::vector<uint64_t> siblings;
+
+		const int refinement_level = this->get_refinement_level(cell);
+		if (refinement_level < 0) {
+			return siblings;
+		}
+
+		if (refinement_level == 0) {
+			siblings.push_back(cell);
+			return siblings;
+		}
+
+		return this->get_all_children(this->get_parent(cell));
+	}
+
+
+	/*!
 	Returns all children of given cell regardless of whether they exist
 	Returns no cells if childrens' refinement level would exceed max_refinement_level
 	 */
@@ -5050,12 +5017,10 @@ private:
 		// get indices of next refinement level within this cell
 		refinement_level++;
 		uint64_t index_offset = (uint64_t(1) << (max_refinement_level - refinement_level));
+		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
+		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
 		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
-			for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset) {
-				for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset) {
-					children.push_back(get_cell_from_indices(x_index + x_index_offset, y_index + y_index_offset, z_index + z_index_offset, refinement_level));
-				}
-			}
+			children.push_back(get_cell_from_indices(x_index + x_index_offset, y_index + y_index_offset, z_index + z_index_offset, refinement_level));
 		}
 
 		return children;
