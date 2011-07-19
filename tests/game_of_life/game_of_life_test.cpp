@@ -38,7 +38,7 @@ struct game_of_life_cell {
 	}
 
 	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	static MPI_Datatype mpi_datatype(void)
+	MPI_Datatype mpi_datatype(void)
 	{
 		MPI_Datatype type;
 		// processes don't need other processes' live neighbour info

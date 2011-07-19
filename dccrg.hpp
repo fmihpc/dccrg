@@ -4252,11 +4252,6 @@ private:
 	#endif
 	)
 	{
-		#ifdef DCCRG_USER_MPI_DATA_TYPE
-		MPI_Datatype user_datatype = UserData::mpi_datatype();
-		MPI_Type_commit(&user_datatype);
-		#endif
-
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
@@ -4278,6 +4273,11 @@ private:
 
 				// FIXME: make sure message tags between two processes are unique
 
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Datatype user_datatype = destination[*cell].mpi_datatype();
+				MPI_Type_commit(&user_datatype);
+				#endif
+
 				MPI_Irecv(
 					destination[*cell].at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
@@ -4292,6 +4292,10 @@ private:
 					this->comm,
 					&(this->receive_requests[sender->first].back())
 				);
+
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Type_free(&user_datatype);
+				#endif
 
 				#else // ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
@@ -4322,6 +4326,11 @@ private:
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->send_requests[receiver->first].push_back(MPI_Request());
 
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Datatype user_datatype = this->cells.at(*cell).mpi_datatype();
+				MPI_Type_commit(&user_datatype);
+				#endif
+
 				MPI_Isend(
 					this->cells.at(*cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
@@ -4336,6 +4345,10 @@ private:
 					this->comm,
 					&(this->send_requests[receiver->first].back())
 				);
+
+				#ifdef DCCRG_USER_MPI_DATA_TYPE
+				MPI_Type_free(&user_datatype);
+				#endif
 
 				#else
 
@@ -4374,21 +4387,31 @@ private:
 
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
 			std::vector<int> block_lengths(displacements.size(), 1);
+			std::vector<MPI_Datatype> datatypes(displacements.size());
+			for (uint64_t i = 0; i < sender->second.size(); i++) {
+				datatypes[i] = destination.at(sender->second[i]).mpi_datatype();
+			}
 			#else
 			std::vector<int> block_lengths(displacements.size(), UserData::size());
 			#endif
 
+			#ifdef DCCRG_USER_MPI_DATA_TYPE
+			MPI_Type_create_struct(
+				displacements.size(),
+				&block_lengths[0],
+				&displacements[0],
+				&datatypes[0],
+				&receive_datatype
+			);
+			#else
 			MPI_Type_create_hindexed(
 				displacements.size(),
 				&block_lengths[0],
 				&displacements[0],
-				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				user_datatype,
-				#else
 				MPI_BYTE,
-				#endif
 				&receive_datatype
 			);
+			#endif
 
 			MPI_Type_commit(&receive_datatype);
 
@@ -4424,21 +4447,31 @@ private:
 
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
 			std::vector<int> block_lengths(displacements.size(), 1);
+			std::vector<MPI_Datatype> datatypes(displacements.size());
+			for (uint64_t i = 0; i < receiver->second.size(); i++) {
+				datatypes[i] = this->cells.at(receiver->second[i]).mpi_datatype();
+			}
 			#else
 			std::vector<int> block_lengths(displacements.size(), UserData::size());
 			#endif
 
+			#ifdef DCCRG_USER_MPI_DATA_TYPE
+			MPI_Type_create_struct(
+				displacements.size(),
+				&block_lengths[0],
+				&displacements[0],
+				&datatypes[0],
+				&send_datatype
+			);
+			#else
 			MPI_Type_create_hindexed(
 				displacements.size(),
 				&block_lengths[0],
 				&displacements[0],
-				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				user_datatype,
-				#else
 				MPI_BYTE,
-				#endif
 				&send_datatype
 			);
+			#endif
 
 			MPI_Type_commit(&send_datatype);
 
@@ -4458,10 +4491,6 @@ private:
 
 			MPI_Type_free(&send_datatype);
 		}
-
-		#ifdef DCCRG_USER_MPI_DATA_TYPE
-		MPI_Type_free(&user_datatype);
-		#endif
 
 		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
