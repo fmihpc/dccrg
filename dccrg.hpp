@@ -5010,17 +5010,15 @@ private:
 			return children;
 		}
 
-		uint64_t x_index = this->get_x_index(id);
-		uint64_t y_index = this->get_y_index(id);
-		uint64_t z_index = this->get_z_index(id);
+		indices_t indices = this->get_indices(id);
 
 		// get indices of next refinement level within this cell
 		refinement_level++;
-		uint64_t index_offset = (uint64_t(1) << (max_refinement_level - refinement_level));
+		const uint64_t index_offset = (uint64_t(1) << (max_refinement_level - refinement_level));
 		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
 		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
 		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
-			children.push_back(get_cell_from_indices(x_index + x_index_offset, y_index + y_index_offset, z_index + z_index_offset, refinement_level));
+			children.push_back(get_cell_from_indices(indices[0] + x_index_offset, indices[1] + y_index_offset, indices[2] + z_index_offset, refinement_level));
 		}
 
 		return children;
