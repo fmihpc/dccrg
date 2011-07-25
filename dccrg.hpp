@@ -1737,8 +1737,10 @@ public:
 
 			const uint64_t neighbor = this->get_cell_from_indices(
 				*index_of,
-				refinement_level - 1,
-				refinement_level + 1
+				(refinement_level == 0)
+					? 0 : refinement_level - 1,
+				(refinement_level < this->max_refinement_level)
+					? refinement_level + 1 : this->max_refinement_level
 			);
 
 			#ifdef DEBUG
