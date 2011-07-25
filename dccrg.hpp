@@ -166,6 +166,13 @@ public:
 		const bool periodic_in_z = false
 	)
 	{
+		/*
+		TODO: Support either compile-time or run-time grid
+		parameters in style of eigen.tuxfamily.org, for
+		example dccrg<dx, dy, dz, max_ref_lvl, UserData>(...)
+		where dx, ... max_ref_lvl is either a positive
+		integer or Dynamic.
+		*/
 		this->initialized = false;
 
 		this->initialize(
