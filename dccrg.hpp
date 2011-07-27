@@ -430,12 +430,14 @@ public:
 			this->neighbourhood_to.push_back(item);
 		}
 
+		const uint64_t grid_length = this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length();
+
 		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
-		double max_id = uint64_t(~0), last_id = this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length();
+		double max_id = uint64_t(~0), last_id = grid_length;
 		int refinement_level = 0;
 		while (last_id / max_id < 1) {
 			refinement_level++;
-			last_id += double(this->geometry.get_x_length()) * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << refinement_level * 3);
+			last_id += double(grid_length) * (uint64_t(1) << refinement_level * 3);
 		}
 		refinement_level--;
 
@@ -449,9 +451,13 @@ public:
 
 		if (maximum_refinement_level > refinement_level) {
 
-			std::cerr << "Given max_refinement_level (" << maximum_refinement_level << ") is too large: " << "x_length * this->geometry.get_y_length() * this->geometry.get_z_length() * 8^max_refinement_level / (2^64 - 1) >= " << this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << maximum_refinement_level * 3) / max_id << " but must be < 1" << std::endl;
+			std::cerr << "Given max_refinement_level (" << maximum_refinement_level
+				<< ") is too large: x_length * this->geometry.get_y_length() * this->geometry.get_z_length() * 8^max_refinement_level / (2^64 - 1) >= "
+				<< grid_length * (uint64_t(1) << maximum_refinement_level * 3) / max_id
+				<< " but must be < 1"
+				<< std::endl;
 			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 
 		} else if (maximum_refinement_level < 0) {
 			this->max_refinement_level = refinement_level;
@@ -468,21 +474,32 @@ public:
 		// the number of the last cell at maximum refinement level
 		uint64_t id = 0;
 		for (refinement_level = 0; refinement_level <= this->max_refinement_level; refinement_level++) {
-			id += this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << refinement_level * 3);
+			id += grid_length * (uint64_t(1) << refinement_level * 3);
 		}
 		this->max_cell_number = id;
 
 		// create unrefined cells
-		uint64_t cells_per_process = 1 + this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() / uint64_t(comm.size());
-		for (uint64_t id = 1; id <= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length(); id++) {
-			if (id / cells_per_process == uint64_t(comm.rank())) {
+		uint64_t cells_per_process = 0;
+		if (grid_length < uint64_t(comm.size())) {
+			cells_per_process = 1;
+		} else if (grid_length % uint64_t(comm.size()) > 0) {
+			cells_per_process = grid_length / uint64_t(comm.size()) + 1;
+		} else {
+			cells_per_process = grid_length / uint64_t(comm.size());
+		}
+		for (id = 1; id <= grid_length; id++) {
+			if ((id - uint64_t(1)) / cells_per_process == uint64_t(comm.rank())) {
 				this->cells[id];
 			}
-			this->cell_process[id] = id / cells_per_process;
+			this->cell_process[id] = (id - uint64_t(1)) / cells_per_process;
 		}
 
 		// update neighbour lists of created cells
-		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator cell = this->cells.begin(); cell != this->cells.end(); cell++) {
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
+			cell = this->cells.begin();
+			cell != this->cells.end();
+			cell++
+		) {
 			this->neighbours[cell->first] = this->find_neighbours_of(cell->first);
 			this->neighbours_to[cell->first] = this->find_neighbours_to(cell->first);
 		}
