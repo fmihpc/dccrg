@@ -2857,7 +2857,7 @@ public:
 	Returns a pointer to the set of local cells which have at least one neighbor.
 	on another process.
 	*/
-	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbours(void)
+	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbours(void) const
 	{
 		return &(this->cells_with_remote_neighbours);
 	}
@@ -2865,7 +2865,7 @@ public:
 	/*!
 	Returns a pointer to the set of remote cells which have at least one local neighbor.
 	*/
-	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbours(void)
+	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbours(void) const
 	{
 		return &(this->remote_cells_with_local_neighbours);
 	}
