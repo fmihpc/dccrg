@@ -735,6 +735,8 @@ public:
 	{
 		this->comm.barrier();
 
+		this->cell_weights.clear();
+
 		this->update_pin_requests();
 
 		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
@@ -2871,6 +2873,62 @@ public:
 	}
 
 
+	/*!
+	Sets the weight of given local existing cell without children.
+
+	Does nothing if above conditions are not met.
+	Cell weights are given to Zoltan when balancing the load.
+	Unset cell weights are assumed to be 1.
+
+	User set cell weights are removed when balance_load is called.
+	Children of refined cells inherit their parent's weight.
+	Parents of unrefined cells do not inherit the moved cells' weights.
+	*/
+	void set_cell_weight(const uint64_t cell, const double weight)
+	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
+		if (this->cell_process.at(cell) != this->comm.rank()) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		this->cell_weights[cell] = weight;
+	}
+
+	/*!
+	Returns the weight of given local existing cell without children.
+
+	Returns a quiet nan if above conditions are not met.
+	Unset cell weights are assumed to be 1.
+	*/
+	double get_cell_weight(const uint64_t cell) const
+	{
+		if (this->cell_process.count(cell) == 0) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		if (this->cell_process.at(cell) != this->comm.rank()) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		if (cell != this->get_child(cell)) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		if (this->cell_weights.count(cell) == 0) {
+			return 1;
+		} else {
+			return this->cell_weights.at(cell);
+		}
+	}
+
+
 
 private:
 
@@ -2977,6 +3035,8 @@ private:
 	bool no_load_balancing;
 	// reserved options that the user cannot change
 	boost::unordered_set<std::string> reserved_options;
+
+	boost::unordered_map<uint64_t, double> cell_weights;
 
 
 	/*!
@@ -3926,8 +3986,17 @@ private:
 				this->new_pin_requests.erase(*refined);
 			}
 
+			// children of refined cells inherit their weight
+			if (this->comm.rank() == process_of_refined
+			&& this->cell_weights.count(*refined) > 0) {
+				for (auto child = children.cbegin(); child != children.cend(); child++) {
+					this->cell_weights[*child] = this->cell_weights.at(*refined);
+				}
+				this->cell_weights.erase(*refined);
+			}
+
 			// use local neighbour lists to find cells whose neighbour lists have to updated
-			if (process_of_refined == this->comm.rank()) {
+			if (this->comm.rank() == process_of_refined) {
 				// update the neighbour lists of created local cells
 				for (std::vector<uint64_t>::const_iterator
 					child = children.begin();
@@ -4017,6 +4086,7 @@ private:
 			update_neighbours.erase(*unrefined);
 			this->pin_requests.erase(*unrefined);
 			this->new_pin_requests.erase(*unrefined);
+			this->cell_weights.erase(*unrefined);
 
 			// don't send unrefined cells' user data to self
 			if (this->comm.rank() == process_of_unrefined
@@ -5079,7 +5149,11 @@ private:
 			global_ids[i] = cell->first;
 
 			if (number_of_weights_per_object > 0) {
-				object_weights[i] = 1e-10;
+				if (dccrg_instance->cell_weights.count(cell->first) > 0) {
+					object_weights[i] = dccrg_instance->cell_weights.at(cell->first);
+				} else {
+					object_weights[i] = 1;
+				}
 			}
 		}
 	}
