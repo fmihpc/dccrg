@@ -196,13 +196,17 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
 			game_of_life_cell* removed_cell_data = game_grid[*removed_cell];
 			if (removed_cell_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for removed cell after unrefining: " << *removed_cell << endl;
-				exit(EXIT_FAILURE);
+				cout << __FILE__ << ":" << __LINE__
+					<< " no data for removed cell after unrefining: " << *removed_cell
+					<< endl;
+				abort();
 			}
 			game_of_life_cell* parent_data = game_grid[game_grid.get_parent_for_removed(*removed_cell)];
 			if (parent_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell) << endl;
-				exit(EXIT_FAILURE);
+				cout << __FILE__ << ":" << __LINE__
+				<< " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell)
+				<< endl;
+				abort();
 			}
 			parent_data->is_alive = removed_cell_data->is_alive;
 		}

@@ -731,137 +731,14 @@ public:
 	Does not update remote neighbour data between processes afterward.
 	Discards refines / unrefines.
 	*/
-	void balance_load(void)
+	void balance_load(const bool has_been_prepared = false)
 	{
-		this->comm.barrier();
-
-		this->cell_weights.clear();
-
-		this->update_pin_requests();
-
-		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
-		ZOLTAN_ID_PTR global_ids_to_receive, local_ids_to_receive, global_ids_to_send, local_ids_to_send;
-		int *sender_processes, *receiver_processes;
-
-		if (Zoltan_LB_Balance(this->zoltan, &partition_changed, &global_id_size, &local_id_size, &number_to_receive, &global_ids_to_receive, &local_ids_to_receive, &sender_processes, &number_to_send, &global_ids_to_send, &local_ids_to_send, &receiver_processes) != ZOLTAN_OK) {
-			if (!this->no_load_balancing) {
-				std::cerr << "Zoltan_LB_Partition failed" << std::endl;
-				Zoltan_Destroy(&this->zoltan);
-				// TODO: throw an exception instead
-				abort();
-			}
+		if (!has_been_prepared) {
+			this->make_new_partition(true);
 		}
-
-		#ifdef DEBUG
-		// check that processes have the cells they're supposed to send
-		for (int i = 0; i < number_to_send; i++) {
-			if (this->cells.count(global_ids_to_send[i]) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cannot send cell " << global_ids_to_send[i] << " to process " << receiver_processes[i] << std::endl;
-				abort();
-			}
-		}
-
-		// check that cells to be received are on the sending process
-		for (int i = 0; i < number_to_receive; i++) {
-			if (this->cell_process.at(global_ids_to_receive[i]) != sender_processes[i]) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cannot receive cell " << global_ids_to_receive[i] << " from process " << sender_processes[i] << std::endl;
-				abort();
-			}
-		}
-		#endif
-
-		this->cells_to_receive.clear();
-		this->cells_to_send.clear();
-
-		/*
-		Processes and the cells for which data has to be received by this process
-		*/
-
-		// cells added to / removed from this process by load balancing
-		boost::unordered_set<uint64_t> added_cells, removed_cells;
-
-		// migration from user
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
-
-			const int current_process_of_cell = this->cell_process.at(pin_request->first);
-
-			if (pin_request->second == this->comm.rank()
-			&& current_process_of_cell != this->comm.rank()) {
-				this->cells_to_receive[current_process_of_cell].push_back(pin_request->first);
-				added_cells.insert(pin_request->first);
-			}
-		}
-
-		// migration from Zoltan
-		for (int i = 0; i < number_to_receive; i++) {
-
-			// don't send / receive from self
-			if (sender_processes[i] == this->comm.rank()) {
-				continue;
-			}
-
-			// skip user-migrated cells
-			if (this->pin_requests.count(global_ids_to_receive[i]) > 0) {
-				continue;
-			}
-
-			this->cells_to_receive[sender_processes[i]].push_back(global_ids_to_receive[i]);
-
-			#ifdef DEBUG
-			if (added_cells.count(global_ids_to_receive[i]) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_receive[i] << " has already been received from process " << this->comm.rank() << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			#endif
-
-			added_cells.insert(global_ids_to_receive[i]);
-		}
-
-		/*
-		Processes and the cells for which data has to be sent by this process
-		*/
-
-		// migration from user
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
-
-			const int current_process_of_cell = this->cell_process.at(pin_request->first);
-			const int destination_process = pin_request->second;
-
-			if (destination_process != this->comm.rank()
-			&& current_process_of_cell == this->comm.rank()) {
-				this->cells_to_send[destination_process].push_back(pin_request->first);
-				removed_cells.insert(pin_request->first);
-			}
-		}
-
-		// migration from Zoltan
-		for (int i = 0; i < number_to_send; i++) {
-
-			// don't send / receive from self
-			if (receiver_processes[i] == this->comm.rank()) {
-				continue;
-			}
-
-			// skip user-migrated cells
-			if (this->pin_requests.count(global_ids_to_send[i]) > 0) {
-				continue;
-			}
-
-			this->cells_to_send[receiver_processes[i]].push_back(global_ids_to_send[i]);
-
-			#ifdef DEBUG
-			if (removed_cells.count(global_ids_to_send[i]) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_send[i] << " has already been sent from process " << this->comm.rank() << std::endl;
-				exit(EXIT_FAILURE);
-			}
-			#endif
-
-			removed_cells.insert(global_ids_to_send[i]);
-		}
-
-		Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
-
-		this->move_cells(added_cells, removed_cells);
+		this->move_cells();
+		this->added_cells.clear();
+		this->removed_cells.clear();
 	}
 
 	/*!
@@ -872,44 +749,43 @@ public:
 	Does not update remote neighbour data between processes afterward.
 	Discards refines / unrefines.
 	*/
-	void migrate_cells(void)
+	void migrate_cells(const bool has_been_prepared = false)
 	{
-		this->comm.barrier();
-
-		this->update_pin_requests();
-
-		this->cells_to_receive.clear();
-		this->cells_to_send.clear();
-
-		// cells added to / removed from this process by load balancing
-		boost::unordered_set<uint64_t> added_cells, removed_cells;
-
-		// processes and the cells for which data has to be received by this process by user request
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
-
-			const int current_process_of_cell = this->cell_process.at(pin_request->first);
-
-			if (pin_request->second == this->comm.rank()
-			&& current_process_of_cell != this->comm.rank()) {
-				this->cells_to_receive[current_process_of_cell].push_back(pin_request->first);
-				added_cells.insert(pin_request->first);
-			}
+		if (!has_been_prepared) {
+			this->make_new_partition(false);
 		}
+		this->move_cells();
+		this->added_cells.clear();
+		this->removed_cells.clear();
+	}
 
-		// processes and the cells for which data has to be sent by this process by user request
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
 
-			const int current_process_of_cell = this->cell_process.at(pin_request->first);
-			const int destination_process = pin_request->second;
+	/*!
+	Same as balance_load but only prepares to move cells with balance_load.
 
-			if (destination_process != this->comm.rank()
-			&& current_process_of_cell == this->comm.rank()) {
-				this->cells_to_send[destination_process].push_back(pin_request->first);
-				removed_cells.insert(pin_request->first);
-			}
-		}
+	Must be used when cells contain variable mpi_datatypes so that when
+	cells are moved receiving processes can construct the receiving
+	datatypes in balance_load based on cells data transferred by this function.
+	The next dccrg function to be called after this one must be balance_load.
+	*/
+	void prepare_to_balance_load(void)
+	{
+		this->make_new_partition(true);
+		this->prepare_to_move_cells();
+	}
 
-		this->move_cells(added_cells, removed_cells);
+	/*!
+	Same as migrate_cells but only prepares to move cells with migrate_cells.
+
+	Must be used when cells contain variable mpi_datatypes so that when
+	cells are moved receiving processes can construct the receiving
+	datatypes in balance_load based on cells data transferred by this function.
+	The next dccrg function to be called after this one must be balance_load.
+	*/
+	void prepare_to_migrate_cells(void)
+	{
+		this->make_new_partition(true);
+		this->prepare_to_move_cells();
 	}
 
 
@@ -1008,18 +884,26 @@ public:
 
 
 	/*!
-	Returns a pointer to the neighbours of given cell
-	Some neighbours might be on another process, but have a copy of their data on this process
-	The local copy of remote neighbours' data is updated, for example, by calling update_remote_neighbour_data()
-	Returns NULL if given cell doesn't exist or is on another process
+	Returns a pointer to the neighbours of given cell.
+
+	In case the grid is not periodic in one or more directions,
+	neighbors that would be outside of the grid are 0.
+	Some neighbours might be on another process, but have a copy of their data on this process.
+	The local copy of remote neighbours' data is updated, for example, by calling
+	update_remote_neighbour_data().
+	Returns NULL if given cell doesn't exist or is on another process.
 	*/
 	const std::vector<uint64_t>* get_neighbours(const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
 			#ifdef DEBUG
 			if (this->neighbours.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->comm.rank() << ": Neighbour list for cell " << cell << " doesn't exist" << std::endl;
-				exit(EXIT_FAILURE);
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->comm.rank()
+					<< ": Neighbour list for cell " << cell
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
 			}
 			#endif
 			return &(this->neighbours.at(cell));
@@ -1029,8 +913,9 @@ public:
 	}
 
 	/*!
-	Returns a pointer to the cells that consider given cell as a neighbour but that are not neighbours of given cell
-	Some cell might be on another process or the structure might be empty
+	Returns a pointer to the cells that consider given cell as a neighbour.
+
+	This list doesn't include 0s even if the grid isn't periodic in some direction.
 	Returns NULL if given cell doesn't exist or is on another process
 	*/
 	const std::vector<uint64_t>* get_neighbours2(const uint64_t cell) const
@@ -1038,8 +923,11 @@ public:
 		if (this->cells.count(cell) > 0) {
 			#ifdef DEBUG
 			if (this->neighbours_to.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbours_to list for cell " << cell << " doesn't exist" << std::endl;
-				exit(EXIT_FAILURE);
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbours_to list for cell " << cell
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
 			}
 			#endif
 			return &(this->neighbours_to.at(cell));
@@ -2929,6 +2817,25 @@ public:
 	}
 
 
+	/*!
+	Returns a pointer to the list of cells that will be added
+	to this process when migrating or load balanceing cells.
+	*/
+	const boost::unordered_set<uint64_t>* get_balance_added_cells(void) const
+	{
+		return &(this->added_cells);
+	}
+
+	/*!
+	Returns a pointer to the list of cells that will be removed
+	from this process when migrating or load balanceing cells.
+	*/
+	const boost::unordered_set<uint64_t>* get_balance_removed_cells(void) const
+	{
+		return &(this->removed_cells);
+	}
+
+
 
 private:
 
@@ -3005,6 +2912,9 @@ private:
 	// cells whose data has to be received / sent by this process from the process as the key
 	boost::unordered_map<int, std::vector<uint64_t> > cells_to_send, cells_to_receive;
 
+	// cells added to / removed from this process by load balancing
+	boost::unordered_set<uint64_t> added_cells, removed_cells;
+
 	#ifndef DCCRG_SEND_SINGLE_CELLS
 	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 	// storage for cells' user data that awaits transfer to or from this process
@@ -3043,25 +2953,11 @@ private:
 	Moves cells between processes due to load balancing or user request.
 
 	Recalculates neighbour lists, etc.
+	Must be called simultaneously on all processes.
 	*/
-	void move_cells(
-		const boost::unordered_set<uint64_t>& added_cells,
-		const boost::unordered_set<uint64_t>& removed_cells)
-	{
+	void move_cells(void) {
 		// TODO: get rid of added_cells and removed_cells and use cells_to_send and receive instead?
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbour_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
-			exit(EXIT_FAILURE);
-		}
 
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
-		// clear user data which is about to get old
 		this->cells_with_remote_neighbours.clear();
 		this->remote_cells_with_local_neighbours.clear();
 		this->remote_neighbours.clear();
@@ -3076,12 +2972,18 @@ private:
 		*/
 
 		// removed cells on all processes
-		std::vector<uint64_t> temp_removed_cells(removed_cells.begin(), removed_cells.end());
+		std::vector<uint64_t> temp_removed_cells(
+			this->removed_cells.begin(),
+			this->removed_cells.end()
+		);
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
 
 		// created cells on all processes
-		std::vector<uint64_t> temp_added_cells(added_cells.begin(), added_cells.end());
+		std::vector<uint64_t> temp_added_cells(
+			this->added_cells.begin(),
+			this->added_cells.end()
+		);
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
 
@@ -3099,8 +3001,16 @@ private:
 		// check that there are no duplicate adds / removes
 		boost::unordered_set<uint64_t> all_adds, all_removes;
 
-		for (std::vector<std::vector<uint64_t> >::const_iterator item = all_removed_cells.begin(); item != all_removed_cells.end(); item++) {
-			for (std::vector<uint64_t>::const_iterator removed_cell = item->begin(); removed_cell != item->end(); removed_cell++) {
+		for (std::vector<std::vector<uint64_t> >::const_iterator
+			item = all_removed_cells.begin();
+			item != all_removed_cells.end();
+			item++
+		) {
+			for (std::vector<uint64_t>::const_iterator
+				removed_cell = item->begin();
+				removed_cell != item->end();
+				removed_cell++
+			) {
 				if (all_removes.count(*removed_cell) > 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *removed_cell << " was already removed" << std::endl;
 					abort();
@@ -3109,8 +3019,16 @@ private:
 			}
 		}
 
-		for (std::vector<std::vector<uint64_t> >::const_iterator item = all_added_cells.begin(); item != all_added_cells.end(); item++) {
-			for (std::vector<uint64_t>::const_iterator added_cell = item->begin(); added_cell != item->end(); added_cell++) {
+		for (std::vector<std::vector<uint64_t> >::const_iterator
+			item = all_added_cells.begin();
+			item != all_added_cells.end();
+			item++
+		) {
+			for (std::vector<uint64_t>::const_iterator
+				added_cell = item->begin();
+				added_cell != item->end();
+				added_cell++
+			) {
 				if (all_adds.count(*added_cell) > 0) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *added_cell << " was already removed" << std::endl;
 					abort();
@@ -3121,7 +3039,11 @@ private:
 
 		// check that cells were removed by their process
 		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
-			for (std::vector<uint64_t>::const_iterator removed_cell = all_removed_cells[cell_remover].begin(); removed_cell != all_removed_cells[cell_remover].end(); removed_cell++) {
+			for (std::vector<uint64_t>::const_iterator
+				removed_cell = all_removed_cells[cell_remover].begin();
+				removed_cell != all_removed_cells[cell_remover].end();
+				removed_cell++
+			) {
 				if (this->cell_process.at(*removed_cell) != cell_remover) {
 					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << *removed_cell << " doesn't belong to process " << cell_remover << std::endl;
 					abort();
@@ -3132,7 +3054,11 @@ private:
 
 		// update cell to process mappings
 		for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
-			for (std::vector<uint64_t>::const_iterator created_cell = all_added_cells[cell_creator].begin(); created_cell != all_added_cells[cell_creator].end(); created_cell++) {
+			for (std::vector<uint64_t>::const_iterator
+				created_cell = all_added_cells[cell_creator].begin();
+				created_cell != all_added_cells[cell_creator].end();
+				created_cell++
+			) {
 				this->cell_process.at(*created_cell) = cell_creator;
 			}
 		}
@@ -3150,7 +3076,11 @@ private:
 		#endif
 
 		// create neighbour lists for cells without children that came to this process
-		for (boost::unordered_set<uint64_t>::const_iterator added_cell = added_cells.begin(); added_cell != added_cells.end(); added_cell++) {
+		for (boost::unordered_set<uint64_t>::const_iterator
+			added_cell = this->added_cells.begin();
+			added_cell != this->added_cells.end();
+			added_cell++
+		) {
 
 			if (*added_cell != this->get_child(*added_cell)) {
 				continue;
@@ -3172,7 +3102,11 @@ private:
 		this->cells_to_receive.clear();
 
 		// free user data and neighbour lists of cells removed from this process
-		for (boost::unordered_set<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
+		for (boost::unordered_set<uint64_t>::const_iterator
+			removed_cell = this->removed_cells.begin();
+			removed_cell != this->removed_cells.end();
+			removed_cell++
+		) {
 			this->cells.erase(*removed_cell);
 			this->neighbours.erase(*removed_cell);
 			this->neighbours_to.erase(*removed_cell);
@@ -3203,6 +3137,136 @@ private:
 			exit(EXIT_FAILURE);
 		}
 		#endif
+	}
+
+	/*!
+	Prepares to move cells between processes with move_cells.
+
+	Sends user data of cells between processes once before move_cells so that
+	the correct mpi datatype can be constructed when actually moving cells.
+
+	Must be called simultaneously on all processes.
+	move_cells must be the next dccrg function to be called after this one.
+	*/
+	void prepare_to_move_cells(void) {
+		#ifdef DEBUG
+		if (!this->verify_remote_neighbour_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
+		this->cells_with_remote_neighbours.clear();
+		this->remote_cells_with_local_neighbours.clear();
+		this->remote_neighbours.clear();
+		this->cells_to_refine.clear();
+		this->refined_cell_data.clear();
+		this->cells_to_unrefine.clear();
+		this->unrefined_cell_data.clear();
+
+		this->start_user_data_transfers(
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+		this->cells
+		#else
+		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->cells
+		#endif
+		#endif
+		);
+
+		#ifdef DEBUG
+		// check that there are no duplicate adds / removes
+		// removed cells on all processes
+		std::vector<uint64_t> temp_removed_cells(
+			this->removed_cells.begin(),
+			this->removed_cells.end()
+		);
+		std::vector<std::vector<uint64_t> > all_removed_cells;
+		all_gather(this->comm, temp_removed_cells, all_removed_cells);
+
+		// created cells on all processes
+		std::vector<uint64_t> temp_added_cells(
+			this->added_cells.begin(),
+			this->added_cells.end()
+		);
+		std::vector<std::vector<uint64_t> > all_added_cells;
+		all_gather(this->comm, temp_added_cells, all_added_cells);
+
+		boost::unordered_set<uint64_t> all_adds, all_removes;
+
+		for (std::vector<std::vector<uint64_t> >::const_iterator
+			item = all_removed_cells.begin();
+			item != all_removed_cells.end();
+			item++
+		) {
+			for (std::vector<uint64_t>::const_iterator
+				removed_cell = item->begin();
+				removed_cell != item->end();
+				removed_cell++
+			) {
+				if (all_removes.count(*removed_cell) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << *removed_cell
+						<< " was already removed"
+						<< std::endl;
+					abort();
+				}
+				all_removes.insert(*removed_cell);
+			}
+		}
+
+		for (std::vector<std::vector<uint64_t> >::const_iterator
+			item = all_added_cells.begin();
+			item != all_added_cells.end();
+			item++
+		) {
+			for (std::vector<uint64_t>::const_iterator
+				added_cell = item->begin();
+				added_cell != item->end();
+				added_cell++
+			) {
+				if (all_adds.count(*added_cell) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << *added_cell
+						<< " was already removed"
+						<< std::endl;
+					abort();
+				}
+				all_adds.insert(*added_cell);
+			}
+		}
+
+		// check that cells were removed by their process
+		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
+			for (std::vector<uint64_t>::const_iterator
+				removed_cell = all_removed_cells[cell_remover].begin();
+				removed_cell != all_removed_cells[cell_remover].end();
+				removed_cell++
+			) {
+				if (this->cell_process.at(*removed_cell) != cell_remover) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << *removed_cell
+						<< " doesn't belong to process " << cell_remover
+						<< std::endl;
+					abort();
+				}
+			}
+		}
+		#endif
+
+		this->wait_user_data_transfer_receives(
+		#ifndef DCCRG_SEND_SINGLE_CELLS
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->cells
+		#endif
+		#endif
+		);
+		this->wait_user_data_transfer_sends();
 	}
 
 
@@ -3247,6 +3311,155 @@ private:
 		}
 
 		this->new_pin_requests.clear();
+	}
+
+
+	/*!
+	Repartitions cells across processes based on user requests and
+	Zoltan if use_zoltan is true.
+	*/
+	void make_new_partition(const bool use_zoltan)
+	{
+		this->cell_weights.clear();
+
+		this->update_pin_requests();
+
+		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
+		ZOLTAN_ID_PTR global_ids_to_receive, local_ids_to_receive, global_ids_to_send, local_ids_to_send;
+		int *sender_processes, *receiver_processes;
+
+		if (use_zoltan && Zoltan_LB_Balance(
+			this->zoltan,
+			&partition_changed,
+			&global_id_size,
+			&local_id_size,
+			&number_to_receive,
+			&global_ids_to_receive,
+			&local_ids_to_receive,
+			&sender_processes,
+			&number_to_send,
+			&global_ids_to_send,
+			&local_ids_to_send,
+			&receiver_processes
+			) != ZOLTAN_OK
+		) {
+			if (!this->no_load_balancing) {
+				std::cerr << "Zoltan_LB_Partition failed" << std::endl;
+				Zoltan_Destroy(&this->zoltan);
+				// TODO: throw an exception instead
+				abort();
+			}
+
+			#ifdef DEBUG
+			// check that processes have the cells they're supposed to send
+			for (int i = 0; i < number_to_send; i++) {
+				if (this->cells.count(global_ids_to_send[i]) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cannot send cell " << global_ids_to_send[i] << " to process " << receiver_processes[i] << std::endl;
+					abort();
+				}
+			}
+
+			// check that cells to be received are on the sending process
+			for (int i = 0; i < number_to_receive; i++) {
+				if (this->cell_process.at(global_ids_to_receive[i]) != sender_processes[i]) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cannot receive cell " << global_ids_to_receive[i] << " from process " << sender_processes[i] << std::endl;
+					abort();
+				}
+			}
+			#endif
+		}
+
+		this->cells_to_receive.clear();
+		this->cells_to_send.clear();
+
+		/*
+		Processes and the cells for which data has to be received by this process
+		*/
+
+		// migration from user
+		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
+
+			const int current_process_of_cell = this->cell_process.at(pin_request->first);
+
+			if (pin_request->second == this->comm.rank()
+			&& current_process_of_cell != this->comm.rank()) {
+				this->cells_to_receive[current_process_of_cell].push_back(pin_request->first);
+				this->added_cells.insert(pin_request->first);
+			}
+		}
+
+		// migration from Zoltan
+		if (use_zoltan) {
+			for (int i = 0; i < number_to_receive; i++) {
+
+				// don't send / receive from self
+				if (sender_processes[i] == this->comm.rank()) {
+					continue;
+				}
+
+				// skip user-migrated cells
+				if (this->pin_requests.count(global_ids_to_receive[i]) > 0) {
+					continue;
+				}
+
+				this->cells_to_receive[sender_processes[i]].push_back(global_ids_to_receive[i]);
+
+				#ifdef DEBUG
+				if (added_cells.count(global_ids_to_receive[i]) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_receive[i] << " has already been received from process " << this->comm.rank() << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				#endif
+
+				this->added_cells.insert(global_ids_to_receive[i]);
+			}
+		}
+
+		/*
+		Processes and the cells for which data has to be sent by this process
+		*/
+
+		// migration from user
+		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
+
+			const int current_process_of_cell = this->cell_process.at(pin_request->first);
+			const int destination_process = pin_request->second;
+
+			if (destination_process != this->comm.rank()
+			&& current_process_of_cell == this->comm.rank()) {
+				this->cells_to_send[destination_process].push_back(pin_request->first);
+				this->removed_cells.insert(pin_request->first);
+			}
+		}
+
+		// migration from Zoltan
+		if (use_zoltan) {
+			for (int i = 0; i < number_to_send; i++) {
+
+				// don't send / receive from self
+				if (receiver_processes[i] == this->comm.rank()) {
+					continue;
+				}
+
+				// skip user-migrated cells
+				if (this->pin_requests.count(global_ids_to_send[i]) > 0) {
+					continue;
+				}
+
+				this->cells_to_send[receiver_processes[i]].push_back(global_ids_to_send[i]);
+
+				#ifdef DEBUG
+				if (removed_cells.count(global_ids_to_send[i]) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_send[i] << " has already been sent from process " << this->comm.rank() << std::endl;
+					exit(EXIT_FAILURE);
+				}
+				#endif
+
+				this->removed_cells.insert(global_ids_to_send[i]);
+			}
+
+			Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
+		}
 	}
 
 
