@@ -196,13 +196,17 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
 			game_of_life_cell* removed_cell_data = game_grid[*removed_cell];
 			if (removed_cell_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for removed cell after unrefining: " << *removed_cell << endl;
-				exit(EXIT_FAILURE);
+				cout << __FILE__ << ":" << __LINE__
+					<< " no data for removed cell after unrefining: " << *removed_cell
+					<< endl;
+				abort();
 			}
 			game_of_life_cell* parent_data = game_grid[game_grid.get_parent_for_removed(*removed_cell)];
 			if (parent_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell) << endl;
-				exit(EXIT_FAILURE);
+				cout << __FILE__ << ":" << __LINE__
+					<< " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell)
+					<< endl;
+				abort();
 			}
 			parent_data->is_alive = removed_cell_data->is_alive;
 		}
@@ -210,7 +214,11 @@ int main(int argc, char* argv[])
 
 		// pin cells to process 0 either inside or outside the circle
 		cells = game_grid.get_cells();
-		for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
+		for (vector<uint64_t>::const_iterator
+			cell = cells.begin();
+			cell != cells.end();
+			cell++
+		) {
 			const double x = game_grid.get_cell_x(*cell);
 			const double y = game_grid.get_cell_y(*cell);
 			const double distance = (x - 0.5) * (x - 0.5) + (y - 0.5) * (y - 0.5);
@@ -399,6 +407,27 @@ int main(int argc, char* argv[])
 					}
 
 					if (game_grid.get_refinement_level(*neighbour) == 0) {
+						// TODO merge solver with the one in unrefined2d, etc
+						// larger neighbours appear several times in the neighbour list
+						bool neighbour_processed = false;
+						for (int i = 0; i < 8; i++) {
+							if (cell_data->child_of_processed[i] == *neighbour) {
+								neighbour_processed = true;
+								break;
+							}
+						}
+
+						if (neighbour_processed) {
+							continue;
+						} else {
+							for (int i = 0; i < 8; i++) {
+								if (cell_data->child_of_processed[i] == 0) {
+									cell_data->child_of_processed[i] = *neighbour;
+									break;
+								}
+							}
+						}
+
 						if (neighbour_data->is_alive) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->live_unrefined_neighbours[i] == 0) {
@@ -407,6 +436,7 @@ int main(int argc, char* argv[])
 								}
 							}
 						}
+
 					// consider only one sibling of all parents of neighbouring cells...
 					} else {
 

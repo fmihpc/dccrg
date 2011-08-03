@@ -651,7 +651,11 @@ public:
 		std::vector<uint64_t> all_cells;
 		all_cells.reserve(this->cell_process.size());
 
-		for (auto item = this->cell_process.cbegin(); item != this->cell_process.cend(); item++) {
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			item = this->cell_process.begin();
+			item != this->cell_process.end();
+			item++
+		) {
 
 			const uint64_t child = this->get_child(item->first);
 
@@ -1750,7 +1754,11 @@ public:
 			const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
 			std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
-			for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
+			for (std::vector<indices_t>::const_iterator
+				search_index = search_indices.begin();
+				search_index != search_indices.end();
+				search_index++
+			) {
 
 				if ((*search_index)[0] == error_index) {
 					continue;
@@ -1776,11 +1784,19 @@ public:
 
 			const uint64_t size_in_indices = this->get_cell_size_in_indices(children[0]);
 
-			for (auto child = children.cbegin(); child != children.cend(); child++) {
+			for (std::vector<uint64_t>::const_iterator
+				child = children.begin();
+				child != children.end();
+				child++
+			) {
 				const indices_t indices = this->get_indices(*child);
 
 				std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
-				for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
+				for (std::vector<indices_t>::const_iterator
+					search_index = search_indices.begin();
+					search_index != search_indices.end();
+					search_index++
+				) {
 
 					if ((*search_index)[0] == error_index) {
 						continue;
@@ -1800,7 +1816,11 @@ public:
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
 		std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
-		for (auto search_index = search_indices.cbegin(); search_index != search_indices.cend(); search_index++) {
+		for (std::vector<indices_t>::const_iterator
+			search_index = search_indices.begin();
+			search_index != search_indices.end();
+			search_index++
+		) {
 
 			if ((*search_index)[0] == error_index) {
 				continue;
@@ -1813,7 +1833,11 @@ public:
 		}
 
 		return_neighbours.reserve(unique_neighbours.size());
-		for (auto neighbour = unique_neighbours.cbegin(); neighbour != unique_neighbours.cend(); neighbour++) {
+		for (boost::unordered_set<uint64_t>::const_iterator
+			neighbour = unique_neighbours.begin();
+			neighbour != unique_neighbours.end();
+			neighbour++
+		) {
 			return_neighbours.push_back(*neighbour);
 		}
 
@@ -2681,7 +2705,11 @@ public:
 	{
 		#ifdef DEBUG
 		// check that all child cells on this process are also in this->cells.
-		for (auto i = this->cell_process.cbegin(); i != this->cell_process.cend(); i++) {
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			i = this->cell_process.begin();
+			i != this->cell_process.end();
+			i++
+		) {
 			const uint64_t cell = i->first;
 
 			if (this->cell_process.at(cell) != this->comm.rank()) {
@@ -2702,7 +2730,11 @@ public:
 		}
 		#endif
 
-		for (auto i = this->cells.cbegin(); i != this->cells.cend(); i++) {
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
+			i = this->cells.begin();
+			i != this->cells.end();
+			i++
+		) {
 			this->unpin(i->first);
 		}
 	}
@@ -3281,7 +3313,11 @@ private:
 
 		new_pinned_cells.reserve(this->new_pin_requests.size());
 		new_pinned_processes.reserve(this->new_pin_requests.size());
-		for (auto item = this->new_pin_requests.cbegin(); item != this->new_pin_requests.cend(); item++) {
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			item = this->new_pin_requests.begin();
+			item != this->new_pin_requests.end();
+			item++
+		) {
 			new_pinned_cells.push_back(item->first);
 			new_pinned_processes.push_back(item->second);
 		}
@@ -3377,8 +3413,11 @@ private:
 		*/
 
 		// migration from user
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
-
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			pin_request = this->pin_requests.begin();
+			pin_request != this->pin_requests.end();
+			pin_request++
+		) {
 			const int current_process_of_cell = this->cell_process.at(pin_request->first);
 
 			if (pin_request->second == this->comm.rank()
@@ -3420,8 +3459,11 @@ private:
 		*/
 
 		// migration from user
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
-
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			pin_request = this->pin_requests.begin();
+			pin_request != this->pin_requests.end();
+			pin_request++
+		) {
 			const int current_process_of_cell = this->cell_process.at(pin_request->first);
 			const int destination_process = pin_request->second;
 
@@ -3485,8 +3527,11 @@ private:
 			int current_process = this->comm.rank();
 
 			// data must be received from neighbours_of
-			for (auto neighbour = this->neighbours.at(*cell).cbegin(); neighbour != this->neighbours.at(*cell).cend(); neighbour++) {
-
+			for (std::vector<uint64_t>::const_iterator
+				neighbour = this->neighbours.at(*cell).begin();
+				neighbour != this->neighbours.at(*cell).end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -3497,8 +3542,11 @@ private:
 			}
 
 			// data must be sent to neighbours_to
-			for (auto neighbour = this->neighbours_to.at(*cell).cbegin(); neighbour != this->neighbours_to.at(*cell).cend(); neighbour++) {
-
+			for (std::vector<uint64_t>::const_iterator
+				neighbour = this->neighbours_to.at(*cell).begin();
+				neighbour != this->neighbours_to.at(*cell).end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -4187,13 +4235,21 @@ private:
 
 			// children of refined cells inherit their pin request status
 			if (this->pin_requests.count(*refined) > 0) {
-				for (auto child = children.cbegin(); child != children.cend(); child++) {
+				for (std::vector<uint64_t>::const_iterator
+					child = children.begin();
+					child != children.end();
+					child++
+				) {
 					this->pin_requests[*child] = this->pin_requests.at(*refined);
 				}
 				this->pin_requests.erase(*refined);
 			}
 			if (this->new_pin_requests.count(*refined) > 0) {
-				for (auto child = children.cbegin(); child != children.cend(); child++) {
+				for (std::vector<uint64_t>::const_iterator
+					child = children.begin();
+					child != children.end();
+					child++
+				) {
 					this->new_pin_requests[*child] = this->new_pin_requests.at(*refined);
 				}
 				this->new_pin_requests.erase(*refined);
@@ -4202,7 +4258,11 @@ private:
 			// children of refined cells inherit their weight
 			if (this->comm.rank() == process_of_refined
 			&& this->cell_weights.count(*refined) > 0) {
-				for (auto child = children.cbegin(); child != children.cend(); child++) {
+				for (std::vector<uint64_t>::const_iterator
+					child = children.begin();
+					child != children.end();
+					child++
+				) {
 					this->cell_weights[*child] = this->cell_weights.at(*refined);
 				}
 				this->cell_weights.erase(*refined);
@@ -4468,8 +4528,11 @@ private:
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
-		for (auto sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
-
+		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			sender = this->cells_to_receive.begin();
+			sender != this->cells_to_receive.end();
+			sender++
+		) {
 			#ifdef DEBUG
 			if (sender->first == this->comm.rank()
 			&& sender->second.size() > 0) {
@@ -4479,8 +4542,11 @@ private:
 			#endif
 
 			std::sort(sender->second.begin(), sender->second.end());
-			for (auto cell = sender->second.cbegin(); cell != sender->second.cend(); cell++) {
-
+			for (std::vector<uint64_t>::const_iterator
+				cell = sender->second.begin();
+				cell != sender->second.end();
+				cell++
+			) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->receive_requests[sender->first].push_back(MPI_Request());
 
@@ -4524,8 +4590,11 @@ private:
 		}
 
 		// post all sends
-		for (auto receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
-
+		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			receiver = this->cells_to_send.begin();
+			receiver != this->cells_to_send.end();
+			receiver++
+		) {
 			#ifdef DEBUG
 			if (receiver->first == this->comm.rank()
 			&& receiver->second.size() > 0) {
@@ -4535,7 +4604,11 @@ private:
 			#endif
 
 			std::sort(receiver->second.begin(), receiver->second.end());
-			for (auto cell = receiver->second.cbegin(); cell != receiver->second.cend(); cell++) {
+			for (std::vector<uint64_t>::const_iterator
+				cell = receiver->second.begin();
+				cell != receiver->second.end();
+				cell++
+			) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->send_requests[receiver->first].push_back(MPI_Request());
 
@@ -4581,8 +4654,11 @@ private:
 
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 		// receive one MPI datatype per process
-		for (auto sender = this->cells_to_receive.begin(); sender != this->cells_to_receive.end(); sender++) {
-
+		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			sender = this->cells_to_receive.begin();
+			sender != this->cells_to_receive.end();
+			sender++
+		) {
 			std::sort(sender->second.begin(), sender->second.end());
 
 			// reserve space for incoming user data at our end
@@ -4646,8 +4722,11 @@ private:
 		}
 
 		// send one MPI datatype per process
-		for (auto receiver = this->cells_to_send.begin(); receiver != this->cells_to_send.end(); receiver++) {
-
+		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			receiver = this->cells_to_send.begin();
+			receiver != this->cells_to_send.end();
+			receiver++
+		) {
 			std::sort(receiver->second.begin(), receiver->second.end());
 
 			// get displacements in bytes for outgoing user data
@@ -4745,7 +4824,11 @@ private:
 
 			std::sort(this->cells_to_send.at(receiver).begin(), this->cells_to_send.at(receiver).end());
 			// construct the outgoing data vector
-			for (auto cell = this->cells_to_send[receiver].cbegin(); cell != this->cells_to_send[receiver].cend(); cell++) {
+			for (std::vector<uint64_t>::const_iterator
+				cell = this->cells_to_send[receiver].begin();
+				cell != this->cells_to_send[receiver].end();
+				cell++
+			) {
 				UserData* user_data = (*this)[*cell];
 				assert(user_data != NULL);
 				this->outgoing_data[receiver].push_back(*user_data);
@@ -4795,8 +4878,11 @@ private:
 	{
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		for (auto process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
-
+		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator
+			process = this->receive_requests.begin();
+			process != this->receive_requests.end();
+			process++
+		) {
 			std::vector<MPI_Status> statuses;
 			statuses.resize(process->second.size());
 
@@ -4811,23 +4897,28 @@ private:
 
 		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		for (auto process = this->receive_requests.begin(); process != this->receive_requests.end(); process++) {
+		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator
+			process = this->receive_requests.begin();
+			process != this->receive_requests.end();
+			process++
+		) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
 
 		#ifndef DCCRG_SEND_SINGLE_CELLS
 
 		// incorporate received data
-		for (auto sender = this->incoming_data.cbegin(); sender != this->incoming_data.cend(); sender++) {
-
-			assert(this->incoming_data.at(sender->first).size() == this->cells_to_receive.at(sender->first).size());
-
+		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator
+			sender = this->incoming_data.begin();
+			sender != this->incoming_data.end();
+			sender++
+		) {
 			std::sort(this->cells_to_receive.at(sender->first).begin(), this->cells_to_receive.at(sender->first).end());
 
 			int i = 0;
-			for (
-				auto cell = this->cells_to_receive.at(sender->first).cbegin();
-				cell != this->cells_to_receive.at(sender->first).cend();
+			for (std::vector<uint64_t>::const_iterator
+				cell = this->cells_to_receive.at(sender->first).begin();
+				cell != this->cells_to_receive.at(sender->first).end();
 				cell++, i++
 			) {
 				// TODO move data instead of copying
@@ -4850,8 +4941,11 @@ private:
 	{
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		for (auto process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
-
+		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator
+			process = this->send_requests.begin();
+			process != this->send_requests.end();
+			process++
+		) {
 			std::vector<MPI_Status> statuses;
 			statuses.resize(process->second.size());
 
@@ -4866,7 +4960,11 @@ private:
 
 		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-		for (auto process = this->send_requests.begin(); process != this->send_requests.end(); process++) {
+		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator
+			process = this->send_requests.begin();
+			process != this->send_requests.end();
+			process++
+		) {
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
 
@@ -5389,7 +5487,11 @@ private:
 			}
 
 			number_of_neighbours[i] = 0;
-			for (auto neighbour = dccrg_instance->neighbours.at(cell).cbegin(); neighbour != dccrg_instance->neighbours.at(cell).cend(); neighbour++) {
+			for (std::vector<uint64_t>::const_iterator
+				neighbour = dccrg_instance->neighbours.at(cell).begin();
+				neighbour != dccrg_instance->neighbours.at(cell).end();
+				neighbour++
+			) {
 				if (*neighbour != 0) {
 					number_of_neighbours[i]++;
 				}
@@ -5417,8 +5519,11 @@ private:
 
 			number_of_neighbours[i] = 0;
 
-			for (auto neighbour = dccrg_instance->neighbours.at(cell).cbegin(); neighbour != dccrg_instance->neighbours.at(cell).cend(); neighbour++) {
-
+			for (std::vector<uint64_t>::const_iterator
+				neighbour = dccrg_instance->neighbours.at(cell).begin();
+				neighbour != dccrg_instance->neighbours.at(cell).end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -5451,10 +5556,18 @@ private:
 		*format = ZOLTAN_COMPRESSED_EDGE;
 
 		*number_of_connections = 0;
-		for (auto cell = dccrg_instance->cells.cbegin(); cell != dccrg_instance->cells.cend(); cell++) {
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
+			cell = dccrg_instance->cells.begin();
+			cell != dccrg_instance->cells.end();
+			cell++
+		) {
 			(*number_of_connections)++;
 
-			for (auto neighbour = dccrg_instance->neighbours.at(cell->first).cbegin(); neighbour != dccrg_instance->neighbours.at(cell->first).cend(); neighbour++) {
+			for (std::vector<uint64_t>::const_iterator
+				neighbour = dccrg_instance->neighbours.at(cell->first).begin();
+				neighbour != dccrg_instance->neighbours.at(cell->first).end();
+				neighbour++
+			) {
 				if (*neighbour != 0) {
 					(*number_of_connections)++;
 				}
@@ -5485,16 +5598,22 @@ private:
 
 		int i = 0;
 		int connection_number = 0;
-		for (auto cell = dccrg_instance->cells.cbegin(); cell != dccrg_instance->cells.cend(); cell++, i++) {
-
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
+			cell = dccrg_instance->cells.begin();
+			cell != dccrg_instance->cells.end();
+			cell++, i++
+		) {
 			hyperedges[i] = cell->first;
 			hyperedge_connection_offsets[i] = connection_number;
 
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = cell->first;
 
-			for (auto neighbour = dccrg_instance->neighbours.at(cell->first).cbegin(); neighbour != dccrg_instance->neighbours.at(cell->first).cend(); neighbour++) {
-
+			for (std::vector<uint64_t>::const_iterator
+				neighbour = dccrg_instance->neighbours.at(cell->first).begin();
+				neighbour != dccrg_instance->neighbours.at(cell->first).end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -5539,13 +5658,21 @@ private:
 		}
 
 		int i = 0;
-		for (auto cell = dccrg_instance->cells.cbegin(); cell != dccrg_instance->cells.cend(); cell++, i++) {
+		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
+			cell = dccrg_instance->cells.begin();
+			cell != dccrg_instance->cells.end();
+			cell++, i++
+		) {
 			hyperedges[i] = cell->first;
 
 			if (number_of_weights_per_hyperedge > 0) {
 				int number_of_hyperedges = 0;
 
-				for (auto neighbour = dccrg_instance->neighbours.at(cell->first).cbegin(); neighbour != dccrg_instance->neighbours.at(cell->first).cend(); neighbour++) {
+				for (std::vector<uint64_t>::const_iterator
+					neighbour = dccrg_instance->neighbours.at(cell->first).begin();
+					neighbour != dccrg_instance->neighbours.at(cell->first).end();
+					neighbour++
+				) {
 					if (*neighbour != 0) {
 						number_of_hyperedges++;
 					}
@@ -6044,7 +6171,11 @@ private:
 	*/
 	bool verify_user_data(void)
 	{
-		for (auto item = this->cell_process.cbegin(); item != this->cell_process.cend(); item++) {
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			item = this->cell_process.begin();
+			item != this->cell_process.end();
+			item++
+		) {
 			if (item->second == this->comm.rank()
 			&& item->first == this->get_child(item->first)
 			&& this->cells.count(item->first) == 0) {
@@ -6073,7 +6204,11 @@ private:
 	*/
 	bool pin_requests_succeeded(void)
 	{
-		for (auto pin_request = this->pin_requests.cbegin(); pin_request != this->pin_requests.cend(); pin_request++) {
+		for (boost::unordered_map<uint64_t, int>::const_iterator
+			pin_request = this->pin_requests.begin();
+			pin_request != this->pin_requests.end();
+			pin_request++
+		) {
 			if (this->cell_process.at(pin_request->first) != pin_request->second) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << pin_request->first << " not at requested process " << pin_request->second << " but at " << this->cell_process.at(pin_request->first) << std::endl;
 				return false;

@@ -68,8 +68,11 @@ timestep == 0 means before any turns have been taken.
 int check_game_of_life_state(int timestep, dccrg<game_of_life_cell>* grid)
 {
 	vector<uint64_t> cells = grid->get_cells();
-	for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
-
+	for (vector<uint64_t>::const_iterator
+		cell = cells.begin();
+		cell != cells.end();
+		cell++
+	) {
 		game_of_life_cell* data = (*grid)[*cell];
 		if (data == NULL) {
 			cerr << "No data for cell " << *cell << endl;
@@ -307,7 +310,11 @@ int main(int argc, char* argv[])
 	#define BLINKER_START 198
 	uint64_t tmp1[] = {BLINKER_START, BLINKER_START + 1, BLINKER_START + 2};
 	vector<uint64_t> blinker_cells(tmp1, tmp1 + sizeof(tmp1) / sizeof(uint64_t));
-	for (auto cell = blinker_cells.cbegin(); cell != blinker_cells.cend(); cell++) {
+	for (vector<uint64_t>::const_iterator
+		cell = blinker_cells.begin();
+		cell != blinker_cells.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
@@ -323,7 +330,11 @@ int main(int argc, char* argv[])
 	#define TOAD_START 188
 	uint64_t tmp2[] = {TOAD_START, TOAD_START + 1, TOAD_START + 2, TOAD_START + 1 + GRID_SIZE, TOAD_START + 2 + GRID_SIZE, TOAD_START + 3 + GRID_SIZE};
 	vector<uint64_t> toad_cells(tmp2, tmp2 + sizeof(tmp2) / sizeof(uint64_t));
-	for (auto cell = toad_cells.cbegin(); cell != toad_cells.cend(); cell++) {
+	for (vector<uint64_t>::const_iterator
+		cell = toad_cells.begin();
+		cell != toad_cells.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
@@ -339,7 +350,11 @@ int main(int argc, char* argv[])
 	#define BEACON_START 137
 	uint64_t tmp3[] = {BEACON_START, BEACON_START + 1, BEACON_START - GRID_SIZE, BEACON_START + 1 - GRID_SIZE, BEACON_START + 2 - 2 * GRID_SIZE, BEACON_START + 3 - 2 * GRID_SIZE, BEACON_START + 2 - 3 * GRID_SIZE, BEACON_START + 3 - 3 * GRID_SIZE};
 	vector<uint64_t> beacon_cells(tmp3, tmp3 + sizeof(tmp3) / sizeof(uint64_t));
-	for (auto cell = beacon_cells.cbegin(); cell != beacon_cells.cend(); cell++) {
+	for (vector<uint64_t>::const_iterator
+		cell = beacon_cells.begin();
+		cell != beacon_cells.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
@@ -355,7 +370,11 @@ int main(int argc, char* argv[])
 	#define GLIDER_START 143
 	uint64_t tmp4[] = {GLIDER_START + 1, GLIDER_START + 2 - GRID_SIZE, GLIDER_START - 2 * GRID_SIZE, GLIDER_START + 1 - 2 * GRID_SIZE, GLIDER_START + 2 - 2 * GRID_SIZE};
 	vector<uint64_t> glider_cells(tmp4, tmp4 + sizeof(tmp4) / sizeof(uint64_t));
-	for (auto cell = glider_cells.cbegin(); cell != glider_cells.cend(); cell++) {
+	for (vector<uint64_t>::const_iterator
+		cell = glider_cells.begin();
+		cell != glider_cells.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
@@ -371,7 +390,11 @@ int main(int argc, char* argv[])
 	#define BLOCK_START 47
 	uint64_t tmp5[] = {BLOCK_START, BLOCK_START + 1, BLOCK_START - GRID_SIZE, BLOCK_START + 1 - GRID_SIZE};
 	vector<uint64_t> block_cells(tmp5, tmp5 + sizeof(tmp5) / sizeof(uint64_t));
-	for (auto cell = block_cells.cbegin(); cell != block_cells.cend(); cell++) {
+	for (vector<uint64_t>::const_iterator
+		cell = block_cells.begin();
+		cell != block_cells.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
@@ -387,7 +410,11 @@ int main(int argc, char* argv[])
 	#define BEEHIVE_START 51
 	uint64_t tmp6[] = {BEEHIVE_START - GRID_SIZE, BEEHIVE_START + 1, BEEHIVE_START + 2, BEEHIVE_START + 1 - 2 * GRID_SIZE, BEEHIVE_START + 2 - 2 * GRID_SIZE, BEEHIVE_START + 3 - GRID_SIZE};
 	vector<uint64_t> beehive_cells(tmp6, tmp6 + sizeof(tmp6) / sizeof(uint64_t));
-	for (auto cell = beehive_cells.cbegin(); cell != beehive_cells.cend(); cell++) {
+	for (vector<uint64_t>::const_iterator
+		cell = beehive_cells.begin();
+		cell != beehive_cells.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		if (cell_data == NULL) {
 			continue;
@@ -463,8 +490,11 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells.begin();
+			cell != cells.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -482,7 +512,11 @@ int main(int argc, char* argv[])
 		// write each cells live neighbour count
 		outfile << "SCALARS live_neighbour_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (auto cell = cells.cbegin(); cell != cells.cend(); cell++) {
+		for (vector<uint64_t>::const_iterator
+			cell = cells.begin();
+			cell != cells.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			outfile << cell_data->live_neighbour_count << endl;
@@ -517,8 +551,11 @@ int main(int argc, char* argv[])
 
 		// get the neighbour counts of every cell, starting with the cells whose neighbour data doesn't come from other processes
 		vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
-		for (auto cell = cells_with_local_neighbours.cbegin(); cell != cells_with_local_neighbours.cend(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_local_neighbours.begin();
+			cell != cells_with_local_neighbours.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -532,8 +569,11 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			for (auto neighbour = neighbours->cbegin(); neighbour != neighbours->cend(); neighbour++) {
-
+			for (vector<uint64_t>::const_iterator
+				neighbour = neighbours->begin();
+				neighbour != neighbours->end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -556,8 +596,11 @@ int main(int argc, char* argv[])
 		}
 
 		vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
-		for (auto cell = cells_with_remote_neighbour.cbegin(); cell != cells_with_remote_neighbour.cend(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_remote_neighbour.begin();
+			cell != cells_with_remote_neighbour.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -571,8 +614,11 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			for (auto neighbour = neighbours->cbegin(); neighbour != neighbours->cend(); neighbour++) {
-
+			for (vector<uint64_t>::const_iterator
+				neighbour = neighbours->begin();
+				neighbour != neighbours->end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -595,8 +641,11 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (auto cell = cells_with_local_neighbours.cbegin(); cell != cells_with_local_neighbours.cend(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_local_neighbours.begin();
+			cell != cells_with_local_neighbours.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -613,8 +662,11 @@ int main(int argc, char* argv[])
 			}
 			#endif
 		}
-		for (auto cell = cells_with_remote_neighbour.cbegin(); cell != cells_with_remote_neighbour.cend(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_remote_neighbour.begin();
+			cell != cells_with_remote_neighbour.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER

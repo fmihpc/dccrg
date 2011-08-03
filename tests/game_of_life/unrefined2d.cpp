@@ -204,8 +204,8 @@ int main(int argc, char* argv[])
 			game_of_life_cell* parent_data = game_grid[game_grid.get_parent_for_removed(*removed_cell)];
 			if (parent_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
-				<< " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell)
-				<< endl;
+					<< " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell)
+					<< endl;
 				abort();
 			}
 			parent_data->is_alive = removed_cell_data->is_alive;
