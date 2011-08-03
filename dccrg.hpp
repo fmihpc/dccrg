@@ -379,7 +379,9 @@ public:
 
 		#endif
 
-		this->periodic = {periodic_in_x, periodic_in_y, periodic_in_z};
+		this->periodic[0] = periodic_in_x;
+		this->periodic[1] = periodic_in_y;
+		this->periodic[2] = periodic_in_z;
 
 		// set / check neighbourhood_of
 		this->neighbourhood_size = neighbourhood_size;
