@@ -5968,8 +5968,8 @@ private:
 			return true;
 		}
 
-		std::vector<uint64_t> all_neighbours(this->neighbours.at(cell).cbegin(), this->neighbours.at(cell).cend());
-		all_neighbours.insert(all_neighbours.end(), this->neighbours_to.at(cell).cbegin(), this->neighbours_to.at(cell).cend());
+		std::vector<uint64_t> all_neighbours(this->neighbours.at(cell).begin(), this->neighbours.at(cell).end());
+		all_neighbours.insert(all_neighbours.end(), this->neighbours_to.at(cell).begin(), this->neighbours_to.at(cell).end());
 
 		for (std::vector<uint64_t>::const_iterator
 			neighbour = all_neighbours.begin();
