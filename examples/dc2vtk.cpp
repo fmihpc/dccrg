@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
 		string current_output_name(argv[arg]), suffix(".vtk");
 		current_output_name += suffix;
 
-		std::ofstream outfile(current_output_name);
+		std::ofstream outfile(current_output_name.c_str());
 		if (!outfile.is_open()) {
 			std::cerr << "Couldn't open file " << current_output_name << std::endl;
 			exit(EXIT_FAILURE);
