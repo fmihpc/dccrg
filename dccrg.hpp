@@ -953,6 +953,82 @@ public:
 
 
 	/*!
+	Returns all neighbors of given cell that are at given offsets from it.
+
+	Returns nothing in the following cases:
+		-given cell doesn't exist
+		-given cell is on another process
+		-any of given offsets is larger in absolute value than the neighborhood
+			size or larger than 1 if neihgborhood size == 0
+		- i == 0 && j == 0 && k == 0
+	*/
+	std::vector<uint64_t> get_neighbors_of(const uint64_t cell, const int i, const int j, const int k) const
+	{
+		std::vector<uint64_t> return_neighbors;
+		if (this->cell_process.count(cell) == 0
+		|| this->cell_process.at(cell) != this->comm.rank()
+		|| (i == 0 && j == 0 && k == 0)) {
+			return return_neighbors;
+		}
+
+		const int refinement_level = this->get_refinement_level(cell);
+
+		int index = 0, current_i, current_j, current_k;
+		if (this->neighbourhood_size == 0) {
+			current_i = current_j = current_k = -1;
+		} else {
+			current_i = current_j = current_k = -this->neighbourhood_size;
+		}
+
+		for (current_k = -this->neighbourhood_size; current_k <= int(this->neighbourhood_size); current_k++)
+		for (current_j = -this->neighbourhood_size; current_j <= int(this->neighbourhood_size); current_j++)
+		for (current_i = -this->neighbourhood_size; current_i <= int(this->neighbourhood_size); current_i++) {
+			if (current_i == 0 && current_j == 0 && current_k == 0) {
+				continue;
+			}
+
+			if (this->neighbourhood_size == 0) {
+				// skip diagonal offsets
+				const int zeros_in_current =
+					((current_k == 0) ? 1 : 0)
+					+ ((current_j == 0) ? 1 : 0)
+					+ ((current_i == 0) ? 1 : 0);
+				if (zeros_in_current != 2) {
+					continue;
+				}
+			}
+
+			const int current_refinement_level = this->get_refinement_level(this->neighbours.at(cell)[index]);
+			if (i == current_i && j == current_j && k == current_k) {
+
+				if (current_refinement_level >= refinement_level) {
+					return_neighbors.push_back(this->neighbours.at(cell)[index]);
+
+					if (current_refinement_level > refinement_level) {
+						return_neighbors.reserve(8);
+						for (int i = 1; i < 8; i++) {
+							index++;
+							return_neighbors.push_back(this->neighbours.at(cell)[index]);
+						}
+					}
+				}
+
+				current_i = current_j = current_k = this->neighbourhood_size + 1;
+
+			} else {
+				if (current_refinement_level > refinement_level) {
+					index += 7;
+				}
+			}
+
+			index++;
+		}
+
+		return return_neighbors;
+	}
+
+
+	/*!
 	Returns the neighbour(s) of given cell in the positive or negative x direction, e.g. when viewed from that direction returns all neighbours that overlap the given cell
 	Returns neighbours in positive x direction if given direction > 0 and negative direction otherwise
 	Returns nothing if given cell doesn't exist or exists on another process
