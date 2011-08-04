@@ -944,6 +944,15 @@ public:
 
 
 	/*!
+	Returns the size of cells' neihgbourhood in every direction.
+	*/
+	unsigned int get_neighbourhood_size(void) const
+	{
+		return this->neighbourhood_size;
+	}
+
+
+	/*!
 	Returns the neighbour(s) of given cell in the positive or negative x direction, e.g. when viewed from that direction returns all neighbours that overlap the given cell
 	Returns neighbours in positive x direction if given direction > 0 and negative direction otherwise
 	Returns nothing if given cell doesn't exist or exists on another process
