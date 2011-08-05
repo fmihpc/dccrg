@@ -1020,7 +1020,9 @@ public:
 			const int current_refinement_level = this->get_refinement_level(this->neighbours.at(cell)[index]);
 			if (i == current_i && j == current_j && k == current_k) {
 
-				if (current_refinement_level >= refinement_level) {
+				if (current_refinement_level == -1) {
+					return_neighbors.push_back(0);
+				} else {
 					return_neighbors.push_back(this->neighbours.at(cell)[index]);
 
 					if (current_refinement_level > refinement_level) {
