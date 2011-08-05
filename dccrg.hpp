@@ -865,12 +865,22 @@ public:
 	/*!
 	Returns the number of cells whose data this process has to send during a neighbour data update.
 
-	The total amount of cells to be sent is returned so if a cell's data will be sent to N processes it is counted N times.
+	The total amount of cells to be sent is returned so if a cell's data will be sent to
+	N processes it is counted N times.
 	*/
 	uint64_t get_number_of_update_send_cells(void) const
 	{
 		uint64_t result = 0;
-		for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator receiver = cells_to_send.begin(); receiver != cells_to_send.end(); receiver++) {
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
+			#endif
+			receiver = cells_to_send.begin();
+			receiver != cells_to_send.end();
+			receiver++
+		) {
 			result += receiver->second.size();
 		}
 		return result;
@@ -882,7 +892,16 @@ public:
 	uint64_t get_number_of_update_receive_cells(void) const
 	{
 		uint64_t result = 0;
-		for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator sender = cells_to_receive.begin(); sender != cells_to_receive.end(); sender++) {
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
+			#endif
+			sender = cells_to_receive.begin();
+			sender != cells_to_receive.end();
+			sender++
+		) {
 			result += sender->second.size();
 		}
 		return result;
@@ -2845,7 +2864,12 @@ public:
 	These lists record which cells' user data this process will send during neighbour data updates.
 	The key is the target process.
 	*/
-	const boost::unordered_map<int, std::vector<uint64_t> >* get_send_lists(void)
+	#ifdef DCCRG_SEND_SINGLE_CELLS
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >*
+	#else
+	const boost::unordered_map<int, std::vector<uint64_t> >*
+	#endif
+	get_send_lists(void)
 	{
 		return &(this->cells_to_send);
 	}
@@ -2856,7 +2880,12 @@ public:
 	These lists record which cells' user data this process will receive during neighbour data updates.
 	The key is the source process.
 	*/
-	const boost::unordered_map<int, std::vector<uint64_t> >* get_receive_lists(void)
+	#ifdef DCCRG_SEND_SINGLE_CELLS
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >*
+	#else
+	const boost::unordered_map<int, std::vector<uint64_t> >*
+	#endif
+	get_receive_lists(void)
 	{
 		return &(this->cells_to_receive);
 	}
@@ -3029,7 +3058,12 @@ private:
 	#endif
 
 	// cells whose data has to be received / sent by this process from the process as the key
+	#ifdef DCCRG_SEND_SINGLE_CELLS
+	// store cell, tag pairs so users can also send the data themselves easily
+	boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > > cells_to_send, cells_to_receive;
+	#else
 	boost::unordered_map<int, std::vector<uint64_t> > cells_to_send, cells_to_receive;
+	#endif
 
 	// cells added to / removed from this process by load balancing
 	boost::unordered_set<uint64_t> added_cells, removed_cells;
@@ -3095,6 +3129,8 @@ private:
 			this->removed_cells.begin(),
 			this->removed_cells.end()
 		);
+		std::sort(temp_removed_cells.begin(), temp_removed_cells.end());
+
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
 
@@ -3103,6 +3139,8 @@ private:
 			this->added_cells.begin(),
 			this->added_cells.end()
 		);
+		std::sort(temp_added_cells.begin(), temp_added_cells.end());
+
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
 
@@ -3305,6 +3343,8 @@ private:
 			this->removed_cells.begin(),
 			this->removed_cells.end()
 		);
+		std::sort(temp_removed_cells.begin(), temp_removed_cells.end());
+
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		all_gather(this->comm, temp_removed_cells, all_removed_cells);
 
@@ -3313,6 +3353,8 @@ private:
 			this->added_cells.begin(),
 			this->added_cells.end()
 		);
+		std::sort(temp_added_cells.begin(), temp_added_cells.end());
+
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		all_gather(this->comm, temp_added_cells, all_added_cells);
 
@@ -3440,6 +3482,8 @@ private:
 	/*!
 	Repartitions cells across processes based on user requests and
 	Zoltan if use_zoltan is true.
+
+	Updates send & receive lists.
 	*/
 	void make_new_partition(const bool use_zoltan)
 	{
@@ -3509,7 +3553,13 @@ private:
 
 			if (pin_request->second == this->comm.rank()
 			&& current_process_of_cell != this->comm.rank()) {
-				this->cells_to_receive[current_process_of_cell].push_back(pin_request->first);
+				this->cells_to_receive[current_process_of_cell].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(pin_request->first, -1)
+					#else
+					pin_request->first
+					#endif
+				);
 				this->added_cells.insert(pin_request->first);
 			}
 		}
@@ -3528,18 +3578,48 @@ private:
 					continue;
 				}
 
-				this->cells_to_receive[sender_processes[i]].push_back(global_ids_to_receive[i]);
+				this->cells_to_receive[sender_processes[i]].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(global_ids_to_receive[i], -1)
+					#else
+					global_ids_to_receive[i]
+					#endif
+				);
 
 				#ifdef DEBUG
 				if (added_cells.count(global_ids_to_receive[i]) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_receive[i] << " has already been received from process " << this->comm.rank() << std::endl;
-					exit(EXIT_FAILURE);
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << global_ids_to_receive[i]
+						<< " has already been received from process " << this->comm.rank()
+						<< std::endl;
+					abort();
 				}
 				#endif
 
 				this->added_cells.insert(global_ids_to_receive[i]);
 			}
 		}
+
+		// receive cells in known order and add message tags
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			#endif
+			sender = this->cells_to_receive.begin();
+			sender != this->cells_to_receive.end();
+			sender++
+		) {
+			std::sort(sender->second.begin(), sender->second.end());
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			// TODO: check that message tags don't overflow
+			for (unsigned int i = 0; i < sender->second.size(); i++) {
+				sender->second[i].second = i + 1;
+			}
+			#endif
+		}
+
 
 		/*
 		Processes and the cells for which data has to be sent by this process
@@ -3556,7 +3636,13 @@ private:
 
 			if (destination_process != this->comm.rank()
 			&& current_process_of_cell == this->comm.rank()) {
-				this->cells_to_send[destination_process].push_back(pin_request->first);
+				this->cells_to_send[destination_process].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(pin_request->first, -1)
+					#else
+					pin_request->first
+					#endif
+				);
 				this->removed_cells.insert(pin_request->first);
 			}
 		}
@@ -3575,19 +3661,55 @@ private:
 					continue;
 				}
 
-				this->cells_to_send[receiver_processes[i]].push_back(global_ids_to_send[i]);
+				this->cells_to_send[receiver_processes[i]].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(global_ids_to_send[i], -1)
+					#else
+					global_ids_to_send[i]
+					#endif
+				);
 
 				#ifdef DEBUG
 				if (removed_cells.count(global_ids_to_send[i]) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << global_ids_to_send[i] << " has already been sent from process " << this->comm.rank() << std::endl;
-					exit(EXIT_FAILURE);
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << global_ids_to_send[i]
+						<< " has already been sent from process " << this->comm.rank()
+						<< std::endl;
+					abort();
 				}
 				#endif
 
 				this->removed_cells.insert(global_ids_to_send[i]);
 			}
 
-			Zoltan_LB_Free_Data(&global_ids_to_receive, &local_ids_to_receive, &sender_processes, &global_ids_to_send, &local_ids_to_send, &receiver_processes);
+			Zoltan_LB_Free_Data(
+				&global_ids_to_receive,
+				&local_ids_to_receive,
+				&sender_processes,
+				&global_ids_to_send,
+				&local_ids_to_send,
+				&receiver_processes
+			);
+		}
+
+		// send cells in known order and add message tags
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			#endif
+			receiver = this->cells_to_send.begin();
+			receiver != this->cells_to_send.end();
+			receiver++
+		) {
+			std::sort(receiver->second.begin(), receiver->second.end());
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			// TODO: check that message tags don't overflow
+			for (unsigned int i = 0; i < receiver->second.size(); i++) {
+				receiver->second[i].second = i + 1;
+			}
+			#endif
 		}
 	}
 
@@ -3607,9 +3729,19 @@ private:
 		boost::unordered_map<int, boost::unordered_set<uint64_t> > unique_cells_to_send, unique_cells_to_receive;
 
 		// calculate new lists for neighbour data updates
-		for (boost::unordered_set<uint64_t>::const_iterator cell = this->cells_with_remote_neighbours.begin(); cell != this->cells_with_remote_neighbours.end(); cell++) {
-
-			assert(*cell == this->get_child(*cell));
+		for (boost::unordered_set<uint64_t>::const_iterator
+			cell = this->cells_with_remote_neighbours.begin();
+			cell != this->cells_with_remote_neighbours.end();
+			cell++
+		) {
+			#ifdef DEBUG
+			if (*cell != this->get_child(*cell)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << *cell << " has children"
+					<< std::endl;
+				abort();
+			}
+			#endif
 
 			int current_process = this->comm.rank();
 
@@ -3644,15 +3776,72 @@ private:
 			}
 		}
 
-		// populate final send / receive list data structures and sort them
-		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator receiver = unique_cells_to_send.begin(); receiver != unique_cells_to_send.end(); receiver++) {
-			this->cells_to_send[receiver->first].insert(this->cells_to_send[receiver->first].begin(), receiver->second.begin(), receiver->second.end());
-			sort(this->cells_to_send[receiver->first].begin(), this->cells_to_send[receiver->first].end());
+		// populate final send list data structures and sort them
+		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator
+			receiver = unique_cells_to_send.begin();
+			receiver != unique_cells_to_send.end();
+			receiver++
+		) {
+			this->cells_to_send[receiver->first].reserve(receiver->second.size());
+			for (boost::unordered_set<uint64_t>::const_iterator
+				cell = receiver->second.begin();
+				cell != receiver->second.end();
+				cell++
+			) {
+				this->cells_to_send[receiver->first].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(*cell, -1)
+					#else
+					*cell
+					#endif
+				);
+			}
+
+			sort(
+				this->cells_to_send[receiver->first].begin(),
+				this->cells_to_send[receiver->first].end()
+			);
+
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			// sequential tags for messages: 1, 2, ...
+			for (unsigned int i = 0; i < this->cells_to_send[receiver->first].size(); i++) {
+				this->cells_to_send[receiver->first][i].second = i + 1;
+			}
+			#endif
 		}
 
-		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator sender = unique_cells_to_receive.begin(); sender != unique_cells_to_receive.end(); sender++) {
-			this->cells_to_receive[sender->first].insert(this->cells_to_receive[sender->first].begin(), sender->second.begin(), sender->second.end());
-			sort(this->cells_to_receive[sender->first].begin(), this->cells_to_receive[sender->first].end());
+		// populate final receive list data structures and sort them
+		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator
+			sender = unique_cells_to_receive.begin();
+			sender != unique_cells_to_receive.end();
+			sender++
+		) {
+			this->cells_to_receive[sender->first].reserve(sender->second.size());
+			for (boost::unordered_set<uint64_t>::const_iterator
+				cell = sender->second.begin();
+				cell != sender->second.end();
+				cell++
+			) {
+				this->cells_to_receive[sender->first].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(*cell, -1)
+					#else
+					*cell
+					#endif
+				);
+			}
+
+			sort(
+				this->cells_to_receive[sender->first].begin(),
+				this->cells_to_receive[sender->first].end()
+			);
+
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			// sequential tags for messages: 1, 2, ...
+			for (unsigned int i = 0; i < this->cells_to_receive[sender->first].size(); i++) {
+				this->cells_to_receive[sender->first][i].second = i + 1;
+			}
+			#endif
 		}
 	}
 
@@ -4615,7 +4804,7 @@ private:
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
-		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender = this->cells_to_receive.begin();
 			sender != this->cells_to_receive.end();
 			sender++
@@ -4623,29 +4812,29 @@ private:
 			#ifdef DEBUG
 			if (sender->first == this->comm.rank()
 			&& sender->second.size() > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->comm.rank()
+					<< " trying to transfer to self"
+					<< std::endl;
 				abort();
 			}
 			#endif
 
-			std::sort(sender->second.begin(), sender->second.end());
-			for (std::vector<uint64_t>::const_iterator
-				cell = sender->second.begin();
-				cell != sender->second.end();
-				cell++
+			for (std::vector<std::pair<uint64_t, int> >::const_iterator
+				item = sender->second.begin();
+				item != sender->second.end();
+				item++
 			) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->receive_requests[sender->first].push_back(MPI_Request());
 
-				// FIXME: make sure message tags between two processes are unique
-
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Datatype user_datatype = destination[*cell].mpi_datatype();
+				MPI_Datatype user_datatype = destination[item->first].mpi_datatype();
 				MPI_Type_commit(&user_datatype);
 				#endif
 
 				MPI_Irecv(
-					destination[*cell].at(),
+					destination[item->first].at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
 					user_datatype,
@@ -4654,7 +4843,7 @@ private:
 					MPI_BYTE,
 					#endif
 					sender->first,
-					*cell % boost::mpi::environment::max_tag(),
+					item->second,
 					this->comm,
 					&(this->receive_requests[sender->first].back())
 				);
@@ -4668,8 +4857,8 @@ private:
 				this->receive_requests[sender->first].push_back(
 					this->comm.irecv(
 						sender->first,
-						*cell % boost::mpi::environment::max_tag(),
-						destination[*cell]
+						item->second,
+						destination[item->first]
 					)
 				);
 				#endif
@@ -4677,7 +4866,7 @@ private:
 		}
 
 		// post all sends
-		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			receiver = this->cells_to_send.begin();
 			receiver != this->cells_to_send.end();
 			receiver++
@@ -4690,22 +4879,21 @@ private:
 			}
 			#endif
 
-			std::sort(receiver->second.begin(), receiver->second.end());
-			for (std::vector<uint64_t>::const_iterator
-				cell = receiver->second.begin();
-				cell != receiver->second.end();
-				cell++
+			for (std::vector<std::pair<uint64_t, int> >::const_iterator
+				item = receiver->second.begin();
+				item != receiver->second.end();
+				item++
 			) {
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->send_requests[receiver->first].push_back(MPI_Request());
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Datatype user_datatype = this->cells.at(*cell).mpi_datatype();
+				MPI_Datatype user_datatype = this->cells.at(item->first).mpi_datatype();
 				MPI_Type_commit(&user_datatype);
 				#endif
 
 				MPI_Isend(
-					this->cells.at(*cell).at(),
+					this->cells.at(item->first).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
 					user_datatype,
@@ -4714,7 +4902,7 @@ private:
 					MPI_BYTE,
 					#endif
 					receiver->first,
-					*cell % boost::mpi::environment::max_tag(),
+					item->second,
 					this->comm,
 					&(this->send_requests[receiver->first].back())
 				);
@@ -4728,8 +4916,8 @@ private:
 				this->send_requests[receiver->first].push_back(
 					this->comm.isend(
 						receiver->first,
-						*cell % boost::mpi::environment::max_tag(),
-						this->cells.at(*cell)
+						item->second,
+						this->cells.at(item->first)
 					)
 				);
 				#endif
