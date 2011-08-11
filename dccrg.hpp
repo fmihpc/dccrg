@@ -992,16 +992,23 @@ public:
 
 		const int refinement_level = this->get_refinement_level(cell);
 
-		int index = 0, current_i, current_j, current_k;
-		if (this->neighbourhood_size == 0) {
-			current_i = current_j = current_k = -1;
-		} else {
-			current_i = current_j = current_k = -this->neighbourhood_size;
-		}
-
-		for (current_k = -this->neighbourhood_size; current_k <= int(this->neighbourhood_size); current_k++)
-		for (current_j = -this->neighbourhood_size; current_j <= int(this->neighbourhood_size); current_j++)
-		for (current_i = -this->neighbourhood_size; current_i <= int(this->neighbourhood_size); current_i++) {
+		const int last_offset = (this->neighbourhood_size > 0) ? this->neighbourhood_size : 1;
+		int index = 0;
+		for (int
+			current_k = (this->neighbourhood_size > 0) ? -this->neighbourhood_size : -1;
+			current_k <= last_offset;
+			current_k++
+		)
+		for (int
+			current_j = (this->neighbourhood_size > 0) ? -this->neighbourhood_size : -1;
+			current_j <= last_offset;
+			current_j++
+		)
+		for (int
+			current_i = (this->neighbourhood_size > 0) ? -this->neighbourhood_size : -1;
+			current_i <= last_offset;
+			current_i++
+		) {
 			if (current_i == 0 && current_j == 0 && current_k == 0) {
 				continue;
 			}
@@ -1034,7 +1041,7 @@ public:
 					}
 				}
 
-				current_i = current_j = current_k = this->neighbourhood_size + 1;
+				current_i = current_j = current_k = last_offset + 1;
 
 			} else {
 				if (current_refinement_level > refinement_level) {
