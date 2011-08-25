@@ -2728,7 +2728,7 @@ public:
 	/*!
 	Returns the process which has the given cell or -1 if the cell doesn't exist.
 	*/
-	int get_process(const uint64_t cell)
+	int get_process(const uint64_t cell) const
 	{
 		if (this->cell_process.count(cell) == 0) {
 			return -1;
