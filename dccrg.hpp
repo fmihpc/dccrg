@@ -215,7 +215,7 @@ public:
 
 	neighbourhood_size:
 		Determines which cells are considered neighbours.
-		When calculating the neighbours of a given cell a cube of length neighbourhood_size + 1 in every direction is considered, centered at the cell for which neighbours are being calculated.
+		When calculating the neighbours of a given cell a cube of length 2 * neighbourhood_size + 1 in every direction is considered, centered at the cell for which neighbours are being calculated.
 		The unit lenght of the cube is the cell for which neighbours are being calculated.
 		If neighbourhood_size == 0, only cells (or children within the volume of cells of the same size as the current cell) that share a face are considered.
 
