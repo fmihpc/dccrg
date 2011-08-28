@@ -445,6 +445,7 @@ public:
 	Returns -1 if given cell cannot exist in the current grid
 	*/
 	int get_refinement_level(const uint64_t cell) const
+	// TODO: move to dccrg.hpp
 	{
 		if (cell == 0) {
 			return -1;
