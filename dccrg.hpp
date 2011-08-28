@@ -2778,7 +2778,7 @@ public:
 
 
 	/*!
-	Returns a pointer to the set of local cells which have at least one neighbor.
+	Returns a pointer to the set of local cells which have at least one neighbor
 	on another process.
 	*/
 	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbours(void) const
@@ -2787,11 +2787,35 @@ public:
 	}
 
 	/*!
+	Returns a vector of local cells which have at least one neighbor on another process.
+	*/
+	std::vector<uint64_t> get_list_of_cells_with_remote_neighbours(void) const
+	{
+		std::vector<uint64_t> result(
+			this->cells_with_remote_neighbours.begin(),
+			this->cells_with_remote_neighbours.end()
+		);
+		return result;
+	}
+
+	/*!
 	Returns a pointer to the set of remote cells which have at least one local neighbor.
 	*/
 	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbours(void) const
 	{
 		return &(this->remote_cells_with_local_neighbours);
+	}
+
+	/*!
+	Returns a vector of remote cells which have at least one local neighbor.
+	*/
+	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbours(void) const
+	{
+		std::vector<uint64_t> result(
+			this->remote_cells_with_local_neighbours.begin(),
+			this->remote_cells_with_local_neighbours.end()
+		);
+		return result;
 	}
 
 
