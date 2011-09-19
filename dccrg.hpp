@@ -541,25 +541,61 @@ public:
 
 			#ifdef DEBUG
 			if (this->cell_process.count(cell->first) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell->first << " shouldn't exist" << std::endl;
-				exit(EXIT_FAILURE);
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << cell->first
+					<< " shouldn't exist"
+					<< std::endl;
+				abort();
 			}
 
 			if (this->cell_process.at(cell->first) != this->comm.rank()) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->comm.rank() << ": Cell " << cell->first << " should be on process " << this->cell_process.at(cell->first) << std::endl;
-				exit(EXIT_FAILURE);
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->comm.rank()
+					<< ": Cell " << cell->first
+					<< " should be on process " << this->cell_process.at(cell->first)
+					<< std::endl;
+				abort();
+			}
+
+			const uint64_t child = this->get_child(cell->first);
+			if (child == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->comm.rank()
+					<< ": Child == 0 for cell " << cell->first
+					<< std::endl;
+				abort();
+			}
+
+			if (child != cell->first) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->comm.rank()
+					<< ": Cell " << cell->first
+					<< " has a child"
+					<< std::endl;
+				abort();
 			}
 			#endif
 
-			const uint64_t child = this->get_child(cell->first);
-			assert(child > 0);
-
-			if (child == cell->first) {
-				all_cells.push_back(cell->first);
-			}
+			all_cells.push_back(cell->first);
 		}
 
 		return all_cells;
+	}
+
+	/*!
+	Returns a begin const_iterator to the internal storage of local cells and their data.
+	*/
+	typename boost::unordered_map<uint64_t, UserData>::const_iterator begin(void) const
+	{
+		return this->cells.begin();
+	}
+
+	/*!
+	Returns an end const_iterator to the internal storage of local cells and their data.
+	*/
+	typename boost::unordered_map<uint64_t, UserData>::const_iterator end(void) const
+	{
+		return this->cells.end();
 	}
 
 
