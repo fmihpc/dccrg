@@ -5836,7 +5836,10 @@ private:
 				neighbour != dccrg_instance->neighbours.at(cell).end();
 				neighbour++
 			) {
-				if (*neighbour != 0) {
+				if (*neighbour != 0
+				/* Zoltan 3.501 crashes in hierarchial
+				if a cell is a neighbor to itself */
+				&& *neighbour != cell) {
 					number_of_neighbours[i]++;
 				}
 			}
@@ -5868,7 +5871,10 @@ private:
 				neighbour != dccrg_instance->neighbours.at(cell).end();
 				neighbour++
 			) {
-				if (*neighbour == 0) {
+				if (*neighbour == 0
+				/* Zoltan 3.501 crashes in hierarchial
+				if a cell is a neighbor to itself */
+				|| *neighbour == cell) {
 					continue;
 				}
 
@@ -5912,7 +5918,10 @@ private:
 				neighbour != dccrg_instance->neighbours.at(cell->first).end();
 				neighbour++
 			) {
-				if (*neighbour != 0) {
+				if (*neighbour != 0
+				/* Zoltan 3.501 crashes in hierarchial
+				if a cell is a neighbor to itself */
+				&& *neighbour != cell->first) {
 					(*number_of_connections)++;
 				}
 			}
@@ -5958,7 +5967,10 @@ private:
 				neighbour != dccrg_instance->neighbours.at(cell->first).end();
 				neighbour++
 			) {
-				if (*neighbour == 0) {
+				if (*neighbour == 0
+				/* Zoltan 3.501 crashes in hierarchial
+				if a cell is a neighbor to itself */
+				|| *neighbour == cell->first) {
 					continue;
 				}
 
@@ -6017,7 +6029,10 @@ private:
 					neighbour != dccrg_instance->neighbours.at(cell->first).end();
 					neighbour++
 				) {
-					if (*neighbour != 0) {
+					if (*neighbour != 0
+					/* Zoltan 3.501 crashes in hierarchial
+					if a cell is a neighbor to itself */
+					&& *neighbour != cell->first) {
 						number_of_hyperedges++;
 					}
 				}
@@ -6446,11 +6461,6 @@ private:
 						no_remote_neighbour = false;
 					}
 
-					if (item->first == *neighbour) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " Same cell." << std::endl;
-						abort();
-					}
-
 					if (!this->is_neighbour(item->first, *neighbour)) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << *neighbour
@@ -6470,11 +6480,6 @@ private:
 
 					if (this->cell_process.at(*neighbour) != this->comm.rank()) {
 						no_remote_neighbour = false;
-					}
-
-					if (item->first == *neighbour) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " Same cell." << std::endl;
-						abort();
 					}
 
 					if (!this->is_neighbour(*neighbour, item->first)) {
