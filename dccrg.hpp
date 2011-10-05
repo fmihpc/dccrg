@@ -1028,20 +1028,20 @@ public:
 
 		const int refinement_level = this->get_refinement_level(cell);
 
-		const int last_offset = (this->neighbourhood_size > 0) ? this->neighbourhood_size : 1;
+		const int last_offset = (this->neighbourhood_size > 0) ? int(this->neighbourhood_size) : 1;
 		int index = 0;
 		for (int
-			current_k = (this->neighbourhood_size > 0) ? -this->neighbourhood_size : -1;
+			current_k = (this->neighbourhood_size > 0) ? -int(this->neighbourhood_size) : -1;
 			current_k <= last_offset;
 			current_k++
 		)
 		for (int
-			current_j = (this->neighbourhood_size > 0) ? -this->neighbourhood_size : -1;
+			current_j = (this->neighbourhood_size > 0) ? -int(this->neighbourhood_size) : -1;
 			current_j <= last_offset;
 			current_j++
 		)
 		for (int
-			current_i = (this->neighbourhood_size > 0) ? -this->neighbourhood_size : -1;
+			current_i = (this->neighbourhood_size > 0) ? -int(this->neighbourhood_size) : -1;
 			current_i <= last_offset;
 			current_i++
 		) {
