@@ -10,9 +10,10 @@ Turns the files saved from game_of_life_with_output.cpp into .vtk files, visuali
 #include "iostream"
 #include "stdint.h"
 
-#include "../dccrg_cell_geometry.hpp"
+#include "../dccrg_geometry.hpp"
 
 using namespace std;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -122,12 +123,10 @@ int main(int argc, char* argv[])
 				exit(EXIT_FAILURE);
 			}
 
-			//cout << "cell " << cell << ", is_alive " << uint16_t(is_alive) << endl;
 			game_data[cell] = is_alive;
 		} while (result == 1);
-		cout << endl;
 
-		CellGeometry geometry;
+		Geometry geometry;
 		geometry.set_x_start(x_start);
 		geometry.set_y_start(y_start);
 		geometry.set_z_start(z_start);

@@ -61,6 +61,7 @@ struct game_of_life_cell {
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -89,7 +90,7 @@ int main(int argc, char* argv[])
 	z_coordinates.push_back(1);
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	Dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
@@ -100,11 +101,17 @@ int main(int argc, char* argv[])
 
 	vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
 	vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
-	cout << "Process " << comm.rank() << ": number of cells with local neighbours: " << cells_with_local_neighbours.size() << ", number of cells with a remote neighbour: " << cells_with_remote_neighbour.size() << endl;
+	cout << "Process " << comm.rank()
+		<< ": number of cells with local neighbours: " << cells_with_local_neighbours.size()
+		<< ", number of cells with a remote neighbour: " << cells_with_remote_neighbour.size()
+		<< endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
-
+	for (vector<uint64_t>::const_iterator
+		cell = cells_with_local_neighbours.begin();
+		cell != cells_with_local_neighbours.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->live_neighbour_count = 0;
@@ -127,8 +134,11 @@ int main(int argc, char* argv[])
 			#endif
 		}
 	}
-	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
-
+	for (vector<uint64_t>::const_iterator
+		cell = cells_with_remote_neighbour.begin();
+		cell != cells_with_remote_neighbour.end();
+		cell++
+	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		cell_data->live_neighbour_count = 0;
@@ -166,9 +176,15 @@ int main(int argc, char* argv[])
 		}
 
 		game_grid.start_remote_neighbour_data_update();
-		// get the neighbour counts of every cell, starting with the cells whose neighbour data doesn't come from other processes
-		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
-
+		/*
+		Get the neighbour counts of every cell, starting with the cells whose neighbour data
+		doesn't come from other processes
+		*/
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_local_neighbours.begin();
+			cell != cells_with_local_neighbours.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			cell_data->live_neighbour_count = 0;
@@ -177,8 +193,11 @@ int main(int argc, char* argv[])
 			#endif
 
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
-
+			for (vector<uint64_t>::const_iterator
+				neighbour = neighbours->begin();
+				neighbour != neighbours->end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -198,8 +217,11 @@ int main(int argc, char* argv[])
 
 		// wait for neighbour data updates to this process to finish and go through the rest of the cells
 		game_grid.wait_neighbour_data_update_receives();
-		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_remote_neighbour.begin();
+			cell != cells_with_remote_neighbour.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 			cell_data->live_neighbour_count = 0;
@@ -208,8 +230,11 @@ int main(int argc, char* argv[])
 			#endif
 
 			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
-
+			for (vector<uint64_t>::const_iterator
+				neighbour = neighbours->begin();
+				neighbour != neighbours->end();
+				neighbour++
+			) {
 				if (*neighbour == 0) {
 					continue;
 				}
@@ -226,10 +251,18 @@ int main(int argc, char* argv[])
 				#endif
 			}
 		}
+		/*
+		Wait for neighbour data updates from this process to finish until
+		updating live status of own cells
+		*/
+		game_grid.wait_neighbour_data_update_sends();
 
 		// calculate the next turn
-		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_local_neighbours.begin();
+			cell != cells_with_local_neighbours.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -246,8 +279,11 @@ int main(int argc, char* argv[])
 			}
 			#endif
 		}
-		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
-
+		for (vector<uint64_t>::const_iterator
+			cell = cells_with_remote_neighbour.begin();
+			cell != cells_with_remote_neighbour.end();
+			cell++
+		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -264,9 +300,6 @@ int main(int argc, char* argv[])
 			}
 			#endif
 		}
-
-		// wait for neighbour data updates from this process to finish until starting the next timestep
-		game_grid.wait_neighbour_data_update_sends();
 	}
 	after = time(NULL);
 	total += after - before;
@@ -276,7 +309,10 @@ int main(int argc, char* argv[])
 	comm.barrier();
 
 	int number_of_cells = cells_with_local_neighbours.size() + cells_with_remote_neighbour.size();
-	cout << "Process " << comm.rank() << ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) / total << " cells / second"<< endl;
+	cout << "Process " << comm.rank()
+		<< ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of "
+		<< double(number_of_cells * TIME_STEPS) / total << " cells / second"
+		<< endl;
 
 	return EXIT_SUCCESS;
 }

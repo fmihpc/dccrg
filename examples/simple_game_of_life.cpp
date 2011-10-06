@@ -12,7 +12,7 @@ For good scaling see the file game_of_life.cpp, for output see the files game_of
 
 using namespace std;
 using namespace boost::mpi;
-
+using namespace dccrg;
 
 // store in every cell of the grid whether the cell is alive and the number of live neighbours it has
 struct game_of_life_cell {
@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 	#define CELL_SIZE 1.0
 	#define STENCIL_SIZE 1	// the cells that share a vertex are considered neighbours
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE, GRID_X_SIZE, GRID_Y_SIZE, GRID_Z_SIZE, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
+	Dccrg<game_of_life_cell> game_grid(comm, "RCB", 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE, GRID_X_SIZE, GRID_Y_SIZE, GRID_Z_SIZE, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
 
 	// since the grid doesn't change (isn't refined / unrefined) during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();

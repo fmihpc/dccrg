@@ -24,6 +24,7 @@ struct CellData {
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -45,7 +46,7 @@ int main(int argc, char* argv[])
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
 	clock_t before = clock();
-	dccrg<CellData> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, 1, 0);
+	Dccrg<CellData> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, 1, 0);
 	clock_t after = clock();
 	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds (total grid size " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << ")" << endl;
 

@@ -28,6 +28,7 @@ struct game_of_life_cell {
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -58,7 +59,7 @@ int main(int argc, char* argv[])
 	z_coordinates.push_back(1);
 	#define STENCIL_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	Dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;

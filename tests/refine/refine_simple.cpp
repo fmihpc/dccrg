@@ -17,6 +17,7 @@ Tests the grid using simple refinement which should induce refinement also acros
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -44,7 +45,7 @@ int main(int argc, char* argv[])
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(0.5);
 	#define STENCIL_SIZE 1
-	dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	Dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");

@@ -14,6 +14,8 @@ Tests the grid with variable amount of data in cells
 #include "zoltan.h"
 
 using namespace std;
+using namespace boost::mpi;
+using namespace dccrg;
 
 struct CellData {
 
@@ -24,8 +26,6 @@ struct CellData {
 	}
 };
 
-
-using namespace boost::mpi;
 
 int main(int argc, char* argv[])
 {
@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 	}
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
-	dccrg<CellData> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, 1, 0);
+	Dccrg<CellData> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, 1, 0);
 
 	// populate the grid, number of variables in a cell is equal to its id
 	vector<uint64_t> cells = grid.get_cells();

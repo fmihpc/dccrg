@@ -5,10 +5,10 @@ CXX = g++ $(FLAGS)
 
 all: constant_grid_speed arbitrary_stretch_speed
 
-constant_grid_speed: constant_grid_speed.cpp ../../dccrg_cell_geometry.hpp Makefile
+constant_grid_speed: constant_grid_speed.cpp ../../dccrg_geometry.hpp Makefile
 	$(CXX) constant_grid_speed.cpp $(INCLUDES) -o constant_grid_speed
 
-arbitrary_stretch_speed: arbitrary_stretch_speed.cpp ../../dccrg_cell_geometry.hpp Makefile
+arbitrary_stretch_speed: arbitrary_stretch_speed.cpp ../../dccrg_geometry.hpp Makefile
 	$(CXX) arbitrary_stretch_speed.cpp $(INCLUDES) -o arbitrary_stretch_speed
 
 c: clean

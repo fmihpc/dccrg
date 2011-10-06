@@ -27,6 +27,7 @@ struct game_of_life_cell {
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 
 int main(int argc, char* argv[])
@@ -43,7 +44,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	dccrg<game_of_life_cell> game_grid(comm, "HIER", 0, 0, 0, 1, 1, 1, 34, 7, 1, 1);
+	Dccrg<game_of_life_cell> game_grid(comm, "HIER", 0, 0, 0, 1, 1, 1, 34, 7, 1, 1);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 	}

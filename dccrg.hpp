@@ -71,55 +71,16 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 
 // make CellGeometry serializable
 #include "boost/serialization/serialization.hpp"
-#include "dccrg_cell_geometry.hpp"
+#include "dccrg_types.hpp"
+#include "dccrg_geometry.hpp"
 
-namespace Dccrg
+namespace dccrg
 {
-
-/*
-Defines the indices of a cell in the grid, first value is the cell's index in x direction, second in the y direction, etc.
-
-Indices start from 0 and the index of a cell is the one closest to the starting corner of the grid within the cell.
-Indices are of the same size as the smallest possible cell in the grid, e.g. the size in indices of cells of maximum refinement level is 1.
-For example in the following 2d grid the indices of cell 2 are (2, 0) and cell 8 are (1, 1) assuming a maximum refinement level of 1.
---------->  x
-|3|4|   |
-|-|-| 2 |
-|7|8|   |
-|--------
-V
-
-y
-
-*/
-typedef boost::array<uint64_t, 3> indices_t;
 
 // Indicates a non-existing index or an error when dealing with indices
 static const uint64_t error_index = std::numeric_limits<uint64_t>::max();
 
-/*
-Defines one item of cells' neighbourhood in the grid.
-
-Defines an offset (first value is offset in x direction, etc.) of one neighbour to a cell of the same size as the cell itself.
-A cell's neighbourhood (e.g. stencil) in the grid consists of a list of offsets that define which cells a cell considers as neighbours.
-Offsets are given relative to the cell and cells within a volume of equal size as the cell are considered the cell's neighbours.
-For example in the case of the game of life in two dimensions (x and y), neighbourhood items making up the neighbourhood would be:
--1, -1, 0
--1,  0, 0
--1, +1, 0
- 0, -1, 0
- 0, +1, 0
-+1, -1, 0
-+1,  0, 0
-+1, +1, 0
-*/
-typedef boost::array<int, 3> neighbourhood_item_t;
-
-}	// namespace dccrg
-
-using namespace Dccrg;	// until the dccrg class is moved to its namespace
-
-template <class UserData> class dccrg
+template <class UserData> class Dccrg
 {
 
 public:
@@ -129,7 +90,7 @@ public:
 
 	The instance's initialize function must be called before doing anything else, otherwise the results will be undefined.
 	*/
-	dccrg()
+	Dccrg()
 	{
 		this->initialized = false;
 	}
@@ -141,7 +102,7 @@ public:
 	Zoltan_Initialize must have been called before calling this constructor.
 	The instance's initialize function must not be called after using this constuctor to create an instance of the grid.
 	 */
-	dccrg(
+	Dccrg(
 		boost::mpi::communicator comm,
 		const char* load_balancing_method,
 		#ifdef DCCRG_ARBITRARY_STRETCH
@@ -321,19 +282,19 @@ public:
 		snprintf(global_id_length_string, 10, "%0i", int(sizeof(uint64_t) / sizeof(unsigned int)));*/
 
 		// set the grids callback functions in Zoltan
-		Zoltan_Set_Num_Obj_Fn(this->zoltan, &dccrg<UserData>::get_number_of_cells, this);
-		Zoltan_Set_Obj_List_Fn(this->zoltan, &dccrg<UserData>::fill_cell_list, this);
-		Zoltan_Set_Num_Geom_Fn(this->zoltan, &dccrg<UserData>::get_grid_dimensionality, NULL);
-		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_with_cell_coordinates, this);
-		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_neighbours_for_cells, this);
-		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &dccrg<UserData>::fill_neighbour_lists, this);
-		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_hyperedges, this);
-		Zoltan_Set_HG_CS_Fn(this->zoltan, &dccrg<UserData>::fill_hyperedge_lists, this);
-		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &dccrg<UserData>::fill_number_of_edge_weights, this);
-		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &dccrg<UserData>::fill_edge_weights, this);
-		Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &dccrg<UserData>::get_number_of_load_balancing_hierarchies, this);
-		Zoltan_Set_Hier_Part_Fn(this->zoltan, &dccrg<UserData>::get_part_number, this);
-		Zoltan_Set_Hier_Method_Fn(this->zoltan, &dccrg<UserData>::set_partitioning_options, this);
+		Zoltan_Set_Num_Obj_Fn(this->zoltan, &Dccrg<UserData>::get_number_of_cells, this);
+		Zoltan_Set_Obj_List_Fn(this->zoltan, &Dccrg<UserData>::fill_cell_list, this);
+		Zoltan_Set_Num_Geom_Fn(this->zoltan, &Dccrg<UserData>::get_grid_dimensionality, NULL);
+		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &Dccrg<UserData>::fill_with_cell_coordinates, this);
+		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &Dccrg<UserData>::fill_number_of_neighbours_for_cells, this);
+		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &Dccrg<UserData>::fill_neighbour_lists, this);
+		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &Dccrg<UserData>::fill_number_of_hyperedges, this);
+		Zoltan_Set_HG_CS_Fn(this->zoltan, &Dccrg<UserData>::fill_hyperedge_lists, this);
+		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData>::fill_number_of_edge_weights, this);
+		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData>::fill_edge_weights, this);
+		Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &Dccrg<UserData>::get_number_of_load_balancing_hierarchies, this);
+		Zoltan_Set_Hier_Part_Fn(this->zoltan, &Dccrg<UserData>::get_part_number, this);
+		Zoltan_Set_Hier_Method_Fn(this->zoltan, &Dccrg<UserData>::set_partitioning_options, this);
 
 
 		/*
@@ -387,27 +348,27 @@ public:
 		this->neighbourhood_size = neighbourhood_size;
 		if (this->neighbourhood_size == 0) {
 			{
-			neighbourhood_item_t item = {0, 0, -1};
+			Types<3>::neighbourhood_item_t item = {0, 0, -1};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			neighbourhood_item_t item = {0, -1, 0};
+			Types<3>::neighbourhood_item_t item = {0, -1, 0};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			neighbourhood_item_t item = {-1, 0, 0};
+			Types<3>::neighbourhood_item_t item = {-1, 0, 0};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			neighbourhood_item_t item = {1, 0, 0};
+			Types<3>::neighbourhood_item_t item = {1, 0, 0};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			neighbourhood_item_t item = {0, 1, 0};
+			Types<3>::neighbourhood_item_t item = {0, 1, 0};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			neighbourhood_item_t item = {0, 0, 1};
+			Types<3>::neighbourhood_item_t item = {0, 0, 1};
 			this->neighbourhood_of.push_back(item);
 			}
 		} else {
@@ -417,18 +378,18 @@ public:
 				if (x == 0 && y == 0 && z == 0) {
 					continue;
 				}
-				const neighbourhood_item_t item = {x, y, z};
+				const Types<3>::neighbourhood_item_t item = {x, y, z};
 				this->neighbourhood_of.push_back(item);
 			}
 		}
 
 		// set neighbourhood_to
-		for (std::vector<neighbourhood_item_t>::const_iterator
+		for (std::vector<Types<3>::neighbourhood_item_t>::const_iterator
 			offset = this->neighbourhood_of.begin();
 			offset != this->neighbourhood_of.end();
 			offset++
 		) {
-			neighbourhood_item_t item = {-(*offset)[0], -(*offset)[1], -(*offset)[2]};
+			Types<3>::neighbourhood_item_t item = {-(*offset)[0], -(*offset)[1], -(*offset)[2]};
 			this->neighbourhood_to.push_back(item);
 		}
 
@@ -1633,13 +1594,13 @@ public:
 
 	If grid is not periodic those indices will be error_indices that would fall outside of the grid.
 	*/
-	std::vector<indices_t> indices_from_neighbourhood(
-		const indices_t indices,
+	std::vector<Types<3>::indices_t> indices_from_neighbourhood(
+		const Types<3>::indices_t indices,
 		const uint64_t size_in_indices,
-		const std::vector<neighbourhood_item_t>* neighbourhood
+		const std::vector<Types<3>::neighbourhood_item_t>* neighbourhood
 	) const
 	{
-		std::vector<indices_t> return_indices;
+		std::vector<Types<3>::indices_t> return_indices;
 		return_indices.reserve(neighbourhood->size());
 
 		// grid length in indices
@@ -1660,13 +1621,13 @@ public:
 		}
 		#endif
 
-		for (std::vector<neighbourhood_item_t>::const_iterator
+		for (std::vector<Types<3>::neighbourhood_item_t>::const_iterator
 			offsets = neighbourhood->begin();
 			offsets != neighbourhood->end();
 			offsets++
 		) {
 
-			indices_t temp_indices = { indices[0], indices[1], indices[2] };
+			Types<3>::indices_t temp_indices = { indices[0], indices[1], indices[2] };
 
 			for (unsigned int dimension = 0; dimension < 3; dimension++) {
 				if ((*offsets)[dimension] < 0) {
@@ -1781,13 +1742,13 @@ public:
 			return return_neighbours;
 		}
 
-		const std::vector<indices_t> indices_of = this->indices_from_neighbourhood(
+		const std::vector<Types<3>::indices_t> indices_of = this->indices_from_neighbourhood(
 			this->get_indices(cell),
 			this->get_cell_size_in_indices(cell),
 			&(this->neighbourhood_of)
 		);
 
-		for (std::vector<indices_t>::const_iterator
+		for (std::vector<Types<3>::indices_t>::const_iterator
 			index_of = indices_of.begin();
 			index_of != indices_of.end();
 			index_of++
@@ -1901,11 +1862,11 @@ public:
 		// neighbours_to larger than given cell
 		if (refinement_level > 0) {
 			const uint64_t parent = this->get_parent(cell);
-			const indices_t indices = this->get_indices(parent);
+			const Types<3>::indices_t indices = this->get_indices(parent);
 			const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
 
-			std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
-			for (std::vector<indices_t>::const_iterator
+			std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
+			for (std::vector<Types<3>::indices_t>::const_iterator
 				search_index = search_indices.begin();
 				search_index != search_indices.end();
 				search_index++
@@ -1940,10 +1901,10 @@ public:
 				child != children.end();
 				child++
 			) {
-				const indices_t indices = this->get_indices(*child);
+				const Types<3>::indices_t indices = this->get_indices(*child);
 
-				std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
-				for (std::vector<indices_t>::const_iterator
+				std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
+				for (std::vector<Types<3>::indices_t>::const_iterator
 					search_index = search_indices.begin();
 					search_index != search_indices.end();
 					search_index++
@@ -1963,11 +1924,11 @@ public:
 		}
 
 		// neighbours_to of the same size as given cell
-		const indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->get_indices(cell);
 		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
 
-		std::vector<indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
-		for (std::vector<indices_t>::const_iterator
+		std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighbourhood(indices, size_in_indices, &(this->neighbourhood_to));
+		for (std::vector<Types<3>::indices_t>::const_iterator
 			search_index = search_indices.begin();
 			search_index != search_indices.end();
 			search_index++
@@ -2062,15 +2023,15 @@ public:
 			}
 			#endif
 
-			const indices_t indices = this->get_indices(parent);
+			const Types<3>::indices_t indices = this->get_indices(parent);
 			const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
-			const std::vector<indices_t> search_indices = this->indices_from_neighbourhood(
+			const std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighbourhood(
 				indices,
 				size_in_indices,
 				&(this->neighbourhood_to)
 			);
 
-			for (std::vector<indices_t>::const_iterator
+			for (std::vector<Types<3>::indices_t>::const_iterator
 				search_index = search_indices.begin();
 				search_index != search_indices.end();
 				search_index++
@@ -2106,8 +2067,8 @@ public:
 	*/
 	std::vector<uint64_t> find_cells
 	(
-		const indices_t indices_min,
-		const indices_t indices_max,
+		const Types<3>::indices_t indices_min,
+		const Types<3>::indices_t indices_max,
 		const int minimum_refinement_level,
 		const int maximum_refinement_level
 	) const
@@ -2141,7 +2102,7 @@ public:
 		std::vector<uint64_t> result;
 		boost::unordered_set<uint64_t> uniques;
 
-		indices_t indices = {0, 0, 0};
+		Types<3>::indices_t indices = {0, 0, 0};
 		for (indices[2] = indices_min[2]; indices[2] <= indices_max[2]; indices[2] += index_increase)
 		for (indices[1] = indices_min[1]; indices[1] <= indices_max[1]; indices[1] += index_increase)
 		for (indices[0] = indices_min[0]; indices[0] <= indices_max[0]; indices[0] += index_increase) {
@@ -2386,7 +2347,7 @@ public:
 	See the definition of indices_t for an explanation about them.
 	Returned indices are invalid if given a cell outside the valid range.
 	*/
-	indices_t get_indices(uint64_t cell) const
+	Types<3>::indices_t get_indices(uint64_t cell) const
 	{
 		#ifdef DEBUG
 		const uint64_t original_cell = cell;
@@ -2413,7 +2374,7 @@ public:
 		}
 
 		cell -= 1;	// cell numbering starts from 1
-		const indices_t indices = {
+		const Types<3>::indices_t indices = {
 			(cell % (x_length * (uint64_t(1) << refinement_level)))
 				* (uint64_t(1) << (max_refinement_level - refinement_level)),
 			((cell / (x_length * (uint64_t(1) << refinement_level))) % (y_length * (uint64_t(1) << refinement_level)))
@@ -2505,7 +2466,7 @@ public:
 	/*!
 	Returns the cell of given refinement level at given indices even if it doesn't exist.
 	*/
-	uint64_t get_cell_from_indices(const indices_t indices, const int refinement_level) const
+	uint64_t get_cell_from_indices(const Types<3>::indices_t indices, const int refinement_level) const
 	{
 		const uint64_t x_length = this->geometry.get_x_length();
 		const uint64_t y_length = this->geometry.get_y_length();
@@ -2544,7 +2505,7 @@ public:
 		}
 
 		// convert to indices of this cell's refinement level
-		const indices_t this_level_indices = {
+		const Types<3>::indices_t this_level_indices = {
 			indices[0] / (uint64_t(1) << (max_refinement_level - refinement_level)),
 			indices[1] / (uint64_t(1) << (max_refinement_level - refinement_level)),
 			indices[2] / (uint64_t(1) << (max_refinement_level - refinement_level))
@@ -3058,7 +3019,7 @@ private:
 
 	bool initialized;
 
-	CellGeometry geometry;
+	Geometry geometry;
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	/*!
 	The coordinates of unrefined cells in respective directions
@@ -3091,7 +3052,7 @@ private:
 	Offsets of cells that are considered as neighbours of a cell and
 	offsets of cells that consider a cell as a neighbour
 	*/
-	std::vector<neighbourhood_item_t> neighbourhood_of, neighbourhood_to;
+	std::vector<Types<3>::neighbourhood_item_t> neighbourhood_of, neighbourhood_to;
 
 	/*!
 	Cell on this process and those cells that aren't neighbours of this cell but whose neighbour this cell is.
@@ -4173,13 +4134,13 @@ private:
 		}
 		#endif
 
-		const indices_t indices1 = this->get_indices(cell1);
-		const indices_t indices2 = this->get_indices(cell2);
+		const Types<3>::indices_t indices1 = this->get_indices(cell1);
+		const Types<3>::indices_t indices2 = this->get_indices(cell2);
 		const uint64_t cell1_size = this->get_cell_size_in_indices(cell1);
 		const uint64_t cell2_size = this->get_cell_size_in_indices(cell2);
 
 		// distance in indices between given cells
-		indices_t distance = {0, 0, 0};
+		Types<3>::indices_t distance = {0, 0, 0};
 
 		const uint64_t grid_length[3] = {
 			this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level),
@@ -5476,7 +5437,7 @@ private:
 	/*!
 	Same as the uint64_t version but in 3d, returns true only if all indices overlap.
 	*/
-	bool indices_overlap(const indices_t indices1, const uint64_t size1, const indices_t indices2, const uint64_t size2) const
+	bool indices_overlap(const Types<3>::indices_t indices1, const uint64_t size1, const Types<3>::indices_t indices2, const uint64_t size2) const
 	{
 		for (int i = 0; i < 3; i++) {
 			if (indices1[i] + size1 <= indices2[i] || indices1[i] >= indices2[i] + size2) {
@@ -5571,8 +5532,8 @@ private:
 			return 0;
 		}
 
-		const indices_t indices1 = this->get_indices(cell1);
-		const indices_t indices2 = this->get_indices(cell2);
+		const Types<3>::indices_t indices1 = this->get_indices(cell1);
+		const Types<3>::indices_t indices2 = this->get_indices(cell2);
 
 		const uint64_t size1 = this->get_cell_size_in_indices(cell1);
 		const uint64_t size2 = this->get_cell_size_in_indices(cell2);
@@ -5594,7 +5555,7 @@ private:
 
 	/*!
 	*/
-	uint64_t get_cell_from_indices(const indices_t indices, const int minimum_refinement_level, const int maximum_refinement_level) const
+	uint64_t get_cell_from_indices(const Types<3>::indices_t indices, const int minimum_refinement_level, const int maximum_refinement_level) const
 	{
 		return this->get_cell_from_indices(indices[0], indices[1], indices[2], minimum_refinement_level, maximum_refinement_level);
 	}	
@@ -5722,7 +5683,7 @@ private:
 			return children;
 		}
 
-		indices_t indices = this->get_indices(id);
+		Types<3>::indices_t indices = this->get_indices(id);
 
 		// get indices of next refinement level within this cell
 		refinement_level++;
@@ -5754,7 +5715,7 @@ private:
 	*/
 	static void fill_with_cell_coordinates(void *data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*number_of_dimensions*/, double *geom_vec, int *error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -5777,7 +5738,7 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->cells.size();
 	}
@@ -5788,7 +5749,7 @@ private:
 	*/
 	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int number_of_weights_per_object, float* object_weights, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -5819,7 +5780,7 @@ private:
 	*/
 	static void fill_number_of_neighbours_for_cells(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -5852,7 +5813,7 @@ private:
 	*/
 	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int number_of_weights_per_edge, float* edge_weights, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbour_number = 0;
@@ -5899,7 +5860,7 @@ private:
 	*/
 	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = dccrg_instance->cells.size();
@@ -5934,7 +5895,7 @@ private:
 	*/
 	static void fill_hyperedge_lists(void* data, int /*global_id_size*/, int number_of_hyperedges, int number_of_connections, int format, ZOLTAN_ID_PTR hyperedges, int* hyperedge_connection_offsets, ZOLTAN_ID_PTR connections, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
@@ -5991,7 +5952,7 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = dccrg_instance->cells.size();
@@ -6004,7 +5965,7 @@ private:
 	*/
 	static void fill_edge_weights(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_hyperedges, int number_of_weights_per_hyperedge, ZOLTAN_ID_PTR hyperedges, ZOLTAN_ID_PTR /*hyperedges_local_ids*/, float* hyperedge_weights, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
@@ -6048,7 +6009,7 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->processes_per_part.size();
 	}
@@ -6059,7 +6020,7 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
@@ -6092,7 +6053,7 @@ private:
 			return;
 		}
 
-		dccrg<UserData>* dccrg_instance = reinterpret_cast<dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr << "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
@@ -6570,4 +6531,7 @@ private:
 
 };
 
+}	// namespace
+
 #endif
+

@@ -36,8 +36,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "stdint.h"
 #include "vector"
 
+namespace dccrg {
 
-class CellGeometry
+class Geometry
 {
 
 public:
@@ -46,7 +47,7 @@ public:
 	Creates a default instance of the grid, with one cell of size 1 in every direction between coordinates (0, 0, 0) and (1, 1, 1), with maximum refinement level of 0.
 	Use the set_* functions below to change the defaults.
 	*/
-	CellGeometry()
+	Geometry()
 	{
 		this->init();
 	}
@@ -54,7 +55,7 @@ public:
 	/*!
 	Returns grid parameters to their default values.
 	*/
-	~CellGeometry()
+	~Geometry()
 	{
 		this->init();
 	}
@@ -1083,5 +1084,9 @@ private:
 	}
 	#endif
 
-};
+};	// class
+
+}	// namespace
+
 #endif
+

@@ -15,6 +15,7 @@ Visualize the results using for example VisIt.
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -38,7 +39,7 @@ int main(int argc, char* argv[])
 	#define CELL_Y_SIZE 1.0
 	#define CELL_Z_SIZE 1.0
 	#define STENCIL_SIZE 1
-	dccrg<int> game_grid(comm, "HIER", 0, 0, 0, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE, X_LENGTH, Y_LENGTH, Z_LENGTH, STENCIL_SIZE);
+	Dccrg<int> game_grid(comm, "HIER", 0, 0, 0, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE, X_LENGTH, Y_LENGTH, Z_LENGTH, STENCIL_SIZE);
 
 	// first divide the grid cells into two process blocks
 	game_grid.add_partitioning_level(2);

@@ -6,9 +6,10 @@ Tests the speed of geometry operations with a constant cell size grid
 #include "iostream"
 #include "stdint.h"
 
-#include "../../dccrg_cell_geometry.hpp"
+#include "../../dccrg_geometry.hpp"
 
 using namespace std;
+using namespace dccrg;
 
 int main(void)
 {
@@ -17,7 +18,7 @@ int main(void)
 	cout << "\nConstant grid:" << endl;
 
 	#define CELLS 100000000
-	CellGeometry geometry;
+	Geometry geometry;
 	geometry.set_x_start(0);
 	geometry.set_y_start(0);
 	geometry.set_z_start(0);

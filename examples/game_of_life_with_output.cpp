@@ -17,7 +17,7 @@ A simple 2 D game of life program to demonstrate the efficient usage of dccrg an
 
 using namespace std;
 using namespace boost::mpi;
-
+using namespace dccrg;
 
 // store in every cell of the grid whether the cell is alive and the number of live neighbours it has
 struct game_of_life_cell {
@@ -37,7 +37,7 @@ struct game_of_life_cell {
 /*!
 Initializes the given cells, all of which must be local
 */
-void initialize_game(const vector<uint64_t>* cells, dccrg<game_of_life_cell>* game_grid)
+void initialize_game(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_grid)
 {
 	for (vector<uint64_t>::const_iterator cell = cells->begin(); cell != cells->end(); cell++) {
 
@@ -56,7 +56,7 @@ void initialize_game(const vector<uint64_t>* cells, dccrg<game_of_life_cell>* ga
 /*!
 Calculates the number of live neihgbours for every cell given, all of which must be local
 */
-void get_live_neighbour_counts(const vector<uint64_t>* cells, dccrg<game_of_life_cell>* game_grid)
+void get_live_neighbour_counts(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_grid)
 {
 	for (vector<uint64_t>::const_iterator cell = cells->begin(); cell != cells->end(); cell++) {
 
@@ -82,7 +82,7 @@ void get_live_neighbour_counts(const vector<uint64_t>* cells, dccrg<game_of_life
 /*!
 Applies the game of life rules to every given cell, all of which must be local
 */
-void apply_rules(const vector<uint64_t>* cells, dccrg<game_of_life_cell>* game_grid)
+void apply_rules(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_grid)
 {
 	for (vector<uint64_t>::const_iterator cell = cells->begin(); cell != cells->end(); cell++) {
 
@@ -118,7 +118,7 @@ uint64_t cell3
 uint8_t is_alive3
 ...
 */
-bool write_game_data(const int step, communicator comm, dccrg<game_of_life_cell>* game_grid)
+bool write_game_data(const int step, communicator comm, Dccrg<game_of_life_cell>* game_grid)
 {
 	int result;
 
@@ -267,7 +267,15 @@ int main(int argc, char* argv[])
 	#define CELL_SIZE 1.0
 	#define STENCIL_SIZE 1	// the cells that share a vertex are considered neighbours
 	#define MAX_REFINEMENT_LEVEL 0
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE, GRID_X_SIZE, GRID_Y_SIZE, GRID_Z_SIZE, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
+	Dccrg<game_of_life_cell> game_grid(
+		comm,
+		"RCB", // use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
+		0, 0, 0,
+		CELL_SIZE, CELL_SIZE, CELL_SIZE,
+		GRID_X_SIZE, GRID_Y_SIZE, GRID_Z_SIZE,
+		STENCIL_SIZE,
+		MAX_REFINEMENT_LEVEL
+	);
 
 	// since the grid doesn't change (isn't refined / unrefined) during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();

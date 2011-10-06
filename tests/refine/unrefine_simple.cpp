@@ -15,6 +15,7 @@ Tests the grid using simple refining and unrefining which should induce unrefine
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -44,7 +45,7 @@ int main(int argc, char* argv[])
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
 	#define STENCIL_SIZE 1
-	dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, 5);
+	Dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, 5);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;

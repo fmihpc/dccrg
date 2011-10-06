@@ -31,6 +31,7 @@ struct game_of_life_cell {
 using namespace std;
 using namespace boost;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -54,7 +55,7 @@ int main(int argc, char* argv[])
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
 	#define STENCIL_SIZE 1
-	dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	Dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
 	game_grid.balance_load();
 
 	vector<uint64_t> cells = game_grid.get_cells();

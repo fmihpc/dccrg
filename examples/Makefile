@@ -17,7 +17,7 @@ simple_game_of_life: simple_game_of_life.cpp ../dccrg.hpp Makefile
 game_of_life_with_output: game_of_life_with_output.cpp ../dccrg.hpp Makefile
 	$(MPICXX) game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
 
-dc2vtk: dc2vtk.cpp ../dccrg.hpp Makefile
+dc2vtk: dc2vtk.cpp ../dccrg_geometry.hpp Makefile
 	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
 c: clean

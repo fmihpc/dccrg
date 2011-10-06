@@ -17,6 +17,7 @@ Tests the speed of refining the grid in 3-d by refining random cells until enoug
 
 using namespace std;
 using namespace boost::mpi;
+using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
@@ -38,7 +39,7 @@ int main(int argc, char* argv[])
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
 	#define STENCIL_SIZE 1
-	dccrg<int> grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	Dccrg<int> grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
 	grid.balance_load();
 	vector<uint64_t> cells = grid.get_cells();
 
