@@ -1,5 +1,6 @@
 /*
 The mapping logic between cells' and their geometry (location, size and comparable stuff)
+in dccrg, arbitrary version.
 
 Copyright 2009, 2010, 2011 Finnish Meteorological Institute
 
@@ -17,15 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#ifndef DCCRG_CELL_GEOMETRY_HPP
-#define DCCRG_CELL_GEOMETRY_HPP
-
-
-#ifdef DCCRG_ARBITRARY_STRETCH
-	#ifdef DCCRG_CONSTANT_STRETCH
-		#error Only one type of grid stretching can be used simultaneously
-	#endif
-#endif
+#ifndef DCCRG_ARBITRARY_GEOMETRY_HPP
+#define DCCRG_ARBITRARY_GEOMETRY_HPP
 
 
 #include "cassert"
@@ -40,29 +34,66 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace dccrg {
 
-class Geometry : public Index
+/*!
+A geometry class in which the coordinates of unrefined cells are given
+by three vectors of floating points numbers.
+*/
+class ArbitraryGeometry : public Index
 {
 
 public:
 
 	/*!
-	Creates a default instance of the grid, with one cell of size 1 in every direction between coordinates (0, 0, 0) and (1, 1, 1), with maximum refinement level of 0.
-	Use the set_* functions below to change the defaults.
+	Creates and sets the geometry of the grid to the following:
+		-starting corner at (0, 0, 0)
+		-size of unrefined cells in each direction: 1
 	*/
-	Geometry()
+	ArbitraryGeometry()
 	{
-		this->init();
+		this->x_coordinates.clear();
+		this->x_coordinates.reserve(this->x_length + 1);
+		for (uint64_t i = 0; i <= this->x_length; i++) {
+			this->x_coordinates.push_back(i);
+		}
+
+		this->y_coordinates.clear();
+		this->y_coordinates.reserve(this->y_length + 1);
+		for (uint64_t i = 0; i <= this->y_length; i++) {
+			this->y_coordinates.push_back(i);
+		}
+
+		this->z_coordinates.clear();
+		this->z_coordinates.reserve(this->z_length + 1);
+		for (uint64_t i = 0; i <= this->z_length; i++) {
+			this->z_coordinates.push_back(i);
+		}
 	}
 
 	/*!
-	Returns grid parameters to their default values.
+	Sets the geometry of the grid to the following:
+		-starting corner at (0, 0, 0)
+		-size of unrefined cells in each direction: 1
 	*/
-	~Geometry()
+	~ArbitraryGeometry()
 	{
-		this->init();
-	}
+		this->x_coordinates.clear();
+		this->x_coordinates.reserve(this->x_length + 1);
+		for (uint64_t i = 0; i <= this->x_length; i++) {
+			this->x_coordinates.push_back(i);
+		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
+		this->y_coordinates.clear();
+		this->y_coordinates.reserve(this->y_length + 1);
+		for (uint64_t i = 0; i <= this->y_length; i++) {
+			this->y_coordinates.push_back(i);
+		}
+
+		this->z_coordinates.clear();
+		this->z_coordinates.reserve(this->z_length + 1);
+		for (uint64_t i = 0; i <= this->z_length; i++) {
+			this->z_coordinates.push_back(i);
+		}
+	}
 
 	/*!
 	Sets the coordinates of unrefined cells in the grid.
@@ -123,186 +154,6 @@ public:
 		return true;
 	}
 
-	#else
-
-	/*!
-	Returns the starting corner of the grid in x direction.
-	*/
-	double get_x_start(void) const
-	{
-		// TODO move outside of ifdef
-		return this->x_start;
-	}
-
-	/*!
-	Returns the starting corner of the grid in y direction.
-	*/
-	double get_y_start(void) const
-	{
-		return this->y_start;
-	}
-
-	/*!
-	Returns the starting corner of the grid in z direction.
-	*/
-	double get_z_start(void) const
-	{
-		return this->z_start;
-	}
-
-
-	/*!
-	\brief Sets the starting corner of the grid in x direction.
-
-	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in x direction.
-	Returns true on success, false otherwise.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_x_start(const double given_x_start)
-	{
-		// FIXME: check that all cell coordinates fit into a double, and return false if some cells would be out of range
-		this->x_start = given_x_start;
-		return true;
-	}
-
-	/*!
-	\brief Sets the starting corner of the grid in y direction.
-
-	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in y direction.
-	Returns true on success, false otherwise.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_y_start(const double given_y_start)
-	{
-		this->y_start = given_y_start;
-		return true;
-	}
-
-	/*!
-	\brief Sets the starting corner of the grid in z direction.
-
-	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in z direction.
-	Returns true on success, false otherwise.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_z_start(const double given_z_start)
-	{
-		this->z_start = given_z_start;
-		return true;
-	}
-
-
-	/*!
-	Returns the end corner of the grid in x direction.
-	*/
-	double get_x_end(void) const
-	{
-		// TODO move outside of ifdef
-		return this->x_start + double(this->x_length) * this->cell_x_size;
-	}
-
-	/*!
-	Returns the end corner of the grid in y direction.
-	*/
-	double get_y_end(void) const
-	{
-		return this->y_start + double(this->y_length) * this->cell_y_size;
-	}
-
-	/*!
-	Returns the end corner of the grid in z direction.
-	*/
-	double get_z_end(void) const
-	{
-		return this->z_start + double(this->z_length) * this->cell_z_size;
-	}
-
-
-	/*!
-	\brief Sets the size of unrefined cells in the x direction.
-
-	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_cell_x_size(const double given_cell_x_size)
-	{
-		// FIXME: check that all cell coordinates fit into a double, and return false if some cells would be out of range
-		if (given_cell_x_size <= 0) {
-			std::cerr << "Cell size in x direction must be > 0, but " << given_cell_x_size << " given" << std::endl;
-			return false;
-		}
-
-		this->cell_x_size = given_cell_x_size;
-
-		return true;
-	}
-
-	/*!
-	\brief Sets the size of unrefined cells in the y direction.
-
-	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_cell_y_size(const double given_cell_y_size)
-	{
-		if (given_cell_y_size <= 0) {
-			std::cerr << "Cell size in y direction must be > 0, but " << given_cell_y_size << " given" << std::endl;
-			return false;
-		}
-		this->cell_y_size = given_cell_y_size;
-
-		return true;
-	}
-
-	/*!
-	\brief Sets the size of unrefined cells in the z direction.
-
-	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_cell_z_size(const double given_cell_z_size)
-	{
-		if (given_cell_z_size <= 0) {
-			std::cerr << "Cell size in z direction must be > 0, but " << given_cell_z_size << " given" << std::endl;
-			return false;
-		}
-		this->cell_z_size = given_cell_z_size;
-
-		return true;
-	}
-
-
-	/*!
-	Returns the length of unrefined cells in x direction
-	*/
-	double get_unrefined_cell_x_size(void) const
-	{
-		return this->cell_x_size;
-	}
-
-	/*!
-	Returns the length of unrefined cells in y direction
-	*/
-	double get_unrefined_cell_y_size(void) const
-	{
-		return this->cell_y_size;
-	}
-
-	/*!
-	Returns the length of unrefined cells in z direction
-	*/
-	double get_unrefined_cell_z_size(void) const
-	{
-		return this->cell_z_size;
-	}
-
-
-	#endif
-
-
 	/*!
 	Returns the length of the grid in unrefined cells in x direction.
 	*/
@@ -337,15 +188,10 @@ public:
 		assert(this->get_refinement_level(cell) >= 0);
 		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 		int refinement_level = this->get_refinement_level(cell);
 		uint64_t unref_cell_x_index = this->get_unref_cell_x_coord_start_index(cell);
 		return (this->x_coordinates[unref_cell_x_index + 1] - this->x_coordinates[unref_cell_x_index]) / (uint64_t(1) << refinement_level);
 	}
-	#else
-		return this->cell_x_size / (uint64_t(1) << this->get_refinement_level(cell));
-	}
-	#endif
 
 	/*!
 	Returns the length of given cell in y direction.
@@ -356,15 +202,10 @@ public:
 		assert(this->get_refinement_level(cell) >= 0);
 		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 		int refinement_level = this->get_refinement_level(cell);
 		uint64_t unref_cell_y_index = this->get_unref_cell_y_coord_start_index(cell);
 		return (this->y_coordinates[unref_cell_y_index + 1] - this->y_coordinates[unref_cell_y_index]) / (uint64_t(1) << refinement_level);
 	}
-	#else
-		return this->cell_y_size / (uint64_t(1) << this->get_refinement_level(cell));
-	}
-	#endif
 
 	/*!
 	Returns the length of given cell in z direction.
@@ -375,15 +216,10 @@ public:
 		assert(this->get_refinement_level(cell) >= 0);
 		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 		int refinement_level = this->get_refinement_level(cell);
 		uint64_t unref_cell_z_index = this->get_unref_cell_z_coord_start_index(cell);
 		return (this->z_coordinates[unref_cell_z_index + 1] - this->z_coordinates[unref_cell_z_index]) / (uint64_t(1) << refinement_level);
 	}
-	#else
-		return this->cell_z_size / (uint64_t(1) << this->get_refinement_level(cell));
-	}
-	#endif
 
 
 	/*!
@@ -401,7 +237,6 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_x_coord_start_index = this->get_unref_cell_x_coord_start_index(cell);
 		uint64_t unref_cell_x_index = unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
@@ -409,9 +244,6 @@ public:
 		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
 
 		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (indices[0] - unref_cell_x_index) + this->get_cell_x_size(cell) / 2;
-		#else
-		return this->x_start + indices[0] * this->cell_x_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
-		#endif
 	}
 
 	/*!
@@ -429,7 +261,6 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_y_coord_start_index = this->get_unref_cell_y_coord_start_index(cell);
 		uint64_t unref_cell_y_index = unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
@@ -437,9 +268,6 @@ public:
 		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
 
 		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (indices[1] - unref_cell_y_index) + this->get_cell_y_size(cell) / 2;
-		#else
-		return this->y_start + indices[1] * this->cell_y_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
-		#endif
 	}
 
 	/*!
@@ -457,7 +285,6 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_z_coord_start_index = this->get_unref_cell_z_coord_start_index(cell);
 		uint64_t unref_cell_z_index = unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
@@ -465,9 +292,6 @@ public:
 		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
 
 		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (indices[2] - unref_cell_z_index) + this->get_cell_z_size(cell) / 2;
-		#else
-		return this->z_start + indices[2] * this->cell_z_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
-		#endif
 	}
 
 	/*!
@@ -533,16 +357,12 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_x_coord_start_index = x_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
 		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
 
 		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
-	#else
-		return this->x_start + x_index * this->cell_x_size / (uint64_t(1) << this->max_refinement_level) + this->cell_x_size / (uint64_t(1) << refinement_level) / 2;
-	#endif
 	}
 
 	/*!
@@ -558,16 +378,12 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_y_coord_start_index = y_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
 		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
 
 		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
-	#else
-		return this->y_start + y_index * this->cell_y_size / (uint64_t(1) << this->max_refinement_level) + this->cell_y_size / (uint64_t(1) << refinement_level) / 2;
-	#endif
 	}
 
 	/*!
@@ -583,16 +399,12 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_z_coord_start_index = z_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
 		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
 
 		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
-	#else
-		return this->z_start + z_index * this->cell_z_size / (uint64_t(1) << this->max_refinement_level) + this->cell_z_size / (uint64_t(1) << refinement_level) / 2;
-	#endif
 	}
 
 
@@ -623,8 +435,6 @@ public:
 	*/
 	uint64_t get_x_index_of_coord(const double x) const
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-
 		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->get_x_length()]));
 
 		uint64_t x_coord_start_index = 0;
@@ -642,13 +452,6 @@ public:
 		index_offset--;
 
 		return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
-
-		#else
-
-		assert((x >= this->get_x_start()) and (x <= this->get_x_start() + this->get_x_length() * this->cell_x_size));
-		return uint64_t(floor((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->max_refinement_level))));
-
-		#endif
 	}
 
 	/*!
@@ -657,8 +460,6 @@ public:
 	*/
 	uint64_t get_y_index_of_coord(const double y) const
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-
 		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->get_y_length()]));
 
 		uint64_t y_coord_start_index = 0;
@@ -676,13 +477,6 @@ public:
 		index_offset--;
 
 		return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
-
-		#else
-
-		assert((y >= this->get_y_start()) and (y <= this->get_y_start() + this->get_y_length() * this->cell_y_size));
-		return uint64_t(floor((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->max_refinement_level))));
-
-		#endif
 	}
 
 	/*!
@@ -691,8 +485,6 @@ public:
 	*/
 	uint64_t get_z_index_of_coord(const double z) const
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-
 		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->get_z_length()]));
 
 		uint64_t z_coord_start_index = 0;
@@ -710,13 +502,6 @@ public:
 		index_offset--;
 
 		return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
-
-		#else
-
-		assert((z >= this->get_z_start()) and (z <= this->get_z_start() + this->get_z_length() * this->cell_z_size));
-		return uint64_t(floor((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->max_refinement_level))));
-
-		#endif
 	}
 
 
@@ -737,59 +522,12 @@ public:
 private:
 
 	/*!
-	Initializes the grid parameters to the values specified in the constructor comments.
-	*/
-	void init(void)
-	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-
-		this->x_coordinates.clear();
-		this->x_coordinates.push_back(0);
-		this->x_coordinates.push_back(1);
-
-		this->y_coordinates.clear();
-		this->y_coordinates.push_back(0);
-		this->y_coordinates.push_back(1);
-
-		this->z_coordinates.clear();
-		this->z_coordinates.push_back(0);
-		this->z_coordinates.push_back(1);
-
-		#else
-
-		this->x_start = 0;
-		this->y_start = 0;
-		this->z_start = 0;
-
-		this->cell_x_size = 1;
-		this->cell_y_size = 1;
-		this->cell_z_size = 1;
-
-		#endif
-
-		this->x_length = 1;
-		this->y_length = 1;
-		this->z_length = 1;
-
-		this->max_refinement_level = 0;
-	}
-
-
-	#ifdef DCCRG_ARBITRARY_STRETCH
-	/*!
 	The coordinates of unrefined cells in respective directions
 	First value is the starting point of the grid, the following ith value is the end point of the ith unrefined cell
 	*/
 	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
-	#else
-	// starting corner coordinates of the grid
-	double x_start, y_start, z_start;
-	// length of unrefined cells in all directions
-	double cell_x_size, cell_y_size, cell_z_size;
-	#endif
 
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
 	/*!
 	Returns the x index in the coordinates vector of the starting coordinate of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
 	*/
@@ -831,7 +569,6 @@ private:
 
 		return indices[2] / (uint64_t(1) << this->max_refinement_level);
 	}
-	#endif
 
 };	// class
 

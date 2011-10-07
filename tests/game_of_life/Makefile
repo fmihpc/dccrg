@@ -23,7 +23,8 @@ PROGRAMS =						\
 HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_geometry.hpp
+	../../dccrg_arbitrary_geometry.hpp \
+	../../dccrg_constant_geometry.hpp
 
 all: $(PROGRAMS)
 

@@ -40,7 +40,7 @@ class Index
 public:
 
 	/*!
-	Sets the grid to a default size of 1 cell with maximum refinement level 0.
+	Creates and sets the grid to a default size of 1 cell with maximum refinement level 0.
 	*/
 	Index()
 	{

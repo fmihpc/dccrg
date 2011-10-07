@@ -72,13 +72,13 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 // make CellGeometry serializable
 #include "boost/serialization/serialization.hpp"
 #include "dccrg_types.hpp"
-#include "dccrg_geometry.hpp"
+#include "dccrg_constant_geometry.hpp"
+
 
 namespace dccrg
 {
 
-//template <class UserData, class UserGeometry> class Dccrg : public Index, public UserGeometry...
-template <class UserData> class Dccrg : public Index
+template <class UserData, class UserGeometry = ConstantGeometry> class Dccrg : public UserGeometry
 {
 
 public:
@@ -86,7 +86,8 @@ public:
 	/*!
 	Creates an uninitialized instance of the grid.
 
-	The instance's initialize function must be called before doing anything else, otherwise the results will be undefined.
+	The instance's initialize function must be called before doing
+	anything else, otherwise the results will be undefined.
 	*/
 	Dccrg()
 	{
@@ -95,74 +96,10 @@ public:
 
 
 	/*!
-	Initializes the grid with given parameters, see the initialize function for their description.
-
-	Zoltan_Initialize must have been called before calling this constructor.
-	The instance's initialize function must not be called after using this constuctor to create an instance of the grid.
-	 */
-	Dccrg(
-		boost::mpi::communicator comm,
-		const char* load_balancing_method,
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		const std::vector<double> given_x_coordinates,
-		const std::vector<double> given_y_coordinates,
-		const std::vector<double> given_z_coordinates,
-		#else
-		const double x_start,
-		const double y_start,
-		const double z_start,
-		const double cell_x_size,
-		const double cell_y_size,
-		const double cell_z_size,
-		const uint64_t given_x_length,
-		const uint64_t given_y_length,
-		const uint64_t given_z_length,
-		#endif
-		const unsigned int neighbourhood_size,
-		const int maximum_refinement_level = -1,
-		const bool periodic_in_x = false,
-		const bool periodic_in_y = false,
-		const bool periodic_in_z = false
-	)
-	{
-		/*
-		TODO: Support either compile-time or run-time grid
-		parameters in style of eigen.tuxfamily.org, for
-		example dccrg<dx, dy, dz, max_ref_lvl, UserData>(...)
-		where dx, ... max_ref_lvl is either a positive
-		integer or Dynamic.
-		*/
-		this->initialized = false;
-
-		this->initialize(
-			comm,
-			load_balancing_method,
-			#ifdef DCCRG_ARBITRARY_STRETCH
-			given_x_coordinates,
-			given_y_coordinates,
-			given_z_coordinates,
-			#else
-			x_start,
-			y_start,
-			z_start,
-			cell_x_size,
-			cell_y_size,
-			cell_z_size,
-			given_x_length,
-			given_y_length,
-			given_z_length,
-			#endif
-			neighbourhood_size,
-			maximum_refinement_level,
-			periodic_in_x,
-			periodic_in_y,
-			periodic_in_z
-		);
-	}
-
-
-	/*!
 	Initializes this instance of the grid with given parameters.
+
+	The geometry of the grid is set separately using for example set_x_start, etc. functions
+	depending on which geometry class was given as a template parameter when instantiating dccrg.
 
 	Zoltan_Initialize must have been called before calling this function.
 
@@ -205,21 +142,6 @@ public:
 	void initialize(
 		boost::mpi::communicator comm,
 		const char* load_balancing_method,
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		const std::vector<double> given_x_coordinates,
-		const std::vector<double> given_y_coordinates,
-		const std::vector<double> given_z_coordinates,
-		#else
-		const double x_start,
-		const double y_start,
-		const double z_start,
-		const double cell_x_size,
-		const double cell_y_size,
-		const double cell_z_size,
-		const uint64_t given_x_length,
-		const uint64_t given_y_length,
-		const uint64_t given_z_length,
-		#endif
 		const unsigned int neighbourhood_size,
 		const int maximum_refinement_level = -1,
 		const bool periodic_in_x = false,
@@ -280,102 +202,24 @@ public:
 		snprintf(global_id_length_string, 10, "%0i", int(sizeof(uint64_t) / sizeof(unsigned int)));*/
 
 		// set the grids callback functions in Zoltan
-		Zoltan_Set_Num_Obj_Fn(this->zoltan, &Dccrg<UserData>::get_number_of_cells, this);
-		Zoltan_Set_Obj_List_Fn(this->zoltan, &Dccrg<UserData>::fill_cell_list, this);
-		Zoltan_Set_Num_Geom_Fn(this->zoltan, &Dccrg<UserData>::get_grid_dimensionality, NULL);
-		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &Dccrg<UserData>::fill_with_cell_coordinates, this);
-		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &Dccrg<UserData>::fill_number_of_neighbours_for_cells, this);
-		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &Dccrg<UserData>::fill_neighbour_lists, this);
-		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &Dccrg<UserData>::fill_number_of_hyperedges, this);
-		Zoltan_Set_HG_CS_Fn(this->zoltan, &Dccrg<UserData>::fill_hyperedge_lists, this);
-		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData>::fill_number_of_edge_weights, this);
-		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData>::fill_edge_weights, this);
-		Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &Dccrg<UserData>::get_number_of_load_balancing_hierarchies, this);
-		Zoltan_Set_Hier_Part_Fn(this->zoltan, &Dccrg<UserData>::get_part_number, this);
-		Zoltan_Set_Hier_Method_Fn(this->zoltan, &Dccrg<UserData>::set_partitioning_options, this);
+		Zoltan_Set_Num_Obj_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_number_of_cells, this);
+		Zoltan_Set_Obj_List_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_cell_list, this);
+		Zoltan_Set_Num_Geom_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_grid_dimensionality, NULL);
+		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_with_cell_coordinates, this);
+		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_number_of_neighbours_for_cells, this);
+		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_neighbour_lists, this);
+		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_number_of_hyperedges, this);
+		Zoltan_Set_HG_CS_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_hyperedge_lists, this);
+		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_number_of_edge_weights, this);
+		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_edge_weights, this);
+		Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_number_of_load_balancing_hierarchies, this);
+		Zoltan_Set_Hier_Part_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_part_number, this);
+		Zoltan_Set_Hier_Method_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::set_partitioning_options, this);
 
 
 		/*
 		Set grid parameters
 		*/
-
-		#ifdef DCCRG_ARBITRARY_STRETCH
-
-		if (!this->geometry.set_coordinates(given_x_coordinates, given_y_coordinates, given_z_coordinates)) {
-			std::cerr << "Failed to set grid geometry" << std::endl;
-			abort();
-		}
-
-		if (!this->set_length(
-			given_x_coordinates.size() - 1,
-			given_y_coordinates.size() - 1,
-			given_z_coordinates.size() - 1
-		)) {
-			std::cerr << "Couldn't set grid length to "
-				<< given_x_coordinates.size() - 1 << " * "
-				<< given_y_coordinates.size() - 1 << " * "
-				<< given_z_coordinates.size() - 1 << " unrefined cells"
-				<< std::endl;
-			abort();
-		}
-
-		if (!this->geometry.set_length(
-			given_x_coordinates.size() - 1,
-			given_y_coordinates.size() - 1,
-			given_z_coordinates.size() - 1
-		)) {
-			std::cerr << "Couldn't set grid length to "
-				<< given_x_coordinates.size() - 1 << " * "
-				<< given_y_coordinates.size() - 1 << " * "
-				<< given_z_coordinates.size() - 1 << " unrefined cells in geometry"
-				<< std::endl;
-			abort();
-		}
-
-		#else
-
-		this->geometry.set_x_start(x_start);
-		this->geometry.set_y_start(y_start);
-		this->geometry.set_z_start(z_start);
-		this->geometry.set_cell_x_size(cell_x_size);
-		this->geometry.set_cell_y_size(cell_y_size);
-		this->geometry.set_cell_z_size(cell_z_size);
-
-		if (given_x_length == 0) {
-			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
-			// TODO: throw an exception instead
-			abort();
-		}
-
-		if (given_y_length == 0) {
-			std::cerr << "Length of the grid in cells must be > 0 in the y direction" << std::endl;
-			abort();
-		}
-
-		if (given_z_length == 0) {
-			std::cerr << "Length of the grid in cells must be > 0 in the z direction" << std::endl;
-			abort();
-		}
-
-		if (!this->set_length(given_x_length, given_y_length, given_z_length)) {
-			std::cerr << "Couldn't set grid length to "
-				<< given_x_length << " * "
-				<< given_y_length << " * "
-				<< given_z_length << " unrefined cells"
-				<< std::endl;
-			abort();
-		}
-
-		if (!this->geometry.set_length(given_x_length, given_y_length, given_z_length)) {
-			std::cerr << "Couldn't set grid length to "
-				<< given_x_length << " * "
-				<< given_y_length << " * "
-				<< given_z_length << " unrefined cells in geometry"
-				<< std::endl;
-			abort();
-		}
-
-		#endif
 
 		this->periodic[0] = periodic_in_x;
 		this->periodic[1] = periodic_in_y;
@@ -430,39 +274,12 @@ public:
 			this->neighbourhood_to.push_back(item);
 		}
 
-		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
-		double max_id = uint64_t(~0), last_id = this->grid_length;
-		int refinement_level = 0;
-		while (last_id / max_id < 1) {
-			refinement_level++;
-			last_id += double(this->grid_length) * (uint64_t(1) << refinement_level * 3);
-		}
-		refinement_level--;
 
-		// grid is too large even without refinement
-		if (refinement_level < 0) {
-			std::cerr << "Given grid would contain more than 2^64 - 1 unrefined cells" << std::endl;
-			// TODO: throw an exception instead
+		if (maximum_refinement_level < 0) {
+			this->set_maximum_refinement_level(this->get_maximum_possible_refinement_level());
+		} else if (!this->set_maximum_refinement_level(maximum_refinement_level)) {
+			std::cerr << "Couldn't set maximum refinement level to " << maximum_refinement_level << std::endl;
 			abort();
-		}
-
-
-		if (maximum_refinement_level > refinement_level) {
-
-			std::cerr << "Given max_refinement_level (" << maximum_refinement_level
-				<< ") is too large: x_length * this->geometry.get_y_length() * this->geometry.get_z_length() * 8^max_refinement_level / (2^64 - 1) >= "
-				<< this->grid_length * (uint64_t(1) << maximum_refinement_level * 3) / max_id
-				<< " but must be < 1"
-				<< std::endl;
-			// TODO: throw an exception instead
-			abort();
-
-		} else if (maximum_refinement_level < 0) {
-			this->set_maximum_refinement_level(refinement_level);
-			this->geometry.set_maximum_refinement_level(refinement_level);
-		} else {
-			this->set_maximum_refinement_level(maximum_refinement_level);
-			this->geometry.set_maximum_refinement_level(maximum_refinement_level);
 		}
 
 		// TODO: check that the last index in the grid in every direction is less than error_index
@@ -1266,72 +1083,12 @@ public:
 
 
 	/*!
-	The following return the x, y or z coordinate of the center of given cell regardless of whether it exists or has children
-	*/
-	double get_cell_x(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_x(cell);
-	}
-	double get_cell_y(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_y(cell);
-	}
-	double get_cell_z(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_z(cell);
-	}
-
-
-	double get_cell_x_min(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_x_min(cell);
-	}
-	double get_cell_y_min(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_y_min(cell);
-	}
-	double get_cell_z_min(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_z_min(cell);
-	}
-
-	double get_cell_x_max(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_x_max(cell);
-	}
-	double get_cell_y_max(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_y_max(cell);
-	}
-	double get_cell_z_max(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_z_max(cell);
-	}
-
-	/*!
-	The following return the length of given cell in x, y or z direction regardless of whether it exists or has children
-	*/
-	double get_cell_x_size(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_x_size(cell);
-	}
-	double get_cell_y_size(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_y_size(cell);
-	}
-	double get_cell_z_size(const uint64_t cell) const
-	{
-		return this->geometry.get_cell_z_size(cell);
-	}
-
-
-	/*!
 	Returns the refinement level of given cell, even if it doesn't exist
 	Returns -1 if cell == 0 or cell would exceed maximum refinement level
 	*/
 	int get_refinement_level(const uint64_t cell) const
 	{
-		return this->geometry.get_refinement_level(cell);
+		return this->get_refinement_level(cell);
 	}
 
 
@@ -1359,30 +1116,30 @@ public:
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
 		}
 
 		// map cells to written points
@@ -1648,9 +1405,9 @@ public:
 
 		// grid length in indices
 		const uint64_t grid_length[3] = {
-			this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level),
-			this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level),
-			this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)
+			this->get_x_length() * (uint64_t(1) << this->max_refinement_level),
+			this->get_y_length() * (uint64_t(1) << this->max_refinement_level),
+			this->get_z_length() * (uint64_t(1) << this->max_refinement_level)
 		};
 
 		#ifdef DEBUG
@@ -2189,20 +1946,20 @@ public:
 	/*!
 	The following return the start and end corners of the grid
 	*/
-	double get_x_start(void) const { return this->geometry.get_x_start(); }
-	double get_y_start(void) const { return this->geometry.get_y_start(); }
-	double get_z_start(void) const { return this->geometry.get_z_start(); }
-	double get_x_end(void) const { return this->geometry.get_x_end(); }
-	double get_y_end(void) const { return this->geometry.get_y_end(); }
-	double get_z_end(void) const { return this->geometry.get_z_end(); }
+	double get_x_start(void) const { return this->get_x_start(); }
+	double get_y_start(void) const { return this->get_y_start(); }
+	double get_z_start(void) const { return this->get_z_start(); }
+	double get_x_end(void) const { return this->get_x_end(); }
+	double get_y_end(void) const { return this->get_y_end(); }
+	double get_z_end(void) const { return this->get_z_end(); }
 	#endif
 
 	/*!
 	The following return the grid length in unrefined cells
 	*/
-	uint64_t get_x_length(void) const { return this->geometry.get_x_length(); }
-	uint64_t get_y_length(void) const { return this->geometry.get_y_length(); }
-	uint64_t get_z_length(void) const { return this->geometry.get_z_length(); }
+	uint64_t get_x_length(void) const { return this->get_x_length(); }
+	uint64_t get_y_length(void) const { return this->get_y_length(); }
+	uint64_t get_z_length(void) const { return this->get_z_length(); }
 
 
 	/*!
@@ -2660,18 +2417,6 @@ public:
 private:
 
 	bool initialized;
-
-	Geometry geometry;
-	#ifdef DCCRG_ARBITRARY_STRETCH
-	/*!
-	The coordinates of unrefined cells in respective directions
-	First value is the starting point of the grid, following ith value is the end point of the ith unrefined cell
-	*/
-	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
-	#else
-	// length of unrefined cells in all directions
-	double cell_x_size, cell_y_size, cell_z_size;
-	#endif
 
 	// size of the neighbour stencil of a cells in cells (of the same size as the cell itself)
 	unsigned int neighbourhood_size;
@@ -3688,9 +3433,9 @@ private:
 		Types<3>::indices_t distance = {0, 0, 0};
 
 		const uint64_t grid_length[3] = {
-			this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level),
-			this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level),
-			this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)
+			this->get_x_length() * (uint64_t(1) << this->max_refinement_level),
+			this->get_y_length() * (uint64_t(1) << this->max_refinement_level),
+			this->get_z_length() * (uint64_t(1) << this->max_refinement_level)
 		};
 
 		uint64_t max_distance = 0;
@@ -4837,26 +4582,26 @@ private:
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 		if (x < this->x_coordinates[0]
-			|| x > this->x_coordinates[this->geometry.get_x_length()]
+			|| x > this->x_coordinates[this->get_x_length()]
 			|| y < this->y_coordinates[0]
-			|| y > this->y_coordinates[this->geometry.get_y_length()]
+			|| y > this->y_coordinates[this->get_y_length()]
 			|| z < this->z_coordinates[0]
-			|| z > this->z_coordinates[this->geometry.get_z_length()]) {
+			|| z > this->z_coordinates[this->get_z_length()]) {
 		#else
-		if (x < this->geometry.get_x_start()
-			|| x > this->geometry.get_x_start() + this->cell_size * this->geometry.get_x_length()
-			|| y < this->geometry.get_y_start()
-			|| y > this->geometry.get_y_start() + this->cell_size * this->geometry.get_y_length()
-			|| z < this->geometry.get_z_start()
-			|| z > this->geometry.get_z_start() + this->cell_size * this->geometry.get_z_length()) {
+		if (x < this->get_x_start()
+			|| x > this->get_x_start() + this->cell_size * this->get_x_length()
+			|| y < this->get_y_start()
+			|| y > this->get_y_start() + this->cell_size * this->get_y_length()
+			|| z < this->get_z_start()
+			|| z > this->get_z_start() + this->cell_size * this->get_z_length()) {
 		#endif
 			return 0;
 		}
 
 		return this->get_cell_from_indices(
-			this->geometry.get_x_index_of_coord(x),
-			this->geometry.get_y_index_of_coord(y),
-			this->geometry.get_z_index_of_coord(z),
+			this->get_x_index_of_coord(x),
+			this->get_y_index_of_coord(y),
+			this->get_z_index_of_coord(z),
 			0, this->max_refinement_level
 		);
 	}
@@ -4870,16 +4615,16 @@ private:
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
 		#ifdef DEBUG
-		if (index1 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index1 >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index1 >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index1 >= this->get_x_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index1 >= this->get_y_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index1 >= this->get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (index2 >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index2 >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index2 >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index2 >= this->get_x_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index2 >= this->get_y_length() * (uint64_t(1) << this->max_refinement_level)
+		&& index2 >= this->get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
@@ -5140,11 +4885,11 @@ private:
 
 		// get indices of next refinement level within this cell
 		refinement_level++;
-		const uint64_t index_offset = (uint64_t(1) << (max_refinement_level - refinement_level));
+		const uint64_t index_offset = (uint64_t(1) << (this->max_refinement_level - refinement_level));
 		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
 		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
 		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
-			children.push_back(get_cell_from_indices(indices[0] + x_index_offset, indices[1] + y_index_offset, indices[2] + z_index_offset, refinement_level));
+			children.push_back(this->get_cell_from_indices(indices[0] + x_index_offset, indices[1] + y_index_offset, indices[2] + z_index_offset, refinement_level));
 		}
 
 		return children;
@@ -5168,7 +4913,7 @@ private:
 	*/
 	static void fill_with_cell_coordinates(void *data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*number_of_dimensions*/, double *geom_vec, int *error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -5191,7 +4936,7 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData, ...>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->cells.size();
 	}
@@ -5202,7 +4947,7 @@ private:
 	*/
 	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int number_of_weights_per_object, float* object_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -5233,7 +4978,7 @@ private:
 	*/
 	static void fill_number_of_neighbours_for_cells(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -5266,7 +5011,7 @@ private:
 	*/
 	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int number_of_weights_per_edge, float* edge_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbour_number = 0;
@@ -5313,7 +5058,7 @@ private:
 	*/
 	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = dccrg_instance->cells.size();
@@ -5348,7 +5093,7 @@ private:
 	*/
 	static void fill_hyperedge_lists(void* data, int /*global_id_size*/, int number_of_hyperedges, int number_of_connections, int format, ZOLTAN_ID_PTR hyperedges, int* hyperedge_connection_offsets, ZOLTAN_ID_PTR connections, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
@@ -5405,7 +5150,7 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = dccrg_instance->cells.size();
@@ -5418,7 +5163,7 @@ private:
 	*/
 	static void fill_edge_weights(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_hyperedges, int number_of_weights_per_hyperedge, ZOLTAN_ID_PTR hyperedges, ZOLTAN_ID_PTR /*hyperedges_local_ids*/, float* hyperedge_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
@@ -5462,7 +5207,7 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->processes_per_part.size();
 	}
@@ -5473,7 +5218,7 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
@@ -5506,7 +5251,7 @@ private:
 			return;
 		}
 
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData> *>(data);
+		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr << "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;

@@ -10,7 +10,7 @@ Tests the grid with some simple game of life patters, returns EXIT_SUCCESS if ev
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -66,7 +66,7 @@ using namespace dccrg;
 Returns EXIT_SUCCESS if the state of the given game at given timestep is correct on this process, returns EXIT_FAILURE otherwise.
 timestep == 0 means before any turns have been taken.
 */
-int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell>* grid)
+int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeometry>* grid)
 {
 	vector<uint64_t> cells = grid->get_cells();
 	for (vector<uint64_t>::const_iterator
@@ -288,6 +288,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 15	// in unrefined cells
@@ -300,7 +301,9 @@ int main(int argc, char* argv[])
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
 	#define STENCIL_SIZE 1
-	Dccrg<game_of_life_cell> game_grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	game_grid.set_coordinates(x_coordinates, y_coordinates, z_coordinates);
+
+	game_grid.initialize(comm, "RANDOM", STENCIL_SIZE);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
