@@ -1,5 +1,5 @@
 /*
-The mapping logic between a cell's id and its geometry (location, size and comparable stuff)
+The mapping logic between cells' and their geometry (location, size and comparable stuff)
 
 Copyright 2009, 2010, 2011 Finnish Meteorological Institute
 
@@ -36,9 +36,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "stdint.h"
 #include "vector"
 
+#include "dccrg_index.hpp"
+
 namespace dccrg {
 
-class Geometry
+class Geometry : public Index
 {
 
 public:
@@ -68,7 +70,7 @@ public:
 	At least two values must be given for each direction and all values must be strictly increasing.
 	Returns true if successful, probably invalidating all previous cell geometries, e.g. their location, size, etc.
 	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_coordinates(const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates)
 	{
@@ -154,7 +156,7 @@ public:
 
 	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in x direction.
 	Returns true on success, false otherwise.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_x_start(const double given_x_start)
 	{
@@ -168,7 +170,7 @@ public:
 
 	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in y direction.
 	Returns true on success, false otherwise.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_y_start(const double given_y_start)
 	{
@@ -181,7 +183,7 @@ public:
 
 	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in z direction.
 	Returns true on success, false otherwise.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_z_start(const double given_z_start)
 	{
@@ -221,7 +223,7 @@ public:
 
 	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
 	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_cell_x_size(const double given_cell_x_size)
 	{
@@ -241,7 +243,7 @@ public:
 
 	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
 	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_cell_y_size(const double given_cell_y_size)
 	{
@@ -259,7 +261,7 @@ public:
 
 	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
 	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
+	Automatically maximizes max_refinement_level.
 	*/
 	bool set_cell_z_size(const double given_cell_z_size)
 	{
@@ -298,80 +300,6 @@ public:
 	}
 
 
-	/*!
-	\brief Sets the size of the grid in unrefined cells in x direction.
-
-	Returns true if successful, probably invalidating all previous cell information (id, geometry, etc.)
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
-	*/
-	bool set_x_length(const uint64_t given_x_length)
-	{
-		if (given_x_length == 0) {
-			std::cerr << "Length of the grid in unrefined cells must be > 0 in the x direction" << std::endl;
-			return false;
-		}
-
-		uint64_t old_x_length = this->x_length;
-		this->x_length = given_x_length;
-
-		if (this->maximum_refinement_level > this->get_maximum_possible_refinement_level()) {
-			std::cerr << "Grid could have too many cells for an uint64_t with current refinement level" << std::endl;
-			this->x_length = old_x_length;
-			return false;
-		} else {
-			return true;
-		}
-	}
-
-	/*!
-	\brief Sets the size of the grid in unrefined cells in y direction.
-
-	Returns true if successful, probably invalidating all previous cell information (id, geometry, etc.)
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
-	*/
-	bool set_y_length(const uint64_t given_y_length)
-	{
-		if (given_y_length == 0) {
-			std::cerr << "Length of the grid in unrefined cells must be > 0 in the y direction" << std::endl;
-			return false;
-		}
-
-		double last_unrefined_cell = double(this->x_length) * double(given_y_length) * double(this->z_length);
-		if (last_unrefined_cell > double(uint64_t(~0))) {
-			std::cerr << "Grid would have too many unrefined cells to fit them into uint64_t (1..." << last_unrefined_cell << ")" << std::endl;
-			return false;
-		}
-
-		this->y_length = given_y_length;
-		return true;
-	}
-
-	/*!
-	\brief Sets the size of the grid in unrefined cells in z direction.
-
-	Returns true if successful, probably invalidating all previous cell information (id, geometry, etc.)
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes maximum_refinement_level.
-	*/
-	bool set_z_length(const uint64_t given_z_length)
-	{
-		if (given_z_length == 0) {
-			std::cerr << "Length of the grid in unrefined cells must be > 0 in the z direction" << std::endl;
-			return false;
-		}
-
-		double last_unrefined_cell = double(this->x_length) * double(this->y_length) * double(given_z_length);
-		if (last_unrefined_cell > double(uint64_t(~0))) {
-			std::cerr << "Grid would have too many unrefined cells to fit them into uint64_t (1..." << last_unrefined_cell << ")" << std::endl;
-			return false;
-		}
-
-		this->z_length = given_z_length;
-		return true;
-	}
-
 	#endif
 
 
@@ -401,81 +329,13 @@ public:
 
 
 	/*!
-	Returns the maximum refinement level of any cell in the grid (0 means unrefined).
-	*/
-	int get_maximum_refinement_level(void) const
-	{
-		return this->maximum_refinement_level;
-	}
-
-	/*!
-	Sets the maximum refinement level of the grid (0 means unrefined), probably invalidating all previous cell indices.
-	Returns true if all cells in the grid with the given maximum refinement level would fit into an uint64_t, otherwise does nothing and returns false.
-	*/
-	bool set_maximum_refinement_level(const int given_maximum_refinement_level)
-	{
-		if (given_maximum_refinement_level <= this->get_maximum_possible_refinement_level()) {
-			this->maximum_refinement_level = given_maximum_refinement_level;
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-
-	/*!
-	Returns the maximum possible refinement level for a cell in the grid (0 means unrefined).
-	*/
-	int get_maximum_possible_refinement_level(void) const
-	{
-		double last_possible_cell = double(uint64_t(~0));
-		double last_cell = double(this->x_length * this->y_length * this->z_length);
-		int refinement_level = 0;
-
-		while (last_cell <= last_possible_cell) {
-			refinement_level++;
-			last_cell += double(this->x_length) * double(this->y_length) * double(this->z_length) * double(uint64_t(1) << refinement_level * 3);
-		}
-
-		return refinement_level - 1;
-	}
-
-
-	/*!
-	Returns the refinement level of given cell (0 means unrefined)
-	Returns -1 if given cell cannot exist in the current grid
-	*/
-	int get_refinement_level(const uint64_t cell) const
-	// TODO: move to dccrg.hpp
-	{
-		if (cell == 0) {
-			return -1;
-		}
-
-		int refinement_level = 0;
-		uint64_t last_cell = this->x_length * this->y_length * this->z_length;
-
-		while (last_cell < cell) {
-			refinement_level++;
-			last_cell += this->x_length * this->y_length * this->z_length * (uint64_t(1) << 3 * refinement_level);
-		}
-
-		if (refinement_level > this->maximum_refinement_level) {
-			return -1;
-		}
-
-		return refinement_level;
-	}
-
-
-	/*!
 	Returns the length of given cell in x direction.
 	*/
 	double get_cell_x_size(const uint64_t cell) const
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
 		int refinement_level = this->get_refinement_level(cell);
@@ -494,7 +354,7 @@ public:
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
 		int refinement_level = this->get_refinement_level(cell);
@@ -513,7 +373,7 @@ public:
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
 		int refinement_level = this->get_refinement_level(cell);
@@ -535,21 +395,23 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->maximum_refinement_level) {
+		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
+		const Types<3>::indices_t indices = this->get_indices(cell);
+
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_x_coord_start_index = this->get_unref_cell_x_coord_start_index(cell);
-		uint64_t unref_cell_x_index = unref_cell_x_coord_start_index * (uint64_t(1) << this->maximum_refinement_level);
+		uint64_t unref_cell_x_index = unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
-		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->maximum_refinement_level);
+		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (this->get_x_index(cell) - unref_cell_x_index) + this->get_cell_x_size(cell) / 2;
-	#else
-		return this->x_start + this->get_x_index(cell) * this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level) + this->get_cell_x_size(cell) / 2;
-	#endif
+		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (indices[0] - unref_cell_x_index) + this->get_cell_x_size(cell) / 2;
+		#else
+		return this->x_start + indices[0] * this->cell_x_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
+		#endif
 	}
 
 	/*!
@@ -561,21 +423,23 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->maximum_refinement_level) {
+		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
+		const Types<3>::indices_t indices = this->get_indices(cell);
+
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_y_coord_start_index = this->get_unref_cell_y_coord_start_index(cell);
-		uint64_t unref_cell_y_index = unref_cell_y_coord_start_index * (uint64_t(1) << this->maximum_refinement_level);
+		uint64_t unref_cell_y_index = unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
-		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->maximum_refinement_level);
+		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (this->get_y_index(cell) - unref_cell_y_index) + this->get_cell_y_size(cell) / 2;
-	#else
-		return this->y_start + this->get_y_index(cell) * this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level) + this->get_cell_y_size(cell) / 2;
-	#endif
+		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (indices[1] - unref_cell_y_index) + this->get_cell_y_size(cell) / 2;
+		#else
+		return this->y_start + indices[1] * this->cell_y_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
+		#endif
 	}
 
 	/*!
@@ -587,21 +451,23 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->maximum_refinement_level) {
+		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-	#ifdef DCCRG_ARBITRARY_STRETCH
+		const Types<3>::indices_t indices = this->get_indices(cell);
+
+		#ifdef DCCRG_ARBITRARY_STRETCH
 		uint64_t unref_cell_z_coord_start_index = this->get_unref_cell_z_coord_start_index(cell);
-		uint64_t unref_cell_z_index = unref_cell_z_coord_start_index * (uint64_t(1) << this->maximum_refinement_level);
+		uint64_t unref_cell_z_index = unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
-		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->maximum_refinement_level);
+		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (this->get_z_index(cell) - unref_cell_z_index) + this->get_cell_z_size(cell) / 2;
-	#else
-		return this->z_start + this->get_z_index(cell) * this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level) + this->get_cell_z_size(cell) / 2;
-	#endif
+		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (indices[2] - unref_cell_z_index) + this->get_cell_z_size(cell) / 2;
+		#else
+		return this->z_start + indices[2] * this->cell_z_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
+		#endif
 	}
 
 	/*!
@@ -659,23 +525,23 @@ public:
 	*/
 	double get_cell_x(const int refinement_level, const uint64_t x_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (x_index > this->x_length * (uint64_t(1) << this->maximum_refinement_level)) {
+		if (x_index > this->x_length * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t unref_cell_x_coord_start_index = x_index / (uint64_t(1) << this->maximum_refinement_level);
+		uint64_t unref_cell_x_coord_start_index = x_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
-		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->maximum_refinement_level);
+		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->maximum_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) / 2;
+		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
 	#else
-		return this->x_start + x_index * this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level) + this->cell_x_size / (uint64_t(1) << refinement_level) / 2;
+		return this->x_start + x_index * this->cell_x_size / (uint64_t(1) << this->max_refinement_level) + this->cell_x_size / (uint64_t(1) << refinement_level) / 2;
 	#endif
 	}
 
@@ -684,23 +550,23 @@ public:
 	*/
 	double get_cell_y(const int refinement_level, const uint64_t y_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (y_index > this->y_length * (uint64_t(1) << this->maximum_refinement_level)) {
+		if (y_index > this->y_length * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t unref_cell_y_coord_start_index = y_index / (uint64_t(1) << this->maximum_refinement_level);
+		uint64_t unref_cell_y_coord_start_index = y_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
-		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->maximum_refinement_level);
+		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->maximum_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) / 2;
+		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
 	#else
-		return this->y_start + y_index * this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level) + this->cell_y_size / (uint64_t(1) << refinement_level) / 2;
+		return this->y_start + y_index * this->cell_y_size / (uint64_t(1) << this->max_refinement_level) + this->cell_y_size / (uint64_t(1) << refinement_level) / 2;
 	#endif
 	}
 
@@ -709,23 +575,23 @@ public:
 	*/
 	double get_cell_z(const int refinement_level, const uint64_t z_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
+		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (z_index > this->z_length * (uint64_t(1) << this->maximum_refinement_level)) {
+		if (z_index > this->z_length * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
-		uint64_t unref_cell_z_coord_start_index = z_index / (uint64_t(1) << this->maximum_refinement_level);
+		uint64_t unref_cell_z_coord_start_index = z_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
-		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->maximum_refinement_level);
+		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->maximum_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) / 2;
+		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level)) + size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
 	#else
-		return this->z_start + z_index * this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level) + this->cell_z_size / (uint64_t(1) << refinement_level) / 2;
+		return this->z_start + z_index * this->cell_z_size / (uint64_t(1) << this->max_refinement_level) + this->cell_z_size / (uint64_t(1) << refinement_level) / 2;
 	#endif
 	}
 
@@ -735,99 +601,27 @@ public:
 	*/
 	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z) const
 	{
-		if (refinement_level < 0 || refinement_level > this->maximum_refinement_level) {
-			return 0;
+		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+			return error_cell;
 		}
 
-		return get_cell_from_indices(this->get_x_index(x), this->get_y_index(y), this->get_z_index(z), refinement_level);
+		return this->get_cell_from_indices(this->get_x_index_of_coord(x), this->get_y_index_of_coord(y), this->get_z_index_of_coord(z), refinement_level);
 	}
 
 
 	/*!
-	\brief Returns the x index of given cell, starting from 0.
-
-	For cells that are larger than the smallest possible according to maximum_refinement_level, the index closest to the grid starting point is returned.
-
-\verbatim
-Example with maximum refinement level 1:
-index    0 1 2
-        -------
-      0 | |   |
-        ---   |
-      1 | |   |
-        -------
-\endverbatim
+	Returns the smallest cell at given coordinates or 0 if outside of the grid
 	*/
-	uint64_t get_x_index(uint64_t cell) const
+	/*uint64_t get_cell(const double x, const double y, const double z) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
-
-		// substract larger cells
-		int refinement_level = this->get_refinement_level(cell);
-		for (int i = 0; i < refinement_level; i++) {
-			cell -= this->x_length * this->y_length * this->z_length * (uint64_t(1) << i * 3);
-		}
-
-		// get the index at this cells refinement level
-		cell -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index = cell % (this->x_length * (uint64_t(1) << refinement_level));
-
-		assert(this_level_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level)) < this->x_length * (uint64_t(1) << this->maximum_refinement_level));
-		return this_level_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level));
-	}
-
-	/*!
-	Returns the y index of given cell, starting from 0.
-	*/
-	uint64_t get_y_index(uint64_t cell) const
-	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
-
-		// substract larger cells
-		int refinement_level = this->get_refinement_level(cell);
-		for (int i = 0; i < refinement_level; i++) {
-			cell -= this->x_length * this->y_length * this->z_length * (uint64_t(1) << i * 3);
-		}
-
-		// get the index at this cells refinement level
-		cell -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  (cell / (this->x_length * (uint64_t(1) << refinement_level))) % (this->y_length  * (uint64_t(1) << refinement_level));
-
-		return this_level_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level));
-	}
-
-	/*!
-	Returns the y index of given cell, starting from 0.
-	*/
-	uint64_t get_z_index(uint64_t cell) const
-	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
-
-		// substract larger cells
-		int refinement_level = this->get_refinement_level(cell);
-		for (int i = 0; i < refinement_level; i++) {
-			cell -= this->x_length * this->y_length * this->z_length * (uint64_t(1) << i * 3);
-		}
-
-		// get the index at this cells refinement level
-		cell -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index =  cell / (this->x_length * this->y_length * (uint64_t(1) << 2 * refinement_level));
-
-		return this_level_index * (uint64_t(1) << (this->maximum_refinement_level - refinement_level));
-	}
-
+		return this->get_cell_from_indices(this->get_x_index(x), this->get_y_index(y), this->get_z_index(z), 0, this->max_refinement_level);
+	}*/
 
 	/*!
 	Returns the x index of given location, starting from 0.
 	Returns an invalid index if given location is outside of the grid.
 	*/
-	uint64_t get_x_index(const double x) const
+	uint64_t get_x_index_of_coord(const double x) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 
@@ -852,7 +646,7 @@ index    0 1 2
 		#else
 
 		assert((x >= this->get_x_start()) and (x <= this->get_x_start() + this->get_x_length() * this->cell_x_size));
-		return uint64_t(floor((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->maximum_refinement_level))));
+		return uint64_t(floor((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->max_refinement_level))));
 
 		#endif
 	}
@@ -861,7 +655,7 @@ index    0 1 2
 	Returns the y index of given location, starting from 0.
 	Returns an invalid index if given location is outside of the grid.
 	*/
-	uint64_t get_y_index(const double y) const
+	uint64_t get_y_index_of_coord(const double y) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 
@@ -886,7 +680,7 @@ index    0 1 2
 		#else
 
 		assert((y >= this->get_y_start()) and (y <= this->get_y_start() + this->get_y_length() * this->cell_y_size));
-		return uint64_t(floor((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->maximum_refinement_level))));
+		return uint64_t(floor((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->max_refinement_level))));
 
 		#endif
 	}
@@ -895,7 +689,7 @@ index    0 1 2
 	Returns the z index of given location, starting from 0.
 	Returns an invalid index if given location is outside of the grid.
 	*/
-	uint64_t get_z_index(const double z) const
+	uint64_t get_z_index_of_coord(const double z) const
 	{
 		#ifdef DCCRG_ARBITRARY_STRETCH
 
@@ -920,7 +714,7 @@ index    0 1 2
 		#else
 
 		assert((z >= this->get_z_start()) and (z <= this->get_z_start() + this->get_z_length() * this->cell_z_size));
-		return uint64_t(floor((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->maximum_refinement_level))));
+		return uint64_t(floor((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->max_refinement_level))));
 
 		#endif
 	}
@@ -977,7 +771,7 @@ private:
 		this->y_length = 1;
 		this->z_length = 1;
 
-		this->maximum_refinement_level = 0;
+		this->max_refinement_level = 0;
 	}
 
 
@@ -993,57 +787,6 @@ private:
 	// length of unrefined cells in all directions
 	double cell_x_size, cell_y_size, cell_z_size;
 	#endif
-	// size of the grid in unrefined cells
-	uint64_t x_length, y_length, z_length;
-	// maximum refinemet level of any cell in the grid, 0 means unrefined
-	int maximum_refinement_level;
-
-
-	/*!
-	Returns the lengths of given cell in indices in every direction.
-	*/
-	uint64_t get_cell_size_in_indices(const uint64_t cell) const
-	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
-
-		return uint64_t(1) << (this->maximum_refinement_level - this->get_refinement_level(cell));
-	}
-
-
-	/*!
-	Returns the cell of given refinement level at given indices.
-	*/
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
-	{
-		assert(refinement_level >= 0);
-		assert(refinement_level <= this->maximum_refinement_level);
-		assert(x_index < this->x_length * (uint64_t(1) << this->maximum_refinement_level));
-		assert(y_index < this->y_length * (uint64_t(1) << this->maximum_refinement_level));
-		assert(z_index < this->z_length * (uint64_t(1) << this->maximum_refinement_level));
-
-		uint64_t cell = 1;
-
-		// add larger cells
-		for (int i = 0; i < refinement_level; i++) {
-			cell += this->x_length * this->y_length * this->z_length * (uint64_t(1) << 3 * i);
-		}
-
-		// convert to indices of this cells refinement level
-		uint64_t this_level_x_index = x_index / (uint64_t(1) << (maximum_refinement_level - refinement_level));
-		uint64_t this_level_y_index = y_index / (uint64_t(1) << (maximum_refinement_level - refinement_level));
-		uint64_t this_level_z_index = z_index / (uint64_t(1) << (maximum_refinement_level - refinement_level));
-
-		// get the size of the grid in cells of this refinement level
-		uint64_t this_level_x_length = x_length * (uint64_t(1) << refinement_level);
-		uint64_t this_level_y_length = y_length * (uint64_t(1) << refinement_level);
-
-		cell += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
-
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
-		return cell;
-	}
 
 
 	#ifdef DCCRG_ARBITRARY_STRETCH
@@ -1054,9 +797,11 @@ private:
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-		return this->get_x_index(cell) / (uint64_t(1) << this->maximum_refinement_level);
+		const Types<3>::indices_t indices = this->get_indices(cell);
+
+		return indices[0] / (uint64_t(1) << this->max_refinement_level);
 	}
 
 	/*!
@@ -1066,9 +811,11 @@ private:
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-		return this->get_y_index(cell) / (uint64_t(1) << this->maximum_refinement_level);
+		const Types<3>::indices_t indices = this->get_indices(cell);
+
+		return indices[1] / (uint64_t(1) << this->max_refinement_level);
 	}
 
 	/*!
@@ -1078,9 +825,11 @@ private:
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->maximum_refinement_level);
+		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-		return this->get_z_index(cell) / (uint64_t(1) << this->maximum_refinement_level);
+		const Types<3>::indices_t indices = this->get_indices(cell);
+
+		return indices[2] / (uint64_t(1) << this->max_refinement_level);
 	}
 	#endif
 

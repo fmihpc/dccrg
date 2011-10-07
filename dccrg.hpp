@@ -77,10 +77,8 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 namespace dccrg
 {
 
-// Indicates a non-existing index or an error when dealing with indices
-static const uint64_t error_index = std::numeric_limits<uint64_t>::max();
-
-template <class UserData> class Dccrg
+//template <class UserData, class UserGeometry> class Dccrg : public Index, public UserGeometry...
+template <class UserData> class Dccrg : public Index
 {
 
 public:
@@ -106,9 +104,9 @@ public:
 		boost::mpi::communicator comm,
 		const char* load_balancing_method,
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		const std::vector<double> x_coordinates,
-		const std::vector<double> y_coordinates,
-		const std::vector<double> z_coordinates,
+		const std::vector<double> given_x_coordinates,
+		const std::vector<double> given_y_coordinates,
+		const std::vector<double> given_z_coordinates,
 		#else
 		const double x_start,
 		const double y_start,
@@ -116,9 +114,9 @@ public:
 		const double cell_x_size,
 		const double cell_y_size,
 		const double cell_z_size,
-		const uint64_t x_length,
-		const uint64_t y_length,
-		const uint64_t z_length,
+		const uint64_t given_x_length,
+		const uint64_t given_y_length,
+		const uint64_t given_z_length,
 		#endif
 		const unsigned int neighbourhood_size,
 		const int maximum_refinement_level = -1,
@@ -140,9 +138,9 @@ public:
 			comm,
 			load_balancing_method,
 			#ifdef DCCRG_ARBITRARY_STRETCH
-			x_coordinates,
-			y_coordinates,
-			z_coordinates,
+			given_x_coordinates,
+			given_y_coordinates,
+			given_z_coordinates,
 			#else
 			x_start,
 			y_start,
@@ -150,9 +148,9 @@ public:
 			cell_x_size,
 			cell_y_size,
 			cell_z_size,
-			x_length,
-			y_length,
-			z_length,
+			given_x_length,
+			given_y_length,
+			given_z_length,
 			#endif
 			neighbourhood_size,
 			maximum_refinement_level,
@@ -208,9 +206,9 @@ public:
 		boost::mpi::communicator comm,
 		const char* load_balancing_method,
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		const std::vector<double> x_coordinates,
-		const std::vector<double> y_coordinates,
-		const std::vector<double> z_coordinates,
+		const std::vector<double> given_x_coordinates,
+		const std::vector<double> given_y_coordinates,
+		const std::vector<double> given_z_coordinates,
 		#else
 		const double x_start,
 		const double y_start,
@@ -218,9 +216,9 @@ public:
 		const double cell_x_size,
 		const double cell_y_size,
 		const double cell_z_size,
-		const uint64_t x_length,
-		const uint64_t y_length,
-		const uint64_t z_length,
+		const uint64_t given_x_length,
+		const uint64_t given_y_length,
+		const uint64_t given_z_length,
 		#endif
 		const unsigned int neighbourhood_size,
 		const int maximum_refinement_level = -1,
@@ -302,41 +300,80 @@ public:
 		*/
 
 		#ifdef DCCRG_ARBITRARY_STRETCH
-		if (!this->geometry.set_coordinates(x_coordinates, y_coordinates, z_coordinates)) {
+
+		if (!this->geometry.set_coordinates(given_x_coordinates, given_y_coordinates, given_z_coordinates)) {
 			std::cerr << "Failed to set grid geometry" << std::endl;
-			exit(EXIT_FAILURE);
+			abort();
 		}
+
+		if (!this->set_length(
+			given_x_coordinates.size() - 1,
+			given_y_coordinates.size() - 1,
+			given_z_coordinates.size() - 1
+		)) {
+			std::cerr << "Couldn't set grid length to "
+				<< given_x_coordinates.size() - 1 << " * "
+				<< given_y_coordinates.size() - 1 << " * "
+				<< given_z_coordinates.size() - 1 << " unrefined cells"
+				<< std::endl;
+			abort();
+		}
+
+		if (!this->geometry.set_length(
+			given_x_coordinates.size() - 1,
+			given_y_coordinates.size() - 1,
+			given_z_coordinates.size() - 1
+		)) {
+			std::cerr << "Couldn't set grid length to "
+				<< given_x_coordinates.size() - 1 << " * "
+				<< given_y_coordinates.size() - 1 << " * "
+				<< given_z_coordinates.size() - 1 << " unrefined cells in geometry"
+				<< std::endl;
+			abort();
+		}
+
 		#else
+
 		this->geometry.set_x_start(x_start);
 		this->geometry.set_y_start(y_start);
 		this->geometry.set_z_start(z_start);
 		this->geometry.set_cell_x_size(cell_x_size);
 		this->geometry.set_cell_y_size(cell_y_size);
 		this->geometry.set_cell_z_size(cell_z_size);
-		this->geometry.set_x_length(x_length);
-		this->geometry.set_y_length(y_length);
-		this->geometry.set_z_length(z_length);
 
-		if (x_length == 0) {
+		if (given_x_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the x direction" << std::endl;
 			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 		}
-		this->geometry.set_x_length(x_length);
 
-		if (y_length == 0) {
+		if (given_y_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the y direction" << std::endl;
-			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 		}
-		this->geometry.set_y_length(y_length);
 
-		if (z_length == 0) {
+		if (given_z_length == 0) {
 			std::cerr << "Length of the grid in cells must be > 0 in the z direction" << std::endl;
-			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 		}
-		this->geometry.set_z_length(z_length);
+
+		if (!this->set_length(given_x_length, given_y_length, given_z_length)) {
+			std::cerr << "Couldn't set grid length to "
+				<< given_x_length << " * "
+				<< given_y_length << " * "
+				<< given_z_length << " unrefined cells"
+				<< std::endl;
+			abort();
+		}
+
+		if (!this->geometry.set_length(given_x_length, given_y_length, given_z_length)) {
+			std::cerr << "Couldn't set grid length to "
+				<< given_x_length << " * "
+				<< given_y_length << " * "
+				<< given_z_length << " unrefined cells in geometry"
+				<< std::endl;
+			abort();
+		}
 
 		#endif
 
@@ -393,14 +430,12 @@ public:
 			this->neighbourhood_to.push_back(item);
 		}
 
-		const uint64_t grid_length = this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length();
-
 		// get the maximum refinement level based on the size of the grid when using uint64_t for cell ids
-		double max_id = uint64_t(~0), last_id = grid_length;
+		double max_id = uint64_t(~0), last_id = this->grid_length;
 		int refinement_level = 0;
 		while (last_id / max_id < 1) {
 			refinement_level++;
-			last_id += double(grid_length) * (uint64_t(1) << refinement_level * 3);
+			last_id += double(this->grid_length) * (uint64_t(1) << refinement_level * 3);
 		}
 		refinement_level--;
 
@@ -408,7 +443,7 @@ public:
 		if (refinement_level < 0) {
 			std::cerr << "Given grid would contain more than 2^64 - 1 unrefined cells" << std::endl;
 			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 		}
 
 
@@ -416,45 +451,37 @@ public:
 
 			std::cerr << "Given max_refinement_level (" << maximum_refinement_level
 				<< ") is too large: x_length * this->geometry.get_y_length() * this->geometry.get_z_length() * 8^max_refinement_level / (2^64 - 1) >= "
-				<< grid_length * (uint64_t(1) << maximum_refinement_level * 3) / max_id
+				<< this->grid_length * (uint64_t(1) << maximum_refinement_level * 3) / max_id
 				<< " but must be < 1"
 				<< std::endl;
 			// TODO: throw an exception instead
 			abort();
 
 		} else if (maximum_refinement_level < 0) {
-			this->max_refinement_level = refinement_level;
+			this->set_maximum_refinement_level(refinement_level);
+			this->geometry.set_maximum_refinement_level(refinement_level);
 		} else {
-			this->max_refinement_level = maximum_refinement_level;
+			this->set_maximum_refinement_level(maximum_refinement_level);
+			this->geometry.set_maximum_refinement_level(maximum_refinement_level);
 		}
-
-		this->geometry.set_maximum_refinement_level(this->max_refinement_level);
-
 
 		// TODO: check that the last index in the grid in every direction is less than error_index
 
 
-		// the number of the last cell at maximum refinement level
-		uint64_t id = 0;
-		for (refinement_level = 0; refinement_level <= this->max_refinement_level; refinement_level++) {
-			id += grid_length * (uint64_t(1) << refinement_level * 3);
-		}
-		this->max_cell_number = id;
-
 		// create unrefined cells
 		uint64_t cells_per_process = 0;
-		if (grid_length < uint64_t(comm.size())) {
+		if (this->grid_length < uint64_t(comm.size())) {
 			cells_per_process = 1;
-		} else if (grid_length % uint64_t(comm.size()) > 0) {
-			cells_per_process = grid_length / uint64_t(comm.size()) + 1;
+		} else if (this->grid_length % uint64_t(comm.size()) > 0) {
+			cells_per_process = this->grid_length / uint64_t(comm.size()) + 1;
 		} else {
-			cells_per_process = grid_length / uint64_t(comm.size());
+			cells_per_process = this->grid_length / uint64_t(comm.size());
 		}
-		for (id = 1; id <= grid_length; id++) {
-			if ((id - uint64_t(1)) / cells_per_process == uint64_t(comm.rank())) {
-				this->cells[id];
+		for (uint64_t cell = 1; cell <= this->grid_length; cell++) {
+			if ((cell - uint64_t(1)) / cells_per_process == uint64_t(comm.rank())) {
+				this->cells[cell];
 			}
-			this->cell_process[id] = (id - uint64_t(1)) / cells_per_process;
+			this->cell_process[cell] = (cell - uint64_t(1)) / cells_per_process;
 		}
 
 		// update neighbour lists of created cells
@@ -1332,14 +1359,30 @@ public:
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_min(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(leaf_cells[i]) << " " << geometry.get_cell_y_max(leaf_cells[i]) << " " << geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
 		}
 
 		// map cells to written points
@@ -1758,7 +1801,7 @@ public:
 				continue;
 			}
 
-			const uint64_t neighbor = this->get_cell_from_indices(
+			const uint64_t neighbor = this->get_existing_cell_from_indices(
 				*index_of,
 				(refinement_level == 0)
 					? 0 : refinement_level - 1,
@@ -1837,7 +1880,7 @@ public:
 		std::vector<uint64_t> return_neighbours;
 
 		if (cell == 0
-		|| cell > this->max_cell_number
+		|| cell > this->last_cell
 		|| this->cell_process.count(cell) == 0
 		|| cell != this->get_child(cell)) {
 			return return_neighbours;
@@ -1969,7 +2012,7 @@ public:
 		std::vector<uint64_t> return_neighbours;
 
 		if (cell == 0
-		|| cell > this->max_cell_number
+		|| cell > this->last_cell
 		|| this->cell_process.count(cell) == 0
 		|| cell != this->get_child(cell)) {
 			return return_neighbours;
@@ -2117,7 +2160,7 @@ public:
 				abort();
 			}
 
-			if (cell > this->max_cell_number) {
+			if (cell > this->last_cell) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Cell can't exist" << std::endl;
 				abort();
 			}
@@ -2141,185 +2184,6 @@ public:
 	}
 
 
-	/*!
-	Returns cells between given outer and inner shells (given as indices, inclusive) and refinement levels.
-
-	Ignores cells diagonal to given inner shell if neighbourhood_size == 0.
-	*/
-	boost::unordered_set<uint64_t> find_cells
-	(
-		const uint64_t outer_min_x,
-		const uint64_t outer_min_y,
-		const uint64_t outer_min_z,
-		const uint64_t outer_max_x,
-		const uint64_t outer_max_y,
-		const uint64_t outer_max_z,
-		const uint64_t inner_min_x,
-		const uint64_t inner_min_y,
-		const uint64_t inner_min_z,
-		const uint64_t inner_max_x,
-		const uint64_t inner_max_y,
-		const uint64_t inner_max_z,
-		const int minimum_refinement_level,
-		const int maximum_refinement_level
-	) const
-	{
-		#ifdef DEBUG
-		if (minimum_refinement_level > maximum_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement levels given" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		// check that outer shell makes sense
-		if (outer_min_x > outer_max_x) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " outer_min_x > outer_max_x" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (outer_min_y > outer_max_y) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " outer_min_y > outer_max_y" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (outer_min_z > outer_max_z) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " outer_min_z > outer_max_z" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		// check that inner shell makes sense
-		if (inner_min_x > inner_max_x) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " inner_min_x > inner_max_x" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (inner_min_y > inner_max_y) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " inner_min_y > inner_max_y" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (inner_min_z > inner_max_z) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " inner_min_z > inner_max_z" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		// check that inner shell is at least partially inside of the outer shell
-		if (inner_min_x == outer_min_x
-		&& inner_min_y == outer_min_y
-		&& inner_min_z == outer_min_z
-		&& inner_max_x == outer_max_x
-		&& inner_max_y == outer_max_y
-		&& inner_max_z == outer_max_z) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Nothing to search" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		// check that inner shell isn't outside of the outer shell
-		if (inner_min_x < outer_min_x
-		|| inner_min_y < outer_min_y
-		|| inner_min_z < outer_min_z
-		|| inner_max_x > outer_max_x
-		|| inner_max_y > outer_max_y
-		|| inner_max_z > outer_max_z) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Inner shell is outside of the outer shell" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
-		boost::unordered_set<uint64_t> result;
-
-		const uint64_t index_increase = uint64_t(1) << (this->max_refinement_level - maximum_refinement_level);
-		for (uint64_t x = outer_min_x; x <= outer_max_x; x += index_increase) {
-			for (uint64_t y = outer_min_y; y <= outer_max_y; y += index_increase) {
-				for (uint64_t z = outer_min_z; z <= outer_max_z; z += index_increase) {
-
-					// skip inner shell
-					if (x >= inner_min_x
-					&& x <= inner_max_x
-					&& y >= inner_min_y
-					&& y <= inner_max_y
-					&& z >= inner_min_z
-					&& z <= inner_max_z) {
-						continue;
-					}
-
-					if (this->neighbourhood_size == 0) {
-
-						// don't search diagonally
-						int overlaps = 0;
-						if (this->indices_overlap(inner_min_x, 1 + inner_max_x - inner_min_x, x, 1)) {
-							overlaps++;
-						}
-						if (this->indices_overlap(inner_min_y, 1 + inner_max_y - inner_min_y, y, 1)) {
-							overlaps++;
-						}
-						if (this->indices_overlap(inner_min_z, 1 + inner_max_z - inner_min_z, z, 1)) {
-							overlaps++;
-						}
-
-						if (overlaps < 2) {
-							continue;
-						}
-					}
-
-					const uint64_t neighbour = this->get_cell_from_indices(x, y, z, minimum_refinement_level, maximum_refinement_level);
-
-					#ifdef DEBUG
-					if (neighbour == 0) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " No neighbour found between refinement levels [" << minimum_refinement_level << ", " << maximum_refinement_level << "] at indices " << x << " " << y << " " << z << std::endl;
-						const uint64_t smallest = this->get_cell_from_indices(x, y, z, minimum_refinement_level, maximum_refinement_level);
-						std::cerr << __FILE__ << ":" << __LINE__ << " smallest neighbour there is " << smallest << " with refinement level " << this->get_refinement_level(smallest) << std::endl;
-					}
-
-					if (neighbour > this->max_cell_number) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " Neighbour can't exist" << std::endl;
-						exit(EXIT_FAILURE);
-					}
-					#endif
-
-					/*
-					When searching for neighbours_to, cells may exist with larger refinement level than given in find_neighbours_to and they don't consider this cell as a neighbour.
-					*/
-					if (neighbour != this->get_child(neighbour)) {
-						continue;
-					}
-
-					result.insert(neighbour);
-				}
-			}
-		}
-
-		return result;
-	}
-
-
-	/*!
-	Returns the smallest cell at given coordinates or 0 if outside of the grid
-	*/
-	uint64_t get_cell(const double x, const double y, const double z) const
-	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		if (x < this->x_coordinates[0]
-		|| x > this->x_coordinates[this->x_coordinates.size() - 1]
-		|| y < this->y_coordinates[0]
-		|| y > this->y_coordinates[this->y_coordinates.size() - 1]
-		|| z < this->z_coordinates[0]
-		|| z > this->z_coordinates[this->z_coordinates.size() - 1]) {
-			return 0;
-		}
-		#else
-		if (x < this->geometry.get_x_start()
-		|| x > this->geometry.get_x_start() + this->geometry.get_x_length() * this->geometry.get_unrefined_cell_x_size()
-		|| y < this->geometry.get_y_start()
-		|| y > this->geometry.get_y_start() + this->geometry.get_y_length() * this->geometry.get_unrefined_cell_y_size()
-		|| z < this->geometry.get_z_start()
-		|| z > this->geometry.get_z_start() + this->geometry.get_z_length() * this->geometry.get_unrefined_cell_z_size()) {
-			return 0;
-		}
-		#endif
-
-		return this->get_cell_from_indices(this->geometry.get_x_index(x), this->geometry.get_y_index(y), this->geometry.get_z_index(z), 0, this->geometry.get_maximum_refinement_level());
-	}
-
 	#ifdef DCCRG_ARBITRARY_STRETCH
 	#else
 	/*!
@@ -2339,228 +2203,6 @@ public:
 	uint64_t get_x_length(void) const { return this->geometry.get_x_length(); }
 	uint64_t get_y_length(void) const { return this->geometry.get_y_length(); }
 	uint64_t get_z_length(void) const { return this->geometry.get_z_length(); }
-
-
-	/*!
-	Returns the indices of given cell.
-
-	See the definition of indices_t for an explanation about them.
-	Returned indices are invalid if given a cell outside the valid range.
-	*/
-	Types<3>::indices_t get_indices(uint64_t cell) const
-	{
-		#ifdef DEBUG
-		const uint64_t original_cell = cell;
-
-		if (original_cell == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			abort();
-		}
-
-		if (original_cell > this->max_cell_number) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			abort();
-		}
-		#endif
-
-		const uint64_t x_length = this->geometry.get_x_length();
-		const uint64_t y_length = this->geometry.get_y_length();
-		const uint64_t z_length = this->geometry.get_z_length();
-
-		// substract ids of larger cells
-		const int refinement_level = this->get_refinement_level(cell);
-		for (int i = 0; i < refinement_level; i++) {
-			cell -= x_length *  y_length * z_length * (uint64_t(1) << (i * 3));
-		}
-
-		cell -= 1;	// cell numbering starts from 1
-		const Types<3>::indices_t indices = {
-			(cell % (x_length * (uint64_t(1) << refinement_level)))
-				* (uint64_t(1) << (max_refinement_level - refinement_level)),
-			((cell / (x_length * (uint64_t(1) << refinement_level))) % (y_length * (uint64_t(1) << refinement_level)))
-				* (uint64_t(1) << (max_refinement_level - refinement_level)),
-			(cell / (x_length * y_length * (uint64_t(1) << (2 * refinement_level))))
-				* (uint64_t(1) << (max_refinement_level - refinement_level))
-		};
-
-		#ifdef DEBUG
-		if (indices[0] != this->get_x_index(original_cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " X index for cell " << original_cell << " differs between get_x_index and get_indices" << std::endl;
-			abort();
-		}
-
-		if (indices[1] != this->get_y_index(original_cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Y index for cell " << original_cell << " differs between get_y_index and get_indices" << std::endl;
-			abort();
-		}
-
-		if (indices[2] != this->get_z_index(original_cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Z index for cell " << original_cell << " differs between get_z_index and get_indices" << std::endl;
-			abort();
-		}
-		#endif
-
-		return indices;
-	}
-
-	/*!
-	These return the index of the cell with given id in x, y or z direction of the grid, starting from 0
-	For cells that are larger than the smallest possible according to max_refinement_level, the index closest to the grids starting corner is returned
-	 */
-	uint64_t get_x_index(uint64_t id) const
-	{
-		assert(id);
-		assert(id <= this->max_cell_number);
-
-		// substract ids of larger cells
-		int refinement_level = get_refinement_level(id);
-		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() *  this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
-		}
-
-		// get the index at this cells refinement level
-		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index = id % (this->geometry.get_x_length() * (uint64_t(1) << refinement_level));
-
-		assert(this_level_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
-		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
-	}
-
-	uint64_t get_y_index(uint64_t id) const
-	{
-		assert(id);
-		assert(id <= this->max_cell_number);
-
-		// substract ids of larger cells
-		int refinement_level = get_refinement_level(id);
-		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
-		}
-
-		// get the index at this cells refinement level
-		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index = (id / (this->geometry.get_x_length() * (uint64_t(1) << refinement_level))) % (this->geometry.get_y_length() * (uint64_t(1) << refinement_level));
-
-		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
-	}
-
-	uint64_t get_z_index(uint64_t id) const
-	{
-		assert(id);
-		assert(id <= this->max_cell_number);
-
-		// substract ids of larger cells
-		int refinement_level = get_refinement_level(id);
-		for (int i = 0; i < refinement_level; i++) {
-			id -= this->geometry.get_x_length() * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
-		}
-
-		// get the index at this cells refinement level
-		id -= 1;	// cell numbering starts from 1
-		uint64_t this_level_index = id / (this->geometry.get_x_length() * this->geometry.get_y_length() * (uint64_t(1) << 2 * refinement_level));
-
-		return this_level_index * (uint64_t(1) << (max_refinement_level - refinement_level));
-	}
-
-
-	/*!
-	Returns the cell of given refinement level at given indices even if it doesn't exist.
-	*/
-	uint64_t get_cell_from_indices(const Types<3>::indices_t indices, const int refinement_level) const
-	{
-		const uint64_t x_length = this->geometry.get_x_length();
-		const uint64_t y_length = this->geometry.get_y_length();
-		const uint64_t z_length = this->geometry.get_z_length();
-
-		#ifdef DEBUG
-		if (indices[0] >= x_length * (uint64_t(1) << this->max_refinement_level)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Given x index is outside of range" << std::endl;
-			abort();
-		}
-		if (indices[1] >= y_length * (uint64_t(1) << this->max_refinement_level)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Given y index is outside of range" << std::endl;
-			abort();
-		}
-		if (indices[2] >= z_length * (uint64_t(1) << this->max_refinement_level)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Given z index is outside of range" << std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level given" << std::endl;
-			abort();
-		}
-		if (refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Given refinement level is too large" << std::endl;
-			abort();
-		}
-		#endif
-
-		// cell numbering starts at 1
-		uint64_t cell = 1;
-
-		// add ids of larger cells
-		for (int i = 0; i < refinement_level; i++) {
-			cell += x_length * y_length * z_length * (uint64_t(1) << (i * 3));
-		}
-
-		// convert to indices of this cell's refinement level
-		const Types<3>::indices_t this_level_indices = {
-			indices[0] / (uint64_t(1) << (max_refinement_level - refinement_level)),
-			indices[1] / (uint64_t(1) << (max_refinement_level - refinement_level)),
-			indices[2] / (uint64_t(1) << (max_refinement_level - refinement_level))
-		};
-
-		// get the size of the grid in terms of cells of this refinement level
-		const uint64_t this_level_x_length = x_length * (uint64_t(1) << refinement_level);
-		const uint64_t this_level_y_length = y_length * (uint64_t(1) << refinement_level);
-
-		cell += this_level_indices[0] + this_level_indices[1] * this_level_x_length + this_level_indices[2] * this_level_x_length * this_level_y_length;
-
-		return cell;
-	}
-
-
-	/*!
-	Same as the indices_t version.
-	*/
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int refinement_level) const
-	{
-		assert(x_index < this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(y_index < this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(z_index < this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level));
-		assert(refinement_level <= this->max_refinement_level);
-
-		uint64_t id = 1;
-
-		// add ids of larger cells
-		for (int i = 0; i < refinement_level; i++) {
-			id += this->geometry.get_x_length() * this->geometry.get_y_length() * this->geometry.get_z_length() * (uint64_t(1) << (i * 3));
-		}
-
-		// convert to indices of this cells refinement level
-		uint64_t this_level_x_index = x_index / (uint64_t(1) << (max_refinement_level - refinement_level));
-		uint64_t this_level_y_index = y_index / (uint64_t(1) << (max_refinement_level - refinement_level));
-		uint64_t this_level_z_index = z_index / (uint64_t(1) << (max_refinement_level - refinement_level));
-
-		// get the size of the grid in terms of cells of this level
-		uint64_t this_level_x_length = this->geometry.get_x_length() * (uint64_t(1) << refinement_level);
-		uint64_t this_level_y_length = this->geometry.get_y_length() * (uint64_t(1) << refinement_level);
-
-		id += this_level_x_index + this_level_y_index * this_level_x_length + this_level_z_index * this_level_x_length * this_level_y_length;
-
-		assert(id > 0);
-		assert(id <= this->max_cell_number);
-		return id;
-	}
-
-
-	// Returns the lengths of given cell in indices in every direction
-	int get_cell_size_in_indices(const uint64_t cell) const
-	{
-		assert(cell);
-		return int(1) << (this->max_refinement_level - this->get_refinement_level(cell));
-	}
 
 
 	/*!
@@ -3030,10 +2672,7 @@ private:
 	// length of unrefined cells in all directions
 	double cell_x_size, cell_y_size, cell_z_size;
 	#endif
-	// maximum refinemet level of any cell in the grid, 0 means unrefined
-	int max_refinement_level;
-	// the id of the last cell in the grid at maximum refinement level
-	uint64_t max_cell_number;
+
 	// size of the neighbour stencil of a cells in cells (of the same size as the cell itself)
 	unsigned int neighbourhood_size;
 	// the grid is distributed between these processes
@@ -4014,100 +3653,6 @@ private:
 
 
 	/*!
-	Same as find_neighbours_of but for the parent of given cell and different assumptions.
-	*/
-	std::vector<uint64_t> find_neighbours_of_parent(const uint64_t cell) const
-	{
-		#ifdef DEBUG
-		if (cell == 0
-		|| cell > this->max_cell_number) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
-		std::vector<uint64_t> return_neighbours;
-
-		if (cell != this->get_child(cell)) {
-			return return_neighbours;
-		}
-
-		const uint64_t parent = this->get_parent(cell);	// TODO just use find_neighbours_of(parent)?
-		#ifdef DEBUG
-		if (parent == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent for cell " << cell << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
-		const uint64_t x_index = this->get_x_index(parent);
-		const uint64_t y_index = this->get_y_index(parent);
-		const uint64_t z_index = this->get_z_index(parent);
-
-		// search neighbours in cells of the same size as the given cell (times neighbourhood size)
-		const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
-
-		const int refinement_level = this->get_refinement_level(parent);
-		#ifdef DEBUG
-		if (refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level (" << refinement_level
-				<< ") of cell " << parent
-				<< " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level of cell " << parent
-				<< " is less than 0: " << refinement_level
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		// can limit search due to maximum refinement level difference of 1 between neighbours
-		const int search_min_ref_level = (refinement_level == 0) ? 0 : refinement_level - 1;
-		const int search_max_ref_level = (refinement_level == this->max_refinement_level) ? refinement_level : refinement_level + 1;
-
-		// must have some neighbours even if neighbourhood_size == 0
-		const int temp_neighbourhood_size = (this->neighbourhood_size > 0) ? this->neighbourhood_size : 1;
-
-		// grid length in indices
-		const uint64_t x_length_in_indices = this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t y_length_in_indices = this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level);
-		const uint64_t z_length_in_indices = this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level);
-
-		// search neighbourhood_size number of cells (of given cell's parent's size) away from the given cell and not outside of the grid
-		const uint64_t outer_min_x = (x_index < size_in_indices * temp_neighbourhood_size) ? 0 : x_index - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_x = (x_index + size_in_indices * (1 + temp_neighbourhood_size) - 1 < x_length_in_indices) ? x_index + size_in_indices * (1 + temp_neighbourhood_size) - 1 : x_length_in_indices - 1;
-
-		const uint64_t outer_min_y = (y_index < size_in_indices * temp_neighbourhood_size) ? 0 : y_index - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_y = (y_index + size_in_indices * (1 + temp_neighbourhood_size) - 1 < y_length_in_indices) ? y_index + size_in_indices * (1 + temp_neighbourhood_size) - 1 : y_length_in_indices - 1;
-
-		const uint64_t outer_min_z = (z_index < size_in_indices * temp_neighbourhood_size) ? 0 : z_index - size_in_indices * temp_neighbourhood_size;
-		const uint64_t outer_max_z = (z_index + size_in_indices * (1 + temp_neighbourhood_size) - 1 < z_length_in_indices) ? z_index + size_in_indices * (1 + temp_neighbourhood_size) - 1 : z_length_in_indices - 1;
-
-		// don't search within the given cell
-		const uint64_t inner_max_x = x_index + size_in_indices - 1;
-		const uint64_t inner_max_y = y_index + size_in_indices - 1;
-		const uint64_t inner_max_z = z_index + size_in_indices - 1;
-
-		boost::unordered_set<uint64_t> unique_neighbours = find_cells(
-			outer_min_x, outer_min_y, outer_min_z,
-			outer_max_x, outer_max_y, outer_max_z,
-			x_index, y_index, z_index,
-			inner_max_x, inner_max_y, inner_max_z,
-			search_min_ref_level, search_max_ref_level);
-
-		return_neighbours.reserve(unique_neighbours.size());
-		return_neighbours.insert(return_neighbours.end(), unique_neighbours.begin(), unique_neighbours.end());
-		return return_neighbours;
-	}
-
-
-	/*!
 	Returns true if cell1 considers cell2 as a neighbour, even if neither of them exists
 	*/
 	bool is_neighbour(const uint64_t cell1, const uint64_t cell2) const
@@ -4118,7 +3663,7 @@ private:
 			abort();
 		}
 
-		if (cell1 > this->max_cell_number) {
+		if (cell1 > this->last_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Impossible cell1 given." << std::endl;
 			abort();
 		}
@@ -4128,7 +3673,7 @@ private:
 			abort();
 		}
 
-		if (cell2 > this->max_cell_number) {
+		if (cell2 > this->last_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Impossible cell2 given." << std::endl;
 			abort();
 		}
@@ -4404,7 +3949,7 @@ private:
 			}
 
 			// TODO improve performance by first using local neighbour lists to override unrefines
-			std::vector<uint64_t> neighbours_of_parent = this->find_neighbours_of_parent(*unrefined);
+			std::vector<uint64_t> neighbours_of_parent = this->find_neighbours_of(this->get_parent(*unrefined));
 			for (std::vector<uint64_t>::const_iterator neighbour_of_parent = neighbours_of_parent.begin(); neighbour_of_parent != neighbours_of_parent.end(); neighbour_of_parent++) {
 
 				if (this->get_refinement_level(*neighbour_of_parent) < this->get_refinement_level(*unrefined)) {
@@ -5308,89 +4853,12 @@ private:
 			return 0;
 		}
 
-		return this->get_cell_from_indices(this->get_x_index(x), this->get_y_index(y), this->get_z_index(z), 0, this->max_refinement_level);
-	}
-
-
-	/*!
-	These return the x, y or z index of the given coordinate
-	*/
-	uint64_t get_x_index(const double x) const
-	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		assert((x >= this->x_coordinates[0]) && (x <= this->x_coordinates[this->geometry.get_x_length()]));
-
-		uint64_t x_coord_start_index = 0;
-		while (x_coordinates[x_coord_start_index] < x) {
-			x_coord_start_index++;
-		}
-		x_coord_start_index--;
-
-		double x_size_of_index = (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index]) / this->get_cell_size_in_indices(1);
-
-		uint64_t index_offset = 0;
-		while (x_coordinates[x_coord_start_index] + index_offset * x_size_of_index < x) {
-			index_offset++;
-		}
-		index_offset--;
-
-		return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
-		#else
-		assert((x >= this->geometry.get_x_start()) and (x <= this->geometry.get_x_start() + this->geometry.get_x_length() * this->cell_size));
-		return uint64_t((x - this->geometry.get_x_start()) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
-		#endif
-	}
-
-	uint64_t get_y_index(const double y) const
-	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		assert((y >= this->y_coordinates[0]) && (y <= this->y_coordinates[this->geometry.get_y_length()]));
-
-		uint64_t y_coord_start_index = 0;
-		while (y_coordinates[y_coord_start_index] < y) {
-			y_coord_start_index++;
-		}
-		y_coord_start_index--;
-
-		double y_size_of_index = (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index]) / this->get_cell_size_in_indices(1);
-
-		uint64_t index_offset = 0;
-		while (y_coordinates[y_coord_start_index] + index_offset * y_size_of_index < y) {
-			index_offset++;
-		}
-		index_offset--;
-
-		return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
-		#else
-		assert((y >= this->geometry.get_y_start()) and (y <= this->geometry.get_y_start() + this->geometry.get_y_length() * this->cell_size));
-		return uint64_t((y - this->geometry.get_y_start()) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
-		#endif
-	}
-
-	uint64_t get_z_index(const double z) const
-	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		assert((z >= this->z_coordinates[0]) && (z <= this->z_coordinates[this->geometry.get_z_length()]));
-
-		uint64_t z_coord_start_index = 0;
-		while (z_coordinates[z_coord_start_index] < z) {
-			z_coord_start_index++;
-		}
-		z_coord_start_index--;
-
-		double z_size_of_index = (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index]) / this->get_cell_size_in_indices(1);
-
-		uint64_t index_offset = 0;
-		while (z_coordinates[z_coord_start_index] + index_offset * z_size_of_index < z) {
-			index_offset++;
-		}
-		index_offset--;
-
-		return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
-		#else
-		assert((z >= this->geometry.get_z_start()) and (z <= this->geometry.get_z_start() + this->geometry.get_z_length() * this->cell_size));
-		return uint64_t((z - this->geometry.get_z_start()) / (this->cell_size / (uint64_t(1) << this->max_refinement_level)));
-		#endif
+		return this->get_cell_from_indices(
+			this->geometry.get_x_index_of_coord(x),
+			this->geometry.get_y_index_of_coord(y),
+			this->geometry.get_z_index_of_coord(z),
+			0, this->max_refinement_level
+		);
 	}
 
 
@@ -5453,9 +4921,9 @@ private:
 	bool x_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
-		assert(cell1 <= this->max_cell_number);
+		assert(cell1 <= this->last_cell);
 		assert(cell2 > 0);
-		assert(cell2 <= this->max_cell_number);
+		assert(cell2 <= this->last_cell);
 
 		const uint64_t index1 = this->get_x_index(cell1);
 		const uint64_t index2 = this->get_x_index(cell2);
@@ -5471,9 +4939,9 @@ private:
 	bool y_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
-		assert(cell1 <= this->max_cell_number);
+		assert(cell1 <= this->last_cell);
 		assert(cell2 > 0);
-		assert(cell2 <= this->max_cell_number);
+		assert(cell2 <= this->last_cell);
 
 		const uint64_t index1 = this->get_y_index(cell1);
 		const uint64_t index2 = this->get_y_index(cell2);
@@ -5489,9 +4957,9 @@ private:
 	bool z_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
 		assert(cell1 > 0);
-		assert(cell1 <= this->max_cell_number);
+		assert(cell1 <= this->last_cell);
 		assert(cell2 > 0);
-		assert(cell2 <= this->max_cell_number);
+		assert(cell2 <= this->last_cell);
 
 		const uint64_t index1 = this->get_z_index(cell1);
 		const uint64_t index2 = this->get_z_index(cell2);
@@ -5518,11 +4986,11 @@ private:
 			abort();
 		}
 
-		if (cell1 > this->max_cell_number) {
+		if (cell1 > this->last_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			abort();
 		}
-		if (cell2 > this->max_cell_number) {
+		if (cell2 > this->last_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			abort();
 		}
@@ -5554,50 +5022,35 @@ private:
 
 
 	/*!
-	*/
-	uint64_t get_cell_from_indices(const Types<3>::indices_t indices, const int minimum_refinement_level, const int maximum_refinement_level) const
-	{
-		return this->get_cell_from_indices(indices[0], indices[1], indices[2], minimum_refinement_level, maximum_refinement_level);
-	}	
-
-
-	/*!
 	Returns the smallest existing cell at given indices between given refinement levels inclusive.
 
-	Returns 0 if no cell between given refinement ranges exists or an index is outside of the grid or minimum_refinement_level > maximum_refinement_level.
+	Returns error_cell if no cell between given refinement ranges exists or an index is outside of
+	the grid or minimum_refinement_level > maximum_refinement_level.
 	*/
-	uint64_t get_cell_from_indices(const uint64_t x_index, const uint64_t y_index, const uint64_t z_index, const int minimum_refinement_level, const int maximum_refinement_level) const
+	uint64_t get_existing_cell_from_indices(
+		const Types<3>::indices_t& indices,
+		const int minimum_refinement_level,
+		const int maximum_refinement_level
+	) const
 	{
-		if (x_index >= this->geometry.get_x_length() * (uint64_t(1) << this->max_refinement_level)) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell for x index " << x_index << std::endl;
-			#endif
-			return 0;
+		if (indices[0] >= this->x_length * (uint64_t(1) << this->max_refinement_level)) {
+			return error_cell;
 		}
 
-		if (y_index >= this->geometry.get_y_length() * (uint64_t(1) << this->max_refinement_level)) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell for y index " << y_index << std::endl;
-			#endif
-			return 0;
+		if (indices[1] >= this->y_length * (uint64_t(1) << this->max_refinement_level)) {
+			return error_cell;
 		}
 
-		if (z_index >= this->geometry.get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell for z index " << z_index << std::endl;
-			#endif
-			return 0;
+		if (indices[2] >= this->z_length * (uint64_t(1) << this->max_refinement_level)) {
+			return error_cell;
 		}
 
 		if (minimum_refinement_level > maximum_refinement_level) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__ << " Returning non-existing cell because of refinement levels: " << minimum_refinement_level << " > " << maximum_refinement_level << std::endl;
-			#endif
-			return 0;
+			return error_cell;
 		}
 
 		int average_refinement_level = (maximum_refinement_level + minimum_refinement_level) / 2;
-		const uint64_t average_cell = this->get_cell_from_indices(x_index, y_index, z_index, average_refinement_level);
+		const uint64_t average_cell = this->get_cell_from_indices(indices, average_refinement_level);
 
 		// use binary search recursively (assumes that all cells refine to 8 children)
 		if (this->cell_process.count(average_cell) == 0) {
@@ -5605,7 +5058,7 @@ private:
 			// search for larger cell
 			if (average_refinement_level > minimum_refinement_level) {
 
-				uint64_t larger_cell = this->get_cell_from_indices(x_index, y_index, z_index, minimum_refinement_level, average_refinement_level - 1);
+				uint64_t larger_cell = this->get_existing_cell_from_indices(indices, minimum_refinement_level, average_refinement_level - 1);
 
 				if (this->cell_process.count(larger_cell) == 0) {
 					return 0;
@@ -5618,7 +5071,7 @@ private:
 		} else {
 			// search for smaller cell
 			if (average_refinement_level < maximum_refinement_level) {
-				uint64_t smaller_cell = this->get_cell_from_indices(x_index, y_index, z_index, average_refinement_level + 1, maximum_refinement_level);
+				uint64_t smaller_cell = this->get_existing_cell_from_indices(indices, average_refinement_level + 1, maximum_refinement_level);
 
 				if (this->cell_process.count(smaller_cell) == 0) {
 					return average_cell;
@@ -6123,7 +5576,7 @@ private:
 			return false;
 		}
 
-		if (cell > this->max_cell_number) {
+		if (cell > this->last_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't exist" << std::endl;
 			return false;
 		}
@@ -6386,7 +5839,7 @@ private:
 
 							if (this->is_neighbour(item->first, cell->first)
 							|| this->is_neighbour(cell->first, item->first)) {
-								std::cout << "\tremote cell " << item->first << " has a local neighbour " << cell->first << std::endl;
+								std::cerr << "\tremote cell " << item->first << " has a local neighbour " << cell->first << std::endl;
 							}
 						}
 						return false;
