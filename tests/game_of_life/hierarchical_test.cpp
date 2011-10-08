@@ -1,5 +1,5 @@
 /*
-Tests the grid with some simple game of life patters using a hierarchial load balancing method.
+Tests the grid with some simple game of life patters using a hierarchical load balancing method.
 Returns EXIT_SUCCESS if everything went ok.
 */
 
@@ -44,9 +44,14 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	Dccrg<game_of_life_cell> game_grid(comm, "HIER", 0, 0, 0, 1, 1, 1, 34, 7, 1, 1);
+	Dccrg<game_of_life_cell> game_grid;
+	if (!game_grid.set_geometry(34, 7, 1, 0, 0, 0, 1, 1, 1)) {
+		cerr << "Couldn't set grid geometry." << endl;
+		exit(EXIT_FAILURE);
+	}
+	game_grid.initialize(comm, "HIER", 1);
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
+		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
 	}
 
 	game_grid.add_partitioning_level(12);
@@ -75,12 +80,12 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "hierarchial_test_" << comm.rank() << "_";
+	basename << "hierarchical_test_" << comm.rank() << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (comm.rank() == 0) {
-		visit_file.open("hierarchial_test.visit");
+		visit_file.open("hierarchical_test.visit");
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 		cout << "step: ";
 	}
@@ -109,7 +114,7 @@ int main(int argc, char* argv[])
 		// visualize the game with visit -o game_of_life_test.visit
 		if (comm.rank() == 0) {
 			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "hierarchial_test_" << process << "_" << step_string.str() << suffix.str() << endl;
+				visit_file << "hierarchical_test_" << process << "_" << step_string.str() << suffix.str() << endl;
 			}
 		}
 

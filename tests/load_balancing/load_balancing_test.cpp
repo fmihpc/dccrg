@@ -31,6 +31,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<int> game_grid;
 
 	#define X_LENGTH 10
 	#define Y_LENGTH 10
@@ -38,9 +39,11 @@ int main(int argc, char* argv[])
 	#define CELL_X_SIZE (1.0 / X_LENGTH)
 	#define CELL_Y_SIZE (1.0 / Y_LENGTH)
 	#define CELL_Z_SIZE (1.0 / Z_LENGTH)
-	#define STENCIL_SIZE 1
+	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE);
+
 	#define MAX_REFINEMENT 2
-	Dccrg<int> game_grid(comm, "HYPERGRAPH", -0.5, -0.5, -0.5, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE, X_LENGTH, Y_LENGTH, Z_LENGTH, STENCIL_SIZE, MAX_REFINEMENT);
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "HYPERGRAPH", NEIGHBORHOOD_SIZE, MAX_REFINEMENT);
 
 	vector<uint64_t> cells;
 	for (int i = 0; i < MAX_REFINEMENT; i++) {

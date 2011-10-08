@@ -1,5 +1,5 @@
 /*
-Tests hierarchial Zoltan load balancing on a 2d grid.
+Tests hierarchical Zoltan load balancing on a 2d grid.
 Visualize the results using for example VisIt.
 */
 
@@ -31,6 +31,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<int> game_grid;
 
 	#define X_LENGTH 100
 	#define Y_LENGTH 100
@@ -38,8 +39,10 @@ int main(int argc, char* argv[])
 	#define CELL_X_SIZE 1.0
 	#define CELL_Y_SIZE 1.0
 	#define CELL_Z_SIZE 1.0
-	#define STENCIL_SIZE 1
-	Dccrg<int> game_grid(comm, "HIER", 0, 0, 0, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE, X_LENGTH, Y_LENGTH, Z_LENGTH, STENCIL_SIZE);
+	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE);
+
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "HIER", NEIGHBORHOOD_SIZE);
 
 	// first divide the grid cells into two process blocks
 	game_grid.add_partitioning_level(2);
@@ -59,12 +62,12 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "hierarchial_" << comm.rank() << "_";
+	basename << "hierarchical_" << comm.rank() << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (comm.rank() == 0) {
-		visit_file.open("hierarchial.visit");
+		visit_file.open("hierarchical.visit");
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
@@ -76,7 +79,7 @@ int main(int argc, char* argv[])
 	// visualize the game with visit -o game_of_life_test.visit
 	if (comm.rank() == 0) {
 		for (int process = 0; process < comm.size(); process++) {
-			visit_file << "hierarchial_" << process << "_" << suffix.str() << endl;
+			visit_file << "hierarchical_" << process << "_" << suffix.str() << endl;
 		}
 	}
 

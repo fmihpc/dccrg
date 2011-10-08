@@ -22,18 +22,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 /*
-By default dccrg creates unrefined cells of constant size in x, y and z directions.
-Cells of arbitrary size in x, y and z directions can be created by defining DCCRG_ARBITRARY_STRETCH.
-DCCRG_CONSTANT_STRETCH is not supported at the moment.
-*/
-#ifdef DCCRG_ARBITRARY_STRETCH
-	#ifdef DCCRG_CONSTANT_STRETCH
-		#error Only one type of grid stretching can be used at a time
-	#endif
-#endif
-
-
-/*
 If the size of the data in every cell is known in advance by the user, neighbour data updates can be optimized by defining DCCRG_CELL_DATA_SIZE_FROM_USER, in which case:
 	-UserData class must have a static function size() which returns the size of data in bytes of all cells.
 	-UserData instances must have a function at() which returns the starting address of their data.
@@ -152,7 +140,7 @@ public:
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
 			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 		}
 
 		this->comm = comm;
@@ -898,145 +886,6 @@ public:
 
 
 	/*!
-	Returns the neighbour(s) of given cell in the positive or negative x direction, e.g. when viewed from that direction returns all neighbours that overlap the given cell
-	Returns neighbours in positive x direction if given direction > 0 and negative direction otherwise
-	Returns nothing if given cell doesn't exist or exists on another process
-	*/
-	std::vector<uint64_t> get_neighbours_x(const uint64_t cell, const double direction) const
-	{
-		std::vector<uint64_t> return_neighbours;
-
-		if (this->cells.count(cell) == 0) {
-			return return_neighbours;
-		}
-
-		uint64_t y_index = this->get_y_index(cell), z_index = this->get_z_index(cell);
-		uint64_t size_i = this->get_cell_size_in_indices(cell);
-		double x = this->get_cell_x(cell);
-
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
-
-			if (*neighbour == 0) {
-				continue;
-			}
-
-			if (direction > 0) {
-				if (this->get_cell_x(*neighbour) < x) {
-					continue;
-				}
-			} else {
-				if (this->get_cell_x(*neighbour) > x) {
-					continue;
-				}
-			}
-
-			uint64_t neigh_y_i = this->get_y_index(*neighbour), neigh_z_i = this->get_z_index(*neighbour);
-			uint64_t neigh_size_i = this->get_cell_size_in_indices(*neighbour);
-
-			// return only neighbours whose indices overlap with given cell in y and z directions
-			if (neigh_y_i + neigh_size_i > y_index
-			 && neigh_y_i < y_index + size_i
-			 && neigh_z_i + neigh_size_i > z_index
-			 && neigh_z_i < z_index + size_i) {
-				return_neighbours.push_back(*neighbour);
-			}
-		}
-
-		return return_neighbours;
-	}
-	/*!
-	Same as get_neighbours_x but in y direction
-	*/
-	std::vector<uint64_t> get_neighbours_y(const uint64_t cell, const double direction) const
-	{
-		std::vector<uint64_t> return_neighbours;
-
-		if (this->cells.count(cell) == 0) {
-			return return_neighbours;
-		}
-
-		uint64_t x_index = this->get_x_index(cell), z_index = this->get_z_index(cell);
-		uint64_t size_i = this->get_cell_size_in_indices(cell);
-		double y = this->get_cell_y(cell);
-
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
-
-			if (*neighbour == 0) {
-				continue;
-			}
-
-			if (direction > 0) {
-				if (this->get_cell_y(*neighbour) < y) {
-					continue;
-				}
-			} else {
-				if (this->get_cell_y(*neighbour) > y) {
-					continue;
-				}
-			}
-
-			uint64_t neigh_x_i = this->get_x_index(*neighbour), neigh_z_i = this->get_z_index(*neighbour);
-			uint64_t neigh_size_i = this->get_cell_size_in_indices(*neighbour);
-
-			// return only neighbours whose indices overlap with given cell in y and z directions
-			if (neigh_x_i + neigh_size_i > x_index
-			 && neigh_x_i < x_index + size_i
-			 && neigh_z_i + neigh_size_i > z_index
-			 && neigh_z_i < z_index + size_i) {
-				return_neighbours.push_back(*neighbour);
-			}
-		}
-
-		return return_neighbours;
-	}
-	/*!
-	Same as get_neighbours_x but in z direction
-	*/
-	std::vector<uint64_t> get_neighbours_z(const uint64_t cell, const double direction) const
-	{
-		std::vector<uint64_t> return_neighbours;
-
-		if (this->cells.count(cell) == 0) {
-			return return_neighbours;
-		}
-
-		uint64_t x_index = this->get_x_index(cell), y_index = this->get_y_index(cell);
-		uint64_t size_i = this->get_cell_size_in_indices(cell);
-		double z = this->get_cell_z(cell);
-
-		for (std::vector<uint64_t>::const_iterator neighbour = this->neighbours.at(cell).begin(); neighbour != this->neighbours.at(cell).end(); neighbour++) {
-
-			if (*neighbour == 0) {
-				continue;
-			}
-
-			if (direction > 0) {
-				if (this->get_cell_z(*neighbour) < z) {
-					continue;
-				}
-			} else {
-				if (this->get_cell_z(*neighbour) > z) {
-					continue;
-				}
-			}
-
-			uint64_t neigh_x_i = this->get_x_index(*neighbour), neigh_y_i = this->get_y_index(*neighbour);
-			uint64_t neigh_size_i = this->get_cell_size_in_indices(*neighbour);
-
-			// return only neighbours whose indices overlap with given cell in y and z directions
-			if (neigh_x_i + neigh_size_i > x_index
-			 && neigh_x_i < x_index + size_i
-			 && neigh_y_i + neigh_size_i > y_index
-			 && neigh_y_i < y_index + size_i) {
-				return_neighbours.push_back(*neighbour);
-			}
-		}
-
-		return return_neighbours;
-	}
-
-
-	/*!
 	Returns the given cells neighbours that are on another process
 	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
 	*/
@@ -1063,32 +912,17 @@ public:
 	}
 
 
+	/*!
+	Returns true if given cell is on this process and false otherwise.
+	*/
 	bool is_local(const uint64_t cell) const
 	{
-		if (this->cell_process.at(cell) == this->comm.rank()) {
+		if (this->cell_process.count(cell) > 0
+		&& this->cell_process.at(cell) == this->comm.rank()) {
 			return true;
 		} else {
 			return false;
 		}
-	}
-
-
-	/*!
-	Returns the maximum possible refinement level of any cell in the grid (0 means unrefined)
-	*/
-	int get_max_refinement_level(void) const
-	{
-		return this->max_refinement_level;
-	}
-
-
-	/*!
-	Returns the refinement level of given cell, even if it doesn't exist
-	Returns -1 if cell == 0 or cell would exceed maximum refinement level
-	*/
-	int get_refinement_level(const uint64_t cell) const
-	{
-		return this->get_refinement_level(cell);
 	}
 
 
@@ -1202,7 +1036,7 @@ public:
 	*/
 	void refine_completely_at(const double x, const double y, const double z)
 	{
-		const uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
+		const uint64_t cell = this->get_existing_cell_from_coordinates(x, y, z);
 		if (cell == 0) {
 			return;
 		}
@@ -1255,7 +1089,7 @@ public:
 	*/
 	void unrefine_completely_at(const double x, const double y, const double z)
 	{
-		const uint64_t cell = this->get_smallest_cell_from_coordinate(x, y, z);
+		const uint64_t cell = this->get_existing_cell_from_coordinates(x, y, z);
 		if (cell == 0) {
 			return;
 		}
@@ -1334,58 +1168,6 @@ public:
 		}
 
 		return get_cell_from_indices(this->get_indices(cell), refinement_level - 1);
-	}
-
-
-	/*!
-	Returns true if given cells exist and share at least one vertex.
-	Returns false otherwise
-	FIXME: only works for stencil size 1
-	*/
-	bool shared_vertex(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
-			return false;
-		}
-		if (this->is_neighbour(cell1, cell2) && this->is_neighbour(cell2, cell1)) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/*!
-	Returns true if given cells exist and share at least one edge.
-	Returns false otherwise
-	FIXME: only works for stencil size 1
-	*/
-	bool shared_edge(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
-			return false;
-		}
-		if (this->overlapping_indices(cell1, cell2) > 0 && this->is_neighbour(cell1, cell2) && this->is_neighbour(cell2, cell1)) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-	/*!
-	Returns true if given cells exist and share at least one face.
-	Returns false otherwise
-	FIXME: only works for stencil size 1
-	*/
-	bool shared_face(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
-			return false;
-		}
-		if (this->overlapping_indices(cell1, cell2) > 1 && this->is_neighbour(cell1, cell2) && this->is_neighbour(cell2, cell1)) {
-			return true;
-		} else {
-			return false;
-		}
 	}
 
 
@@ -1939,27 +1721,6 @@ public:
 
 		return result;
 	}
-
-
-	#ifdef DCCRG_ARBITRARY_STRETCH
-	#else
-	/*!
-	The following return the start and end corners of the grid
-	*/
-	double get_x_start(void) const { return this->get_x_start(); }
-	double get_y_start(void) const { return this->get_y_start(); }
-	double get_z_start(void) const { return this->get_z_start(); }
-	double get_x_end(void) const { return this->get_x_end(); }
-	double get_y_end(void) const { return this->get_y_end(); }
-	double get_z_end(void) const { return this->get_z_end(); }
-	#endif
-
-	/*!
-	The following return the grid length in unrefined cells
-	*/
-	uint64_t get_x_length(void) const { return this->get_x_length(); }
-	uint64_t get_y_length(void) const { return this->get_y_length(); }
-	uint64_t get_z_length(void) const { return this->get_z_length(); }
 
 
 	/*!
@@ -4575,35 +4336,29 @@ private:
 
 
 	/*!
-	Returns the smallest existing cell at the given coordinate
-	Returns 0 if the coordinate is outside of the grid or the cell is on another process
+	Returns the smallest existing cell at the given coordinate.
+
+	Returns error_cell if the coordinate is outside of the grid or the cell is on another process.
 	*/
-	uint64_t get_smallest_cell_from_coordinate(const double x, const double y, const double z) const
+	uint64_t get_existing_cell_from_coordinates(const double x, const double y, const double z) const
 	{
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		if (x < this->x_coordinates[0]
-			|| x > this->x_coordinates[this->get_x_length()]
-			|| y < this->y_coordinates[0]
-			|| y > this->y_coordinates[this->get_y_length()]
-			|| z < this->z_coordinates[0]
-			|| z > this->z_coordinates[this->get_z_length()]) {
-		#else
 		if (x < this->get_x_start()
-			|| x > this->get_x_start() + this->cell_size * this->get_x_length()
+			|| x > this->get_x_end()
 			|| y < this->get_y_start()
-			|| y > this->get_y_start() + this->cell_size * this->get_y_length()
+			|| y > this->get_y_end()
 			|| z < this->get_z_start()
-			|| z > this->get_z_start() + this->cell_size * this->get_z_length()) {
-		#endif
-			return 0;
+			|| z > this->get_z_end()
+		) {
+			return error_cell;
 		}
 
-		return this->get_cell_from_indices(
+		const Types<3>::indices_t indices = {
 			this->get_x_index_of_coord(x),
 			this->get_y_index_of_coord(y),
-			this->get_z_index_of_coord(z),
-			0, this->max_refinement_level
-		);
+			this->get_z_index_of_coord(z)
+		};
+
+		return this->get_existing_cell_from_indices(indices, 0, this->max_refinement_level);
 	}
 
 
@@ -4936,7 +4691,7 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		Dccrg<UserData, ...>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->cells.size();
 	}
@@ -4947,7 +4702,7 @@ private:
 	*/
 	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int number_of_weights_per_object, float* object_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -4978,7 +4733,7 @@ private:
 	*/
 	static void fill_number_of_neighbours_for_cells(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -5011,7 +4766,7 @@ private:
 	*/
 	static void fill_neighbour_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbours, ZOLTAN_ID_PTR neighbours, int* processes_of_neighbours, int number_of_weights_per_edge, float* edge_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbour_number = 0;
@@ -5058,7 +4813,7 @@ private:
 	*/
 	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = dccrg_instance->cells.size();
@@ -5093,7 +4848,7 @@ private:
 	*/
 	static void fill_hyperedge_lists(void* data, int /*global_id_size*/, int number_of_hyperedges, int number_of_connections, int format, ZOLTAN_ID_PTR hyperedges, int* hyperedge_connection_offsets, ZOLTAN_ID_PTR connections, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
@@ -5150,7 +4905,7 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = dccrg_instance->cells.size();
@@ -5163,7 +4918,7 @@ private:
 	*/
 	static void fill_edge_weights(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_hyperedges, int number_of_weights_per_hyperedge, ZOLTAN_ID_PTR hyperedges, ZOLTAN_ID_PTR /*hyperedges_local_ids*/, float* hyperedge_weights, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
@@ -5207,7 +4962,7 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->processes_per_part.size();
 	}
@@ -5218,7 +4973,7 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
@@ -5251,7 +5006,7 @@ private:
 			return;
 		}
 
-		Dccrg<UserData>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr << "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;

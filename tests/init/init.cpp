@@ -8,7 +8,7 @@ Tests the scalability of initializing the grid
 #include "ctime"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -37,6 +37,8 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
+	Dccrg<CellData, ArbitraryGeometry> game_grid;
+
 	#define GRID_SIZE 100	// in unrefined cells
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
@@ -45,8 +47,10 @@ int main(int argc, char* argv[])
 		y_coordinates.push_back(i * CELL_SIZE);
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
 	clock_t before = clock();
-	Dccrg<CellData> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, 1, 0);
+	game_grid.initialize(comm, "RCB", 1, 0);
 	clock_t after = clock();
 	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds (total grid size " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << ")" << endl;
 

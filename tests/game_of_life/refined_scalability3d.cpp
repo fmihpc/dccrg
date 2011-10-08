@@ -13,7 +13,7 @@ Tests the scalability of the grid in 3 D with refined grid
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -46,6 +46,8 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
+	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
+
 	#define GRID_SIZE 21
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
@@ -54,8 +56,10 @@ int main(int argc, char* argv[])
 		y_coordinates.push_back(i * CELL_SIZE);
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
-	#define STENCIL_SIZE 1
-	Dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE);
 	game_grid.balance_load();
 
 	vector<uint64_t> cells = game_grid.get_cells();

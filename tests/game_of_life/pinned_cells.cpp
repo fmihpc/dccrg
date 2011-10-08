@@ -10,7 +10,7 @@ As unrefined2d.cpp but pinns cells to particular processes.
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -50,6 +50,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 15
@@ -61,8 +62,10 @@ int main(int argc, char* argv[])
 	}
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
-	#define STENCIL_SIZE 1
-	Dccrg<game_of_life_cell> game_grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	// create a blinker
 	#define BLINKER_START 198
@@ -158,7 +161,7 @@ int main(int argc, char* argv[])
 
 		if (step % 2 == 0) {
 
-			for (int i = 0, refined = 0; i < int(cells.size()) && refined <= GRID_SIZE * GRID_SIZE / 5 / comm.size(); i++) {
+			for (int i = 0, refined = 0; i < int(cells.size()) && refined <= GRID_SIZE * GRID_SIZE / (5 * comm.size()); i++) {
 				if (game_grid.get_refinement_level(cells[i]) == 0) {
 					game_grid.refine_completely(cells[i]);
 					refined++;
@@ -167,7 +170,7 @@ int main(int argc, char* argv[])
 
 		} else {
 
-			for (int i = 0, unrefined = 0; i < int(cells.size()) && unrefined <= GRID_SIZE * GRID_SIZE / 2 / comm.size(); i++) {
+			for (int i = 0, unrefined = 0; i < int(cells.size()) && unrefined <= GRID_SIZE * GRID_SIZE / (4 * comm.size()); i++) {
 				if (game_grid.get_refinement_level(cells[i]) > 0) {
 					game_grid.unrefine_completely(cells[i]);
 					unrefined++;

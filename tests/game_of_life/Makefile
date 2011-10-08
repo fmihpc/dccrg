@@ -17,7 +17,7 @@ PROGRAMS =						\
 	unrefined2d					\
 	refined_scalability3d				\
 	scalability1d					\
-	hierarchial_test				\
+	hierarchical_test				\
 	pinned_cells
 
 HEADERS = \
@@ -67,8 +67,8 @@ unrefined2d: unrefined2d.cpp $(HEADERS) Makefile
 refined_scalability3d: refined_scalability3d.cpp $(HEADERS) Makefile
 	$(CXX) refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d
 
-hierarchial_test: hierarchial_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG hierarchial_test.cpp $(INCLUDES) -o hierarchial_test
+hierarchical_test: hierarchical_test.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG hierarchical_test.cpp $(INCLUDES) -o hierarchical_test
 
 pinned_cells: pinned_cells.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG pinned_cells.cpp $(INCLUDES) -o pinned_cells

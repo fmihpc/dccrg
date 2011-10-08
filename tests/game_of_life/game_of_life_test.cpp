@@ -300,12 +300,12 @@ int main(int argc, char* argv[])
 	}
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
-	#define STENCIL_SIZE 1
-	game_grid.set_coordinates(x_coordinates, y_coordinates, z_coordinates);
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
 
-	game_grid.initialize(comm, "RANDOM", STENCIL_SIZE);
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
+		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 

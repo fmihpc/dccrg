@@ -6,7 +6,7 @@ Tests the speed of geometry operations with a constant cell size grid
 #include "iostream"
 #include "stdint.h"
 
-#include "../../dccrg_geometry.hpp"
+#include "../../dccrg_constant_geometry.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -18,16 +18,8 @@ int main(void)
 	cout << "\nConstant grid:" << endl;
 
 	#define CELLS 100000000
-	Geometry geometry;
-	geometry.set_x_start(0);
-	geometry.set_y_start(0);
-	geometry.set_z_start(0);
-	geometry.set_cell_x_size(1);
-	geometry.set_cell_y_size(1.1);
-	geometry.set_cell_z_size(1.2);
-	geometry.set_x_length(100);
-	geometry.set_y_length(200);
-	geometry.set_z_length(300);
+	ConstantGeometry geometry;
+	geometry.set_geometry(100, 200, 300, 0, 0, 0, 1, 1.1, 1.2);
 	geometry.set_maximum_refinement_level(geometry.get_maximum_possible_refinement_level());
 	cout << "\tMaximum refinement level: " << geometry.get_maximum_refinement_level() << endl;
 

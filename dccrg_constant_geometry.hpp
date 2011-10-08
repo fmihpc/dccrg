@@ -77,11 +77,57 @@ public:
 
 
 	/*!
+	Sets the grid's geometry to given values.
+
+	x, y and z_length set the number of unrefined cells in the grid in x, y and z direction.
+
+	x, y and z_start set the starting corner of the grid, e.g. the first face
+	of the first unrefined cell(s) in x, y  and z direction.
+
+	x, y and z_size set the size of unrefined cell in x, y and z direction.
+
+	Returns true on success and false otherwise.
+	*/
+	bool set_geometry(
+		const uint64_t given_x_length, const uint64_t given_y_length, const uint64_t given_z_length,
+		const double given_x_start, const double given_y_start, const double given_z_start,
+		const double given_cell_x_size, const double given_cell_y_size, const double given_cell_z_size
+	) {
+		if (!this->set_length(given_x_length, given_y_length, given_z_length)) {
+			return false;
+		}
+
+		// FIXME: check that all coordinates fit into a double
+		this->x_start = given_x_start;
+		this->y_start = given_y_start;
+		this->z_start = given_z_start;
+
+		if (given_cell_x_size <= 0) {
+			std::cerr << "Cell size in x direction must be > 0, but is " << given_cell_x_size << std::endl;
+			return false;
+		}
+		this->cell_x_size = given_cell_x_size;
+
+		if (given_cell_y_size <= 0) {
+			std::cerr << "Cell size in y direction must be > 0, but is " << given_cell_y_size << std::endl;
+			return false;
+		}
+		this->cell_y_size = given_cell_y_size;
+
+		if (given_cell_z_size <= 0) {
+			std::cerr << "Cell size in z direction must be > 0, but is " << given_cell_z_size << std::endl;
+			return false;
+		}
+		this->cell_z_size = given_cell_z_size;
+
+		return true;
+	}
+
+	/*!
 	Returns the starting corner of the grid in x direction.
 	*/
 	double get_x_start(void) const
 	{
-		// TODO move outside of ifdef
 		return this->x_start;
 	}
 
@@ -103,52 +149,10 @@ public:
 
 
 	/*!
-	\brief Sets the starting corner of the grid in x direction.
-
-	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in x direction.
-	Returns true on success, false otherwise.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_x_start(const double given_x_start)
-	{
-		// FIXME: check that all cell coordinates fit into a double, and return false if some cells would be out of range
-		this->x_start = given_x_start;
-		return true;
-	}
-
-	/*!
-	\brief Sets the starting corner of the grid in y direction.
-
-	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in y direction.
-	Returns true on success, false otherwise.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_y_start(const double given_y_start)
-	{
-		this->y_start = given_y_start;
-		return true;
-	}
-
-	/*!
-	\brief Sets the starting corner of the grid in z direction.
-
-	Sets the starting corner of the grid, e.g. the first face of the first unrefined cell(s) in z direction.
-	Returns true on success, false otherwise.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_z_start(const double given_z_start)
-	{
-		this->z_start = given_z_start;
-		return true;
-	}
-
-
-	/*!
 	Returns the end corner of the grid in x direction.
 	*/
 	double get_x_end(void) const
 	{
-		// TODO move outside of ifdef
 		return this->x_start + double(this->x_length) * this->cell_x_size;
 	}
 
@@ -166,63 +170,6 @@ public:
 	double get_z_end(void) const
 	{
 		return this->z_start + double(this->z_length) * this->cell_z_size;
-	}
-
-
-	/*!
-	\brief Sets the size of unrefined cells in the x direction.
-
-	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_cell_x_size(const double given_cell_x_size)
-	{
-		// FIXME: check that all cell coordinates fit into a double, and return false if some cells would be out of range
-		if (given_cell_x_size <= 0) {
-			std::cerr << "Cell size in x direction must be > 0, but " << given_cell_x_size << " given" << std::endl;
-			return false;
-		}
-
-		this->cell_x_size = given_cell_x_size;
-
-		return true;
-	}
-
-	/*!
-	\brief Sets the size of unrefined cells in the y direction.
-
-	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_cell_y_size(const double given_cell_y_size)
-	{
-		if (given_cell_y_size <= 0) {
-			std::cerr << "Cell size in y direction must be > 0, but " << given_cell_y_size << " given" << std::endl;
-			return false;
-		}
-		this->cell_y_size = given_cell_y_size;
-
-		return true;
-	}
-
-	/*!
-	\brief Sets the size of unrefined cells in the z direction.
-
-	Returns true if successful, probably invalidating all previous cell areas, volumes, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
-	*/
-	bool set_cell_z_size(const double given_cell_z_size)
-	{
-		if (given_cell_z_size <= 0) {
-			std::cerr << "Cell size in z direction must be > 0, but " << given_cell_z_size << " given" << std::endl;
-			return false;
-		}
-		this->cell_z_size = given_cell_z_size;
-
-		return true;
 	}
 
 
@@ -248,31 +195,6 @@ public:
 	double get_unrefined_cell_z_size(void) const
 	{
 		return this->cell_z_size;
-	}
-
-
-	/*!
-	Returns the length of the grid in unrefined cells in x direction.
-	*/
-	uint64_t get_x_length(void) const
-	{
-		return this->x_length;
-	}
-
-	/*!
-	Returns the length of the grid in unrefined cells in y direction.
-	*/
-	uint64_t get_y_length(void) const
-	{
-		return this->y_length;
-	}
-
-	/*!
-	Returns the length of the grid in unrefined cells in z direction.
-	*/
-	uint64_t get_z_length(void) const
-	{
-		return this->z_length;
 	}
 
 

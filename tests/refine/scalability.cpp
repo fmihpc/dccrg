@@ -11,7 +11,7 @@ Tests the speed of refining the grid in 3-d by refining random cells until enoug
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -30,6 +30,8 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
+	Dccrg<int, ArbitraryGeometry> grid;
+
 	#define GRID_SIZE 21
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
@@ -38,8 +40,10 @@ int main(int argc, char* argv[])
 		y_coordinates.push_back(i * CELL_SIZE);
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
-	#define STENCIL_SIZE 1
-	Dccrg<int> grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE);
 	grid.balance_load();
 	vector<uint64_t> cells = grid.get_cells();
 

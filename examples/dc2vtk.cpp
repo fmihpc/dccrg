@@ -10,7 +10,7 @@ Turns the files saved from game_of_life_with_output.cpp into .vtk files, visuali
 #include "iostream"
 #include "stdint.h"
 
-#include "../dccrg_geometry.hpp"
+#include "../dccrg_constant_geometry.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 		int max_ref_level;
 		result = fread(&max_ref_level, sizeof(int), 1, infile);
 		if (result != 1) {
-			cerr << "Couldn't read maximum refinemen level" << endl;
+			cerr << "Couldn't read maximum refinement level" << endl;
 			exit(EXIT_FAILURE);
 		}
 		//cout << "max_ref_level: " << max_ref_level << endl;
@@ -126,17 +126,13 @@ int main(int argc, char* argv[])
 			game_data[cell] = is_alive;
 		} while (result == 1);
 
-		Geometry geometry;
-		geometry.set_x_start(x_start);
-		geometry.set_y_start(y_start);
-		geometry.set_z_start(z_start);
-		geometry.set_cell_x_size(cell_x_size);
-		geometry.set_cell_y_size(cell_y_size);
-		geometry.set_cell_z_size(cell_z_size);
-		geometry.set_x_length(x_length);
-		geometry.set_y_length(y_length);
-		geometry.set_z_length(z_length);
-		geometry.set_maximum_refinement_level(0);
+		ConstantGeometry geometry;
+		geometry.set_geometry(
+			x_length, y_length, z_length,
+			x_start, y_start, z_start,
+			cell_x_size, cell_y_size, cell_z_size
+		);
+		geometry.set_maximum_refinement_level(max_ref_level);
 
 		// write the game data to a .vtk file
 		string current_output_name(argv[arg]), suffix(".vtk");

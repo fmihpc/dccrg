@@ -11,7 +11,7 @@ Tests the grid using simple refinement which should induce refinement also acros
 #include "unistd.h"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -33,6 +33,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<int, ArbitraryGeometry> grid;
 
 	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)
@@ -44,8 +45,10 @@ int main(int argc, char* argv[])
 	y_coordinates.push_back(0.5);
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(0.5);
-	#define STENCIL_SIZE 1
-	Dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");

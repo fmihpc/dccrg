@@ -12,7 +12,7 @@ Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -52,6 +52,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 15
@@ -63,8 +64,10 @@ int main(int argc, char* argv[])
 	}
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
-	#define STENCIL_SIZE 1
-	Dccrg<game_of_life_cell> game_grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	// create a blinker
 	#define BLINKER_START 198

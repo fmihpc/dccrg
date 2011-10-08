@@ -10,7 +10,7 @@ Tests the grid with a game of life on a refined grid in 3 D with neighbours only
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -43,6 +43,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 5
@@ -55,11 +56,14 @@ int main(int argc, char* argv[])
 	for (int i = 0; i <= 3; i++) {
 		z_coordinates.push_back(i * 1.5 * CELL_SIZE);
 	}
-	#define STENCIL_SIZE 1
-	Dccrg<game_of_life_cell> game_grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE);
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
+
 	vector<uint64_t> cells = game_grid.get_cells();
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
+		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
 	}
 
 	// refine the grid increasingly in the z direction a few times

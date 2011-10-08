@@ -9,7 +9,7 @@ Tests the grid using simple refining and unrefining which should induce unrefine
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -33,6 +33,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<int, ArbitraryGeometry> grid;
 
 	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)
@@ -44,10 +45,12 @@ int main(int argc, char* argv[])
 	y_coordinates.push_back(1);
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
-	#define STENCIL_SIZE 1
-	Dccrg<int> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, 5);
+	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
+	grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE, 5);
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << grid.get_max_refinement_level() << endl;
+		cout << "Maximum refinement level of the grid: " << grid.get_maximum_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 

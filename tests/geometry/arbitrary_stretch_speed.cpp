@@ -7,8 +7,7 @@ Tests the speed of geometry operations with a constant cell size grid
 #include "stdint.h"
 #include "vector"
 
-#define DCCRG_ARBITRARY_STRETCH
-#include "../../dccrg_geometry.hpp"
+#include "../../dccrg_arbitrary_geometry.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -34,8 +33,8 @@ int main(void)
 
 	cout << "\nArbitrarily streched grid:" << endl;
 
-	Geometry geometry;
-	geometry.set_coordinates(x_coordinates, y_coordinates, z_coordinates);
+	ArbitraryGeometry geometry;
+	geometry.set_geometry(x_coordinates, y_coordinates, z_coordinates);
 	geometry.set_maximum_refinement_level(geometry.get_maximum_possible_refinement_level());
 	cout << "\tMaximum refinement level: " << geometry.get_maximum_refinement_level() << endl;
 

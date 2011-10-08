@@ -103,8 +103,11 @@ public:
 	Returns false if unsuccessful and in that case has no effect.
 	Automatically maximizes max_refinement_level.
 	*/
-	bool set_coordinates(const std::vector<double> x_coordinates, const std::vector<double> y_coordinates, const std::vector<double> z_coordinates)
-	{
+	bool set_geometry(
+		const std::vector<double> x_coordinates,
+		const std::vector<double> y_coordinates,
+		const std::vector<double> z_coordinates
+	) {
 		if (x_coordinates.size() < 2) {
 			std::cerr << "At least two coordinates are required for grid cells in the x direction" << std::endl;
 			return false;
@@ -147,35 +150,65 @@ public:
 		this->z_coordinates.reserve(z_coordinates.size());
 		this->z_coordinates.insert(this->z_coordinates.begin(), z_coordinates.begin(), z_coordinates.end());
 
-		this->x_length = this->x_coordinates.size() - 1;
-		this->y_length = this->y_coordinates.size() - 1;
-		this->z_length = this->z_coordinates.size() - 1;
+		if (!this->set_length(
+			this->x_coordinates.size() - 1,
+			this->y_coordinates.size() - 1,
+			this->z_coordinates.size() - 1
+		)) {
+			return false;
+		}
 
 		return true;
 	}
 
+
 	/*!
-	Returns the length of the grid in unrefined cells in x direction.
+	Returns the starting corner of the grid in x direction.
 	*/
-	uint64_t get_x_length(void) const
+	double get_x_start(void) const
 	{
-		return this->x_length;
+		return this->x_coordinates[0];
 	}
 
 	/*!
-	Returns the length of the grid in unrefined cells in y direction.
+	Returns the starting corner of the grid in y direction.
 	*/
-	uint64_t get_y_length(void) const
+	double get_y_start(void) const
 	{
-		return this->y_length;
+		return this->y_coordinates[0];
 	}
 
 	/*!
-	Returns the length of the grid in unrefined cells in z direction.
+	Returns the starting corner of the grid in z direction.
 	*/
-	uint64_t get_z_length(void) const
+	double get_z_start(void) const
 	{
-		return this->z_length;
+		return this->z_coordinates[0];
+	}
+
+
+	/*!
+	Returns the end corner of the grid in x direction.
+	*/
+	double get_x_end(void) const
+	{
+		return this->x_coordinates[this->x_length];
+	}
+
+	/*!
+	Returns the end corner of the grid in y direction.
+	*/
+	double get_y_end(void) const
+	{
+		return this->y_coordinates[this->y_length];
+	}
+
+	/*!
+	Returns the end corner of the grid in z direction.
+	*/
+	double get_z_end(void) const
+	{
+		return this->z_coordinates[this->z_length];
 	}
 
 

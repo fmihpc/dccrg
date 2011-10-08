@@ -11,7 +11,7 @@ Tests the scalability of the grid in 3 D
 #include "iostream"
 #include "zoltan.h"
 
-#define DCCRG_ARBITRARY_STRETCH
+#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -46,6 +46,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
 
 	#define GRID_SIZE 100
 	#define CELL_SIZE (1.0 / GRID_SIZE)
@@ -55,11 +56,13 @@ int main(int argc, char* argv[])
 		y_coordinates.push_back(i * CELL_SIZE);
 		z_coordinates.push_back(i * CELL_SIZE);
 	}
-	#define STENCIL_SIZE 1
+	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	Dccrg<game_of_life_cell> game_grid(comm, "RCB", x_coordinates, y_coordinates, z_coordinates, STENCIL_SIZE, MAX_REFINEMENT_LEVEL);
+	game_grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_max_refinement_level() << endl;
+		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 

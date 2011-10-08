@@ -6,12 +6,13 @@ Tests the grid with variable amount of data in cells
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
-#define DCCRG_ARBITRARY_STRETCH
-#include "../../dccrg.hpp"
 #include "iostream"
 #include "unistd.h"
 #include "vector"
 #include "zoltan.h"
+
+#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg.hpp"
 
 using namespace std;
 using namespace boost::mpi;
@@ -38,6 +39,8 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
+	Dccrg<CellData, ArbitraryGeometry> grid;
+
 	#define GRID_SIZE 3
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
@@ -47,7 +50,9 @@ int main(int argc, char* argv[])
 	}
 	z_coordinates.push_back(0);
 	z_coordinates.push_back(1);
-	Dccrg<CellData> grid(comm, "RANDOM", x_coordinates, y_coordinates, z_coordinates, 1, 0);
+	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	grid.initialize(comm, "RANDOM", 1, 0);
 
 	// populate the grid, number of variables in a cell is equal to its id
 	vector<uint64_t> cells = grid.get_cells();

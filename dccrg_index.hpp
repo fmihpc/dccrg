@@ -75,6 +75,10 @@ public:
 		if (given_x_length == 0
 		|| given_y_length == 0
 		|| given_z_length == 0) {
+			std::cerr << "All lengths given must be > 0 but are "
+				<< given_x_length << " "
+				<< given_y_length << " "
+				<< given_z_length << std::endl;
 			return false;
 		}
 
@@ -111,6 +115,31 @@ public:
 			this->update_last_cell();
 			return true;
 		}
+	}
+
+
+	/*!
+	Returns length of the grid in unrefined cells in x direction.
+	*/
+	uint64_t get_x_length(void) const
+	{
+		return this->x_length;
+	}
+
+	/*!
+	Returns length of the grid in unrefined cells in y direction.
+	*/
+	uint64_t get_y_length(void) const
+	{
+		return this->y_length;
+	}
+
+	/*!
+	Returns length of the grid in unrefined cells in z direction.
+	*/
+	uint64_t get_z_length(void) const
+	{
+		return this->z_length;
 	}
 
 

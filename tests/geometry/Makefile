@@ -1,14 +1,15 @@
-FLAGS = -O3 -W -Wall -Wextra -pedantic
-#FLAGS = -O0 -pg -g -W -Wall -Wextra -pedantic -DDEBUG
+# Use -Wno-missing-braces until GCC stops warning about valid C++ (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=25137)
+FLAGS = -O3 -W -Wall -Wextra -pedantic -Wno-missing-braces
+#FLAGS = -O0 -pg -g -W -Wall -Wextra -pedantic -Wno-missing-braces -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = g++ $(FLAGS)
 
 all: constant_grid_speed arbitrary_stretch_speed
 
-constant_grid_speed: constant_grid_speed.cpp ../../dccrg_geometry.hpp Makefile
+constant_grid_speed: constant_grid_speed.cpp ../../dccrg_constant_geometry.hpp Makefile
 	$(CXX) constant_grid_speed.cpp $(INCLUDES) -o constant_grid_speed
 
-arbitrary_stretch_speed: arbitrary_stretch_speed.cpp ../../dccrg_geometry.hpp Makefile
+arbitrary_stretch_speed: arbitrary_stretch_speed.cpp ../../dccrg_arbitrary_geometry.hpp Makefile
 	$(CXX) arbitrary_stretch_speed.cpp $(INCLUDES) -o arbitrary_stretch_speed
 
 c: clean
