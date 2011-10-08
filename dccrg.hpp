@@ -2174,6 +2174,33 @@ public:
 	}
 
 
+	/*!
+	Returns the smallest existing cell at the given coordinate.
+
+	Returns error_cell if the coordinate is outside of the grid or the cell is on another process.
+	*/
+	uint64_t get_existing_cell_from_coordinates(const double x, const double y, const double z) const
+	{
+		if (x < this->get_x_start()
+			|| x > this->get_x_end()
+			|| y < this->get_y_start()
+			|| y > this->get_y_end()
+			|| z < this->get_z_start()
+			|| z > this->get_z_end()
+		) {
+			return error_cell;
+		}
+
+		const Types<3>::indices_t indices = {
+			this->get_x_index_of_coord(x),
+			this->get_y_index_of_coord(y),
+			this->get_z_index_of_coord(z)
+		};
+
+		return this->get_existing_cell_from_indices(indices, 0, this->max_refinement_level);
+	}
+
+
 
 private:
 
@@ -4332,33 +4359,6 @@ private:
 		#endif	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		this->send_requests.clear();
-	}
-
-
-	/*!
-	Returns the smallest existing cell at the given coordinate.
-
-	Returns error_cell if the coordinate is outside of the grid or the cell is on another process.
-	*/
-	uint64_t get_existing_cell_from_coordinates(const double x, const double y, const double z) const
-	{
-		if (x < this->get_x_start()
-			|| x > this->get_x_end()
-			|| y < this->get_y_start()
-			|| y > this->get_y_end()
-			|| z < this->get_z_start()
-			|| z > this->get_z_end()
-		) {
-			return error_cell;
-		}
-
-		const Types<3>::indices_t indices = {
-			this->get_x_index_of_coord(x),
-			this->get_y_index_of_coord(y),
-			this->get_z_index_of_coord(z)
-		};
-
-		return this->get_existing_cell_from_indices(indices, 0, this->max_refinement_level);
 	}
 
 
