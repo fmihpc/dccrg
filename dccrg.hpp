@@ -57,8 +57,7 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #include "vector"
 #include "zoltan.h"
 
-// make CellGeometry serializable
-#include "boost/serialization/serialization.hpp"
+#include "dccrg_index.hpp"
 #include "dccrg_types.hpp"
 #include "dccrg_constant_geometry.hpp"
 
@@ -74,8 +73,8 @@ public:
 	/*!
 	Creates an uninitialized instance of the grid.
 
-	The instance's initialize function must be called before doing
-	anything else, otherwise the results will be undefined.
+	The instance's set_geometry and initialize functions must be called
+	before doing anything else, otherwise the results will be undefined.
 	*/
 	Dccrg()
 	{
@@ -86,8 +85,8 @@ public:
 	/*!
 	Initializes this instance of the grid with given parameters.
 
-	The geometry of the grid is set separately using for example set_x_start, etc. functions
-	depending on which geometry class was given as a template parameter when instantiating dccrg.
+	The geometry of the grid instance must have been set using set_geometry
+	before calling this function.
 
 	Zoltan_Initialize must have been called before calling this function.
 
@@ -95,37 +94,26 @@ public:
 
 	load_balancing_method:
 		The method that Zoltan will use for load balancing, given as a string.
-		All methods except REFTREE are supported, see this page for a list of available methods: http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
+		All methods except REFTREE are supported, see this page for a list of available methods:
+		http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
 
 	neighbourhood_size:
 		Determines which cells are considered neighbours.
-		When calculating the neighbours of a given cell a cube of length 2 * neighbourhood_size + 1 in every direction is considered, centered at the cell for which neighbours are being calculated.
+		When calculating the neighbours of a given cell a cube of length
+		2 * neighbourhood_size + 1 in every direction is considered, centered
+		at the cell for which neighbours are being calculated.
 		The unit lenght of the cube is the cell for which neighbours are being calculated.
-		If neighbourhood_size == 0, only cells (or children within the volume of cells of the same size as the current cell) that share a face are considered.
+		If neighbourhood_size == 0, only cells (or children within the volume of
+		cells of the same size as the current cell) that share a face are considered.
 
 	maximum_refinement_level:
-		The maximum number of times an unrefined cell can be refined (replacing it with 8 smaller cells).
+		The maximum number of times an unrefined cell can be refined
+		(replacingit with 8 smaller cells).
 		If not given the maximum refinement level is maximized based on the grids initial size.
 
-	Depending on the type of geometry selected when compiling programs using the grid, one of the following sets of parameters is needed:
-
-	#ifdef DCCRG_ARBITRARY_STRETCH
-
-	x, y and z_coordinates:
-		The coordinates of unrefined cells in the respective directions.
-		First coordinate is the starting point of the grid, the following ith value is the endpoint of the ith unrefined cell.
-
-	#else
-
-	x_start, y_start, z_start:
-		The starting corner of the grid.
-	cell_size:
-		The size of each unrefined cell in every direction.
-	x_length, y_length, z_length:
-		The number of cells in the grid in x, y and z direction.
-
-	#endif
-
+	periodic_in_x, y and z:
+		The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
+		direction cells on the opposite sides of the grid in that direction can be neighbors.
 	*/
 	void initialize(
 		boost::mpi::communicator comm,
