@@ -1036,7 +1036,7 @@ public:
 	*/
 	void refine_completely_at(const double x, const double y, const double z)
 	{
-		const uint64_t cell = this->get_existing_cell_from_coordinates(x, y, z);
+		const uint64_t cell = this->get_existing_cell(x, y, z);
 		if (cell == 0) {
 			return;
 		}
@@ -1089,7 +1089,7 @@ public:
 	*/
 	void unrefine_completely_at(const double x, const double y, const double z)
 	{
-		const uint64_t cell = this->get_existing_cell_from_coordinates(x, y, z);
+		const uint64_t cell = this->get_existing_cell(x, y, z);
 		if (cell == 0) {
 			return;
 		}
@@ -1340,7 +1340,7 @@ public:
 				continue;
 			}
 
-			const uint64_t neighbor = this->get_existing_cell_from_indices(
+			const uint64_t neighbor = this->get_existing_cell(
 				*index_of,
 				(refinement_level == 0)
 					? 0 : refinement_level - 1,
@@ -2179,7 +2179,7 @@ public:
 
 	Returns error_cell if the coordinate is outside of the grid or the cell is on another process.
 	*/
-	uint64_t get_existing_cell_from_coordinates(const double x, const double y, const double z) const
+	uint64_t get_existing_cell(const double x, const double y, const double z) const
 	{
 		if (x < this->get_x_start()
 			|| x > this->get_x_end()
@@ -2197,7 +2197,7 @@ public:
 			this->get_z_index_of_coord(z)
 		};
 
-		return this->get_existing_cell_from_indices(indices, 0, this->max_refinement_level);
+		return this->get_existing_cell(indices, 0, this->max_refinement_level);
 	}
 
 
@@ -4527,7 +4527,7 @@ private:
 	Returns error_cell if no cell between given refinement ranges exists or an index is outside of
 	the grid or minimum_refinement_level > maximum_refinement_level.
 	*/
-	uint64_t get_existing_cell_from_indices(
+	uint64_t get_existing_cell(
 		const Types<3>::indices_t& indices,
 		const int minimum_refinement_level,
 		const int maximum_refinement_level
@@ -4558,7 +4558,7 @@ private:
 			// search for larger cell
 			if (average_refinement_level > minimum_refinement_level) {
 
-				uint64_t larger_cell = this->get_existing_cell_from_indices(indices, minimum_refinement_level, average_refinement_level - 1);
+				uint64_t larger_cell = this->get_existing_cell(indices, minimum_refinement_level, average_refinement_level - 1);
 
 				if (this->cell_process.count(larger_cell) == 0) {
 					return 0;
@@ -4571,7 +4571,7 @@ private:
 		} else {
 			// search for smaller cell
 			if (average_refinement_level < maximum_refinement_level) {
-				uint64_t smaller_cell = this->get_existing_cell_from_indices(indices, average_refinement_level + 1, maximum_refinement_level);
+				uint64_t smaller_cell = this->get_existing_cell(indices, average_refinement_level + 1, maximum_refinement_level);
 
 				if (this->cell_process.count(smaller_cell) == 0) {
 					return average_cell;
