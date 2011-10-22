@@ -4,6 +4,7 @@ Tests the grid with some simple game of life patters, returns EXIT_SUCCESS if ev
 
 #include "algorithm"
 #include "boost/mpi.hpp"
+#include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
@@ -288,19 +289,75 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
+	/*
+	Options
+	*/
+	char direction;
+	boost::program_options::options_description options("Usage: program_name [options], where options are:");
+	options.add_options()
+		("help", "print this help message")
+		("direction",
+			boost::program_options::value<char>(&direction)->default_value('z'),
+			"Create a 2d grid with normal into direction arg (x, y or z)");
+
+	// read options from command line
+	boost::program_options::variables_map option_variables;
+	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, options), option_variables);
+	boost::program_options::notify(option_variables);
+
+	// print a help message if asked
+	if (option_variables.count("help") > 0) {
+		if (comm.rank() == 0) {
+			cout << options << endl;
+		}
+		comm.barrier();
+		return EXIT_SUCCESS;
+	}
+
+	// initialize grid
 	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 15	// in unrefined cells
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-		y_coordinates.push_back(i * CELL_SIZE);
+	switch (direction) {
+	case 'x':
+		for (int i = 0; i <= GRID_SIZE; i++) {
+			y_coordinates.push_back(i * CELL_SIZE);
+			z_coordinates.push_back(i * CELL_SIZE);
+		}
+		x_coordinates.push_back(0);
+		x_coordinates.push_back(1);
+		break;
+
+	case 'y':
+		for (int i = 0; i <= GRID_SIZE; i++) {
+			x_coordinates.push_back(i * CELL_SIZE);
+			z_coordinates.push_back(i * CELL_SIZE);
+		}
+		y_coordinates.push_back(0);
+		y_coordinates.push_back(1);
+		break;
+
+	case 'z':
+		for (int i = 0; i <= GRID_SIZE; i++) {
+			x_coordinates.push_back(i * CELL_SIZE);
+			y_coordinates.push_back(i * CELL_SIZE);
+		}
+		z_coordinates.push_back(0);
+		z_coordinates.push_back(1);
+		break;
+
+	default:
+		cerr << "Unsupported direction given: " << direction << endl;
+		break;
 	}
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
-	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+
+	if (!game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates)) {
+		cerr << "Couldn't set grid geometry" << endl;
+		exit(EXIT_FAILURE);
+	}
 
 	#define NEIGHBORHOOD_SIZE 1
 	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
@@ -433,12 +490,15 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "game_of_life_test_" << comm.rank() << "_";
+	basename << "game_of_life_test_" << direction << "_" << comm.rank() << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (comm.rank() == 0) {
-		visit_file.open("game_of_life_test.visit");
+		string visit_file_name("game_of_life_test_");
+		visit_file_name += direction;
+		visit_file_name += ".visit";
+		visit_file.open(visit_file_name.c_str());
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
@@ -480,7 +540,10 @@ int main(int argc, char* argv[])
 		// visualize the game with visit -o game_of_life_test.visit
 		if (comm.rank() == 0) {
 			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "game_of_life_test_" << process << "_" << step_string.str() << suffix.str() << endl;
+				visit_file << "game_of_life_test_"
+					<< direction << "_" << process << "_"
+					<< step_string.str() << suffix.str()
+					<< endl;
 			}
 		}
 
