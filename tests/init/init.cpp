@@ -3,12 +3,13 @@ Tests the scalability of initializing the grid
 */
 
 #include "boost/mpi.hpp"
+#include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_constant_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -26,6 +27,7 @@ using namespace std;
 using namespace boost::mpi;
 using namespace dccrg;
 
+
 int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
@@ -37,58 +39,57 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<CellData, ArbitraryGeometry> game_grid;
+	/*
+	Options
+	*/
+	uint64_t x_length, y_length, z_length;
+	boost::program_options::options_description options("Usage: program_name [options], where options are:");
+	options.add_options()
+		("help", "print this help message")
+		("x_length",
+			boost::program_options::value<uint64_t>(&x_length)->default_value(100),
+			"Create a grid with arg number of unrefined cells in the x direction")
+		("y_length",
+			boost::program_options::value<uint64_t>(&y_length)->default_value(100),
+			"Create a grid with arg number of unrefined cells in the y direction")
+		("z_length",
+			boost::program_options::value<uint64_t>(&z_length)->default_value(100),
+			"Create a grid with arg number of unrefined cells in the z direction");
 
-	#define GRID_SIZE 100	// in unrefined cells
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-		y_coordinates.push_back(i * CELL_SIZE);
-		z_coordinates.push_back(i * CELL_SIZE);
-	}
-	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+	// read options from command line
+	boost::program_options::variables_map option_variables;
+	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, options), option_variables);
+	boost::program_options::notify(option_variables);
 
-	clock_t before = clock();
-	game_grid.initialize(comm, "RCB", 1, 0);
-	clock_t after = clock();
-	cout << "Process " << comm.rank() << ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC << " seconds (total grid size " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << ")" << endl;
-
-	// don't write too large a grid to disk
-	if ((x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) > 1000) {
+	// print a help message if asked
+	if (option_variables.count("help") > 0) {
+		if (comm.rank() == 0) {
+			cout << options << endl;
+		}
+		comm.barrier();
 		return EXIT_SUCCESS;
 	}
 
-	// write the grid onto disk
-	vector<uint64_t> cells = game_grid.get_cells();
-	sort(cells.begin(), cells.end());
-	ostringstream basename, suffix(".vtk");
-	basename << "init_" << comm.rank();
-	ofstream outfile, visit_file;
-	if (comm.rank() == 0) {
-		visit_file.open("init.visit");
-		visit_file << "!NBLOCKS " << comm.size() << endl;
+	// initialize grid
+	Dccrg<CellData> grid;
+
+	if (!grid.set_geometry(
+		x_length, y_length, z_length,
+		0.0, 0.0, 0.0,
+		1.0 / x_length, 1.0 / y_length, 1.0 / z_length
+	)) {
+		cerr << "Couldn't set grid geometry" << endl;
+		return EXIT_FAILURE;
 	}
-	string current_output_name("");
-	current_output_name += basename.str();
-	current_output_name += suffix.str();
-	if (comm.rank() == 0) {
-		for (int process = 0; process < comm.size(); process++) {
-			visit_file << "init_" << process << suffix.str() << endl;
-		}
-	}
-	game_grid.write_vtk_file(current_output_name.c_str());
-	outfile.open(current_output_name.c_str(), ofstream::app);
-	outfile << "CELL_DATA " << cells.size() << endl;
-	outfile << "SCALARS process int 1" << endl;
-	outfile << "LOOKUP_TABLE default" << endl;
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		outfile << comm.rank() << endl;
-	}
-	outfile.close();
-	if (comm.rank() == 0) {
-		visit_file.close();
-	}
+
+	clock_t before = clock();
+	grid.initialize(comm, "RCB", 1, 0);
+	clock_t after = clock();
+	cout << "Process " << comm.rank()
+		<< ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC
+		<< " seconds (total grid size " << x_length * y_length * z_length << ")"
+		<< endl;
 
 	return EXIT_SUCCESS;
 }
+
