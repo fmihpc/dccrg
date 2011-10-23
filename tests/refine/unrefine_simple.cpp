@@ -1,5 +1,5 @@
 /*
-Tests the grid using simple refining and unrefining which should induce unrefinement also across processes
+Tests the grid using simple refining and unrefining
 */
 
 #include "boost/mpi.hpp"

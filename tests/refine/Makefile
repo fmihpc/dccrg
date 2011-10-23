@@ -1,7 +1,7 @@
 # Use -Wno-missing-braces until GCC stops warning about valid C++ (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=25137)
-FLAGS = -O3 -W -Wall -Wextra -Wno-missing-braces -pedantic -std=c++0x
+FLAGS = -O3 -W -Wall -Wextra -Wno-missing-braces -pedantic
 #FLAGS = -O0 -g -W -Wall -Wextra -pedantic -std=c++0x -DDEBUG
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
 all: refine_simple unrefine_simple scalability
