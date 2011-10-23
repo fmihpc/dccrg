@@ -4964,7 +4964,7 @@ private:
 		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
-			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
+			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (should be [0, " << dccrg_instance->processes_per_part.size() - 1 << "]): " << level << std::endl;
 			*error = ZOLTAN_FATAL;
 			return -1;
 		} else {

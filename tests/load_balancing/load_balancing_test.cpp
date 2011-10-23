@@ -5,10 +5,12 @@ Visualize the results using for example VisIt.
 
 #include "algorithm"
 #include "boost/mpi.hpp"
+#include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "vector"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -31,33 +33,125 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	Dccrg<int> game_grid;
+	/*
+	Options
+	*/
+	uint64_t x_length, y_length, z_length;
+	unsigned int neighborhood_size, refine_n, iterations;
+	string load_balancing_method;
+	vector<string> hier_lb_methods;
+	vector<int> hier_lb_procs_per_level;
+	boost::program_options::options_description options("Usage: program_name [options], where options are:");
+	options.add_options()
+		("help", "print this help message")
+		("x_length",
+			boost::program_options::value<uint64_t>(&x_length)->default_value(10),
+			"Create a grid with arg number of unrefined cells in the x direction")
+		("y_length",
+			boost::program_options::value<uint64_t>(&y_length)->default_value(10),
+			"Create a grid with arg number of unrefined cells in the y direction")
+		("z_length",
+			boost::program_options::value<uint64_t>(&z_length)->default_value(10),
+			"Create a grid with arg number of unrefined cells in the z direction")
+		("load_balancing_method",
+			boost::program_options::value<string>(&load_balancing_method)->default_value("HYPERGRAPH"),
+			"Use arg as the load balancing method (supported values: NONE, BLOCK, RANDOM, RCB, RIB, HSFC, GRAPH, HYPERGRAPH, HIER)")
+		("iterations",
+			boost::program_options::value<unsigned int>(&iterations)->default_value(10),
+			"First randomize processes of cells then balance the load using given options arg times")
+		("hier_lb_methods",
+			boost::program_options::value<vector<string> >(&hier_lb_methods)->composing(),
+			"Load balancing method used by HIER is specified here, once per number of hierarchies, default HYPERGRAPH, number of these must equal number of hier_lb_procs_per_level (for example --hier_... RCB --hier_... RIB --hier_... RANDOM for three hierarhies)")
+		("hier_lb_procs_per_level",
+			boost::program_options::value<vector<int> >(&hier_lb_procs_per_level)->composing(),
+			"Number of processes per hierarchy with HIER load balancing method, default 1, number of these must equal number of hier_lb_methods (for example --hier_... 12 --hier_... 4 --hier_... 2 for three hierarchies)")
+		("refine_n",
+			boost::program_options::value<unsigned int>(&refine_n)->default_value(0),
+			"Refine cells arg times")
+		("neighborhood_size",
+			boost::program_options::value<unsigned int>(&neighborhood_size)->default_value(1),
+			"Size of a cell's neighborhood in cells of equal size (0 means only face neighbors are neighbors)");
 
-	#define X_LENGTH 10
-	#define Y_LENGTH 10
-	#define Z_LENGTH 10
-	#define CELL_X_SIZE (1.0 / X_LENGTH)
-	#define CELL_Y_SIZE (1.0 / Y_LENGTH)
-	#define CELL_Z_SIZE (1.0 / Z_LENGTH)
-	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_X_SIZE, CELL_Y_SIZE, CELL_Z_SIZE);
+	// read options from command line
+	boost::program_options::variables_map option_variables;
+	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, options), option_variables);
+	boost::program_options::notify(option_variables);
 
-	#define MAX_REFINEMENT 2
-	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(comm, "HYPERGRAPH", NEIGHBORHOOD_SIZE, MAX_REFINEMENT);
+	// print a help message if asked
+	if (option_variables.count("help") > 0) {
+		if (comm.rank() == 0) {
+			cout << options << endl;
+		}
+		comm.barrier();
+		return EXIT_SUCCESS;
+	}
 
-	vector<uint64_t> cells;
-	for (int i = 0; i < MAX_REFINEMENT; i++) {
-		cells = game_grid.get_cells();
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			double x = game_grid.get_cell_x(*cell);
-			double y = game_grid.get_cell_y(*cell);
-			double z = game_grid.get_cell_z(*cell);
+	// check for invalid options
+	if (load_balancing_method == "HIER") {
+		if (hier_lb_methods.size() == 0) {
+			if (comm.rank() == 0) {
+				cerr << "At least one load balancing method for HIER partitioning must be given" << endl;
+			}
+			return EXIT_FAILURE;
+		}
 
-			if (sqrt(x * x + y * y + z * z) < 0.1) {
-				game_grid.refine_completely(*cell);
+		if (hier_lb_methods.size() != hier_lb_procs_per_level.size()) {
+			if (comm.rank() == 0) {
+				cerr << "Number of load balancing methods for HIER must equal the number of processes per partition options" << endl;
+			}
+			return EXIT_FAILURE;
+		}
+
+		for (unsigned int i = 0; i < hier_lb_procs_per_level.size(); i++) {
+			if (hier_lb_procs_per_level[i] <= 0) {
+				if (comm.rank() == 0) {
+					cerr << "Processes per partition must be a positive number" << endl;
+				}
+				return EXIT_FAILURE;
 			}
 		}
-		game_grid.stop_refining();
+	}
+
+	Dccrg<int> grid;
+
+	if (!grid.set_geometry(
+		x_length, y_length, z_length,
+		-0.5, -0.5, -0.5,
+		1.0 / x_length, 1.0 / y_length, 1.0 / z_length
+	)) {
+		if (comm.rank() == 0) {
+			cerr << "Couldn't set grid geometry" << endl;
+		}
+		return EXIT_FAILURE;
+	}
+
+	grid.initialize(
+		comm,
+		load_balancing_method.c_str(),
+		neighborhood_size
+	);
+
+	// set load balancing options
+	if (load_balancing_method == "HIER") {
+		for (unsigned int i = 0; i < hier_lb_methods.size(); i++) {
+			grid.add_partitioning_level(hier_lb_procs_per_level[i]);
+			grid.add_partitioning_option(i, "LB_METHOD", hier_lb_methods[i]);
+		}
+	}
+
+	vector<uint64_t> cells = grid.get_cells();
+	for (unsigned int i = 0; i < refine_n; i++) {
+		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+			double x = grid.get_cell_x(*cell);
+			double y = grid.get_cell_y(*cell);
+			double z = grid.get_cell_z(*cell);
+
+			if (sqrt(x * x + y * y + z * z) < 0.1) {
+				grid.refine_completely(*cell);
+			}
+		}
+		grid.stop_refining();
+		cells = grid.get_cells();
 	}
 
 	if (comm.rank() == 0) {
@@ -78,13 +172,25 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 1
-	for (int step = 0; step < TIME_STEPS; step++) {
+	for (unsigned int step = 0; step < iterations; step++) {
 
-		game_grid.balance_load();
-		game_grid.start_remote_neighbour_data_update();
-		game_grid.wait_neighbour_data_update();
-		cells = game_grid.get_cells();
+		// scatter cells to random processes
+		cells = grid.get_cells();
+		for (vector<uint64_t>::const_iterator
+			cell = cells.begin();
+			cell != cells.end();
+			cell++
+		) {
+			grid.pin(*cell, rand() % comm.size());
+		}
+		grid.migrate_cells();
+		grid.unpin_all_cells();
+
+		// balance the load using given options
+		grid.balance_load();
+		/*grid.start_remote_neighbour_data_update();
+		grid.wait_neighbour_data_update();*/
+		cells = grid.get_cells();
 
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
@@ -108,7 +214,7 @@ int main(int argc, char* argv[])
 
 
 		// write the grid into a file
-		game_grid.write_vtk_file(current_output_name.c_str());
+		grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
@@ -117,7 +223,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbours int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
+			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
 			outfile << neighbours->size() << endl;
 		}
 
@@ -137,5 +243,10 @@ int main(int argc, char* argv[])
 		outfile.close();
 	}
 
+	if (comm.rank() == 0) {
+		cout << "Passed" << endl;
+	}
+
 	return EXIT_SUCCESS;
 }
+
