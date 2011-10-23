@@ -20,6 +20,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DCCRG_HPP
 #define DCCRG_HPP
 
+/*!
+\mainpage Distributed Cartesian Cell-Refinable Grid.
+
+\section intro_sec Introduction
+dccrg is a grid library for simulations using the finite volume method.
+See the examples directory for some simple examples and the tests directory
+for more advanced usage of dccrg.
+*/
+
+
 
 /*
 If the size of the data in every cell is known in advance by the user, neighbour data updates can be optimized by defining DCCRG_CELL_DATA_SIZE_FROM_USER, in which case:
