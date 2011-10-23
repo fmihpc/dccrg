@@ -83,7 +83,7 @@ public:
 
 
 	/*!
-	Initializes this instance of the grid with given parameters.
+	\brief Initializes the instance of the grid with given parameters.
 
 	The geometry of the grid instance must have been set using set_geometry
 	before calling this function.
@@ -547,12 +547,15 @@ public:
 
 
 	/*!
-	Load balances the grid's cells among processes.
+	\brief Load balances the grid's cells among processes.
 
 	Must be called simultaneously on all processes.
 	Cells which haven't been pinned are moved as suggested by Zoltan, pinned cells are moved as requested by the user.
 	Does not update remote neighbour data between processes afterward.
 	Discards refines / unrefines.
+
+	If prepare_to_balance_load was called before this then has_been_prepared must be true
+	otherwise it must be false.
 	*/
 	void balance_load(const bool has_been_prepared = false)
 	{
@@ -571,6 +574,9 @@ public:
 	Cells which haven't been pinned are not moved.
 	Does not update remote neighbour data between processes afterward.
 	Discards refines / unrefines.
+
+	If prepare_to_migrate_cells was called before this then
+	has_been_prepared must be true otherwise it must be false.
 	*/
 	void migrate_cells(const bool has_been_prepared = false)
 	{
@@ -590,6 +596,8 @@ public:
 	cells are moved receiving processes can construct the receiving
 	datatypes in balance_load based on cells data transferred by this function.
 	The next dccrg function to be called after this one must be balance_load.
+
+	When calling balance_load after this function has_been_prepared must be true.
 	*/
 	void prepare_to_balance_load(void)
 	{
@@ -602,8 +610,10 @@ public:
 
 	Must be used when cells contain variable mpi_datatypes so that when
 	cells are moved receiving processes can construct the receiving
-	datatypes in balance_load based on cells data transferred by this function.
-	The next dccrg function to be called after this one must be balance_load.
+	datatypes in migrate_cells based on cells data transferred by this function.
+	The next dccrg function to be called after this one must be migrate_cells.
+
+	When calling migrate_cells after this function has_been_prepared must be true.
 	*/
 	void prepare_to_migrate_cells(void)
 	{
@@ -613,7 +623,13 @@ public:
 
 
 	/*!
-	Updates the user data between processes of those cells that have at least one neighbour or are considered as a neighbour of a cell on another process
+	\brief Updates the user data of neighboring cells between processes.
+
+	User data of any local cell which is considered as a neighbor
+	to a cell on another process is sent to that process.
+	User data of any cell that is considered as a neighbor of a
+	cell on this process is received from the other process.
+	Cells' user data is only sent to / received from a process once.
 	Must be called simultaneously on all processes
 	*/
 	void update_remote_neighbour_data(void)
@@ -1788,8 +1804,8 @@ public:
 
 	Level numbering starts from 0.
 	Does nothing in the following cases:
-		-option name is one of: RETURN_LISTS, ...
-		-given level doesn't exist
+		option name is one of: RETURN_LISTS, ...;
+		given level doesn't exist
 	*/
 	void add_partitioning_option(const int hierarchial_partitioning_level, const std::string name, const std::string value)
 	{
@@ -2145,7 +2161,7 @@ public:
 
 	/*!
 	Returns a pointer to the list of cells that will be added
-	to this process when migrating or load balanceing cells.
+	to this process after preparing to migrate or load balance cells.
 	*/
 	const boost::unordered_set<uint64_t>* get_balance_added_cells(void) const
 	{
@@ -2154,7 +2170,7 @@ public:
 
 	/*!
 	Returns a pointer to the list of cells that will be removed
-	from this process when migrating or load balanceing cells.
+	from this process after preparing to migrate or load balance cells.
 	*/
 	const boost::unordered_set<uint64_t>* get_balance_removed_cells(void) const
 	{
