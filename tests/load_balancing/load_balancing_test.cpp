@@ -41,6 +41,7 @@ int main(int argc, char* argv[])
 	string load_balancing_method;
 	vector<string> hier_lb_methods;
 	vector<int> hier_lb_procs_per_level;
+	bool save;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
@@ -68,6 +69,9 @@ int main(int argc, char* argv[])
 		("refine_n",
 			boost::program_options::value<unsigned int>(&refine_n)->default_value(0),
 			"Refine cells arg times")
+		("save",
+			boost::program_options::value<bool>(&save)->default_value(false),
+			"Save the grid after every iteration")
 		("neighborhood_size",
 			boost::program_options::value<unsigned int>(&neighborhood_size)->default_value(1),
 			"Size of a cell's neighborhood in cells of equal size (0 means only face neighbors are neighbors)");
