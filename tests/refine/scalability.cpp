@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 	cout << "Process " << comm.rank()
 		<< ": " << cells.size() - initial_cells
 		<< " new cells created in " << double(total) / CLOCKS_PER_SEC
-		<< " s, (" << (cells.size() - x_length * y_length * z_length) / (double(total) / CLOCKS_PER_SEC)
+		<< " s, (" << (cells.size() - initial_cells) / (double(total) / CLOCKS_PER_SEC)
 		<< " new cells / s)"
 		<< endl;
 
