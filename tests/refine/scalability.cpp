@@ -90,6 +90,7 @@ int main(int argc, char* argv[])
 	grid.balance_load();
 
 	vector<uint64_t> cells = grid.get_cells();
+	const uint64_t initial_cells = cells.size();
 
 	clock_t before, after, total = 0;
 
@@ -112,7 +113,7 @@ int main(int argc, char* argv[])
 	} while (all_reduce(comm, cells.size(), plus<uint64_t>()) < maximum_cells);
 
 	cout << "Process " << comm.rank()
-		<< ": " << cells.size() - x_length * y_length * z_length
+		<< ": " << cells.size() - initial_cells
 		<< " new cells created in " << double(total) / CLOCKS_PER_SEC
 		<< " s, (" << (cells.size() - x_length * y_length * z_length) / (double(total) / CLOCKS_PER_SEC)
 		<< " new cells / s)"
