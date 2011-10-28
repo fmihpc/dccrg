@@ -33,8 +33,9 @@ int main(int argc, char* argv[])
 	/*
 	Options
 	*/
-	uint64_t x_length, y_length, z_length, maximum_cells, refines_per_process;
+	uint64_t x_length, y_length, z_length, maximum_cells, max_refines;
 	int maximum_refinement_level, neighborhood_size;
+	double max_refine_fraction;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
@@ -53,9 +54,12 @@ int main(int argc, char* argv[])
 		("maximum_cells",
 			boost::program_options::value<uint64_t>(&maximum_cells)->default_value(1061208),
 			"Stop refining after grid has arg number of total cells")
-		("refines_per_process",
-			boost::program_options::value<uint64_t>(&refines_per_process)->default_value(1000),
-			"Refine at most arg cells at a time per process (not including induced refines)")
+		("max_refines",
+			boost::program_options::value<uint64_t>(&max_refines)->default_value(1000),
+			"Refine at most arg local cells at a time per process (not including induced refines)")
+		("max_refine_fraction",
+			boost::program_options::value<double>(&max_refine_fraction)->default_value(0.1),
+			"Refine at most fraction arg of local cells at a time per process (not including induced refines)")
 		("neighborhood_size",
 			boost::program_options::value<int>(&neighborhood_size)->default_value(1),
 			"Size of a cell's neighborhood in cells of equal size (0 means only face neighbors are neighbors)");
@@ -100,7 +104,7 @@ int main(int argc, char* argv[])
 		// refine a fraction of all cells each round
 		before = clock();
 		uint64_t refined = 0;
-		for (int i = 0; i < int(cells.size() / 15) && refined < refines_per_process; i++) {
+		for (int i = 0; i < int(cells.size() * max_refine_fraction) && refined < max_refines; i++) {
 			grid.refine_completely(cells[i]);
 			refined++;
 		}
