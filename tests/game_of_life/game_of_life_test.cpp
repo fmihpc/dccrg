@@ -1,8 +1,23 @@
 /*
-Tests the grid with some simple game of life patters, returns EXIT_SUCCESS if everything went ok.
+Program for testing dccrg using Conway's game of life.
+
+Copyright 2010, 2011 Finnish Meteorological Institute
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License version 3
+as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
+#include "boost/lexical_cast.hpp"
 #include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
@@ -14,51 +29,13 @@ Tests the grid with some simple game of life patters, returns EXIT_SUCCESS if ev
 #include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
-
-struct game_of_life_cell {
-
-	// use boost::mpi for data transfers over MPI
-	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-	bool is_alive;
-	unsigned int live_neighbour_count;
-
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/)
-	{
-		ar & is_alive;
-	}
-
-	// use MPI directly for data transfers
-	#else
-
-	// data[0] == 1 if cell is alive, data[1] holds the number of live neighbours
-	unsigned int data[2];
-
-	void* at(void)
-	{
-		return this;
-	}
-
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	MPI_Datatype mpi_datatype(void)
-	{
-		MPI_Datatype type;
-		// processes don't need other processes' live neighbour info
-		MPI_Type_contiguous(1, MPI_UNSIGNED, &type);
-		return type;
-	}
-	#else
-	static size_t size(void)
-	{
-		// processes don't need other processes' live neighbour info
-		return sizeof(unsigned int);
-	}
-	#endif
-
-	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-};
-
+#include "cell.hpp"
+#include "initialize.hpp"
+#include "save.hpp"
+#include "solve.hpp"
 
 using namespace std;
+using namespace boost;
 using namespace boost::mpi;
 using namespace dccrg;
 
@@ -67,15 +44,15 @@ using namespace dccrg;
 Returns EXIT_SUCCESS if the state of the given game at given timestep is correct on this process, returns EXIT_FAILURE otherwise.
 timestep == 0 means before any turns have been taken.
 */
-int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeometry>* grid)
+int check_game_of_life_state(int timestep, const Dccrg<Cell, ArbitraryGeometry>& grid)
 {
-	vector<uint64_t> cells = grid->get_cells();
+	vector<uint64_t> cells = grid.get_cells();
 	for (vector<uint64_t>::const_iterator
 		cell = cells.begin();
 		cell != cells.end();
 		cell++
 	) {
-		game_of_life_cell* data = (*grid)[*cell];
+		Cell* data = grid[*cell];
 		if (data == NULL) {
 			cerr << "No data for cell " << *cell << endl;
 			return EXIT_FAILURE;
@@ -102,12 +79,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 		case 188:
 		case 199:
 		case 206:
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			if (!data->is_alive) {
-			#else
 			if (!data->data[0]) {
-			#endif
-				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+				cerr << "Cell " << *cell
+					<< " isn't alive on timestep " << timestep
+					<< endl;
 				return EXIT_FAILURE;
 			}
 			break;
@@ -127,12 +102,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 		case 200:
 		case 204:
 		case 205:
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			if (!data->is_alive) {
-			#else
 			if (!data->data[0]) {
-			#endif
-				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+				cerr << "Cell " << *cell
+					<< " isn't alive on timestep " << timestep
+					<< endl;
 				return EXIT_FAILURE;
 			}
 			break;
@@ -147,12 +120,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 		case 184:
 		case 214:
 		case 220:
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			if (!data->is_alive) {
-			#else
 			if (!data->data[0]) {
-			#endif
-				cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+				cerr << "Cell " << *cell
+					<< " isn't alive on timestep " << timestep
+					<< endl;
 				return EXIT_FAILURE;
 			}
 			break;
@@ -172,12 +143,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 			case 45:
 			case 60:
 			case 74:
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (!data->is_alive) {
-				#else
 				if (!data->data[0]) {
-				#endif
-					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					cerr << "Cell " << *cell
+						<< " isn't alive on timestep " << timestep
+						<< endl;
 					return EXIT_FAILURE;
 				}
 				break;
@@ -193,12 +162,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 			case 45:
 			case 58:
 			case 60:
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (!data->is_alive) {
-				#else
 				if (!data->data[0]) {
-				#endif
-					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					cerr << "Cell " << *cell
+						<< " isn't alive on timestep " << timestep
+						<< endl;
 					return EXIT_FAILURE;
 				}
 				break;
@@ -214,12 +181,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 			case 43:
 			case 45:
 			case 60:
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (!data->is_alive) {
-				#else
 				if (!data->data[0]) {
-				#endif
-					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					cerr << "Cell " << *cell
+						<< " isn't alive on timestep " << timestep
+						<< endl;
 					return EXIT_FAILURE;
 				}
 				break;
@@ -234,12 +199,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 			case 30:
 			case 45:
 			case 59:
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (!data->is_alive) {
-				#else
 				if (!data->data[0]) {
-				#endif
-					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					cerr << "Cell " << *cell
+						<< " isn't alive on timestep " << timestep
+						<< endl;
 					return EXIT_FAILURE;
 				}
 				break;
@@ -253,12 +216,10 @@ int check_game_of_life_state(int timestep, Dccrg<game_of_life_cell, ArbitraryGeo
 			case 29:
 			case 30:
 			case 45:
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (!data->is_alive) {
-				#else
 				if (!data->data[0]) {
-				#endif
-					cerr << "Cell " << *cell << " isn't alive on timestep " << timestep << endl;
+					cerr << "Cell " << *cell
+						<< " isn't alive on timestep " << timestep
+						<< endl;
 					return EXIT_FAILURE;
 				}
 				break;
@@ -280,25 +241,19 @@ int main(int argc, char* argv[])
 	environment env(argc, argv);
 	communicator comm;
 
-	float zoltan_version;
-	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
-	    cout << "Zoltan_Initialize failed" << endl;
-	    abort();
-	}
-	if (comm.rank() == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
-
 	/*
 	Options
 	*/
 	char direction;
+	bool save = false, verbose = false;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
 		("direction",
 			boost::program_options::value<char>(&direction)->default_value('z'),
-			"Create a 2d grid with normal into direction arg (x, y or z)");
+			"Create a 2d grid with normal into direction arg (x, y or z)")
+		("save", "Save the game to vtk files")
+		("verbose", "Print information about the game");
 
 	// read options from command line
 	boost::program_options::variables_map option_variables;
@@ -314,36 +269,53 @@ int main(int argc, char* argv[])
 		return EXIT_SUCCESS;
 	}
 
-	// initialize grid
-	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
+	if (option_variables.count("verbose") > 0) {
+		verbose = true;
+	}
 
-	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 15	// in unrefined cells
-	#define CELL_SIZE (1.0 / GRID_SIZE)
+	if (option_variables.count("save") > 0) {
+		save = true;
+	}
+
+	// intialize Zoltan
+	float zoltan_version;
+	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
+		cerr << "Zoltan_Initialize failed" << endl;
+		abort();
+	}
+	if (verbose && comm.rank() == 0) {
+		cout << "Using Zoltan version " << zoltan_version << endl;
+	}
+
+	// initialize grid
+	Dccrg<Cell, ArbitraryGeometry> game_grid;
+
+	const int grid_size = 15;	// in unrefined cells
+	const double cell_size = 1.0 / grid_size;
 	vector<double> x_coordinates, y_coordinates, z_coordinates;
 	switch (direction) {
 	case 'x':
-		for (int i = 0; i <= GRID_SIZE; i++) {
-			y_coordinates.push_back(i * CELL_SIZE);
-			z_coordinates.push_back(i * CELL_SIZE);
+		for (int i = 0; i <= grid_size; i++) {
+			y_coordinates.push_back(i * cell_size);
+			z_coordinates.push_back(i * cell_size);
 		}
 		x_coordinates.push_back(0);
 		x_coordinates.push_back(1);
 		break;
 
 	case 'y':
-		for (int i = 0; i <= GRID_SIZE; i++) {
-			x_coordinates.push_back(i * CELL_SIZE);
-			z_coordinates.push_back(i * CELL_SIZE);
+		for (int i = 0; i <= grid_size; i++) {
+			x_coordinates.push_back(i * cell_size);
+			z_coordinates.push_back(i * cell_size);
 		}
 		y_coordinates.push_back(0);
 		y_coordinates.push_back(1);
 		break;
 
 	case 'z':
-		for (int i = 0; i <= GRID_SIZE; i++) {
-			x_coordinates.push_back(i * CELL_SIZE);
-			y_coordinates.push_back(i * CELL_SIZE);
+		for (int i = 0; i <= grid_size; i++) {
+			x_coordinates.push_back(i * cell_size);
+			y_coordinates.push_back(i * cell_size);
 		}
 		z_coordinates.push_back(0);
 		z_coordinates.push_back(1);
@@ -359,142 +331,23 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
-	if (comm.rank() == 0) {
+	const unsigned int neighborhood_size = 1;
+	game_grid.initialize(comm, "RANDOM", neighborhood_size);
+
+	if (verbose && comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
 		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
 	}
 
-
-	// create a blinker
-	#define BLINKER_START 198
-	uint64_t tmp1[] = {BLINKER_START, BLINKER_START + 1, BLINKER_START + 2};
-	vector<uint64_t> blinker_cells(tmp1, tmp1 + sizeof(tmp1) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator
-		cell = blinker_cells.begin();
-		cell != blinker_cells.end();
-		cell++
-	) {
-		game_of_life_cell* cell_data = game_grid[*cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		cell_data->is_alive = true;
-		#else
-		cell_data->data[0] = 1;
-		#endif
-	}
-
-	// create a toad
-	#define TOAD_START 188
-	uint64_t tmp2[] = {TOAD_START, TOAD_START + 1, TOAD_START + 2, TOAD_START + 1 + GRID_SIZE, TOAD_START + 2 + GRID_SIZE, TOAD_START + 3 + GRID_SIZE};
-	vector<uint64_t> toad_cells(tmp2, tmp2 + sizeof(tmp2) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator
-		cell = toad_cells.begin();
-		cell != toad_cells.end();
-		cell++
-	) {
-		game_of_life_cell* cell_data = game_grid[*cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		cell_data->is_alive = true;
-		#else
-		cell_data->data[0] = 1;
-		#endif
-	}
-
-	// create a beacon
-	#define BEACON_START 137
-	uint64_t tmp3[] = {BEACON_START, BEACON_START + 1, BEACON_START - GRID_SIZE, BEACON_START + 1 - GRID_SIZE, BEACON_START + 2 - 2 * GRID_SIZE, BEACON_START + 3 - 2 * GRID_SIZE, BEACON_START + 2 - 3 * GRID_SIZE, BEACON_START + 3 - 3 * GRID_SIZE};
-	vector<uint64_t> beacon_cells(tmp3, tmp3 + sizeof(tmp3) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator
-		cell = beacon_cells.begin();
-		cell != beacon_cells.end();
-		cell++
-	) {
-		game_of_life_cell* cell_data = game_grid[*cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		cell_data->is_alive = true;
-		#else
-		cell_data->data[0] = 1;
-		#endif
-	}
-
-	// create a glider
-	#define GLIDER_START 143
-	uint64_t tmp4[] = {GLIDER_START + 1, GLIDER_START + 2 - GRID_SIZE, GLIDER_START - 2 * GRID_SIZE, GLIDER_START + 1 - 2 * GRID_SIZE, GLIDER_START + 2 - 2 * GRID_SIZE};
-	vector<uint64_t> glider_cells(tmp4, tmp4 + sizeof(tmp4) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator
-		cell = glider_cells.begin();
-		cell != glider_cells.end();
-		cell++
-	) {
-		game_of_life_cell* cell_data = game_grid[*cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		cell_data->is_alive = true;
-		#else
-		cell_data->data[0] = 1;
-		#endif
-	}
-
-	// create a block
-	#define BLOCK_START 47
-	uint64_t tmp5[] = {BLOCK_START, BLOCK_START + 1, BLOCK_START - GRID_SIZE, BLOCK_START + 1 - GRID_SIZE};
-	vector<uint64_t> block_cells(tmp5, tmp5 + sizeof(tmp5) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator
-		cell = block_cells.begin();
-		cell != block_cells.end();
-		cell++
-	) {
-		game_of_life_cell* cell_data = game_grid[*cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		cell_data->is_alive = true;
-		#else
-		cell_data->data[0] = 1;
-		#endif
-	}
-
-	// create a beehive
-	#define BEEHIVE_START 51
-	uint64_t tmp6[] = {BEEHIVE_START - GRID_SIZE, BEEHIVE_START + 1, BEEHIVE_START + 2, BEEHIVE_START + 1 - 2 * GRID_SIZE, BEEHIVE_START + 2 - 2 * GRID_SIZE, BEEHIVE_START + 3 - GRID_SIZE};
-	vector<uint64_t> beehive_cells(tmp6, tmp6 + sizeof(tmp6) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator
-		cell = beehive_cells.begin();
-		cell != beehive_cells.end();
-		cell++
-	) {
-		game_of_life_cell* cell_data = game_grid[*cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		cell_data->is_alive = true;
-		#else
-		cell_data->data[0] = 1;
-		#endif
-	}
-
+	Initialize<ArbitraryGeometry>::initialize(game_grid, grid_size);
 
 	// every process outputs the game state into its own file
-	ostringstream basename, suffix(".vtk");
-	basename << "game_of_life_test_" << direction << "_" << comm.rank() << "_";
-	ofstream outfile, visit_file;
+	string basename("game_of_life_test_");
+	basename.append(1, direction).append("_").append(lexical_cast<string>(comm.rank())).append("_");
 
 	// visualize the game with visit -o game_of_life_test.visit
-	if (comm.rank() == 0) {
+	ofstream visit_file;
+	if (save && comm.rank() == 0) {
 		string visit_file_name("game_of_life_test_");
 		visit_file_name += direction;
 		visit_file_name += ".visit";
@@ -502,19 +355,19 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 25
-	if (comm.rank() == 0) {
+	const int time_steps = 25;
+	if (verbose && comm.rank() == 0) {
 		cout << "step: ";
 	}
-	for (int step = 0; step < TIME_STEPS; step++) {
+	for (int step = 0; step < time_steps; step++) {
 
 		game_grid.balance_load();
 		game_grid.start_remote_neighbour_data_update();
 		game_grid.wait_neighbour_data_update();
 		vector<uint64_t> cells = game_grid.get_cells();
 
-		int result = check_game_of_life_state(step, &game_grid);
-		if (GRID_SIZE != 15 || result != EXIT_SUCCESS) {
+		int result = check_game_of_life_state(step, game_grid);
+		if (grid_size != 15 || result != EXIT_SUCCESS) {
 			cout << "Process " << comm.rank() << ": Game of Life test failed on timestep: " << step << endl;
 			abort();
 		}
@@ -522,240 +375,43 @@ int main(int argc, char* argv[])
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
 
-		if (comm.rank() == 0) {
+		if (verbose && comm.rank() == 0) {
 			cout << step << " ";
 			cout.flush();
 		}
 
-		// write the game state into a file named according to the current time step
-		string current_output_name("");
-		ostringstream step_string;
-		step_string.fill('0');
-		step_string.width(5);
-		step_string << step;
-		current_output_name += basename.str();
-		current_output_name += step_string.str();
-		current_output_name += suffix.str();
+		if (save) {
+			// write the game state into a file named according to the current time step
+			string output_name(basename);
+			output_name.append(lexical_cast<string>(step)).append(".vtk");
+			Save<ArbitraryGeometry>::save(output_name, comm.rank(), game_grid);
 
-		// visualize the game with visit -o game_of_life_test.visit
-		if (comm.rank() == 0) {
-			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "game_of_life_test_"
-					<< direction << "_" << process << "_"
-					<< step_string.str() << suffix.str()
-					<< endl;
-			}
-		}
-
-
-		// write the grid into a file
-		game_grid.write_vtk_file(current_output_name.c_str());
-		// prepare to write the game data into the same file
-		outfile.open(current_output_name.c_str(), ofstream::app);
-		outfile << "CELL_DATA " << cells.size() << endl;
-
-		// go through the grids cells and write their state into the file
-		outfile << "SCALARS is_alive float 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator
-			cell = cells.begin();
-			cell != cells.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			if (cell_data->is_alive == true) {
-			#else
-			if (cell_data->data[0] == 1) {
-			#endif
-				outfile << "1";
-			} else {
-				outfile << "0";
-			}
-			outfile << endl;
-		}
-
-		// write each cells live neighbour count
-		outfile << "SCALARS live_neighbour_count float 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator
-			cell = cells.begin();
-			cell != cells.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			outfile << cell_data->live_neighbour_count << endl;
-			#else
-			outfile << cell_data->data[1] << endl;
-			#endif
-		}
-
-		// write each cells neighbour count
-		outfile << "SCALARS neighbours int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			outfile << neighbours->size() << endl;
-		}
-
-		// write each cells process
-		outfile << "SCALARS process int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << comm.rank() << endl;
-		}
-
-		// write each cells id
-		outfile << "SCALARS id int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << *cell << endl;
-		}
-		outfile.close();
-
-
-		// get the neighbour counts of every cell, starting with the cells whose neighbour data doesn't come from other processes
-		vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
-		for (vector<uint64_t>::const_iterator
-			cell = cells_with_local_neighbours.begin();
-			cell != cells_with_local_neighbours.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			cell_data->live_neighbour_count = 0;
-			#else
-			cell_data->data[1] = 0;
-			#endif
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			if (neighbours == NULL) {
-				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
-				abort();
-			}
-
-			for (vector<uint64_t>::const_iterator
-				neighbour = neighbours->begin();
-				neighbour != neighbours->end();
-				neighbour++
-			) {
-				if (*neighbour == 0) {
-					continue;
+			// visualize the game with visit -o game_of_life_test.visit
+			if (comm.rank() == 0) {
+				for (int process = 0; process < comm.size(); process++) {
+					visit_file << "game_of_life_test_"
+						<< direction << "_"
+						<< process << "_"
+						<< lexical_cast<string>(step)
+						<< ".vtk"
+						<< endl;
 				}
-
-				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
-					abort();
-				}
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (neighbour_data->is_alive) {
-					cell_data->live_neighbour_count++;
-				}
-				#else
-				if (neighbour_data->data[0] == 1) {
-					cell_data->data[1]++;
-				}
-				#endif
 			}
 		}
 
-		vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
-		for (vector<uint64_t>::const_iterator
-			cell = cells_with_remote_neighbour.begin();
-			cell != cells_with_remote_neighbour.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			cell_data->live_neighbour_count = 0;
-			#else
-			cell_data->data[1] = 0;
-			#endif
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			if (neighbours == NULL) {
-				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
-				abort();
-			}
-
-			for (vector<uint64_t>::const_iterator
-				neighbour = neighbours->begin();
-				neighbour != neighbours->end();
-				neighbour++
-			) {
-				if (*neighbour == 0) {
-					continue;
-				}
-
-				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data for cell " << *cell << " not available" << endl;
-					abort();
-				}
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-				if (neighbour_data->is_alive) {
-					cell_data->live_neighbour_count++;
-				}
-				#else
-				if (neighbour_data->data[0] == 1) {
-					cell_data->data[1]++;
-				}
-				#endif
-			}
-		}
-
-		// calculate the next turn
-		for (vector<uint64_t>::const_iterator
-			cell = cells_with_local_neighbours.begin();
-			cell != cells_with_local_neighbours.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			if (cell_data->live_neighbour_count == 3) {
-				cell_data->is_alive = true;
-			} else if (cell_data->live_neighbour_count != 2) {
-				cell_data->is_alive = false;
-			}
-			#else
-			if (cell_data->data[1] == 3) {
-				cell_data->data[0] = 1;
-			} else if (cell_data->data[1] != 2) {
-				cell_data->data[0] = 0;
-			}
-			#endif
-		}
-		for (vector<uint64_t>::const_iterator
-			cell = cells_with_remote_neighbour.begin();
-			cell != cells_with_remote_neighbour.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-			if (cell_data->live_neighbour_count == 3) {
-				cell_data->is_alive = true;
-			} else if (cell_data->live_neighbour_count != 2) {
-				cell_data->is_alive = false;
-			}
-			#else
-			if (cell_data->data[1] == 3) {
-				cell_data->data[0] = 1;
-			} else if (cell_data->data[1] != 2) {
-				cell_data->data[0] = 0;
-			}
-			#endif
-		}
-
+		Solve<ArbitraryGeometry>::solve(game_grid);
 	}
 
 	if (comm.rank() == 0) {
-		cout << "\nPassed" << endl;
-		visit_file.close();
+		if (verbose) {
+			cout << endl;
+		}
+
+		cout << "Passed" << endl;
+
+		if (save) {
+			visit_file.close();
+		}
 	}
 
 	return EXIT_SUCCESS;

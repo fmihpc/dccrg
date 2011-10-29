@@ -1,5 +1,5 @@
 # Use -Wno-missing-braces until GCC stops warning about valid C++ (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=25137)
-FLAGS = -O3 -W -Wall -Wextra -pedantic -Wno-missing-braces -std=c++0x
+FLAGS = -O3 -W -Wall -Wextra -pedantic -Wno-missing-braces
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
@@ -24,7 +24,8 @@ HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
 	../../dccrg_arbitrary_geometry.hpp \
-	../../dccrg_constant_geometry.hpp
+	../../dccrg_constant_geometry.hpp \
+	cell.hpp initialize.hpp save.hpp solve.hpp
 
 all: $(PROGRAMS)
 
@@ -73,7 +74,11 @@ hierarchical_test: hierarchical_test.cpp $(HEADERS) Makefile
 pinned_cells: pinned_cells.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG pinned_cells.cpp $(INCLUDES) -o pinned_cells
 
+d: data
+data:
+	rm -f *.vtk *.visit
+
 c: clean
-clean:
-	rm -f $(PROGRAMS) *.vtk *visit
+clean: data
+	rm -f $(PROGRAMS)
 
