@@ -2736,7 +2736,9 @@ private:
 			) != ZOLTAN_OK
 		) {
 			if (!this->no_load_balancing) {
-				std::cerr << "Zoltan_LB_Partition failed" << std::endl;
+				if (this->comm.rank() == 0) {
+					std::cerr << "Zoltan_LB_Partition failed" << std::endl;
+				}
 				Zoltan_Destroy(&this->zoltan);
 				// TODO: throw an exception instead
 				abort();
