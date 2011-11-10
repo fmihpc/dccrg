@@ -391,6 +391,15 @@ public:
 
 
 	/*!
+	Returns the number of local cells without children, e.g. leaf cells.
+	*/
+	size_t size(void) const
+	{
+		return this->cells.size();
+	}
+
+
+	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells) and don't have neighbours on other processes
 	*/
 	std::vector<uint64_t> get_cells_with_local_neighbours(void) const
