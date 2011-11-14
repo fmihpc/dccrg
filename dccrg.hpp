@@ -280,12 +280,29 @@ public:
 		} else {
 			cells_per_process = this->grid_length / uint64_t(comm.size());
 		}
-		for (uint64_t cell = 1; cell <= this->grid_length; cell++) {
-			if ((cell - uint64_t(1)) / cells_per_process == uint64_t(comm.rank())) {
-				this->cells[cell];
+
+		// some processes get fewer cells if grid size not divisible by comm.size()
+		uint64_t procs_with_fewer = cells_per_process * uint64_t(comm.size()) - this->grid_length;
+
+		uint64_t cell_to_create = 1;
+		for (int process = 0; process < comm.size(); process++) {
+
+			uint64_t cells_to_create;
+			if ((unsigned int)process < procs_with_fewer) {
+				cells_to_create = cells_per_process - 1;
+			} else {
+				cells_to_create = cells_per_process;
 			}
-			this->cell_process[cell] = (cell - uint64_t(1)) / cells_per_process;
+
+			for (uint64_t i = 0; i < cells_to_create; i++) {
+				this->cell_process[cell_to_create] = process;
+				if (process == comm.rank()) {
+					this->cells[cell_to_create];
+				}
+				cell_to_create++;
+			}
 		}
+		assert(cell_to_create == this->grid_length + 1);
 
 		// update neighbour lists of created cells
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
