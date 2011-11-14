@@ -284,6 +284,8 @@ public:
 		// some processes get fewer cells if grid size not divisible by comm.size()
 		uint64_t procs_with_fewer = cells_per_process * uint64_t(comm.size()) - this->grid_length;
 
+		#ifndef USE_SFC
+
 		uint64_t cell_to_create = 1;
 		for (int process = 0; process < comm.size(); process++) {
 
@@ -303,6 +305,46 @@ public:
 			}
 		}
 		assert(cell_to_create == this->grid_length + 1);
+
+		#else
+
+		const dccrg::Types<3>::indices_t length = {
+			this->x_length,
+			this->y_length,
+			this->z_length
+		};
+		sfc::Sfc<3, uint64_t> mapping(length);
+		mapping.cache_all();
+
+		uint64_t sfc_index = 0;
+		for (int process = 0; process < comm.size(); process++) {
+
+			uint64_t cells_to_create;
+			if ((unsigned int)process < procs_with_fewer) {
+				cells_to_create = cells_per_process - 1;
+			} else {
+				cells_to_create = cells_per_process;
+			}
+
+			for (uint64_t i = 0; i < cells_to_create; i++) {
+
+				dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
+				// transform indices to those of refinement level 0 cells
+				indices[0] *= uint64_t(1) << this->max_refinement_level;
+				indices[1] *= uint64_t(1) << this->max_refinement_level;
+				indices[2] *= uint64_t(1) << this->max_refinement_level;
+				const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
+
+				this->cell_process[cell_to_create] = process;
+				if (process == comm.rank()) {
+					this->cells[cell_to_create];
+				}
+				sfc_index++;
+			}
+		}
+		assert(sfc_index == this->grid_length);
+
+		#endif
 
 		// update neighbour lists of created cells
 		for (typename boost::unordered_map<uint64_t, UserData>::const_iterator
