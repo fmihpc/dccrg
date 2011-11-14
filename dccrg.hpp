@@ -67,6 +67,10 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #include "vector"
 #include "zoltan.h"
 
+#ifdef USE_SFC
+#include "sfc++.hpp"
+#endif
+
 #include "dccrg_index.hpp"
 #include "dccrg_types.hpp"
 #include "dccrg_constant_geometry.hpp"
