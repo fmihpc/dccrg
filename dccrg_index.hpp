@@ -204,9 +204,9 @@ public:
 
 		// convert to indices of this cell's refinement level
 		const Types<3>::indices_t this_level_indices = {
-			indices[0] / (uint64_t(1) << (max_refinement_level - refinement_level)),
-			indices[1] / (uint64_t(1) << (max_refinement_level - refinement_level)),
-			indices[2] / (uint64_t(1) << (max_refinement_level - refinement_level))
+			indices[0] / (uint64_t(1) << (this->max_refinement_level - refinement_level)),
+			indices[1] / (uint64_t(1) << (this->max_refinement_level - refinement_level)),
+			indices[2] / (uint64_t(1) << (this->max_refinement_level - refinement_level))
 		};
 
 		// get the size of the grid in terms of cells of this refinement level
