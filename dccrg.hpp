@@ -318,8 +318,9 @@ public:
 			this->z_length
 		};
 		sfc::Sfc<3, uint64_t> mapping(length);
-		mapping.cache_all();
 
+		// create local cells
+		std::vector<uint64_t> local_cells;
 		uint64_t sfc_index = 0;
 		for (int process = 0; process < comm.size(); process++) {
 
@@ -330,23 +331,49 @@ public:
 				cells_to_create = cells_per_process;
 			}
 
-			for (uint64_t i = 0; i < cells_to_create; i++) {
+			if (process == this->comm.rank()) {
+				local_cells.reserve(cells_to_create);
+				mapping.cache_sfc_index_range(sfc_index, sfc_index + cells_to_create - 1);
 
-				dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
-				// transform indices to those of refinement level 0 cells
-				indices[0] *= uint64_t(1) << this->max_refinement_level;
-				indices[1] *= uint64_t(1) << this->max_refinement_level;
-				indices[2] *= uint64_t(1) << this->max_refinement_level;
-				const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
+				for (uint64_t i = 0; i < cells_to_create; i++) {
 
-				this->cell_process[cell_to_create] = process;
-				if (process == comm.rank()) {
+					dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
+					// transform indices to those of refinement level 0 cells
+					indices[0] *= uint64_t(1) << this->max_refinement_level;
+					indices[1] *= uint64_t(1) << this->max_refinement_level;
+					indices[2] *= uint64_t(1) << this->max_refinement_level;
+					const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
+					this->cell_process[cell_to_create] = process;
 					this->cells[cell_to_create];
+					local_cells.push_back(cell_to_create);
+					sfc_index++;
 				}
-				sfc_index++;
+
+				mapping.clear();
+
+			} else {
+				sfc_index += cells_to_create;
 			}
 		}
 		assert(sfc_index == this->grid_length);
+
+		// exchange local cell info among processes
+		for (int process = 0; process < comm.size(); process++) {
+			std::vector<uint64_t> remote_cells;
+			if (process == this->comm.rank()) {
+				boost::mpi::broadcast(this->comm, local_cells, process);
+			} else {
+				boost::mpi::broadcast(this->comm, remote_cells, process);
+				for (std::vector<uint64_t>::const_iterator
+					cell = remote_cells.begin();
+					cell != remote_cells.end();
+					cell++
+				) {
+					this->cell_process[*cell] = process;
+				}
+			}
+		}
+		local_cells.clear();
 
 		#endif
 
