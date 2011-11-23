@@ -327,7 +327,7 @@ public:
 
 		/*
 		Cache only batch_size number of sfc indices at a time.
-		Saves memory and can even be faster that caching everything at once
+		Saves memory and can even be faster than caching everything at once
 		*/
 		uint64_t batch_size;
 		if (mapping.size() % sfc_caching_batches > 0) {
