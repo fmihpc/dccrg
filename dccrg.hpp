@@ -136,12 +136,18 @@ public:
 		const int maximum_refinement_level = -1,
 		const bool periodic_in_x = false,
 		const bool periodic_in_y = false,
-		const bool periodic_in_z = false
+		const bool periodic_in_z = false,
+		const uint64_t sfc_caching_batches = 1
 	)
 	{
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
 			// TODO: throw an exception instead
+			abort();
+		}
+
+		if (sfc_caching_batches == 0) {
+			std::cerr << "sfc_caching_batches must be > 0" << std::endl;
 			abort();
 		}
 
@@ -319,8 +325,20 @@ public:
 		};
 		sfc::Sfc<3, uint64_t> mapping(length);
 
-		// create local cells
-		std::vector<uint64_t> local_cells;
+		/*
+		Cache only batch_size number of sfc indices at a time.
+		Saves memory and can even be faster that caching everything at once
+		*/
+		uint64_t batch_size;
+		if (mapping.size() % sfc_caching_batches > 0) {
+			batch_size = 1 + mapping.size() / sfc_caching_batches;
+		} else {
+			batch_size = mapping.size() / sfc_caching_batches;
+		}
+
+		uint64_t cache_start = 0, cache_end = batch_size - 1;
+		mapping.cache_sfc_index_range(cache_start, cache_end);
+
 		uint64_t sfc_index = 0;
 		for (int process = 0; process < comm.size(); process++) {
 
@@ -331,49 +349,38 @@ public:
 				cells_to_create = cells_per_process;
 			}
 
-			if (process == this->comm.rank()) {
-				local_cells.reserve(cells_to_create);
-				mapping.cache_sfc_index_range(sfc_index, sfc_index + cells_to_create - 1);
+			for (uint64_t i = 0; i < cells_to_create; i++) {
 
-				for (uint64_t i = 0; i < cells_to_create; i++) {
+				// cache new sfc index batch
+				if (sfc_index > cache_end) {
+					cache_start = cache_end;
+					cache_end = cache_start + batch_size;
 
-					dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
-					// transform indices to those of refinement level 0 cells
-					indices[0] *= uint64_t(1) << this->max_refinement_level;
-					indices[1] *= uint64_t(1) << this->max_refinement_level;
-					indices[2] *= uint64_t(1) << this->max_refinement_level;
-					const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
-					this->cell_process[cell_to_create] = process;
+					if (cache_end >= mapping.size()) {
+						cache_end = mapping.size() - 1;
+					}
+
+					mapping.clear();
+					mapping.cache_sfc_index_range(cache_start, cache_end);
+				}
+
+				dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
+				// transform indices to those of refinement level 0 cells
+				indices[0] *= uint64_t(1) << this->max_refinement_level;
+				indices[1] *= uint64_t(1) << this->max_refinement_level;
+				indices[2] *= uint64_t(1) << this->max_refinement_level;
+				const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
+
+				this->cell_process[cell_to_create] = process;
+				if (process == this->comm.rank()) {
 					this->cells[cell_to_create];
-					local_cells.push_back(cell_to_create);
-					sfc_index++;
 				}
 
-				mapping.clear();
-
-			} else {
-				sfc_index += cells_to_create;
+				sfc_index++;
 			}
 		}
+		mapping.clear();
 		assert(sfc_index == this->grid_length);
-
-		// exchange local cell info among processes
-		for (int process = 0; process < comm.size(); process++) {
-			std::vector<uint64_t> remote_cells;
-			if (process == this->comm.rank()) {
-				boost::mpi::broadcast(this->comm, local_cells, process);
-			} else {
-				boost::mpi::broadcast(this->comm, remote_cells, process);
-				for (std::vector<uint64_t>::const_iterator
-					cell = remote_cells.begin();
-					cell != remote_cells.end();
-					cell++
-				) {
-					this->cell_process[*cell] = process;
-				}
-			}
-		}
-		local_cells.clear();
 
 		#endif
 
