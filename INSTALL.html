@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="en">
+<head>
+<title> Installation of dccrg </title>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+<h1>Installation of dccrg</h1>
+<p>
+Just place the header files in <a href="./">this</a> directory somewhere where your C++ compiler can find them.<br>
+Then try to compiling and running programs in the <a href="examples/">examples</a> directory.
+</p>
+
+<h2>Prerequisites</h2>
+<p>
+Dccrg requires the following libraries:
+</p>
+<ul>
+<li>MPI (for example <a href="http://www.open-mpi.org/">Open MPI</a>)</li>
+<li><a href="http://www.boost.org/">Boost</a> and its MPI bindings (not built by default)</li>
+<li><a href="http://www.cs.sandia.gov/Zoltan/">Zoltan</a></li>
+</ul>
+<p>
+Your distribution might already have them available, but you can also install them into your home directory using <a href="#install_home">these</a> instructions.
+</p>
+
+<h1>Installing prerequisites</h1>
+
+<h2><a name="install_home">Installing prerequisites into home directory using GCC</a></h2>
+
+<h3>Preliminaries</h3>
+<p>
+Do this step only if you haven't done it before on this machine for this user.<br>
+Tell the dynamic loader to search for libraries also in home directory:
+</p>
+<pre>
+echo "export LD_LIBRARY_PATH=$HOME/lib:$LD_LIBRARY_PATH" >> $HOME/.bashrc
+source $HOME/.bashrc
+</pre>
+
+<h3>Open MPI</h3>
+<pre>
+cd $HOME
+wget http://www.open-mpi.org/software/ompi/v1.5/downloads/openmpi-1.5.4.tar.bz2 &&
+tar xf openmpi-1.5.4.tar.bz2 &&
+rm openmpi-1.5.4.tar.bz2 &&
+cd openmpi-1.5.4 &&
+./configure --prefix=$HOME &&
+make all install &&
+cd .. &&
+rm -rf openmpi-1.5.4
+</pre>
+
+<h3>Boost</h3>
+<pre>
+cd $HOME
+wget http://downloads.sourceforge.net/project/boost/boost/1.48.0/boost_1_48_0.tar.bz2 &&
+tar xf boost_1_48_0.tar.bz2 &&
+rm boost_1_48_0.tar.bz2 &&
+cd boost_1_48_0 &&
+./bootstrap.sh &&
+echo "using mpi ;" >> ./tools/build/v2/user-config.jam &&
+./b2 &&
+./b2 install --prefix=$HOME &&
+cd .. &&
+rm -rf boost_1_48_0
+</pre>
+
+<h3>Zoltan</h3>
+<p>
+Dccrg uses 64 bit cell ids so Zoltan has to be configured with id type ullong. If balancing the load in dccrg results in a crash then try configuring Zoltan with id type ulong.
+</p>
+<pre>
+cd $HOME
+wget http://www.cs.sandia.gov/~kddevin/Zoltan_Distributions/zoltan_distrib_v3.6.tar.gz &&
+tar xf zoltan_distrib_v3.6.tar.gz &&
+rm zoltan_distrib_v3.6.tar.gz parmetis_3.1.tar.gz ._scotch_5.1.12b.tar.gz scotch_5.1.12b.tar.gz &&
+mkdir zoltan-build &&
+cd zoltan-build &&
+../Zoltan_v3.6/configure --prefix=$HOME --enable-mpi --with-mpi-compilers --with-gnumake --with-id-type=ullong &&
+make &&
+make install &&
+cd .. &&
+rm -rf zoltan-build Zoltan_v3.6
+</pre>
+
+</body>
+</html>
+
