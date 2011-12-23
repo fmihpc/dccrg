@@ -1266,7 +1266,11 @@ public:
 			return cell;
 		}
 
-		const uint64_t parent = get_cell_from_indices(this->get_indices(cell), this->get_refinement_level(cell) - 1);
+		const uint64_t parent = this->get_cell_from_indices(
+			this->get_indices(cell),
+			this->get_refinement_level(cell) - 1
+		);
+
 		if (this->cell_process.count(parent) > 0) {
 			return parent;
 		} else {
@@ -3413,7 +3417,11 @@ private:
 			return cell;
 		}
 
-		const uint64_t child = get_cell_from_indices(this->get_indices(cell), refinement_level + 1);
+		const uint64_t child = this->get_cell_from_indices(
+			this->get_indices(cell),
+			refinement_level + 1
+		);
+
 		if (this->cell_process.count(child) > 0) {
 			return child;
 		} else {
