@@ -1278,22 +1278,6 @@ public:
 		}
 	}
 
-	/*!
-	Returns the parent of given cell
-	Returns the given cell if its refinement level == 0 or > maximum refinement level
-	TODO: replace with get_{,all_}siblings?
-	*/
-	uint64_t get_parent_for_removed(const uint64_t cell) const
-	{
-		const int refinement_level = this->get_refinement_level(cell);
-		assert(refinement_level >= 0);
-		if (refinement_level == 0 || refinement_level > this->max_refinement_level) {
-			return cell;
-		}
-
-		return get_cell_from_indices(this->get_indices(cell), refinement_level - 1);
-	}
-
 
 	/*!
 	Returns the indices corresponding to the given neighbourhood (with given neighbour size in indices) at given indices.

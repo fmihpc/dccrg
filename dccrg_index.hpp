@@ -336,6 +336,23 @@ public:
 
 
 	/*!
+	Returns the parent of given cell.
+
+	Returns the given cell if its refinement level == 0 or > maximum refinement level.
+	*/
+	uint64_t get_parent_for_removed(const uint64_t cell) const
+	{
+		const int refinement_level = this->get_refinement_level(cell);
+		assert(refinement_level >= 0);
+		if (refinement_level == 0 || refinement_level > this->max_refinement_level) {
+			return cell;
+		}
+
+		return this->get_cell_from_indices(this->get_indices(cell), refinement_level - 1);
+	}
+
+
+	/*!
 	Returns the siblings of given cell.
 
 	If given a cell of refinement level 0 returns the given cell.
@@ -343,7 +360,7 @@ public:
 	*/
 	std::vector<uint64_t> get_siblings(const uint64_t cell) const
 	{
-		const std::vector<uint64_t> siblings;
+		std::vector<uint64_t> siblings;
 
 		const int refinement_level = this->get_refinement_level(cell);
 		if (refinement_level < 0) {
@@ -355,7 +372,7 @@ public:
 			return siblings;
 		}
 
-		return this->get_all_children(this->get_parent(cell));
+		return this->get_all_children(this->get_parent_for_removed(cell));
 	}
 
 
