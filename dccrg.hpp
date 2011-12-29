@@ -1169,6 +1169,7 @@ public:
 	Removes the given cell and its siblings from the grid.
 
 	Refining (including induced refining) takes priority over unrefining. Refines / unrefines take effect only after a call to stop_refining() and are lost after a call to balance_load(). Does nothing in any of the following cases:
+		-dont_unrefine was called previously for given cell or its siblings
 		-given cell or one of its siblings has already been unrefined and stop_refining() has not been called
 		-given cell doesn't exist on this process
 		-given cell has children
@@ -1193,8 +1194,16 @@ public:
 
 		// record only one sibling to unrefine / process
 		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
-		for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
+		for (std::vector<uint64_t>::const_iterator
+			sibling = siblings.begin();
+			sibling != siblings.end();
+			sibling++
+		) {
 			if (this->cells_to_unrefine.count(*sibling) > 0) {
+				return;
+			}
+
+			if (this->cells_not_to_unrefine.count(*sibling) > 0) {
 				return;
 			}
 		}
@@ -1219,6 +1228,67 @@ public:
 
 
 	/*!
+	Prevents the given cell or its siblings from being unrefined.
+
+	Has an effect only during the next call to stop_refining().
+	Has no effect if balance_load() is called before stop_refining().
+	Does nothing in any of the following cases:
+		-given cell doesn't exist on this process
+		-given cell has children
+		-given cell's refinement level is 0
+	*/
+	void dont_unrefine(const uint64_t cell)
+	{
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
+
+		if (this->get_refinement_level(cell) == 0) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			// cell already has children
+			return;
+		}
+
+		// record only one sibling / process
+		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
+		for (std::vector<uint64_t>::const_iterator
+			sibling = siblings.begin();
+			sibling != siblings.end();
+			sibling++
+		) {
+			if (this->cells_not_to_unrefine.count(*sibling) > 0) {
+				return;
+			}
+
+			// remove siblings from local unrefines
+			this->cells_to_unrefine.erase(*sibling);
+		}
+
+		this->cells_not_to_unrefine.insert(cell);
+	}
+
+
+	/*!
+	As dont_unrefine but uses the smallest existing cell at given coordinates.
+
+	Does nothing in the same cases as dont_unrefine and additionally if the
+	coordinate is outside of the grid.
+	*/
+	void dont_unrefine_at(const double x, const double y, const double z)
+	{
+		const uint64_t cell = this->get_existing_cell(x, y, z);
+		if (cell == error_cell) {
+			return;
+		}
+
+		this->dont_unrefine(cell);
+	}
+
+
+	/*!
 	Executes refines / unrefines that have been requested so far.
 
 	Must be called simultaneously on all processes.
@@ -1229,7 +1299,13 @@ public:
 	{
 		this->comm.barrier();
 		this->induce_refines();
+
+		// update dont_refines between processes
+		this->all_to_all_set(this->cells_not_to_unrefine);
+
 		this->override_unrefines();
+		this->cells_not_to_unrefine.clear();
+
 		return this->execute_refines();
 	}
 
@@ -2388,6 +2464,9 @@ private:
 	// cells to be refined / unrefined after a call to stop_refining()
 	boost::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
 
+	// cells whose siblings shouldn't be unrefined
+	boost::unordered_set<uint64_t> cells_not_to_unrefine;
+
 	// stores user data of cells whose children were created while refining
 	boost::unordered_map<uint64_t, UserData> refined_cell_data;
 	// stores user data of cells that were removed while unrefining
@@ -2428,6 +2507,7 @@ private:
 		this->refined_cell_data.clear();
 		this->cells_to_unrefine.clear();
 		this->unrefined_cell_data.clear();
+		this->cells_not_to_unrefine.clear();
 
 		/*
 		Calculate where cells have migrated to update internal data structures
@@ -3565,9 +3645,36 @@ private:
 
 
 	/*!
+	Sends the numbers in s to all other processes and adds the numbers sent by all others to s.
+	*/
+	void all_to_all_set(boost::unordered_set<uint64_t>& s)
+	{
+		std::vector<uint64_t> local_donts(s.begin(), s.end());
+
+		std::vector<std::vector<uint64_t> > all_donts;
+		all_gather(this->comm, local_donts, all_donts);
+
+		for (std::vector<std::vector<uint64_t> >::const_iterator
+			donts = all_donts.begin();
+			donts != all_donts.end();
+			donts++
+		) {
+
+			for (std::vector<uint64_t>::const_iterator
+				dont = donts->begin();
+				dont != donts->end();
+				dont++
+			) {
+				s.insert(*dont);
+			}
+		}
+	}
+
+
+	/*!
 	Removes cells from cells_to_unrefine in order to enforce maximum refinement level difference of one between neighbours (also across processes).
 
-	cells_to_refine must contain the refines to be done by all processes.
+	cells_to_refine and cells_not_to_unrefine must be identical between processes.
 	After this function cells_to_unrefine will contain the unrefines of all processes.
 	*/
 	void override_unrefines(void)
@@ -3589,7 +3696,9 @@ private:
 			// any sibling being refined will override this unrefine
 			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(*unrefined));
 			for (std::vector<uint64_t>::const_iterator sibling = siblings.begin(); sibling != siblings.end(); sibling++) {
-				if (this->cells_to_refine.count(*sibling) > 0) {
+				if (this->cells_to_refine.count(*sibling) > 0
+				// don't unrefine if requested not to
+				|| this->cells_not_to_unrefine.count(*sibling) > 0) {
 					can_unrefine = false;
 					break;
 				}
