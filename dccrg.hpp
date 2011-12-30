@@ -1127,9 +1127,10 @@ public:
 	Takes priority over unrefining. Refines / unrefines take effect only after a call to stop_refining() and are lost after a call to balance_load(). Does nothing in any of the following cases:
 		-given cell has already been refined (including induced refinement) and stop_refining() has not been called afterwards
 		-given cell doesn't exist on this process
-		-given cells children already exist
-		-the created childrens' refinement level would exceed max_refinement_level
+		-given cell's children already exist
 	Children are created on their parent's process.
+
+	If given cell is at maximum refinement level dont_unrefine will be invoked instead.
 	 */
 	void refine_completely(const uint64_t cell)
 	{
@@ -1138,6 +1139,7 @@ public:
 		}
 
 		if (this->get_refinement_level(cell) >= this->max_refinement_level) {
+			this->dont_unrefine(cell);
 			return;
 		}
 
@@ -3600,14 +3602,14 @@ private:
 	*/
 	void all_to_all_set(boost::unordered_set<uint64_t>& s)
 	{
-		std::vector<uint64_t> local_donts(s.begin(), s.end());
+		std::vector<uint64_t> local_s(s.begin(), s.end());
 
-		std::vector<std::vector<uint64_t> > all_donts;
-		all_gather(this->comm, local_donts, all_donts);
+		std::vector<std::vector<uint64_t> > all_s;
+		all_gather(this->comm, local_s, all_s);
 
-		BOOST_FOREACH(std::vector<uint64_t> donts, all_donts) {
-			BOOST_FOREACH(uint64_t dont, donts) {
-				s.insert(dont);
+		BOOST_FOREACH(std::vector<uint64_t> i, all_s) {
+			BOOST_FOREACH(uint64_t cell, i) {
+				s.insert(cell);
 			}
 		}
 	}
