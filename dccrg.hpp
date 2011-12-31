@@ -1005,14 +1005,17 @@ public:
 
 
 	/*!
-	Returns the given cells neighbours that are on another process
-	Returns nothing if given cell doesn't exist or is on another process or doesn't have remote neighbours
+	Returns the given cell's neighbours that are on another process.
+
+	Returns nothing if given cell doesn't exist or is on another process
+	or doesn't have remote neighbours.
 	*/
 	std::vector<uint64_t> get_remote_neighbours(const uint64_t cell) const
 	{
 		std::vector<uint64_t> result;
 
-		if (this->cells.count(cell) == 0) {
+		if (this->cells.count(cell) == 0
+		|| this->neighbours.count(cell) == 0) {
 			return result;
 		}
 
@@ -1134,11 +1137,21 @@ public:
 	 */
 	void refine_completely(const uint64_t cell)
 	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
 		if (this->cells.count(cell) == 0) {
 			return;
 		}
 
-		if (this->get_refinement_level(cell) >= this->max_refinement_level) {
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (refinement_level > this->max_refinement_level) {
+			return;
+		}
+
+		if (refinement_level == this->max_refinement_level) {
 			this->dont_unrefine(cell);
 			return;
 		}
@@ -1180,6 +1193,10 @@ public:
 	*/
 	void unrefine_completely(const uint64_t cell)
 	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
 		if (this->cells.count(cell) == 0) {
 			return;
 		}
@@ -1237,6 +1254,10 @@ public:
 	*/
 	void dont_unrefine(const uint64_t cell)
 	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
 		if (this->cells.count(cell) == 0) {
 			return;
 		}
@@ -3638,7 +3659,7 @@ private:
 			bool can_unrefine = true;
 
 			// any sibling being refined will override this unrefine
-			std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(unrefined));
+			const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(unrefined));
 			BOOST_FOREACH(uint64_t sibling, siblings) {
 				if (this->cells_to_refine.count(sibling) > 0
 				// don't unrefine if requested not to
@@ -3761,6 +3782,42 @@ private:
 
 		// refines
 		BOOST_FOREACH(uint64_t refined, this->cells_to_refine) {
+
+			#ifdef DEBUG
+			if (this->cell_process.count(refined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << refined
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+
+			if (this->comm.rank() == this->cell_process.at(refined)
+			&& this->cells.count(refined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Data for cell " << refined
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+
+
+			if (this->neighbours.count(refined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor list for cell " << refined
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+
+			if (this->neighbours_to.count(refined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor_to list for cell " << refined
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+			#endif
 
 			const int process_of_refined = this->cell_process.at(refined);
 
