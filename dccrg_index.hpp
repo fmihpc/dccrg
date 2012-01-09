@@ -338,85 +338,23 @@ public:
 	/*!
 	Returns the parent of given cell.
 
-	Returns the given cell if its refinement level == 0 or > maximum refinement level.
+	Returns the given cell if its refinement level == 0.
+	Returns error_cell if given cell's refinement level > maximum refinement level or < 0.
 	*/
 	uint64_t get_parent_for_removed(const uint64_t cell) const
 	{
 		const int refinement_level = this->get_refinement_level(cell);
-		assert(refinement_level >= 0);
-		if (refinement_level == 0 || refinement_level > this->max_refinement_level) {
+
+		if (refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
+			return error_cell;
+		}
+
+		if (refinement_level == 0) {
 			return cell;
 		}
 
 		return this->get_cell_from_indices(this->get_indices(cell), refinement_level - 1);
-	}
-
-
-	/*!
-	Returns the siblings of given cell.
-
-	If given a cell of refinement level 0 returns the given cell.
-	Returns nothing if given cell's refinement level exceeds the maximum of this grid.
-	*/
-	std::vector<uint64_t> get_siblings(const uint64_t cell) const
-	{
-		std::vector<uint64_t> siblings;
-
-		const int refinement_level = this->get_refinement_level(cell);
-		if (refinement_level < 0) {
-			return siblings;
-		}
-
-		if (refinement_level == 0) {
-			siblings.push_back(cell);
-			return siblings;
-		}
-
-		return this->get_all_children(this->get_parent_for_removed(cell));
-	}
-
-
-	/*!
-	Returns all children of given cell regardless of whether they exist
-	Returns no cells if childrens' refinement level would exceed max_refinement_level
-	 */
-	// TODO: move to Index and make public
-	std::vector<uint64_t> get_all_children(const uint64_t cell) const
-	{
-		std::vector<uint64_t> children;
-
-		if (cell == error_cell) {
-			return children;
-		}
-
-		// given cell cannot have children
-		int refinement_level = this->get_refinement_level(cell);
-		if (refinement_level >= this->max_refinement_level) {
-			return children;
-		}
-
-		children.reserve(8);
-
-		Types<3>::indices_t indices = this->get_indices(cell);
-
-		// get indices of next refinement level within this cell
-		refinement_level++;
-		const uint64_t index_offset = (uint64_t(1) << (this->max_refinement_level - refinement_level));
-
-		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
-		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
-		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
-			children.push_back(
-				this->get_cell_from_indices(
-					indices[0] + x_index_offset,
-					indices[1] + y_index_offset,
-					indices[2] + z_index_offset,
-					refinement_level
-				)
-			);
-		}
-
-		return children;
 	}
 
 

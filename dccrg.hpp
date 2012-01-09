@@ -1137,6 +1137,10 @@ public:
 	 */
 	void refine_completely(const uint64_t cell)
 	{
+		if (cell == error_cell) {
+			return;
+		}
+
 		if (this->cell_process.count(cell) == 0) {
 			return;
 		}
@@ -1151,17 +1155,41 @@ public:
 			return;
 		}
 
+		// not if cell has children
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
 		if (refinement_level == this->max_refinement_level) {
 			this->dont_unrefine(cell);
 			return;
 		}
 
-		if (cell != this->get_child(cell)) {
-			// cell already has children
-			return;
+		this->cells_to_refine.insert(cell);
+
+		// override local unrefines
+		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
+		BOOST_FOREACH(uint64_t sibling, siblings) {
+			this->cells_to_unrefine.erase(sibling);
 		}
 
-		this->cells_to_refine.insert(cell);
+		BOOST_FOREACH(uint64_t neighbor, this->neighbours.at(cell)) {
+			if (this->get_refinement_level(neighbor) <= refinement_level) {
+				const std::vector<uint64_t> neighbor_siblings = this->get_all_children(this->get_parent(neighbor));
+				BOOST_FOREACH(uint64_t sibling, neighbor_siblings) {
+					this->cells_to_unrefine.erase(sibling);
+				}
+			}
+		}
+
+		BOOST_FOREACH(uint64_t neighbor, this->neighbours_to.at(cell)) {
+			if (this->get_refinement_level(neighbor) <= refinement_level) {
+				const std::vector<uint64_t> neighbor_siblings = this->get_all_children(this->get_parent(neighbor));
+				BOOST_FOREACH(uint64_t sibling, neighbor_siblings) {
+					this->cells_to_unrefine.erase(sibling);
+				}
+			}
+		}
 	}
 
 	/*!
@@ -1193,6 +1221,10 @@ public:
 	*/
 	void unrefine_completely(const uint64_t cell)
 	{
+		if (cell == error_cell) {
+			return;
+		}
+
 		if (this->cell_process.count(cell) == 0) {
 			return;
 		}
@@ -1205,20 +1237,61 @@ public:
 			return;
 		}
 
-		if (cell != this->get_child(cell)) {
-			// cell already has children
-			return;
-		}
-
-		// record only one sibling to unrefine / process
 		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
 
+		// don't unrefine if any sibling...
 		BOOST_FOREACH(uint64_t sibling, siblings) {
-			if (this->cells_to_unrefine.count(sibling) > 0) {
+
+			// ...has children
+			if (sibling != this->get_child(sibling)) {
 				return;
 			}
 
-			if (this->cells_not_to_unrefine.count(sibling) > 0) {
+			// ...cannot be unrefined
+			if (this->cells_to_refine.count(sibling) > 0
+			|| this->cells_not_to_unrefine.count(sibling) > 0) {
+				return;
+			}
+		}
+
+		// unrefinement succeeds if parent of unrefined will fulfill requirements
+		const uint64_t parent = this->get_parent(cell);
+		const int refinement_level = this->get_refinement_level(parent);
+
+		#ifdef DEBUG
+		if (parent == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
+			abort();
+		}
+
+		if (refinement_level < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for parent" << std::endl;
+			abort();
+		}
+		#endif
+
+		const std::vector<uint64_t> neighbors = this->find_neighbours_of(parent, 2, true);
+
+		// TODO: same as in override_unrefines()
+		const int max_diff = 1;
+
+		BOOST_FOREACH(uint64_t neighbor, neighbors) {
+
+			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+
+			if (neighbor_ref_lvl > refinement_level + max_diff) {
+				return;
+			}
+
+			if (neighbor_ref_lvl == refinement_level + max_diff
+			&& this->cells_to_refine.count(neighbor) > 0) {
+				return;
+			}
+		}
+
+		// record only one sibling to unrefine / process
+		BOOST_FOREACH(uint64_t sibling, siblings) {
+			if (this->cells_to_unrefine.count(sibling) > 0) {
 				return;
 			}
 		}
@@ -1254,6 +1327,10 @@ public:
 	*/
 	void dont_unrefine(const uint64_t cell)
 	{
+		if (cell == error_cell) {
+			return;
+		}
+
 		if (this->cell_process.count(cell) == 0) {
 			return;
 		}
@@ -1273,13 +1350,14 @@ public:
 
 		// record only one sibling / process
 		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
-
 		BOOST_FOREACH(uint64_t sibling, siblings) {
 			if (this->cells_not_to_unrefine.count(sibling) > 0) {
 				return;
 			}
+		}
 
-			// remove siblings from local unrefines
+		// override local unrefines
+		BOOST_FOREACH(uint64_t sibling, siblings) {
 			this->cells_to_unrefine.erase(sibling);
 		}
 
@@ -1482,20 +1560,31 @@ public:
 
 
 	/*!
-	Returns the existing neighbours (that don't have children) of given cell even if it is on another process.
+	Returns the existing neighbours (that don't have children) of given cell.
 
+	max_diff is the distance to search in refinement level from given cell inclusive.
 	Returns nothing if the following cases:
 		-given cell has children
-		-given doesn't exist on any process
-	Doesn't use existing neighbour lists and hence is slow but works if for example given cell was moved to another process by load balancing.
+		-given doesn't exist
+	Doesn't use existing neighbour lists and hence is slow but works if for example
+	given cell was moved to another process by load balancing.
+	TODO: make private?
 	*/
-	std::vector<uint64_t> find_neighbours_of(const uint64_t cell) const
-	{
+	std::vector<uint64_t> find_neighbours_of(
+		const uint64_t cell,
+		const int max_diff = 1,
+		const bool has_children = false
+	) const {
 		std::vector<uint64_t> return_neighbours;
 
 		const int refinement_level = this->get_refinement_level(cell);
 
 		#ifdef DEBUG
+		if (max_diff < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " max_diff must not be negative" << std::endl;
+			abort();
+		}
+
 		if (cell == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given: " << cell << std::endl;
 			abort();
@@ -1516,13 +1605,15 @@ public:
 			return return_neighbours;
 		}
 
-		if (cell != this->get_child(cell)) {
+		if (!has_children && cell != this->get_child(cell)) {
 			return return_neighbours;
 		}
 
+		const uint64_t cell_size = this->get_cell_size_in_indices(cell);
+
 		const std::vector<Types<3>::indices_t> indices_of = this->indices_from_neighbourhood(
 			this->get_indices(cell),
-			this->get_cell_size_in_indices(cell),
+			cell_size,
 			&(this->neighbourhood_of)
 		);
 
@@ -1535,19 +1626,38 @@ public:
 
 			const uint64_t neighbor = this->get_existing_cell(
 				index_of,
-				(refinement_level == 0)
-					? 0 : refinement_level - 1,
-				(refinement_level < this->max_refinement_level)
-					? refinement_level + 1 : this->max_refinement_level
+				(refinement_level < max_diff)
+					? 0 : refinement_level - max_diff,
+				(refinement_level <= this->max_refinement_level - max_diff)
+					? refinement_level + max_diff : this->max_refinement_level
 			);
 
 			#ifdef DEBUG
 			if (neighbor == 0) {
+				const Types<3>::indices_t indices = this->get_indices(cell);
+				const uint64_t smallest = this->get_existing_cell(index_of, 0, this->max_refinement_level);
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor not found for cell " << cell
-					<< " (ref. lvl. " << refinement_level
-					<< ") within refinement levels [" << refinement_level - 1
-					<< ", " << refinement_level + 1 << "]"
+					<< " (at indices " << indices[0]
+					<< "," << indices[1]
+					<< "," << indices[2]
+					<< "; ref. lvl. " << refinement_level
+					<< ", child of " << this->get_parent(cell)
+					<< ") within refinement levels [" << refinement_level - max_diff
+					<< ", " << refinement_level + max_diff
+					<< "], smallest cell found at indices " << index_of[0]
+					<< "," << index_of[1]
+					<< "," << index_of[2]
+					<< " was " << smallest
+					<< " with refinement level " << this->get_refinement_level(smallest)
+					<< std::endl;
+				abort();
+			}
+
+			if (this->cell_process.count(neighbor) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor " << neighbor
+					<< " doesn't exist"
 					<< std::endl;
 				abort();
 			}
@@ -1569,25 +1679,76 @@ public:
 				return_neighbours.push_back(neighbor);
 			// add all cells at current search indices within size of given cell
 			} else {
-				std::vector<uint64_t> siblings = this->get_siblings(neighbor);
+
+				const Types<3>::indices_t index_max = {
+					index_of[0] + cell_size - 1,
+					index_of[1] + cell_size - 1,
+					index_of[2] + cell_size - 1
+				};
+
+				const std::vector<uint64_t> current_neighbors = this->find_cells(
+					index_of,
+					index_max,
+					std::max(0, refinement_level - max_diff),
+					std::min(this->max_refinement_level, refinement_level + max_diff)
+				);
 
 				#ifdef DEBUG
-				if (siblings.size() == 0) {
+				if (current_neighbors.size() == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< " No siblings for neighbor " << neighbor
-						<< " of cell " << cell
-						<< " at indices " << index_of[0]
+						<< " No neighbors for cell " << cell
+						<< " starting at indices " << index_of[0]
 						<< ", " << index_of[1]
 						<< ", " << index_of[2]
+						<< " between refinement levels " << refinement_level - max_diff
+						<< ", " << refinement_level + max_diff
 						<< std::endl;
 					abort();
+				}
+
+				if (current_neighbors.size() < 8) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Too few neighbors for cell " << cell
+						<< " of size " << cell_size
+						<< " with max_diff " << max_diff
+						<< std::endl;
+
+					std::cerr << "Found: ";
+					BOOST_FOREACH(uint64_t found, current_neighbors) {
+						std::cerr << found << " ";
+					}
+
+					std::cerr << "\nShould be: ";
+					const std::vector<uint64_t> real_neighbors = this->find_cells(
+						index_of,
+						index_max,
+						0,
+						this->max_refinement_level
+					);
+					BOOST_FOREACH(uint64_t real, real_neighbors) {
+						std::cerr << real << " ";
+					}
+					std::cerr << std::endl;
+
+					abort();
+				}
+
+				BOOST_FOREACH(uint64_t current_neighbor, current_neighbors) {
+					if (this->cell_process.count(current_neighbor) == 0) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Neighbor " << current_neighbor
+							<< " doesn't exist between refinement levels " << refinement_level - max_diff
+							<< ", " << refinement_level + max_diff
+							<< std::endl;
+						abort();
+					}
 				}
 				#endif
 
 				return_neighbours.insert(
 					return_neighbours.end(),
-					siblings.begin(),
-					siblings.end()
+					current_neighbors.begin(),
+					current_neighbors.end()
 				);
 			}
 		}
@@ -1830,22 +1991,28 @@ public:
 	Returns unique cells within given rectangular box and refinement levels (both inclusive).
 
 	Cells within given volume are always returned in the following order:
-	Starting from the corner closest to the starting corner of the grid cells are returned first in the positive x direction then y direction and finally z direction.
+	Starting from the corner closest to the starting corner of the grid cells are returned
+	first in the positive x direction then y direction and finally z direction.
 	*/
+	// TODO: make private?
 	std::vector<uint64_t> find_cells
 	(
 		const Types<3>::indices_t indices_min,
 		const Types<3>::indices_t indices_max,
 		const int minimum_refinement_level,
 		const int maximum_refinement_level
-	) const
-	{
+	) const {
 		// size of cells in indices of given maximum_refinement_level
 		const uint64_t index_increase = uint64_t(1) << (this->max_refinement_level - maximum_refinement_level);
 
 		#ifdef DEBUG
 		if (minimum_refinement_level > maximum_refinement_level) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement levels given" << std::endl;
+			abort();
+		}
+
+		if (maximum_refinement_level > this->max_refinement_level) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid maximum refinement level given" << std::endl;
 			abort();
 		}
 
@@ -1874,13 +2041,31 @@ public:
 		for (indices[1] = indices_min[1]; indices[1] <= indices_max[1]; indices[1] += index_increase)
 		for (indices[0] = indices_min[0]; indices[0] <= indices_max[0]; indices[0] += index_increase) {
 
-			const uint64_t cell = this->get_cell_from_indices(indices, minimum_refinement_level, maximum_refinement_level);
+			const uint64_t cell = this->get_existing_cell(indices, minimum_refinement_level, maximum_refinement_level);
 
 			#ifdef DEBUG
 			if (cell == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " No cell found between refinement levels [" << minimum_refinement_level << ", " << maximum_refinement_level << "] at indices " << indices[0] << " " << indices[1] << " " << indices[2] << std::endl;
-				const uint64_t smallest = this->get_cell_from_indices(indices, 0, this->max_refinement_level);
-				std::cerr << __FILE__ << ":" << __LINE__ << " smallest cell there is " << smallest << " with refinement level " << this->get_refinement_level(smallest) << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No cell found between refinement levels [" << minimum_refinement_level
+					<< ", " << maximum_refinement_level
+					<< "] at indices " << indices[0]
+					<< " " << indices[1]
+					<< " " << indices[2]
+					<< std::endl;
+
+				const uint64_t smallest = this->get_existing_cell(indices, 0, this->max_refinement_level);
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " smallest cell there is " << smallest
+					<< " with refinement level " << this->get_refinement_level(smallest)
+					<< std::endl;
+				abort();
+			}
+
+			if (this->cell_process.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << cell
+					<< " doesn't exist"
+					<< std::endl;
 				abort();
 			}
 
@@ -1891,7 +2076,8 @@ public:
 			#endif
 
 			/*
-			When searching for neighbours_to, cells may exist with larger refinement level than given in find_neighbours_to and shouldn't be considered.
+			When searching for neighbours_to, cells may exist with larger refinement
+			level than given in find_neighbours_to and shouldn't be considered.
 			*/
 			if (cell != this->get_child(cell)) {
 				continue;
@@ -2386,6 +2572,79 @@ public:
 	}
 
 
+ 	/*!
+	Returns the siblings of given cell regardless of whether they exist.
+
+	If given a cell of refinement level 0 returns the given cell.
+	Returns nothing if given cell's refinement level exceeds the maximum of this grid.
+	*/
+	std::vector<uint64_t> get_siblings(const uint64_t cell) const
+	{
+		std::vector<uint64_t> siblings;
+
+		const int refinement_level = this->get_refinement_level(cell);
+		if (refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
+			return siblings;
+		}
+
+		if (refinement_level == 0) {
+			siblings.push_back(cell);
+			return siblings;
+		}
+
+		return this->get_all_children(this->get_parent(cell));
+	}
+
+
+	/*!
+	Returns all children of given cell regardless of whether they exist.
+
+	Returns nothing if childrens' refinement level would exceed max_refinement_level or
+	given cell doesn't exist.
+	 */
+	std::vector<uint64_t> get_all_children(const uint64_t cell) const
+	{
+		std::vector<uint64_t> children;
+
+		if (cell == error_cell) {
+			return children;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return children;
+		}
+
+		// given cell cannot have children
+		int refinement_level = this->get_refinement_level(cell);
+		if (refinement_level >= this->max_refinement_level) {
+			return children;
+		}
+
+		children.reserve(8);
+
+		Types<3>::indices_t indices = this->get_indices(cell);
+
+		// get indices of next refinement level within this cell
+		refinement_level++;
+		const uint64_t index_offset = (uint64_t(1) << (this->max_refinement_level - refinement_level));
+		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
+		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
+		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
+			children.push_back(
+				this->get_cell_from_indices(
+					indices[0] + x_index_offset,
+					indices[1] + y_index_offset,
+					indices[2] + z_index_offset,
+					refinement_level
+				)
+			);
+		}
+
+		return children;
+	}
+
+
 
 private:
 
@@ -2490,6 +2749,7 @@ private:
 	boost::unordered_set<std::string> reserved_options;
 
 	boost::unordered_map<uint64_t, double> cell_weights;
+
 
 
 	/*!
@@ -3417,13 +3677,14 @@ private:
 
 
 	/*!
-	Given a cell that exists and has children returns one of the children
-	Returns the given cell if it doesn't have children or 0 if the cell doesn't exist
+	Given a cell that exists and has children returns one of the children.
+
+	Returns the given cell if it doesn't have children or error_cell if the cell doesn't exist.
 	*/
 	uint64_t get_child(const uint64_t cell) const
 	{
 		if (this->cell_process.count(cell) == 0) {
-			return 0;
+			return error_cell;
 		}
 
 		const int refinement_level = this->get_refinement_level(cell);
@@ -3555,7 +3816,7 @@ private:
 			unique_induced_refines.clear();
 		}
 
-		// reduce future global communication by adding refines from all processes to cells_to_refine
+		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		std::vector<std::vector<uint64_t> > all_refines;
 		all_gather(this->comm, refines, all_refines);
@@ -3580,7 +3841,7 @@ private:
 				if (this->get_refinement_level(neighbour_of) < this->get_refinement_level(refined)
 				&& this->cells_to_refine.count(neighbour_of) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbour (" << neighbour_of
+						<< " Neighbor (" << neighbour_of
 						<< ") of cell that will be refined (" << refined
 						<< ", ref lvl " << this->get_refinement_level(refined)
 						<< ") has too small refinement level: " << this->get_refinement_level(neighbour_of)
@@ -3600,7 +3861,7 @@ private:
 				if (this->get_refinement_level(neighbour_to) < this->get_refinement_level(refined)
 				&& this->cells_to_refine.count(neighbour_to) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbour (" << neighbour_to
+						<< " Neighbor (" << neighbour_to
 						<< ") of cell that will be refined (" << refined
 						<< ", ref lvl " << this->get_refinement_level(refined)
 						<< ") has too small refinement level: " << this->get_refinement_level(neighbour_to)
@@ -3637,49 +3898,68 @@ private:
 
 
 	/*!
-	Removes cells from cells_to_unrefine in order to enforce maximum refinement level difference of one between neighbours (also across processes).
+	Overrides local unrefines based on global refines.
 
+	Removes cells from cells_to_unrefine in order to enforce maximum refinement level
+	difference of one between neighbors.
 	cells_to_refine and cells_not_to_unrefine must be identical between processes.
 	After this function cells_to_unrefine will contain the unrefines of all processes.
 	*/
 	void override_unrefines(void)
 	{
-		// unrefines that were not overridden by refines or too small neighbours
+		/*
+		TODO: make this a function of maximum allowed difference in refinement levels
+			between neighbors. Set a grid initialization time?
+		*/
+		const int max_diff = 1;
+
+		// unrefines that were not overridden
 		boost::unordered_set<uint64_t> final_unrefines;
 
+		// don't unrefine if...
 		BOOST_FOREACH(uint64_t unrefined, this->cells_to_unrefine) {
 
+			bool can_unrefine = true;
+
 			#ifdef DEBUG
-			if (unrefined == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell to unrefine" << std::endl;
+			if (parent == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
+				abort();
+			}
+
+			if (refinement_level < 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for parent" << std::endl;
 				abort();
 			}
 			#endif
 
-			bool can_unrefine = true;
+			// ...any sibling cannot be
+			const uint64_t parent = this->get_parent(unrefined);
+			const std::vector<uint64_t> siblings = this->get_all_children(parent);
 
-			// any sibling being refined will override this unrefine
-			const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(unrefined));
 			BOOST_FOREACH(uint64_t sibling, siblings) {
 				if (this->cells_to_refine.count(sibling) > 0
-				// don't unrefine if requested not to
 				|| this->cells_not_to_unrefine.count(sibling) > 0) {
 					can_unrefine = false;
 					break;
 				}
 			}
 
-			// TODO improve performance by first using local neighbour lists to override unrefines
-			std::vector<uint64_t> neighbours_of_parent = this->find_neighbours_of(this->get_parent(unrefined));
-			BOOST_FOREACH(uint64_t neighbour_of_parent, neighbours_of_parent) {
+			if (!can_unrefine) {
+				continue;
+			}
 
-				if (this->get_refinement_level(neighbour_of_parent) < this->get_refinement_level(unrefined)) {
-					can_unrefine = false;
-					break;
-				}
+			// ...parent of unrefined wouldn't fulfill requirements
+			const int refinement_level = this->get_refinement_level(parent);
 
-				if (this->cells_to_refine.count(neighbour_of_parent) > 0
-				&& this->get_refinement_level(neighbour_of_parent) <= this->get_refinement_level(unrefined)) {
+			const std::vector<uint64_t> neighbors = this->find_neighbours_of(parent, 2, true);
+
+			BOOST_FOREACH(uint64_t neighbor, neighbors) {
+
+				const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+
+				if (neighbor_ref_lvl == refinement_level + max_diff
+				&& this->cells_to_refine.count(neighbor) > 0) {
 					can_unrefine = false;
 					break;
 				}
@@ -3691,7 +3971,7 @@ private:
 		}
 		this->cells_to_unrefine.clear();
 
-		// reduce future global communication by adding unrefines from all processes to cells_to_unrefine
+		// add unrefines from all processes to cells_to_unrefine
 		std::vector<uint64_t> unrefines(final_unrefines.begin(), final_unrefines.end());
 		std::vector<std::vector<uint64_t> > all_unrefines;
 		all_gather(this->comm, unrefines, all_unrefines);
@@ -3701,9 +3981,73 @@ private:
 		}
 
 		#ifdef DEBUG
+		// check that maximum refinement level difference between future neighbors <= 1
+		BOOST_FOREACH(uint64_t unrefined, this->cells_to_unrefine) {
+
+			if (unrefined != this->get_child(unrefined)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has children"
+					<< std::endl;
+				abort();
+			}
+
+			if (this->cell_process.count(unrefined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " to be unrefined doesn't exist"
+					<< std::endl;
+				abort();
+			}
+
+			if (this->cell_process.at(unrefined) == this->comm.rank()
+			&& this->cells.count(unrefined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " to be unrefined has no data"
+					<< std::endl;
+				abort();
+			}
+
+			const int ref_lvl = this->get_refinement_level(unrefined);
+
+			// neighbours_of
+			const std::vector<uint64_t> neighbors = this->find_neighbours_of(this->get_parent(unrefined), 2, true);
+
+			BOOST_FOREACH(uint64_t neighbor, neighbors) {
+
+				if (neighbor == 0) {
+					continue;
+				}
+
+				const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+
+				if (neighbor_ref_lvl > ref_lvl) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbor " << neighbor
+						<< " of cell that will be unrefined (" << unrefined
+						<< ", ref lvl " << ref_lvl
+						<< ") has too large refinement level: " << neighbor_ref_lvl
+						<< std::endl;
+					abort();
+				}
+
+				if (neighbor_ref_lvl == ref_lvl
+				&& this->cells_to_refine.count(neighbor) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbor " << neighbor
+						<< " of cell that will be unrefined (" << unrefined
+						<< ", ref lvl " << ref_lvl
+						<< ") is identical in size and will be refined"
+						<< std::endl;
+					abort();
+				}
+			}
+		}
+
 		if (!this->is_consistent()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
-			exit(EXIT_FAILURE);
+			abort();
 		}
 		#endif
 	}
@@ -3802,7 +4146,8 @@ private:
 			}
 
 
-			if (this->neighbours.count(refined) == 0) {
+			if (this->cell_process.at(refined) == this->comm.rank()
+			&& this->neighbours.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor list for cell " << refined
 					<< " doesn't exist"
@@ -3810,7 +4155,8 @@ private:
 				abort();
 			}
 
-			if (this->neighbours_to.count(refined) == 0) {
+			if (this->cell_process.at(refined) == this->comm.rank()
+			&& this->neighbours_to.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor_to list for cell " << refined
 					<< " doesn't exist"
@@ -3907,6 +4253,14 @@ private:
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
 			#ifdef DEBUG
+			if (unrefined != this->get_child(unrefined)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has children"
+					<< std::endl;
+				abort();
+			}
+
 			if (parent_of_unrefined == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
 				abort();
@@ -3924,6 +4278,47 @@ private:
 			parents_of_unrefined.insert(parent_of_unrefined);
 
 			const std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
+
+			#ifdef DEBUG
+			bool unrefined_in_siblings = false;
+			BOOST_FOREACH(uint64_t sibling, siblings) {
+
+				if (this->cell_process.count(sibling) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+
+				if (sibling != this->get_child(sibling)) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " has has children"
+						<< std::endl;
+					abort();
+				}
+
+				if (this->cell_process.at(sibling) == this->comm.rank()
+				&& this->cells.count(sibling) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " has no data"
+						<< std::endl;
+					abort();
+				}
+
+				if (unrefined == sibling) {
+					unrefined_in_siblings = true;
+				}
+			}
+
+			if (!unrefined_in_siblings) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell to unrefine isn't its parent's child" << std::endl;
+				abort();
+			}
+			#endif
+
 			all_to_unrefine.insert(siblings.begin(), siblings.end());
 		}
 
@@ -3931,6 +4326,16 @@ private:
 		BOOST_FOREACH(uint64_t unrefined, all_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
+			#ifdef DEBUG
+			if (parent_of_unrefined == unrefined) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has no parent"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
 			const int process_of_parent = this->cell_process.at(parent_of_unrefined);
 			const int process_of_unrefined = this->cell_process.at(unrefined);
 
@@ -3944,6 +4349,17 @@ private:
 			// don't send unrefined cells' user data to self
 			if (this->comm.rank() == process_of_unrefined
 			&& this->comm.rank() == process_of_parent) {
+
+				#ifdef DEBUG
+				if (this->cells.count(unrefined) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << unrefined
+						<< " to be unrefined has no data"
+						<< std::endl;
+					abort();
+				}
+				#endif
+
 				// TODO move data instead of copying
 				this->unrefined_cell_data[unrefined] = this->cells.at(unrefined);
 				this->cells.erase(unrefined);
@@ -3974,6 +4390,24 @@ private:
 			/* TODO: skip unrefined cells far enough away
 			std::vector<uint64_t> children = this->get_all_children(*parent);
 			*/
+
+			#ifdef DEBUG
+			if (this->cell_process.count(parent) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Parent " << parent
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+
+			if (parent != this->get_child(parent)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Parent " << parent
+					<< " still has children"
+					<< std::endl;
+				abort();
+			}
+			#endif
 
 			const std::vector<uint64_t> new_neighbours_of = this->find_neighbours_of(parent);
 			BOOST_FOREACH(uint64_t neighbour, new_neighbours_of) {
