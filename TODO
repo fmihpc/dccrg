@@ -1,0 +1,7 @@
+Make dccrg even more modular:
+-separate stateless logic (doesn't consider whether cells exist or not)
+ into dccrg_index.hpp or similar with function names starting with get_.
+-separate serial stateful logic into a separate file with function names
+ starting with find_.
+-separate parallel logic into a separate file.
+-only put logic related to cell data into dccrg.hpp.
