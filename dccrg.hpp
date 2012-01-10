@@ -3461,6 +3461,10 @@ private:
 	*/
 	void update_neighbours(const uint64_t cell)
 	{
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
 		if (this->cell_process.at(cell) != this->comm.rank()) {
 			return;
 		}
@@ -3921,18 +3925,6 @@ private:
 
 			bool can_unrefine = true;
 
-			#ifdef DEBUG
-			if (parent == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
-				abort();
-			}
-
-			if (refinement_level < 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for parent" << std::endl;
-				abort();
-			}
-			#endif
-
 			// ...any sibling cannot be
 			const uint64_t parent = this->get_parent(unrefined);
 			const std::vector<uint64_t> siblings = this->get_all_children(parent);
@@ -3951,6 +3943,18 @@ private:
 
 			// ...parent of unrefined wouldn't fulfill requirements
 			const int refinement_level = this->get_refinement_level(parent);
+
+			#ifdef DEBUG
+			if (parent == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
+				abort();
+			}
+
+			if (refinement_level < 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for parent" << std::endl;
+				abort();
+			}
+			#endif
 
 			const std::vector<uint64_t> neighbors = this->find_neighbours_of(parent, 2, true);
 
@@ -4175,7 +4179,7 @@ private:
 			}
 
 			// add children of refined cells into the grid
-			std::vector<uint64_t> children = this->get_all_children(refined);
+			const std::vector<uint64_t> children = this->get_all_children(refined);
 			BOOST_FOREACH(uint64_t child, children) {
 				this->cell_process[child] = process_of_refined;
 
@@ -4236,10 +4240,22 @@ private:
 			}
 
 			// without using local neighbour lists figure out rest of the neighbour lists that need updating
-			BOOST_FOREACH(uint64_t with_remote_neighbour, this->cells_with_remote_neighbours) {
-				if (this->is_neighbour(with_remote_neighbour, refined)
-				|| this->is_neighbour(refined , with_remote_neighbour)) {
-					update_neighbours.insert(with_remote_neighbour);
+			if (this->remote_cells_with_local_neighbours.count(refined) > 0) {
+
+				/*
+				No need to update local neighbors_to of refined cell, if they are larger
+				they will also be refined and updated.
+				*/
+				const std::vector<uint64_t> neighbors = this->find_neighbours_of(refined, 2, true);
+
+				BOOST_FOREACH(uint64_t neighbor, neighbors) {
+					if (neighbor == 0) {
+						continue;
+					}
+
+					if (this->is_local(neighbor)) {
+						update_neighbours.insert(neighbor);
+					}
 				}
 			}
 		}
