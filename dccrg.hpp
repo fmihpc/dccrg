@@ -2748,6 +2748,7 @@ private:
 	// reserved options that the user cannot change
 	boost::unordered_set<std::string> reserved_options;
 
+	// optional user-given weights of cells on this process
 	boost::unordered_map<uint64_t, double> cell_weights;
 
 
@@ -2757,10 +2758,12 @@ private:
 
 	Recalculates neighbour lists, etc.
 	Must be called simultaneously on all processes.
+	Clears user-given weights of all cells.
 	*/
 	void move_cells(void) {
 		// TODO: get rid of added_cells and removed_cells and use cells_to_send and receive instead?
 
+		this->cell_weights.clear();
 		this->cells_with_remote_neighbours.clear();
 		this->remote_cells_with_local_neighbours.clear();
 		this->remote_neighbours.clear();
@@ -3104,8 +3107,6 @@ private:
 	*/
 	void make_new_partition(const bool use_zoltan)
 	{
-		this->cell_weights.clear();
-
 		this->update_pin_requests();
 
 		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
