@@ -2,7 +2,7 @@
 The mapping logic between cells' and their geometry (location, size and comparable stuff)
 in dccrg, arbitrary version.
 
-Copyright 2009, 2010, 2011 Finnish Meteorological Institute
+Copyright 2009, 2010, 2011, 2012 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
