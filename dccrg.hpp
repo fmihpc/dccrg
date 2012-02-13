@@ -631,7 +631,6 @@ public:
 	bool load(const std::vector<uint64_t>& cells)
 	{
 		// see for example http://www.informit.com/articles/article.aspx?p=376878&rll=1 for an explanation about template<template...
-		this->comm.barrier();
 
 		// calculate which cells must be refined...
 		boost::unordered_set<uint64_t> cells_to_refine;
@@ -760,7 +759,6 @@ public:
 	*/
 	void start_remote_neighbour_data_update(void)
 	{
-		this->comm.barrier();
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 		this->remote_neighbours
@@ -1391,7 +1389,6 @@ public:
 	*/
 	std::vector<uint64_t> stop_refining(void)
 	{
-		this->comm.barrier();
 		this->induce_refines();
 
 		// update dont_refines between processes
@@ -2389,7 +2386,6 @@ public:
 	*/
 	void unpin_all_cells(void)
 	{
-		this->comm.barrier();
 		this->new_pin_requests.clear();
 		this->pin_requests.clear();
 	}
