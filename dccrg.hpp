@@ -938,6 +938,7 @@ public:
 
 		const int refinement_level = this->get_refinement_level(cell);
 
+		// find cell(s) at given indices in the stored neighbor list
 		const int last_offset = (this->neighbourhood_size > 0) ? int(this->neighbourhood_size) : 1;
 		int index = 0;
 		for (int
@@ -973,6 +974,7 @@ public:
 			const int current_refinement_level = this->get_refinement_level(this->neighbours.at(cell)[index]);
 			if (i == current_i && j == current_j && k == current_k) {
 
+				// TODO check for 0 neighbor instead of error from get_refinement_level
 				if (current_refinement_level == -1) {
 					return_neighbors.push_back(0);
 				} else {
