@@ -85,7 +85,8 @@ template <class UserData, class UserGeometry = ConstantGeometry> class Dccrg : p
 
 public:
 
-	typedef typename std::pair<uint64_t, UserData> cell_and_data_pair_t;
+	// helper type for iterating over this->cells using BOOST_FOREACH
+	typedef typename std::pair<const uint64_t&, const UserData&> cell_and_data_pair_t;
 
 
 	/*!
