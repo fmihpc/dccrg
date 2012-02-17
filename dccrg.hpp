@@ -4638,6 +4638,7 @@ private:
 				MPI_Type_commit(&user_datatype);
 				#endif
 
+				// FIXME: check the return value
 				MPI_Isend(
 					this->cells.at(item->first).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
