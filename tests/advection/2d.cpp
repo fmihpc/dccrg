@@ -3,17 +3,17 @@ Advection equation solver program for testing dccrg.
 
 Copyright 2012 Finnish Meteorological Institute
 
-This program is free software: you can redistribute it and/or modify
+Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
 as published by the Free Software Foundation.
 
-This program is distributed in the hope that it will be useful,
+Dccrg is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 
 TODO:
@@ -40,27 +40,42 @@ but the used solver is probably the simplest possible.
 #include "../../dccrg.hpp"
 
 #include "cell.hpp"
+#include "save.hpp"
 
 using namespace std;
 using namespace boost::mpi;
 using namespace dccrg;
 
+#define GRID_START_X 0
+#define GRID_START_Y 0
+#define GRID_START_Z 0
+
+#define GRID_END_X 1.0
+#define GRID_END_Y 1.0
+#define GRID_END_Z 1.0
+
 
 double get_vx(const double y)
 {
 	return -y + 0.5;
-	//return 0.1;
 }
 
 double get_vy(const double x)
 {
 	return +x - 0.5;
-	//return 0.1;
 }
 
-double get_vz(void)
+double get_vz(const double /*a*/)
 {
 	return 0;
+}
+
+
+string get_output_file_name(const double time_step, const string& basename)
+{
+	ostringstream step_string;
+	step_string << setw(7) << setfill('0') << int(time_step * 1000) << "_ms";
+	return basename + step_string.str();
 }
 
 
@@ -69,15 +84,11 @@ Initializes the simulation's local cells and the copies of remote neighbors.
 
 Only z direction supported at the moment.
 */
-template<class CellData> void initial_condition(Dccrg<CellData>& grid) {
-	
+template<class CellData> void initial_condition(Dccrg<CellData>& grid)
+{
+	const vector<uint64_t> cells = grid.get_cells();
 	// initialize own cells
-	for (typename boost::unordered_map<uint64_t, CellData>::const_iterator
-		item = grid.begin();
-		item != grid.end();
-		item++
-	) {
-		const uint64_t cell_id = item->first;
+	BOOST_FOREACH(const uint64_t& cell_id, cells) {
 
 		CellData* cell = grid[cell_id];
 		if (cell == NULL) {
@@ -87,43 +98,38 @@ template<class CellData> void initial_condition(Dccrg<CellData>& grid) {
 			abort();
 		}
 
-		const double x = grid.get_cell_x(cell_id),
-			y = grid.get_cell_y(cell_id);
-
 		for (unsigned int i = 0; i < cell->data.size(); i++) {
 			cell->data[i] = 0;
 		}
 
-		/*if (x > 0.1 && x < 0.3
-		&& y > 0.1 && y < 0.3) {
-			cell->data[0] = 1;
-		}*/
+		const double x = grid.get_cell_x(cell_id),
+			y = grid.get_cell_y(cell_id),
+			//z = grid.get_cell_z(cell_id),
+			radius = 0.15;
 
-		// initial condition
-		const double radius = 0.15;
+		// velocities
+		cell->vx() = get_vx(y);
+		cell->vy() = get_vy(x);
+		cell->vz() = get_vz(0);
+
+		/*
+		Densities
+		*/
 
 		// smooth hump
 		const double hump_x0 = 0.25, hump_y0 = 0.5,
 			hump_r = min(sqrt(pow(x - hump_x0, 2.0) + pow(y - hump_y0, 2.0)), radius) / radius,
-			hump_value = 0.25 * (1 + cos(M_PI * hump_r));
+			hump_density = 0.25 * (1 + cos(M_PI * hump_r));
 
-		// slotted disk
+		// TODO: slotted disk
 		//const double disk_x0 = 0.5, disk_y0 = 0.75;
-		// rotating cone
+		// TODO: rotating cone
 		//const double cone_x0 = 0.5, cone_y0 = 0.25;
 
-		cell->data[0] = hump_value;
+		cell->density() = hump_density;
 	}
 
 	grid.update_remote_neighbour_data();
-}
-
-
-string get_output_file_name(const int time_step, const string& basename)
-{
-	ostringstream step_string;
-	step_string << setw(7) << setfill('0') << time_step;
-	return basename + step_string.str();
 }
 
 
@@ -401,14 +407,13 @@ template<class CellData> void get_neighbor_directions(
 Calculates fluxes into and out of given local cells.
 
 The total flux to copies of remote neihghbors will be incorrect.
-FIXME: AMR case
 */
 template<class CellData> void solve(
 	const double dt,
 	const std::vector<uint64_t>& cells,
 	Dccrg<CellData>& grid
 ) {
-	BOOST_FOREACH(uint64_t cell, cells) {
+	BOOST_FOREACH(const uint64_t& cell, cells) {
 
 		if (!grid.is_local(cell)) {
 			cerr << __FILE__ << ":" << __LINE__
@@ -424,7 +429,7 @@ template<class CellData> void solve(
 			abort();
 		}
 
-		const double cell_value = cell_data->data[0],
+		const double cell_density = cell_data->density(),
 			cell_x_size = grid.get_cell_x_size(cell),
 			cell_y_size = grid.get_cell_y_size(cell),
 			cell_z_size = grid.get_cell_z_size(cell),
@@ -447,30 +452,28 @@ template<class CellData> void solve(
 				abort();
 			}
 
-			const double neighbor_value = neighbor_data->data[0],
+			const double neighbor_density = neighbor_data->density(),
 				neighbor_x_size = grid.get_cell_x_size(neighbor),
 				neighbor_y_size = grid.get_cell_y_size(neighbor),
 				neighbor_z_size = grid.get_cell_z_size(neighbor),
 				neighbor_volume = neighbor_x_size * neighbor_y_size * neighbor_z_size;
 
-			const double volume = min(cell_volume, neighbor_volume);
-
 			// get area shared between cell and current neighbor
-			double area = -1;
+			double min_area = -1;
 			switch (direction) {
 			case POS_X:
 			case NEG_X:
-				area = min(cell_y_size * cell_z_size, neighbor_y_size * neighbor_z_size);
+				min_area = min(cell_y_size * cell_z_size, neighbor_y_size * neighbor_z_size);
 				break;
 
 			case POS_Y:
 			case NEG_Y:
-				area = min(cell_x_size * cell_z_size, neighbor_x_size * neighbor_z_size);
+				min_area = min(cell_x_size * cell_z_size, neighbor_x_size * neighbor_z_size);
 				break;
 
 			case POS_Z:
 			case NEG_Z:
-				area = min(cell_x_size * cell_y_size, neighbor_x_size * neighbor_y_size);
+				min_area = min(cell_x_size * cell_y_size, neighbor_x_size * neighbor_y_size);
 				break;
 			}
 
@@ -481,45 +484,58 @@ template<class CellData> void solve(
 			// positive flux through a face goes into positive direction
 			double flux = 0;
 
-			// location of face between cell and its current neighbor
-			double x = 0, y = 0;
+			// velocity interpolated to shared face
+			const double vx = (cell_x_size * neighbor_data->vx() + neighbor_x_size * cell_data->vx()) / (cell_x_size + neighbor_x_size),
+				vy = (cell_y_size * neighbor_data->vy() + neighbor_y_size * cell_data->vy()) / (cell_y_size + neighbor_y_size),
+				vz = (cell_z_size * neighbor_data->vz() + neighbor_z_size * cell_data->vz()) / (cell_z_size + neighbor_z_size);
 
-			double value = 0, vx = 0, vy = 0;
 			switch (direction) {
 			case POS_X:
-				y = grid.get_cell_y(cell);
-				vx = get_vx(y);
-				value = (vx >= 0) ? cell_value : neighbor_value;
-				flux = value * (dt * vx * area / volume);
+				if (vx >= 0) {
+					flux = cell_density * dt * vx * min_area;
+				} else {
+					flux = neighbor_density * dt * vx * min_area;
+				}
 				break;
 
 			case POS_Y:
-				x = grid.get_cell_x(cell);
-				vy = get_vy(x);
-				value = (vy >= 0) ? cell_value : neighbor_value;
-				flux = value * (dt * vy * area / volume);
+				if (vy >= 0) {
+					flux = cell_density * dt * vy * min_area;
+				} else {
+					flux = neighbor_density * dt * vy * min_area;
+				}
 				break;
 
 			case POS_Z:
-				// no flux in z direction
+				if (vz >= 0) {
+					flux = cell_density * dt * vz * min_area;
+				} else {
+					flux = neighbor_density * dt * vz * min_area;
+				}
 				break;
 
 			case NEG_X:
-				y = grid.get_cell_y(cell);
-				vx = get_vx(y);
-				value = (vx >= 0) ? neighbor_value : cell_value;
-				flux = value * (dt * vx * area / volume);
+				if (vx >= 0) {
+					flux = neighbor_density * dt * vx * min_area;
+				} else {
+					flux = cell_density * dt * vx * min_area;
+				}
 				break;
 
 			case NEG_Y:
-				x = grid.get_cell_x(cell);
-				vy = get_vy(x);
-				value = (vy >= 0) ? neighbor_value : cell_value;
-				flux = value * (dt * vy * area / volume);
+				if (vy >= 0) {
+					flux = neighbor_density * dt * vy * min_area;
+				} else {
+					flux = cell_density * dt * vy * min_area;
+				}
 				break;
 
 			case NEG_Z:
-				// no flux in z direction
+				if (vz >= 0) {
+					flux = neighbor_density * dt * vz * min_area;
+				} else {
+					flux = cell_density * dt * vz * min_area;
+				}
 				break;
 			}
 
@@ -528,15 +544,15 @@ template<class CellData> void solve(
 			case POS_X:
 			case POS_Y:
 			case POS_Z:
-				cell_data->data[1] -= flux;
-				neighbor_data->data[1] += flux;
+				cell_data->flux() -= flux / cell_volume;
+				neighbor_data->flux() += flux / neighbor_volume;
 				break;
 
 			case NEG_X:
 			case NEG_Y:
 			case NEG_Z:
-				cell_data->data[1] += flux;
-				neighbor_data->data[1] -= flux;
+				cell_data->flux() += flux / cell_volume;
+				neighbor_data->flux() -= flux / neighbor_volume;
 				break;
 			}
 		}
@@ -551,7 +567,7 @@ template<class CellData> void apply_fluxes(Dccrg<CellData>& grid)
 {
 	const vector<uint64_t> cells = grid.get_cells();
 
-	BOOST_FOREACH(uint64_t cell, cells) {
+	BOOST_FOREACH(const uint64_t& cell, cells) {
 		CellData* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -560,8 +576,8 @@ template<class CellData> void apply_fluxes(Dccrg<CellData>& grid)
 			abort();
 		}
 
-		cell_data->data[0] += cell_data->data[1];
-		cell_data->data[1] = 0;
+		cell_data->density() += cell_data->flux();
+		cell_data->flux() = 0;
 	}
 }
 
@@ -597,16 +613,7 @@ template<class CellData> void check_for_adaptation(
 
 	const vector<uint64_t> cells = grid.get_cells();
 
-	// maximum relative difference between local cells and their neighbors
-	boost::unordered_map<uint64_t, double> max_diffs;
-
-	BOOST_FOREACH(uint64_t cell, cells) {
-		max_diffs[cell] = 0;
-	}
-
-	// collect maximum relative differences
-	BOOST_FOREACH(uint64_t cell, cells) {
-
+	BOOST_FOREACH(const uint64_t& cell, cells) {
 		CellData* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			cerr << __FILE__ << ":" << __LINE__
@@ -615,12 +622,20 @@ template<class CellData> void check_for_adaptation(
 			abort();
 		}
 
+		cell_data->max_diff() = 0;
+	}
+
+	// collect maximum relative differences
+	BOOST_FOREACH(const uint64_t& cell, cells) {
+
+		CellData* cell_data = grid[cell];
+
 		// get neighbors with which to compare
 		vector<uint64_t> neighbors_to_compare;
 		vector<direction_t> directions;
 		get_neighbor_directions<CellData>(neighbors_to_compare, directions, cell, grid);
 
-		BOOST_FOREACH(uint64_t neighbor, neighbors_to_compare) {
+		BOOST_FOREACH(const uint64_t& neighbor, neighbors_to_compare) {
 
 			CellData* neighbor_data = grid[neighbor];
 			if (neighbor_data == NULL) {
@@ -630,18 +645,19 @@ template<class CellData> void check_for_adaptation(
 				abort();
 			}
 
-			const double diff = fabs(cell_data->data[0] - neighbor_data->data[0]) / (min(cell_data->data[0], neighbor_data->data[0]) + diff_threshold);
-			max_diffs.at(cell) = std::max(diff, max_diffs.at(cell));
+			const double diff = fabs(cell_data->density() - neighbor_data->density())
+				/ (min(cell_data->density(), neighbor_data->density()) + diff_threshold);
+			cell_data->max_diff() = std::max(diff, cell_data->max_diff());
 
 			// maximize diff for local neighbor
-			if (max_diffs.count(neighbor) > 0) {
-				max_diffs.at(neighbor) = std::max(diff, max_diffs.at(neighbor));
+			if (grid.is_local(neighbor)) {
+				neighbor_data->max_diff() = std::max(diff, neighbor_data->max_diff());
 			}
 		}
 	}
 
 	// decide whether to refine or unrefine cells
-	BOOST_FOREACH(uint64_t cell, cells) {
+	BOOST_FOREACH(const uint64_t& cell, cells) {
 
 		const int refinement_level = grid.get_refinement_level(cell);
 
@@ -657,14 +673,16 @@ template<class CellData> void check_for_adaptation(
 			abort();
 		}
 
-		const double diff = max_diffs.at(cell);
+		CellData* cell_data = grid[cell];
+
+		const double diff = cell_data->max_diff();
 
 		// refine
 		if (diff > refine_diff) {
 
 			cells_to_refine.insert(cell);
 
-			BOOST_FOREACH(uint64_t sibling, siblings) {
+			BOOST_FOREACH(const uint64_t& sibling, siblings) {
 				cells_to_unrefine.erase(sibling);
 				cells_not_to_unrefine.erase(sibling);
 			}
@@ -674,7 +692,7 @@ template<class CellData> void check_for_adaptation(
 
 			bool dont_unrefine = true;
 
-			BOOST_FOREACH(uint64_t sibling, siblings) {
+			BOOST_FOREACH(const uint64_t& sibling, siblings) {
 				if (cells_to_refine.count(sibling) > 0
 				|| cells_not_to_unrefine.count(sibling) > 0) {
 					dont_unrefine = false;
@@ -685,7 +703,7 @@ template<class CellData> void check_for_adaptation(
 			if (dont_unrefine && grid.get_refinement_level(cell) > 0) {
 				cells_not_to_unrefine.insert(cell);
 
-				BOOST_FOREACH(uint64_t sibling, siblings) {
+				BOOST_FOREACH(const uint64_t& sibling, siblings) {
 					cells_to_unrefine.erase(sibling);
 				}
 			}
@@ -695,7 +713,7 @@ template<class CellData> void check_for_adaptation(
 
 			bool unrefine = true;
 
-			BOOST_FOREACH(uint64_t sibling, siblings) {
+			BOOST_FOREACH(const uint64_t& sibling, siblings) {
 				if (cells_to_refine.count(sibling) > 0
 				|| cells_not_to_unrefine.count(sibling) > 0) {
 					unrefine = false;
@@ -724,25 +742,33 @@ adapt_grid(
 	boost::unordered_set<uint64_t>& cells_to_unrefine,
 	Dccrg<CellData>& grid
 ) {
-	BOOST_FOREACH(uint64_t cell, cells_to_refine) {
+	if (grid.get_maximum_refinement_level() == 0) {
+		return std::make_pair(0, 0);
+	}
+
+	BOOST_FOREACH(const uint64_t& cell, cells_to_refine) {
 		grid.refine_completely(cell);
 	}
 	cells_to_refine.clear();
 
-	BOOST_FOREACH(uint64_t cell, cells_not_to_unrefine) {
+	BOOST_FOREACH(const uint64_t& cell, cells_not_to_unrefine) {
 		grid.dont_unrefine(cell);
 	}
 	cells_not_to_unrefine.clear();
 
-	BOOST_FOREACH(uint64_t cell, cells_to_unrefine) {
+	BOOST_FOREACH(const uint64_t& cell, cells_to_unrefine) {
 		grid.unrefine_completely(cell);
 	}
 	cells_to_unrefine.clear();
 
+	/*
+	Refines
+	*/
+
 	// assign parents' state to children
 	const vector<uint64_t> new_cells = grid.stop_refining();
 
-	BOOST_FOREACH(uint64_t new_cell, new_cells) {
+	BOOST_FOREACH(const uint64_t& new_cell, new_cells) {
 		CellData* new_cell_data = grid[new_cell];
 		if (new_cell_data == NULL) {
 			cerr << __FILE__ << ":" << __LINE__
@@ -759,19 +785,27 @@ adapt_grid(
 			abort();
 		}
 
-		new_cell_data->data[0] = parent_data->data[0];
-		new_cell_data->data[1] = 0;
+		new_cell_data->density() = parent_data->density();
+		new_cell_data->flux() = 0;
+		new_cell_data->vx() = get_vx(grid.get_cell_y(new_cell));
+		new_cell_data->vy() = get_vy(grid.get_cell_x(new_cell));
+		new_cell_data->vz() = 0;
 	}
 
-	// average parent cell's value from unrefined children
+	/*
+	Unrefines
+	*/
+
 	const vector<uint64_t> removed_cells = grid.get_removed_cells();
 
+	// optimize by gathering all parents of removed cells
 	boost::unordered_set<uint64_t> parents;
-	BOOST_FOREACH(uint64_t removed_cell, removed_cells) {
+	BOOST_FOREACH(const uint64_t& removed_cell, removed_cells) {
 		parents.insert(grid.get_parent_for_removed(removed_cell));
 	}
 
-	BOOST_FOREACH(uint64_t parent, parents) {
+	// initialize parent data
+	BOOST_FOREACH(const uint64_t& parent, parents) {
 		CellData* parent_data = grid[parent];
 		if (parent_data == NULL) {
 			cerr << __FILE__ << ":" << __LINE__
@@ -780,10 +814,15 @@ adapt_grid(
 			abort();
 		}
 
-		parent_data->data[0] = 0;
+		parent_data->density() = 0;
+		parent_data->flux() = 0;
+		parent_data->vx() = get_vx(grid.get_cell_y(parent));
+		parent_data->vy() = get_vy(grid.get_cell_x(parent));
+		parent_data->vz() = 0;
 	}
 
-	BOOST_FOREACH(uint64_t removed_cell, removed_cells) {
+	// average parents' density from their children
+	BOOST_FOREACH(const uint64_t& removed_cell, removed_cells) {
 
 		CellData* removed_cell_data = grid[removed_cell];
 		if (removed_cell_data == NULL) {
@@ -801,7 +840,7 @@ adapt_grid(
 			abort();
 		}
 
-		parent_data->data[0] += removed_cell_data->data[0] / 8;
+		parent_data->density() += removed_cell_data->density() / 8;
 	}
 
 	grid.clear_refined_unrefined_data();
@@ -811,225 +850,41 @@ adapt_grid(
 
 
 /*!
-Saves the given simulation as a .dc file of the given name.
+Returns the largest allowed global time step.
 
-Returns the number of bytes written by this process.
-Must be called simultaneously by all processes.
-
-Data is saved in parallel using one call to MPI_File_write_at_all.
+Must be called simultaneously on all processes.
+Assumes that cells of same refinement level have the same size
+per dimension.
 */
-template<class CellData> size_t save(
-	const string& filename,
+template<class CellData> double get_max_time_step(
 	communicator comm,
 	const Dccrg<CellData>& grid
 ) {
-	string header;
-	header += "2d advection test file\n\n";
-	header += "Data after end of header and a line break:\n";
-	header += "1 uint64_t 0x1234567890abcdef for checking endiannes of data\n";
-	header += "1 double   grid start coordinate in x direction\n";
-	header += "1 double   grid start coordinate in y direction\n";
-	header += "1 double   grid start coordinate in z direction\n";
-	header += "1 double   x size of unrefined spatial cells\n";
-	header += "1 double   y size of unrefined spatial cells\n";
-	header += "1 double   z size of unrefined spatial cells\n";
-	header += "1 uint64_t length of the grid in unrefined cells in x direction\n";
-	header += "1 uint64_t length of the grid in unrefined cells in y direction\n";
-	header += "1 uint64_t length of the grid in unrefined cells in z direction\n";
-	header += "1 uint8_t  maximum refinement level of the grid\n";
-	header += "1 uint64_t cell id\n";
-	header += "1 uint32_t cell process number\n";
-	header += "1 double   value\n";
-	header += "1 double   max relative difference in value between this cell and its neighbors\n";
-	header += "1 double   vx\n";
-	header += "1 double   vy\n";
-	header += "1 double   vz\n";
-	header += "1 uint64_t cell id\n";
-	header += "...\n";
-	header += "end of header\n";
-
-	// store max relative change for both neighboring cells if they are local
-	boost::unordered_map<uint64_t, double> max_diff;
-
-	// set output filename
-	string output_name(filename);
-	output_name += ".dc";
-
-	MPI_File outfile;
-
-	// MPI_File_open wants a non-constant string
-	char* output_name_c_string = new char [output_name.size() + 1];
-	output_name.copy(output_name_c_string, output_name.size());
-	output_name_c_string[output_name.size()] = '\0';
-
-	/*
-	Contrary to what http://www.open-mpi.org/doc/v1.4/man3/MPI_File_open.3.php writes,
-	MPI_File_open doesn't truncate the file with OpenMPI 1.4.1 on Ubuntu, so use a
-	fopen call first (http://www.opengroup.org/onlinepubs/009695399/functions/fopen.html)
-	*/
-	if (comm.rank() == 0) {
-		FILE* i = fopen(output_name_c_string, "w");
-		fflush(i);
-		fclose(i);
-	}
-	comm.barrier();
-
-	int result = MPI_File_open(
-		comm,
-		output_name_c_string,
-		MPI_MODE_CREATE | MPI_MODE_WRONLY,
-		MPI_INFO_NULL,
-		&outfile
-	);
-
-	if (result != MPI_SUCCESS) {
-		char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-		int mpi_error_string_length;
-		MPI_Error_string(result, mpi_error_string, &mpi_error_string_length);
-		mpi_error_string[mpi_error_string_length + 1] = '\0';
-		cerr << "Couldn't open file " << output_name_c_string
-			<< ": " << mpi_error_string
-			<< endl;
-		// TODO throw an exception instead
-		abort();
-	}
-
-	delete [] output_name_c_string;
-
-	// figure out how many bytes each process will write and where
-	size_t bytes = 0, offset = 0;
-
-	// collect data from this process into one buffer for writing
-	uint8_t* buffer = NULL;
-
 	const vector<uint64_t> cells = grid.get_cells();
 
-	// header
-	if (comm.rank() == 0) {
-		bytes += header.size() * sizeof(char)
-			+ 6 * sizeof(double)
-			+ 4 * sizeof(uint64_t)
-			+ sizeof(uint8_t);
-	}
+	double min_step = std::numeric_limits<double>::max();
 
-	// bytes of cell data
-	bytes += cells.size() * (sizeof(uint64_t) + sizeof(uint32_t) + 5 * sizeof(double));
+	BOOST_FOREACH(const uint64_t& cell_id, cells) {
 
-	buffer = new uint8_t [bytes];
-
-	// header
-	if (comm.rank() == 0) {
-		{
-		memcpy(buffer + offset, header.c_str(), header.size() * sizeof(char));
-		offset += header.size() * sizeof(char);
+		CellData* cell = grid[cell_id];
+		if (cell == NULL) {
+			cerr << __FILE__ << ":" << __LINE__
+				<< " No data for cell " << cell_id
+				<< endl;
+			abort();
 		}
 
-		const uint64_t endiannes = 0x1234567890abcdef;
-		memcpy(buffer + offset, &endiannes, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
+		const double min_step_x = grid.get_cell_x_size(cell_id) / fabs(cell->vx()),
+			min_step_y = grid.get_cell_y_size(cell_id) / fabs(cell->vy()),
+			min_step_z = grid.get_cell_z_size(cell_id) / fabs(cell->vz()),
+			current_min_step = min(min_step_x, min(min_step_y, min_step_z));
 
-		const double x_start = grid.get_x_start();
-		memcpy(buffer + offset, &x_start, sizeof(double));
-		offset += sizeof(double);
-
-		const double y_start = grid.get_y_start();
-		memcpy(buffer + offset, &y_start, sizeof(double));
-		offset += sizeof(double);
-
-		const double z_start = grid.get_z_start();
-		memcpy(buffer + offset, &z_start, sizeof(double));
-		offset += sizeof(double);
-
-		const double cell_x_size = grid.get_cell_x_size(1);
-		memcpy(buffer + offset, &cell_x_size, sizeof(double));
-		offset += sizeof(double);
-
-		const double cell_y_size = grid.get_cell_y_size(1);
-		memcpy(buffer + offset, &cell_y_size, sizeof(double));
-		offset += sizeof(double);
-
-		const double cell_z_size = grid.get_cell_z_size(1);
-		memcpy(buffer + offset, &cell_z_size, sizeof(double));
-		offset += sizeof(double);
-
-		const uint64_t x_length = grid.get_x_length();
-		memcpy(buffer + offset, &x_length, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-
-		const uint64_t y_length = grid.get_y_length();
-		memcpy(buffer + offset, &y_length, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-
-		const uint64_t z_length = grid.get_z_length();
-		memcpy(buffer + offset, &z_length, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-
-		const uint8_t max_ref_lvl = uint8_t(grid.get_maximum_refinement_level());
-		memcpy(buffer + offset, &max_ref_lvl, sizeof(uint8_t));
-		offset += sizeof(uint8_t);
+		if (min_step > current_min_step) {
+			min_step = current_min_step;
+		}
 	}
 
-	// save cell data
-	for (uint64_t i = 0; i < cells.size(); i++) {
-
-		// cell id
-		const uint64_t cell = cells[i];
-		memcpy(buffer + offset, &cell, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-
-		// process number
-		const uint32_t process = grid.get_process(cell);
-		memcpy(buffer + offset, &process, sizeof(uint32_t));
-		offset += sizeof(uint32_t);
-
-		const CellData* const data = grid[cell];
-
-		// value
-		const double value = data->data[0];
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-
-		// max relative difference in value
-		const double diff = data->data[2];
-		memcpy(buffer + offset, &diff, sizeof(double));
-		offset += sizeof(double);
-
-		// vx
-		const double y = grid.get_cell_y(cell),
-			vx = get_vx(y);
-		memcpy(buffer + offset, &vx, sizeof(double));
-		offset += sizeof(double);
-
-		// vy
-		const double x = grid.get_cell_y(cell),
-			vy = get_vy(x);
-		memcpy(buffer + offset, &vy, sizeof(double));
-		offset += sizeof(double);
-
-		// vz
-		const double vz = get_vz();
-		memcpy(buffer + offset, &vz, sizeof(double));
-		offset += sizeof(double);
-	}
-
-	vector<size_t> all_bytes;
-	all_gather(comm, bytes, all_bytes);
-
-	// calculate offset of this process in the file
-	MPI_Offset mpi_offset = 0;
-	for (int i = 0; i < comm.rank(); i++) {
-		mpi_offset += all_bytes[i];
-	}
-
-	MPI_Status status;
-	MPI_File_write_at_all(outfile, mpi_offset, (void*)buffer, bytes, MPI_BYTE, &status);
-	//if (status...
-
-	delete [] buffer;
-
-	MPI_File_close(&outfile);
-
-	return offset;
+	return all_reduce(comm, min_step, minimum<double>());
 }
 
 
@@ -1043,47 +898,51 @@ int main(int argc, char* argv[])
 	*/
 	//char direction;
 	bool verbose = false;
-	char direction;
-	unsigned int cells, tmax;
-	int max_ref_lvl = 0, save_n, balance_n, adapt_n;
+	char direction = 'z';
+	unsigned int cells;
+	int max_ref_lvl, save_n, balance_n, adapt_n;
 	string load_balancing_method;
-	double relative_diff, unrefine_sensitivity, diff_threshold;
+	double tmax, relative_diff, unrefine_sensitivity, diff_threshold, cfl;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
 		("cells",
-			boost::program_options::value<unsigned int>(&cells)->default_value(10000),
+			boost::program_options::value<unsigned int>(&cells)->default_value(400),
 			"Total number of unrefined cells at the start of the simulation")
-		/*("max_ref_lvl",
-			boost::program_options::value<int>(&max_ref_lvl)->default_value(1),
-			"Maximum refinement level of cells in the grid (0 means unrefined)")*/
+		("max-ref-lvl",
+			boost::program_options::value<int>(&max_ref_lvl)->default_value(2),
+			"Maximum refinement level of cells in the grid (0 means unrefined)")
 		("relative-diff",
-			boost::program_options::value<double>(&relative_diff)->default_value(0.1),
+			boost::program_options::value<double>(&relative_diff)->default_value(0.025),
 			"Maximum relative difference in variables for a cell which to keep at maximum refinement level")
 		("diff-threshold",
-			boost::program_options::value<double>(&diff_threshold)->default_value(0.01),
+			boost::program_options::value<double>(&diff_threshold)->default_value(0.25),
 			"TODO")
 		("unrefine-sensitivity",
 			boost::program_options::value<double>(&unrefine_sensitivity)->default_value(0.5),
 			"TODO")
-		("save_n",
+		("save-n",
 			boost::program_options::value<int>(&save_n)->default_value(0),
-			"Save results every arg'th time step (0 = only save initial and final result, -1 = never save)")
+			"Save results every arg'th time step (0 = only save initial and final result,"
+			" -1 = never save)")
 		("tmax",
-			boost::program_options::value<unsigned int>(&tmax)->default_value(5000),
-			"Duration of run in time steps")
-		("load_balancing_method",
-			boost::program_options::value<string>(&load_balancing_method)->default_value("HYPERGRAPH"),
+			boost::program_options::value<double>(&tmax)->default_value(25.5),
+			"Duration of run in seconds")
+		("load-balancing-method",
+			boost::program_options::value<string>(&load_balancing_method)->default_value("RCB"),
 			"Use arg as load balancing method")
-		("balance_n",
-			boost::program_options::value<int>(&balance_n)->default_value(0),
+		("balance-n",
+			boost::program_options::value<int>(&balance_n)->default_value(25),
 			"Balance computational load every argth time step (-1 == never balance load)")
-		("adapt_n",
+		("adapt-n",
 			boost::program_options::value<int>(&adapt_n)->default_value(1),
 			"Check for grid adaptation every argth timestep")
-		("direction",
+		/*("direction",
 			boost::program_options::value<char>(&direction)->default_value('z'),
-			"Create a 2d grid with normal into direction arg (x, y or z)")
+			"Create a 2d grid with normal into direction arg (x, y or z)")*/
+		("cfl",
+			boost::program_options::value<double>(&cfl)->default_value(0.5),
+			"Fraction of ... to use (0..1)")
 		("verbose", "Print information during the simulation");
 
 	// read options from command line
@@ -1115,6 +974,11 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
+	if (cfl < 0 || cfl > 1) {
+		cerr << "cfl must be >= 0 and <= 1" << endl;
+		return EXIT_FAILURE;
+	}
+
 	// intialize Zoltan
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -1135,8 +999,8 @@ int main(int argc, char* argv[])
 	case 'x':
 		if (!grid.set_geometry(
 			1, cells, cells,
-			0, 0, 0,
-			1.0 / cells, 1.0 / cells, 1.0 / cells
+			GRID_START_X, GRID_START_Y, GRID_START_Z,
+			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
 		)) {
 			cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
 			abort();
@@ -1155,8 +1019,8 @@ int main(int argc, char* argv[])
 	case 'y':
 		if (!grid.set_geometry(
 			cells, 1, cells,
-			0, 0, 0,
-			1.0 / cells, 1.0 / cells, 1.0 / cells
+			GRID_START_X, GRID_START_Y, GRID_START_Z,
+			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
 		)) {
 			cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
 			abort();
@@ -1175,8 +1039,8 @@ int main(int argc, char* argv[])
 	case 'z':
 		if (!grid.set_geometry(
 			cells, cells, 1,
-			0, 0, 0,
-			1.0 / cells, 1.0 / cells, 1.0 / cells
+			GRID_START_X, GRID_START_Y, GRID_START_Z,
+			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
 		)) {
 			cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
 			abort();
@@ -1197,25 +1061,17 @@ int main(int argc, char* argv[])
 		break;
 	}
 
+	if (balance_n > -1) {
+		grid.balance_load();
+	}
+
+	// apply initial condition 1st time for prerefining the grid
 	initial_condition<Cell>(grid);
 
-	// save initial state
-	string base_output_name("2d_");
-	unsigned int files_saved = 0;
-	if (save_n > -1) {
-		if (verbose && comm.rank() == 0) {
-			cout << "Saving initial state of simulation" << endl;
-		}
-		save<Cell>(get_output_file_name(0, base_output_name), comm, grid);
-		files_saved++;
-	}
-
-	if (verbose && comm.rank() == 0) {
-		cout << "Starting simulation" << endl;
-	}
+	boost::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 
 	// prerefine up to maximum refinement level
-	/*for (int ref_lvl = 0; ref_lvl < max_ref_lvl; ref_lvl++) {
+	for (int ref_lvl = 0; ref_lvl < max_ref_lvl; ref_lvl++) {
 		check_for_adaptation<Cell>(
 			relative_diff / grid.get_maximum_refinement_level(),
 			diff_threshold,
@@ -1232,7 +1088,36 @@ int main(int argc, char* argv[])
 			cells_to_unrefine,
 			grid
 		);
-	}*/
+
+		// apply initial condition on a finer grid
+		initial_condition<Cell>(grid);
+
+		grid.update_remote_neighbour_data();
+	}
+
+	double dt = get_max_time_step(comm, grid);
+	if (verbose && comm.rank() == 0) {
+		cout << "Initial timestep: " << dt << endl;
+	}
+
+	// save initial state
+	#ifndef DEBUG
+	const string base_output_name("2d_");
+	#else
+	const string base_output_name("2d_debug_");
+	#endif
+	unsigned int files_saved = 0;
+	if (save_n > -1) {
+		if (verbose && comm.rank() == 0) {
+			cout << "Saving initial state of simulation" << endl;
+		}
+		Save<Cell>::save(get_output_file_name(0, base_output_name), comm, grid);
+		files_saved++;
+	}
+
+	if (verbose && comm.rank() == 0) {
+		cout << "Starting simulation" << endl;
+	}
 
 	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbours();
 	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbour();
@@ -1240,13 +1125,19 @@ int main(int argc, char* argv[])
 	// record solution time for inner cells and amount of neighbor data received
 	double inner_solve_time = 0, outer_solve_time = 0, neighbor_receive_size = 0;
 
-	for (unsigned int step = 0; step < tmax; step++) {
+	double time = 0;
+	unsigned int step = 0;
+	while (time < tmax) {
+
+		if (verbose && comm.rank() == 0) {
+			cout << "Simulation time: " << time << endl;
+		}
 
 		grid.start_remote_neighbour_data_update();
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();
-		solve<Cell>(0.001, inner_cells, grid);
+		solve<Cell>(cfl * dt, inner_cells, grid);
 		inner_solve_time += MPI_Wtime() - inner_solve_start;
 
 		// wait for remote neighbor data
@@ -1254,7 +1145,7 @@ int main(int argc, char* argv[])
 
 		// solve outer cells
 		const double outer_solve_start = MPI_Wtime();
-		solve<Cell>(0.001, outer_cells, grid);
+		solve<Cell>(cfl * dt, outer_cells, grid);
 		outer_solve_time += MPI_Wtime() - outer_solve_start;
 
 		// wait until local data has been sent
@@ -1264,11 +1155,10 @@ int main(int argc, char* argv[])
 
 		/*
 		Starting from this point local cells and copies of remote cells have
-		data from the same timestep (variables not fluxes which aren't transferred anyway).
+		data from the same timestep (flux and max_diff isn't transferred).
 		*/
 
 		// check where to adapt the grid
-		boost::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 		if (adapt_n > 0 && step % adapt_n == 0) {
 
 			if (verbose && comm.rank() == 0) {
@@ -1289,9 +1179,9 @@ int main(int argc, char* argv[])
 		// save simulation state
 		if (save_n > 0 && step % save_n == 0) {
 			if (verbose && comm.rank() == 0) {
-				cout << "Saving simulation at step " << step << endl;
+				cout << "Saving simulation at " << time << endl;
 			}
-			save<Cell>(get_output_file_name(step, base_output_name), comm, grid);
+			Save<Cell>::save(get_output_file_name(time, base_output_name), comm, grid);
 			files_saved++;
 		}
 
@@ -1318,6 +1208,12 @@ int main(int argc, char* argv[])
 			);
 			inner_cells = grid.get_cells_with_local_neighbours();
 			outer_cells = grid.get_cells_with_remote_neighbour();
+
+			// update maximum allowed time step
+			dt = get_max_time_step(comm, grid);
+			if (verbose && comm.rank() == 0) {
+				cout << "New timestep: " << dt << endl;
+			}
 		}
 
 		// balance load
@@ -1332,6 +1228,9 @@ int main(int argc, char* argv[])
 			inner_cells = grid.get_cells_with_local_neighbours();
 			outer_cells = grid.get_cells_with_remote_neighbour();
 		}
+
+		step++;
+		time += dt;
 	}
 
 	if (save_n > -1) {
@@ -1339,7 +1238,7 @@ int main(int argc, char* argv[])
 			cout << "Saving final state of simulation" << endl;
 		}
 
-		save<Cell>(get_output_file_name(tmax, base_output_name), comm, grid);
+		Save<Cell>::save(get_output_file_name(tmax, base_output_name), comm, grid);
 		files_saved++;
 	}
 

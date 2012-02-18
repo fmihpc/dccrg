@@ -26,21 +26,115 @@ class Cell
 public:
 
 	/*
-	data[0]: value, amount of the stuff being advected in this cell
-	data[1] > 0: flux into this cell
-	data[2]: max relative difference in value between this cell and and its neighbors
+	data[0]: density of the stuff being advected
+	data[1]: vx in the center of the cell
+	data[2]: vy
+	data[3]: vz
+	data[4] > 0: flux of density into this cell
+	data[5]: maximum relative difference in density between this cell and and its neighbors
 	*/
-	boost::array<double, 3> data;
+	boost::array<double, 6> data;
 
+	// returns the start of this class, e.g. data for dccrg
 	void* at(void)
 	{
 		return &(this->data[0]);
 	}
 
+	// returns the length in bytes to transfer between processes for dccrg
 	static size_t size(void)
 	{
-		// don't transfer flux or difference
-		return sizeof(double);
+		// transfer cell density and velocities to other processes
+		// TODO: only transfer velocities after they have changed
+		return 4 * sizeof(double);
+	}
+
+	
+	/*
+	References to variables stored in the cell
+	*/
+
+	// operator versions
+	double& operator [] (const std::size_t i)
+	{
+		return this->data[i];
+	}
+
+	const double& operator [] (const std::size_t i) const
+	{
+		return this->data[i];
+	}
+
+	// density
+	double& density(void)
+	{
+		return this->data[0];
+	}
+
+
+	const double& density(void) const
+	{
+		return this->data[0];
+	}
+
+	// vx
+	double& vx(void)
+	{
+		return this->data[1];
+	}
+
+
+	const double& vx(void) const
+	{
+		return this->data[1];
+	}
+
+	// vy
+	double& vy(void)
+	{
+		return this->data[2];
+	}
+
+
+	const double& vy(void) const
+	{
+		return this->data[2];
+	}
+
+	// vz
+	double& vz(void)
+	{
+		return this->data[3];
+	}
+
+
+	const double& vz(void) const
+	{
+		return this->data[3];
+	}
+
+	// flux
+	double& flux(void)
+	{
+		return this->data[4];
+	}
+
+
+	const double& flux(void) const
+	{
+		return this->data[4];
+	}
+
+	// max difference
+	double& max_diff(void)
+	{
+		return this->data[5];
+	}
+
+
+	const double& max_diff(void) const
+	{
+		return this->data[5];
 	}
 };
 
