@@ -135,8 +135,8 @@ int main(int argc, char* argv[])
 		geometry.set_maximum_refinement_level(max_ref_level);
 
 		// write the game data to a .vtk file
-		string current_output_name(argv[arg]), suffix(".vtk");
-		current_output_name += suffix;
+		const string input_name(argv[arg]),
+			current_output_name(input_name.substr(0, input_name.size() - 2) + "vtk");
 
 		std::ofstream outfile(current_output_name.c_str());
 		if (!outfile.is_open()) {

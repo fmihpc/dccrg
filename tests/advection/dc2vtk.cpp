@@ -197,17 +197,17 @@ int main(int argc, char* argv[])
 			uint32_t process;
 			result = fread(&process, sizeof(uint32_t), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read process for cell " << cell << endl;
+				cerr << "Couldn't read process of cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 			cell_process[cell] = process;
 
 			double value;
 
-			// value
+			// density
 			result = fread(&value, sizeof(double), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read value for cell " << cell << endl;
+				cerr << "Couldn't read density in cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 			data[cell].data[0] = value;
@@ -215,7 +215,7 @@ int main(int argc, char* argv[])
 			// max relative diff
 			result = fread(&value, sizeof(double), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read max relative difference for cell " << cell << endl;
+				cerr << "Couldn't read max relative difference in cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 			data[cell].data[2] = value;
@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
 			// vx
 			result = fread(&value, sizeof(double), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read vx for cell " << cell << endl;
+				cerr << "Couldn't read vx in cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 			velocity[cell][0] = value;
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 			// vy
 			result = fread(&value, sizeof(double), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read vy for cell " << cell << endl;
+				cerr << "Couldn't read vy in cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 			velocity[cell][1] = value;
@@ -239,7 +239,7 @@ int main(int argc, char* argv[])
 			// vz
 			result = fread(&value, sizeof(double), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read vz for cell " << cell << endl;
+				cerr << "Couldn't read vz in cell " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 			velocity[cell][2] = value;
@@ -262,8 +262,8 @@ int main(int argc, char* argv[])
 		}
 
 		// write grid data to a .vtk file
-		string current_output_name(argv[arg]), suffix(".vtk");
-		current_output_name += suffix;
+		const string input_name(argv[arg]),
+			current_output_name(input_name.substr(0, input_name.size() - 2) + "vtk");
 
 		std::ofstream outfile(current_output_name.c_str());
 		if (!outfile.is_open()) {
@@ -361,7 +361,7 @@ int main(int argc, char* argv[])
 		}
 
 		// value
-		outfile << "SCALARS value float 1" << endl;
+		outfile << "SCALARS density float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 			if (fabs(data.at(*cell).data[0]) > 1e-37) {

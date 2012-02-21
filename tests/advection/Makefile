@@ -3,9 +3,10 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -Wno-missing-braces
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-PROGRAMS = 2d 2d_debug dc2vtk
+PROGRAMS = 2d dc2vtk 2d_debug
 
 HEADERS = \
+	cell.hpp \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
 	../../dccrg_constant_geometry.hpp
