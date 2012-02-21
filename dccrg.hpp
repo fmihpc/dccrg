@@ -178,6 +178,7 @@ public:
 		// reserved options that the user cannot change
 		this->reserved_options.insert("EDGE_WEIGHT_DIM");
 		this->reserved_options.insert("NUM_GID_ENTRIES");
+		this->reserved_options.insert("NUM_LID_ENTRIES");
 		this->reserved_options.insert("OBJ_WEIGHT_DIM");
 		this->reserved_options.insert("RETURN_LISTS");
 		this->reserved_options.insert("NUM_GLOBAL_PARTS");
@@ -187,6 +188,7 @@ public:
 		// set reserved options
 		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");	// 0 because Zoltan crashes in hierarchial with larger values
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
+		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
 		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
 
