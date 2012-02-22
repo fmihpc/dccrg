@@ -2646,6 +2646,12 @@ public:
 	}
 
 
+	boost::unordered_map<uint64_t, double>::size_type get_number_of_cell_weights(void) const
+	{
+		return this->cell_weights.size();
+	}
+
+
 
 private:
 
@@ -2943,6 +2949,7 @@ private:
 	move_cells must be the next dccrg function to be called after this one.
 	*/
 	void prepare_to_move_cells(void) {
+
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbour_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbour info is not consistent" << std::endl;
@@ -4893,8 +4900,7 @@ private:
 	boost::unordered_map<uint64_t, UserData>& destination
 	#endif
 	#endif
-	)
-	{
+	) {
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator
