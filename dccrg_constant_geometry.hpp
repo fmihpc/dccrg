@@ -207,7 +207,7 @@ public:
 		assert(this->get_refinement_level(cell) >= 0);
 		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-		return this->cell_x_size / (uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_x_size / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 	/*!
@@ -219,7 +219,7 @@ public:
 		assert(this->get_refinement_level(cell) >= 0);
 		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-		return this->cell_y_size / (uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_y_size / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 	/*!
@@ -231,7 +231,7 @@ public:
 		assert(this->get_refinement_level(cell) >= 0);
 		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
 
-		return this->cell_z_size / (uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_z_size / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 
@@ -250,7 +250,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->x_start + indices[0] * this->cell_x_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
+		return this->x_start + double(indices[0]) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
 	}
 
 	/*!
@@ -268,7 +268,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->y_start + indices[1] * this->cell_y_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
+		return this->y_start + double(indices[1]) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
 	}
 
 	/*!
@@ -286,7 +286,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->z_start + indices[2] * this->cell_z_size / (uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
+		return this->z_start + double(indices[2]) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
 	}
 
 	/*!
@@ -352,7 +352,9 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->x_start + x_index * this->cell_x_size / (uint64_t(1) << this->max_refinement_level) + this->cell_x_size / (uint64_t(1) << refinement_level) / 2;
+		return this->x_start
+			+ double(x_index) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level)
+			+ this->cell_x_size / double(uint64_t(1) << refinement_level) / 2;
 	}
 
 	/*!
@@ -368,7 +370,9 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->y_start + y_index * this->cell_y_size / (uint64_t(1) << this->max_refinement_level) + this->cell_y_size / (uint64_t(1) << refinement_level) / 2;
+		return this->y_start
+			+ double(y_index) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level)
+			+ this->cell_y_size / double(uint64_t(1) << refinement_level) / 2;
 	}
 
 	/*!
@@ -384,7 +388,9 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->z_start + z_index * this->cell_z_size / (uint64_t(1) << this->max_refinement_level) + this->cell_z_size / (uint64_t(1) << refinement_level) / 2;
+		return this->z_start
+			+ double(z_index) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level)
+			+ this->cell_z_size / double(uint64_t(1) << refinement_level) / 2;
 	}
 
 

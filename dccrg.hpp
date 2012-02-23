@@ -232,27 +232,27 @@ public:
 		this->neighbourhood_size = neighbourhood_size;
 		if (this->neighbourhood_size == 0) {
 			{
-			Types<3>::neighbourhood_item_t item = {0, 0, -1};
+			Types<3>::neighbourhood_item_t item = {{0, 0, -1}};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			Types<3>::neighbourhood_item_t item = {0, -1, 0};
+			Types<3>::neighbourhood_item_t item = {{0, -1, 0}};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			Types<3>::neighbourhood_item_t item = {-1, 0, 0};
+			Types<3>::neighbourhood_item_t item = {{-1, 0, 0}};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			Types<3>::neighbourhood_item_t item = {1, 0, 0};
+			Types<3>::neighbourhood_item_t item = {{1, 0, 0}};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			Types<3>::neighbourhood_item_t item = {0, 1, 0};
+			Types<3>::neighbourhood_item_t item = {{0, 1, 0}};
 			this->neighbourhood_of.push_back(item);
 			}
 			{
-			Types<3>::neighbourhood_item_t item = {0, 0, 1};
+			Types<3>::neighbourhood_item_t item = {{0, 0, 1}};
 			this->neighbourhood_of.push_back(item);
 			}
 		} else {
@@ -262,14 +262,14 @@ public:
 				if (x == 0 && y == 0 && z == 0) {
 					continue;
 				}
-				const Types<3>::neighbourhood_item_t item = {x, y, z};
+				const Types<3>::neighbourhood_item_t item = {{x, y, z}};
 				this->neighbourhood_of.push_back(item);
 			}
 		}
 
 		// set neighbourhood_to
 		BOOST_FOREACH(const Types<3>::neighbourhood_item_t& offset, this->neighbourhood_of) {
-			Types<3>::neighbourhood_item_t item = {-offset[0], -offset[1], -offset[2]};
+			Types<3>::neighbourhood_item_t item = {{-offset[0], -offset[1], -offset[2]}};
 			this->neighbourhood_to.push_back(item);
 		}
 
@@ -1485,7 +1485,7 @@ public:
 
 		BOOST_FOREACH(const Types<3>::neighbourhood_item_t& offsets, *neighbourhood) {
 
-			Types<3>::indices_t temp_indices = { indices[0], indices[1], indices[2] };
+			Types<3>::indices_t temp_indices = {{indices[0], indices[1], indices[2]}};
 
 			for (unsigned int dimension = 0; dimension < 3; dimension++) {
 				if (offsets[dimension] < 0) {
@@ -1682,11 +1682,11 @@ public:
 			// add all cells at current search indices within size of given cell
 			} else {
 
-				const Types<3>::indices_t index_max = {
+				const Types<3>::indices_t index_max = {{
 					index_of[0] + cell_size - 1,
 					index_of[1] + cell_size - 1,
 					index_of[2] + cell_size - 1
-				};
+				}};
 
 				const std::vector<uint64_t> current_neighbors = this->find_cells(
 					index_of,
@@ -2038,7 +2038,7 @@ public:
 		std::vector<uint64_t> result;
 		boost::unordered_set<uint64_t> uniques;
 
-		Types<3>::indices_t indices = {0, 0, 0};
+		Types<3>::indices_t indices = {{0, 0, 0}};
 		for (indices[2] = indices_min[2]; indices[2] <= indices_max[2]; indices[2] += index_increase)
 		for (indices[1] = indices_min[1]; indices[1] <= indices_max[1]; indices[1] += index_increase)
 		for (indices[0] = indices_min[0]; indices[0] <= indices_max[0]; indices[0] += index_increase) {
@@ -3633,7 +3633,7 @@ private:
 		const uint64_t cell2_size = this->get_cell_size_in_indices(cell2);
 
 		// distance in indices between given cells
-		Types<3>::indices_t distance = {0, 0, 0};
+		Types<3>::indices_t distance = {{0, 0, 0}};
 
 		const uint64_t grid_length[3] = {
 			this->get_x_length() * (uint64_t(1) << this->max_refinement_level),

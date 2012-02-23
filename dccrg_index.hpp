@@ -203,11 +203,11 @@ public:
 		}
 
 		// convert to indices of this cell's refinement level
-		const Types<3>::indices_t this_level_indices = {
+		const Types<3>::indices_t this_level_indices = {{
 			indices[0] / (uint64_t(1) << (this->max_refinement_level - refinement_level)),
 			indices[1] / (uint64_t(1) << (this->max_refinement_level - refinement_level)),
 			indices[2] / (uint64_t(1) << (this->max_refinement_level - refinement_level))
-		};
+		}};
 
 		// get the size of the grid in terms of cells of this refinement level
 		const uint64_t this_level_x_length = this->x_length * (uint64_t(1) << refinement_level);
@@ -228,7 +228,7 @@ public:
 		const int refinement_level
 	) const
 	{
-		const Types<3>::indices_t indices = {x_index, y_index, z_index};
+		const Types<3>::indices_t indices = {{x_index, y_index, z_index}};
 		return this->get_cell_from_indices(indices, refinement_level);
 	}
 
@@ -242,7 +242,7 @@ public:
 	Types<3>::indices_t get_indices(uint64_t cell) const
 	{
 		if (cell == error_cell || cell > this->last_cell) {
-			const Types<3>::indices_t error_indices = {error_index, error_index, error_index};
+			const Types<3>::indices_t error_indices = {{error_index, error_index, error_index}};
 			return error_indices;
 		}
 
@@ -253,11 +253,11 @@ public:
 		}
 
 		cell -= 1;	// cell numbering starts from 1
-		const Types<3>::indices_t indices = {
+		const Types<3>::indices_t indices = {{
 			(cell % (this->x_length * (uint64_t(1) << refinement_level))) * (uint64_t(1) << (max_refinement_level - refinement_level)),
 			((cell / (this->x_length * (uint64_t(1) << refinement_level))) % (this->y_length * (uint64_t(1) << refinement_level))) * (uint64_t(1) << (max_refinement_level - refinement_level)),
 			(cell / (this->x_length * this->y_length * (uint64_t(1) << (2 * refinement_level)))) * (uint64_t(1) << (max_refinement_level - refinement_level))
-		};
+		}};
 
 		return indices;
 	}

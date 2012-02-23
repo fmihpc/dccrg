@@ -1,6 +1,5 @@
-# Use -Wno-missing-braces until GCC stops warning about valid C++ (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=25137)
-FLAGS = -O3 -W -Wall -Wextra -pedantic -Wno-missing-braces
-#FLAGS = -O0 -pg -g -W -Wall -Wextra -pedantic -Wno-missing-braces -DDEBUG
+FLAGS = -O3 -W -Wall -Wextra -pedantic
+#FLAGS = -O0 -pg -g -W -Wall -Wextra -pedantic -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = g++ $(FLAGS)
 
