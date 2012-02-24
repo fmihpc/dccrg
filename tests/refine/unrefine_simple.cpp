@@ -99,12 +99,12 @@ int main(int argc, char* argv[])
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
 
-		// write each cells neighbour count
-		outfile << "SCALARS neighbours int 1" << endl;
+		// write each cells neighbor count
+		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
-			outfile << neighbours->size() << endl;
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process

@@ -224,7 +224,7 @@ int main(int argc, char* argv[])
 		game_grid.clear_refined_unrefined_data();
 
 		game_grid.balance_load();
-		game_grid.update_remote_neighbour_data();
+		game_grid.update_remote_neighbor_data();
 
 		if (verbose && comm.rank() == 0) {
 			cout << step << " ";

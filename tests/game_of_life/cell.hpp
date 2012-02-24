@@ -67,7 +67,7 @@ public:
 	#else
 	static size_t size(void)
 	{
-		// processes don't need other processes' live neighbour info
+		// processes don't need other processes' live neighbor info
 		return 13 * sizeof(uint64_t);
 	}
 	#endif

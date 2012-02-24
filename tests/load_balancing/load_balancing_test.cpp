@@ -192,8 +192,8 @@ int main(int argc, char* argv[])
 
 		// balance the load using given options
 		grid.balance_load();
-		/*grid.start_remote_neighbour_data_update();
-		grid.wait_neighbour_data_update();*/
+		/*grid.start_remote_neighbor_data_update();
+		grid.wait_neighbor_data_update();*/
 		cells = grid.get_cells();
 
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
@@ -223,12 +223,12 @@ int main(int argc, char* argv[])
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
 
-		// write each cells neighbour count
-		outfile << "SCALARS neighbours int 1" << endl;
+		// write each cells neighbor count
+		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
-			outfile << neighbours->size() << endl;
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process

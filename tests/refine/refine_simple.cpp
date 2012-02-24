@@ -94,12 +94,12 @@ int main(int argc, char* argv[])
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
 
-		// write each cells neighbour count
-		outfile << "SCALARS neighbours int 1" << endl;
+		// write each cells neighbor count
+		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
-			outfile << neighbours->size() << endl;
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process
@@ -125,11 +125,11 @@ int main(int argc, char* argv[])
 			continue;
 		}
 		for (vector<uint64_t>::const_iterator c = cells.begin(); c != cells.end(); c++) {
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*c);
-			vector<uint64_t> sorted_neighbours(neighbours->begin(), neighbours->end());
-			sort(sorted_neighbours.begin(), sorted_neighbours.end());
-			cout << "Cell " << *c << " neighbours (" << sorted_neighbours.size() << "): ";
-			for (vector<uint64_t>::const_iterator n = sorted_neighbours.begin(); n != sorted_neighbours.end(); n++) {
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*c);
+			vector<uint64_t> sorted_neighbors(neighbors->begin(), neighbors->end());
+			sort(sorted_neighbors.begin(), sorted_neighbors.end());
+			cout << "Cell " << *c << " neighbors (" << sorted_neighbors.size() << "): ";
+			for (vector<uint64_t>::const_iterator n = sorted_neighbors.begin(); n != sorted_neighbors.end(); n++) {
 				cout << *n << " ";
 			}
 			cout << endl;

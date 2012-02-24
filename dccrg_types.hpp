@@ -55,12 +55,12 @@ y
 typedef boost::array<uint64_t, Dimensions> indices_t;
 
 /*!
-\brief Defines one item of cells' neighbourhood in the grid.
+\brief Defines one item of cells' neighborhood in the grid.
 
-Defines an offset (first value is offset in x direction, etc.) of one neighbour to a cell of the same size as the cell itself.
-A cell's neighbourhood (e.g. stencil) in the grid consists of a list of offsets that define which cells a cell considers as neighbours.
-Offsets are given relative to the cell and cells within a volume of equal size as the cell are considered the cell's neighbours.
-For example in the case of the game of life in two dimensions (x and y), neighbourhood items making up the neighbourhood would be:
+Defines an offset (first value is offset in x direction, etc.) of one neighbor to a cell of the same size as the cell itself.
+A cell's neighborhood (e.g. stencil) in the grid consists of a list of offsets that define which cells a cell considers as neighbors.
+Offsets are given relative to the cell and cells within a volume of equal size as the cell are considered the cell's neighbors.
+For example in the case of the game of life in two dimensions (x and y), neighborhood items making up the neighborhood would be:
 \verbatim
 -1, -1, 0
 -1,  0, 0
@@ -72,7 +72,7 @@ For example in the case of the game of life in two dimensions (x and y), neighbo
 +1, +1, 0
 \endverbatim
 */
-typedef boost::array<int, Dimensions> neighbourhood_item_t;
+typedef boost::array<int, Dimensions> neighborhood_item_t;
 
 };	// class
 

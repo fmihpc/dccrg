@@ -1,5 +1,5 @@
 /*
-Tests the grid with a game of life on a refined grid in 3 D with neighbours only in the ? plane
+Tests the grid with a game of life on a refined grid in 3 D with neighbors only in the ? plane
 */
 
 #include "algorithm"
@@ -21,7 +21,7 @@ struct game_of_life_cell {
 	}
 
 	bool is_alive;
-	unsigned int live_neighbour_count;
+	unsigned int live_neighbor_count;
 };
 
 
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
-		cell_data->live_neighbour_count = 0;
+		cell_data->live_neighbor_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
 		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		game_grid.balance_load();
-		game_grid.update_remote_neighbour_data();
+		game_grid.update_remote_neighbor_data();
 		cells = game_grid.get_cells();
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
@@ -166,23 +166,23 @@ int main(int argc, char* argv[])
 
 		}
 
-		// write each cells live neighbour count
-		outfile << "SCALARS live_neighbour_count float 1" << endl;
+		// write each cells live neighbor count
+		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			outfile << cell_data->live_neighbour_count << endl;
+			outfile << cell_data->live_neighbor_count << endl;
 
 		}
 
-		// write each cells neighbour count
-		outfile << "SCALARS neighbours int 1" << endl;
+		// write each cells neighbor count
+		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			outfile << neighbours->size() << endl;
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process
@@ -200,37 +200,37 @@ int main(int argc, char* argv[])
 		}
 		outfile.close();
 
-		// get the neighbour counts of every cell
-		// FIXME: use the (at some point common) solver from (un)refined2d and only include x and y directions in neighbourhood
+		// get the neighbor counts of every cell
+		// FIXME: use the (at some point common) solver from (un)refined2d and only include x and y directions in neighborhood
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			cell_data->live_neighbour_count = 0;
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			if (neighbours == NULL) {
-				cout << "Process " << comm.rank() << ": neighbour list for cell " << *cell << " not available" << endl;
+			cell_data->live_neighbor_count = 0;
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			if (neighbors == NULL) {
+				cout << "Process " << comm.rank() << ": neighbor list for cell " << *cell << " not available" << endl;
 				exit(EXIT_FAILURE);
 			}
 
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
 
-				if (*neighbour == 0) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				// only consider neighbours in the same z plane
-				if (game_grid.get_cell_z(*cell) != game_grid.get_cell_z(*neighbour)) {
+				// only consider neighbors in the same z plane
+				if (game_grid.get_cell_z(*cell) != game_grid.get_cell_z(*neighbor)) {
 					continue;
 				}
 
-				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbour " << *neighbour << " data of cell " << *cell << " not available" << endl;
+				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				if (neighbor_data == NULL) {
+					cout << "Process " << comm.rank() << ": neighbor " << *neighbor << " data of cell " << *cell << " not available" << endl;
 					exit(EXIT_FAILURE);
 				}
-				if (neighbour_data->is_alive) {
-					cell_data->live_neighbour_count++;
+				if (neighbor_data->is_alive) {
+					cell_data->live_neighbor_count++;
 				}
 			}
 		}
@@ -240,9 +240,9 @@ int main(int argc, char* argv[])
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			if (cell_data->live_neighbour_count == 3) {
+			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = true;
-			} else if (cell_data->live_neighbour_count != 2) {
+			} else if (cell_data->live_neighbor_count != 2) {
 				cell_data->is_alive = false;
 			}
 		}

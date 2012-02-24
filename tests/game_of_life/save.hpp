@@ -62,20 +62,20 @@ public:
 			outfile << cell_data->data[0] << endl;
 		}
 
-		// write each cells total live neighbour count
-		outfile << "SCALARS live_neighbour_count float 1" << endl;
+		// write each cells total live neighbor count
+		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
 			Cell* cell_data = game_grid[cell];
 			outfile << cell_data->data[1] << endl;
 		}
 
-		// write each cells neighbour count
-		outfile << "SCALARS neighbours int 1" << endl;
+		// write each cells neighbor count
+		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(cell);
-			outfile << neighbours->size() << endl;
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process

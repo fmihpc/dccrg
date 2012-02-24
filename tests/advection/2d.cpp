@@ -129,7 +129,7 @@ template<class CellData> void initial_condition(Dccrg<CellData>& grid)
 		cell->density() = hump_density;
 	}
 
-	grid.update_remote_neighbour_data();
+	grid.update_remote_neighbor_data();
 }
 
 
@@ -171,232 +171,232 @@ template<class CellData> void get_neighbor_directions(
 
 	const int refinement_level = grid.get_refinement_level(cell);
 
-	const vector<uint64_t>* neighbours = grid.get_neighbours(cell);
-	if (neighbours == NULL) {
+	const vector<uint64_t>* neighbors = grid.get_neighbors(cell);
+	if (neighbors == NULL) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " No neighbors for cell " << cell
 			<< std::endl;
 		abort();
 	}
 
-	unsigned int neighbour_index = 0;
+	unsigned int neighbor_index = 0;
 
 	// -z direction
-	if ((*neighbours)[neighbour_index] != 0) {
+	if ((*neighbors)[neighbor_index] != 0) {
 
-		if (grid.get_refinement_level((*neighbours)[neighbour_index]) <= refinement_level) {
+		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
 
 			// flux between local cells is calculated in positive direction
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Z);
 			}
 
-		// only face neighbours
+		// only face neighbors
 		} else {
-			neighbour_index += 4;
+			neighbor_index += 4;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Z);
 			}
-			neighbour_index++;
+			neighbor_index++;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Z);
 			}
-			neighbour_index++;
+			neighbor_index++;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Z);
 			}
-			neighbour_index++;
+			neighbor_index++;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Z);
 			}
 		}
 	}
-	neighbour_index++;
+	neighbor_index++;
 
 	// -y direction
-	if ((*neighbours)[neighbour_index] != 0) {
+	if ((*neighbors)[neighbor_index] != 0) {
 
-		if (grid.get_refinement_level((*neighbours)[neighbour_index]) <= refinement_level) {
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Y);
 			}
 
-		// solve only face neighbours
+		// solve only face neighbors
 		} else {
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Y);
 			}
-			neighbour_index++;
+			neighbor_index++;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Y);
 			}
-			neighbour_index += 3;
+			neighbor_index += 3;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Y);
 			}
-			neighbour_index++;
+			neighbor_index++;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_Y);
 			}
 		}
 	}
-	neighbour_index++;
+	neighbor_index++;
 
 	// -x direction
-	if ((*neighbours)[neighbour_index] != 0) {
+	if ((*neighbors)[neighbor_index] != 0) {
 
-		if (grid.get_refinement_level((*neighbours)[neighbour_index]) <= refinement_level) {
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_X);
 			}
 
-		// solve only face neighbours
+		// solve only face neighbors
 		} else {
-			neighbour_index++;
+			neighbor_index++;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_X);
 			}
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_X);
 			}
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_X);
 			}
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			if (!grid.is_local((*neighbours)[neighbour_index])) {
-				face_neighbors.push_back((*neighbours)[neighbour_index]);
+			if (!grid.is_local((*neighbors)[neighbor_index])) {
+				face_neighbors.push_back((*neighbors)[neighbor_index]);
 				directions.push_back(NEG_X);
 			}
 		}
 	}
-	neighbour_index++;
+	neighbor_index++;
 
 	// +x direction
-	if ((*neighbours)[neighbour_index] != 0) {
+	if ((*neighbors)[neighbor_index] != 0) {
 
-		if (grid.get_refinement_level((*neighbours)[neighbour_index]) <= refinement_level) {
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_X);
 
-		// solve only face neighbours
+		// solve only face neighbors
 		} else {
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_X);
 
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_X);
 
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_X);
 
-			neighbour_index += 2;
+			neighbor_index += 2;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_X);
 
-			neighbour_index++;
+			neighbor_index++;
 		}
 	}
-	neighbour_index++;
+	neighbor_index++;
 
 	// +y direction
-	if ((*neighbours)[neighbour_index] != 0) {
+	if ((*neighbors)[neighbor_index] != 0) {
 
-		if (grid.get_refinement_level((*neighbours)[neighbour_index]) <= refinement_level) {
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Y);
 
-		// solve only face neighbours
+		// solve only face neighbors
 		} else {
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Y);
 
-			neighbour_index++;
+			neighbor_index++;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Y);
 
-			neighbour_index += 3;
+			neighbor_index += 3;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Y);
 
-			neighbour_index++;
+			neighbor_index++;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Y);
 
-			neighbour_index += 2;
+			neighbor_index += 2;
 		}
 	}
-	neighbour_index++;
+	neighbor_index++;
 
 	// +z direction
-	if ((*neighbours)[neighbour_index] != 0) {
+	if ((*neighbors)[neighbor_index] != 0) {
 
-		if (grid.get_refinement_level((*neighbours)[neighbour_index]) <= refinement_level) {
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Z);
 
-		// solve only face neighbours
+		// solve only face neighbors
 		} else {
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Z);
 
-			neighbour_index++;
+			neighbor_index++;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Z);
 
-			neighbour_index++;
+			neighbor_index++;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Z);
 
-			neighbour_index++;
+			neighbor_index++;
 
-			face_neighbors.push_back((*neighbours)[neighbour_index]);
+			face_neighbors.push_back((*neighbors)[neighbor_index]);
 			directions.push_back(POS_Z);
 		}
 	}
 
-	if (neighbour_index > neighbours->size()) {
+	if (neighbor_index > neighbors->size()) {
 		cerr << __FILE__ << ":" << __LINE__
-			<< " Added more neighbors (" << neighbour_index
-			<< ") than exist: " << neighbours->size()
+			<< " Added more neighbors (" << neighbor_index
+			<< ") than exist: " << neighbors->size()
 			<< endl;
 		abort();
 	}
@@ -1092,7 +1092,7 @@ int main(int argc, char* argv[])
 		// apply initial condition on a finer grid
 		initial_condition<Cell>(grid);
 
-		grid.update_remote_neighbour_data();
+		grid.update_remote_neighbor_data();
 	}
 
 	double dt = get_max_time_step(comm, grid);
@@ -1119,8 +1119,8 @@ int main(int argc, char* argv[])
 		cout << "Starting simulation" << endl;
 	}
 
-	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbours();
-	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbour();
+	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbors();
+	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbor();
 
 	// record solution time for inner cells and amount of neighbor data received
 	double inner_solve_time = 0, outer_solve_time = 0, neighbor_receive_size = 0;
@@ -1133,7 +1133,7 @@ int main(int argc, char* argv[])
 			cout << "Simulation time: " << time << endl;
 		}
 
-		grid.start_remote_neighbour_data_update();
+		grid.start_remote_neighbor_data_update();
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();
@@ -1141,7 +1141,7 @@ int main(int argc, char* argv[])
 		inner_solve_time += MPI_Wtime() - inner_solve_start;
 
 		// wait for remote neighbor data
-		grid.wait_neighbour_data_update_receives();
+		grid.wait_neighbor_data_update_receives();
 
 		// solve outer cells
 		const double outer_solve_start = MPI_Wtime();
@@ -1149,7 +1149,7 @@ int main(int argc, char* argv[])
 		outer_solve_time += MPI_Wtime() - outer_solve_start;
 
 		// wait until local data has been sent
-		grid.wait_neighbour_data_update_sends();
+		grid.wait_neighbor_data_update_sends();
 
 		neighbor_receive_size += Cell::size() * (grid.get_number_of_update_receive_cells() + grid.get_number_of_update_send_cells());
 
@@ -1206,8 +1206,8 @@ int main(int argc, char* argv[])
 				cells_to_unrefine,
 				grid
 			);
-			inner_cells = grid.get_cells_with_local_neighbours();
-			outer_cells = grid.get_cells_with_remote_neighbour();
+			inner_cells = grid.get_cells_with_local_neighbors();
+			outer_cells = grid.get_cells_with_remote_neighbor();
 
 			// update maximum allowed time step
 			dt = get_max_time_step(comm, grid);
@@ -1225,8 +1225,8 @@ int main(int argc, char* argv[])
 
 			grid.balance_load();
 
-			inner_cells = grid.get_cells_with_local_neighbours();
-			outer_cells = grid.get_cells_with_remote_neighbour();
+			inner_cells = grid.get_cells_with_local_neighbors();
+			outer_cells = grid.get_cells_with_remote_neighbor();
 		}
 
 		step++;

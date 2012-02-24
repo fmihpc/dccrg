@@ -42,7 +42,7 @@ public:
 
 	static void solve(dccrg::Dccrg<Cell, UserGeometry>& game_grid)
 	{
-		// get the neighbour counts of every cell
+		// get the neighbor counts of every cell
 		for (boost::unordered_map<uint64_t, Cell>::const_iterator
 			cell_item = game_grid.begin();
 			cell_item != game_grid.end();
@@ -62,39 +62,39 @@ public:
 				cell_data->data[1 + i] = 0;
 			}
 
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(cell);
-			// unrefined cells just consider neighbour counts at the level of unrefined cells
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(cell) == 0) {
 
 				for (vector<uint64_t>::const_iterator
-					neighbour = neighbours->begin();
-					neighbour != neighbours->end();
-					neighbour++
+					neighbor = neighbors->begin();
+					neighbor != neighbors->end();
+					neighbor++
 				) {
-					if (*neighbour == 0) {
+					if (*neighbor == 0) {
 						continue;
 					}
 
-					Cell* neighbour_data = game_grid[*neighbour];
-					if (neighbour_data == NULL) {
+					Cell* neighbor_data = game_grid[*neighbor];
+					if (neighbor_data == NULL) {
 						cerr << __FILE__ << ":" << __LINE__
-							<< " no data for neighbour of cell " << cell
-							<< ": " << *neighbour
+							<< " no data for neighbor of cell " << cell
+							<< ": " << *neighbor
 							<< std::endl;
 						abort();
 					}
 
-					if (game_grid.get_refinement_level(*neighbour) == 0) {
-						if (neighbour_data->data[0]) {
+					if (game_grid.get_refinement_level(*neighbor) == 0) {
+						if (neighbor_data->data[0]) {
 							cell_data->data[1]++;
 						}
 					// consider only one sibling...
 					} else {
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbour = game_grid.get_parent(*neighbour);
+						uint64_t parent_of_neighbor = game_grid.get_parent(*neighbor);
 						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == parent_of_neighbour) {
+							if (cell_data->data[5 + i] == parent_of_neighbor) {
 								sibling_processed = true;
 								break;
 							}
@@ -106,82 +106,82 @@ public:
 						} else {
 							for (int i = 0; i < 8; i++) {
 								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = parent_of_neighbour;
+									cell_data->data[5 + i] = parent_of_neighbor;
 									break;
 								}
 							}
 						}
 
-						if (neighbour_data->data[0]) {
+						if (neighbor_data->data[0]) {
 							cell_data->data[1]++;
 						}
 					}
 				}
 
-			// refined cells total the neighbour counts of siblings
+			// refined cells total the neighbor counts of siblings
 			} else {
 
 				for (vector<uint64_t>::const_iterator
-					neighbour = neighbours->begin();
-					neighbour != neighbours->end(); 
-					neighbour++
+					neighbor = neighbors->begin();
+					neighbor != neighbors->end(); 
+					neighbor++
 				) {
-					if (*neighbour == 0) {
+					if (*neighbor == 0) {
 						continue;
 					}
 
-					Cell* neighbour_data = game_grid[*neighbour];
-					if (neighbour_data == NULL) {
+					Cell* neighbor_data = game_grid[*neighbor];
+					if (neighbor_data == NULL) {
 						cerr << __FILE__ << ":" << __LINE__
-							<< " no data for neighbour of refined cell " << cell
-							<< ": " << *neighbour
+							<< " no data for neighbor of refined cell " << cell
+							<< ": " << *neighbor
 							<< std::endl;
 						abort();
 					}
 
-					if (game_grid.get_refinement_level(*neighbour) == 0) {
+					if (game_grid.get_refinement_level(*neighbor) == 0) {
 
-						// larger neighbours appear several times in the neighbour list
-						bool neighbour_processed = false;
+						// larger neighbors appear several times in the neighbor list
+						bool neighbor_processed = false;
 						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == *neighbour) {
-								neighbour_processed = true;
+							if (cell_data->data[5 + i] == *neighbor) {
+								neighbor_processed = true;
 								break;
 							}
 						}
 
-						if (neighbour_processed) {
+						if (neighbor_processed) {
 							continue;
 						} else {
 							for (int i = 0; i < 8; i++) {
 								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = *neighbour;
+									cell_data->data[5 + i] = *neighbor;
 									break;
 								}
 							}
 						}
 
-						if (neighbour_data->data[0]) {
+						if (neighbor_data->data[0]) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->data[2 + i] == 0) {
-									cell_data->data[2 + i] = *neighbour;
+									cell_data->data[2 + i] = *neighbor;
 									break;
 								}
 							}
 						}
 
-					// consider only one sibling of all parents of neighbouring cells...
+					// consider only one sibling of all parents of neighboring cells...
 					} else {
 
 						// ignore own siblings
-						if (game_grid.get_parent(cell) == game_grid.get_parent(*neighbour)) {
+						if (game_grid.get_parent(cell) == game_grid.get_parent(*neighbor)) {
 							continue;
 						}
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbour = game_grid.get_parent(*neighbour);
+						uint64_t parent_of_neighbor = game_grid.get_parent(*neighbor);
 						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == parent_of_neighbour) {
+							if (cell_data->data[5 + i] == parent_of_neighbor) {
 								sibling_processed = true;
 								break;
 							}
@@ -192,17 +192,17 @@ public:
 						} else {
 							for (int i = 0; i < 8; i++) {
 								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = parent_of_neighbour;
+									cell_data->data[5 + i] = parent_of_neighbor;
 									break;
 								}
 							}
 						}
 
 						// ...by recording which parents have been considered
-						if (neighbour_data->data[0]) {
+						if (neighbor_data->data[0]) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->data[2 + i] == 0) {
-									cell_data->data[2 + i] = parent_of_neighbour;
+									cell_data->data[2 + i] = parent_of_neighbor;
 									break;
 								}
 							}
@@ -212,9 +212,9 @@ public:
 			}
 
 		}
-		game_grid.update_remote_neighbour_data();
+		game_grid.update_remote_neighbor_data();
 
-		// get the total neighbour counts of refined cells
+		// get the total neighbor counts of refined cells
 		for (boost::unordered_map<uint64_t, Cell>::const_iterator
 			cell_item = game_grid.begin();
 			cell_item != game_grid.end();
@@ -227,38 +227,38 @@ public:
 			}
 			Cell* cell_data = game_grid[cell];
 
-			boost::unordered_set<uint64_t> current_live_unrefined_neighbours;
+			boost::unordered_set<uint64_t> current_live_unrefined_neighbors;
 			for (int i = 0; i < 3; i++) {
-				current_live_unrefined_neighbours.insert(cell_data->data[2 + i]);
+				current_live_unrefined_neighbors.insert(cell_data->data[2 + i]);
 			}
 
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
 			for (vector<uint64_t>::const_iterator
-				neighbour = neighbours->begin();
-				neighbour != neighbours->end();
-				neighbour++
+				neighbor = neighbors->begin();
+				neighbor != neighbors->end();
+				neighbor++
 			) {
-				if (*neighbour == 0) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				if (game_grid.get_refinement_level(*neighbour) == 0) {
+				if (game_grid.get_refinement_level(*neighbor) == 0) {
 					continue;
 				}
 
-				// total live neighbours counts only between siblings
-				if (game_grid.get_parent(cell) != game_grid.get_parent(*neighbour)) {
+				// total live neighbors counts only between siblings
+				if (game_grid.get_parent(cell) != game_grid.get_parent(*neighbor)) {
 					continue;
 				}
 
-				Cell* neighbour_data = game_grid[*neighbour];
+				Cell* neighbor_data = game_grid[*neighbor];
 				for (int i = 0; i < 3; i++) {
-					current_live_unrefined_neighbours.insert(neighbour_data->data[2 + i]);
+					current_live_unrefined_neighbors.insert(neighbor_data->data[2 + i]);
 				}
 			}
 
-			current_live_unrefined_neighbours.erase(0);
-			cell_data->data[1] += current_live_unrefined_neighbours.size();
+			current_live_unrefined_neighbors.erase(0);
+			cell_data->data[1] += current_live_unrefined_neighbors.size();
 		}
 
 		// calculate the next turn

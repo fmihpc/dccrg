@@ -14,18 +14,18 @@ using namespace std;
 using namespace boost::mpi;
 using namespace dccrg;
 
-// store in every cell of the grid whether the cell is alive and the number of live neighbours it has
+// store in every cell of the grid whether the cell is alive and the number of live neighbors it has
 struct game_of_life_cell {
 
 	// boost requires this from user data
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
 		ar & is_alive;
-		/* live_neighbour_count from neighbouring cells is not used
-		ar & live_neighbour_count;*/
+		/* live_neighbor_count from neighboring cells is not used
+		ar & live_neighbor_count;*/
 	}
 
 	bool is_alive;
-	unsigned int live_neighbour_count;
+	unsigned int live_neighbor_count;
 };
 
 
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
 	#define CELL_SIZE 1.0
 	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE);
 
-	// the cells that share a vertex are considered neighbours
+	// the cells that share a vertex are considered neighbors
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
 	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
-		cell_data->live_neighbour_count = 0;
+		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
 			cell_data->is_alive = true;
@@ -77,29 +77,29 @@ int main(int argc, char* argv[])
 	#define TURNS 100
 	for (int turn = 0; turn < TURNS; turn++) {
 
-		game_grid.update_remote_neighbour_data();
+		game_grid.update_remote_neighbor_data();
 
-		// get the neighbour counts for every local cell
+		// get the neighbor counts for every local cell
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			cell_data->live_neighbour_count = 0;
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
+			cell_data->live_neighbor_count = 0;
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
 
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
 
 				/*
-				neighbours that would be outside of the grid
+				neighbors that would be outside of the grid
 				are recorded as 0, skip them
 				*/
-				if (*neighbour == 0) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data->is_alive) {
-					cell_data->live_neighbour_count++;
+				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				if (neighbor_data->is_alive) {
+					cell_data->live_neighbor_count++;
 				}
 			}
 		}
@@ -109,9 +109,9 @@ int main(int argc, char* argv[])
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			if (cell_data->live_neighbour_count == 3) {
+			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = true;
-			} else if (cell_data->live_neighbour_count != 2) {
+			} else if (cell_data->live_neighbor_count != 2) {
 				cell_data->is_alive = false;
 			}
 		}

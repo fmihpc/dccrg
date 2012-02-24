@@ -1,5 +1,5 @@
 /*
-Tests the grid with variable amount of data in cells and variable amount of data sent during neighbour data updates
+Tests the grid with variable amount of data in cells and variable amount of data sent during neighbor data updates
 */
 
 #include "boost/mpi.hpp"
@@ -71,9 +71,9 @@ int main(int argc, char* argv[])
 	}
 
 	send_variables2 = true;
-	grid.update_remote_neighbour_data();
+	grid.update_remote_neighbor_data();
 
-	// print cell variables1 and neighbour variables2
+	// print cell variables1 and neighbor variables2
 	for (int proc = 0; proc < comm.size(); proc++) {
 		comm.barrier();
 		if (proc != comm.rank()) {
@@ -89,15 +89,15 @@ int main(int argc, char* argv[])
 				cout << *variable << " ";
 			}
 
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
-				if (*neighbour == 0) {
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				CellData* neighbour_data = grid[*neighbour];
+				CellData* neighbor_data = grid[*neighbor];
 
-				for (vector<int>::const_iterator variable = neighbour_data->variables2.begin(); variable != neighbour_data->variables2.end(); variable++) {
+				for (vector<int>::const_iterator variable = neighbor_data->variables2.begin(); variable != neighbor_data->variables2.end(); variable++) {
 					cout << *variable << " ";
 				}
 			}
@@ -130,15 +130,15 @@ int main(int argc, char* argv[])
 				cout << *variable << " ";
 			}
 
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
-				if (*neighbour == 0) {
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				CellData* neighbour_data = grid[*neighbour];
+				CellData* neighbor_data = grid[*neighbor];
 
-				for (vector<int>::const_iterator variable = neighbour_data->variables2.begin(); variable != neighbour_data->variables2.end(); variable++) {
+				for (vector<int>::const_iterator variable = neighbor_data->variables2.begin(); variable != neighbor_data->variables2.end(); variable++) {
 					cout << *variable << " ";
 				}
 			}
@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
 	}
 
 	send_variables2 = false;
-	grid.update_remote_neighbour_data();
+	grid.update_remote_neighbor_data();
 
 	// print cell data
 	for (int proc = 0; proc < comm.size(); proc++) {
@@ -174,15 +174,15 @@ int main(int argc, char* argv[])
 				cout << *variable << " ";
 			}
 
-			const vector<uint64_t>* neighbours = grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++) {
-				if (*neighbour == 0) {
+			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				CellData* neighbour_data = grid[*neighbour];
+				CellData* neighbor_data = grid[*neighbor];
 
-				for (vector<int>::const_iterator variable = neighbour_data->variables2.begin(); variable != neighbour_data->variables2.end(); variable++) {
+				for (vector<int>::const_iterator variable = neighbor_data->variables2.begin(); variable != neighbor_data->variables2.end(); variable++) {
 					cout << *variable << " ";
 				}
 			}

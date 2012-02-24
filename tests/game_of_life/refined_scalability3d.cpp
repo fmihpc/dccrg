@@ -24,7 +24,7 @@ struct game_of_life_cell {
 	}
 
 	bool is_alive;
-	unsigned int live_neighbour_count;
+	unsigned int live_neighbor_count;
 };
 
 
@@ -78,15 +78,15 @@ int main(int argc, char* argv[])
 	} while (all_reduce(comm, int(cells.size()), plus<int>()) < MAX_CELLS);
 	game_grid.balance_load();
 
-	vector<uint64_t> cells_with_local_neighbours = game_grid.get_cells_with_local_neighbours();
-	vector<uint64_t> cells_with_remote_neighbour = game_grid.get_cells_with_remote_neighbour();
-	cout << "Process " << comm.rank() << ": number of cells with local neighbours: " << cells_with_local_neighbours.size() << ", number of cells with a remote neighbour: " << cells_with_remote_neighbour.size() << endl;
+	vector<uint64_t> cells_with_local_neighbors = game_grid.get_cells_with_local_neighbors();
+	vector<uint64_t> cells_with_remote_neighbor = game_grid.get_cells_with_remote_neighbor();
+	cout << "Process " << comm.rank() << ": number of cells with local neighbors: " << cells_with_local_neighbors.size() << ", number of cells with a remote neighbor: " << cells_with_remote_neighbor.size() << endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbors.begin(); cell != cells_with_local_neighbors.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
-		cell_data->live_neighbour_count = 0;
+		cell_data->live_neighbor_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
 		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
@@ -95,10 +95,10 @@ int main(int argc, char* argv[])
 			cell_data->is_alive = false;
 		}
 	}
-	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbor.begin(); cell != cells_with_remote_neighbor.end(); cell++) {
 
 		game_of_life_cell* cell_data = game_grid[*cell];
-		cell_data->live_neighbour_count = 0;
+		cell_data->live_neighbor_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
 		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
@@ -109,70 +109,70 @@ int main(int argc, char* argv[])
 	}
 
 	// get some statistics
-	unordered_map<int, int> neighbour_count_histogram;
+	unordered_map<int, int> neighbor_count_histogram;
 	for (int i = 0; i < 8 * (9 + 8 + 9); i++) {
-		neighbour_count_histogram[i] = 0;
+		neighbor_count_histogram[i] = 0;
 	}
-	double avg_neighbours = 0.0;
-	int max_neighbours = 0, min_neighbours = 999;
-	uint64_t number_of_cells = cells_with_local_neighbours.size() + cells_with_remote_neighbour.size();
+	double avg_neighbors = 0.0;
+	int max_neighbors = 0, min_neighbors = 999;
+	uint64_t number_of_cells = cells_with_local_neighbors.size() + cells_with_remote_neighbor.size();
 
-	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+	for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbors.begin(); cell != cells_with_local_neighbors.end(); cell++) {
 
-		const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-		avg_neighbours += double(neighbours->size()) / number_of_cells;
+		const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+		avg_neighbors += double(neighbors->size()) / number_of_cells;
 
-		if (max_neighbours < int(neighbours->size())) {
-			max_neighbours = neighbours->size();
+		if (max_neighbors < int(neighbors->size())) {
+			max_neighbors = neighbors->size();
 		}
 
-		if (min_neighbours > int(neighbours->size())) {
-			min_neighbours = neighbours->size();
+		if (min_neighbors > int(neighbors->size())) {
+			min_neighbors = neighbors->size();
 		}
 
-		if (neighbours->size() >= 7 && neighbours->size() <= 8 * (9 + 8 + 9)) {
-			neighbour_count_histogram[neighbours->size()] += 1;
+		if (neighbors->size() >= 7 && neighbors->size() <= 8 * (9 + 8 + 9)) {
+			neighbor_count_histogram[neighbors->size()] += 1;
 		} else {
-			cout << "Impossible number of neighbours for cell " << *cell << ": " << neighbours->size() << endl;
+			cout << "Impossible number of neighbors for cell " << *cell << ": " << neighbors->size() << endl;
 		}
 	}
-	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+	for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbor.begin(); cell != cells_with_remote_neighbor.end(); cell++) {
 
-		const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-		avg_neighbours += double(neighbours->size()) / number_of_cells;
+		const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+		avg_neighbors += double(neighbors->size()) / number_of_cells;
 
-		if (max_neighbours < int(neighbours->size())) {
-			max_neighbours = neighbours->size();
+		if (max_neighbors < int(neighbors->size())) {
+			max_neighbors = neighbors->size();
 		}
 
-		if (min_neighbours > int(neighbours->size())) {
-			min_neighbours = neighbours->size();
+		if (min_neighbors > int(neighbors->size())) {
+			min_neighbors = neighbors->size();
 		}
 
-		if (neighbours->size() >= 7 && neighbours->size() <= 8 * (9 + 8 + 9)) {
-			neighbour_count_histogram[neighbours->size()] += 1;
+		if (neighbors->size() >= 7 && neighbors->size() <= 8 * (9 + 8 + 9)) {
+			neighbor_count_histogram[neighbors->size()] += 1;
 		} else {
-			cout << "Impossible number of neighbours for cell " << *cell << ": " << neighbours->size() << endl;
+			cout << "Impossible number of neighbors for cell " << *cell << ": " << neighbors->size() << endl;
 		}
 	}
 
 	// print statistics
-	int total_max_neighbours = all_reduce(comm, max_neighbours, plus<int>());
-	int total_min_neighbours = all_reduce(comm, min_neighbours, plus<int>());
-	double total_avg_neighbours = all_reduce(comm, avg_neighbours, plus<double>());
+	int total_max_neighbors = all_reduce(comm, max_neighbors, plus<int>());
+	int total_min_neighbors = all_reduce(comm, min_neighbors, plus<int>());
+	double total_avg_neighbors = all_reduce(comm, avg_neighbors, plus<double>());
 
 	for (int i = 0; i <= 8 * (9 + 8 + 9); i++) {
-		int total = all_reduce(comm, neighbour_count_histogram[i], plus<int>());
-		neighbour_count_histogram[i] = total;
+		int total = all_reduce(comm, neighbor_count_histogram[i], plus<int>());
+		neighbor_count_histogram[i] = total;
 	}
 
 	if (comm.rank() == 0) {
-		cout << "Max neighbours: " << total_max_neighbours << endl;
-		cout << "Min neighbours: " << total_min_neighbours << endl;
-		cout << "Avg. neighbours: " << total_avg_neighbours << endl;
-		cout << "Neighbour count histogram: (neighbours, count)" << endl;
+		cout << "Max neighbors: " << total_max_neighbors << endl;
+		cout << "Min neighbors: " << total_min_neighbors << endl;
+		cout << "Avg. neighbors: " << total_avg_neighbors << endl;
+		cout << "Neighbour count histogram: (neighbors, count)" << endl;
 		for (int i = 0; i <= 8 * (9 + 8 + 9); i++) {
-			cout << i << " " << neighbour_count_histogram[i] << endl;
+			cout << i << " " << neighbor_count_histogram[i] << endl;
 		}
 	}
 
@@ -182,7 +182,7 @@ int main(int argc, char* argv[])
 
 	#define TIME_STEPS 100
 	before = time(NULL);
-	uint64_t processed_neighbours = 0;
+	uint64_t processed_neighbors = 0;
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		if (comm.rank() == 0) {
@@ -190,66 +190,66 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		game_grid.start_remote_neighbour_data_update();
-		// get the neighbour counts of every cell, starting with the cells whose neighbour data doesn't come from other processes
-		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+		game_grid.start_remote_neighbor_data_update();
+		// get the neighbor counts of every cell, starting with the cells whose neighbor data doesn't come from other processes
+		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbors.begin(); cell != cells_with_local_neighbors.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
-			cell_data->live_neighbour_count = 0;
+			cell_data->live_neighbor_count = 0;
 
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++, processed_neighbours++) {
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++, processed_neighbors++) {
 
-				if (*neighbour == 0) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data->is_alive) {
-					cell_data->live_neighbour_count++;
+				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				if (neighbor_data->is_alive) {
+					cell_data->live_neighbor_count++;
 				}
 			}
 		}
 
-		// wait for neighbour data updates to finish and go through the rest of the cells
-		game_grid.wait_neighbour_data_update();
-		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+		// wait for neighbor data updates to finish and go through the rest of the cells
+		game_grid.wait_neighbor_data_update();
+		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbor.begin(); cell != cells_with_remote_neighbor.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
-			cell_data->live_neighbour_count = 0;
+			cell_data->live_neighbor_count = 0;
 
-			const vector<uint64_t>* neighbours = game_grid.get_neighbours(*cell);
-			for (vector<uint64_t>::const_iterator neighbour = neighbours->begin(); neighbour != neighbours->end(); neighbour++, processed_neighbours++) {
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++, processed_neighbors++) {
 
-				if (*neighbour == 0) {
+				if (*neighbor == 0) {
 					continue;
 				}
 
-				game_of_life_cell* neighbour_data = game_grid[*neighbour];
-				if (neighbour_data->is_alive) {
-					cell_data->live_neighbour_count++;
+				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				if (neighbor_data->is_alive) {
+					cell_data->live_neighbor_count++;
 				}
 			}
 		}
 
 		// calculate the next turn
-		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbours.begin(); cell != cells_with_local_neighbours.end(); cell++) {
+		for (vector<uint64_t>::const_iterator cell = cells_with_local_neighbors.begin(); cell != cells_with_local_neighbors.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			if (cell_data->live_neighbour_count == 3) {
+			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = true;
-			} else if (cell_data->live_neighbour_count != 2) {
+			} else if (cell_data->live_neighbor_count != 2) {
 				cell_data->is_alive = false;
 			}
 		}
-		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbour.begin(); cell != cells_with_remote_neighbour.end(); cell++) {
+		for (vector<uint64_t>::const_iterator cell = cells_with_remote_neighbor.begin(); cell != cells_with_remote_neighbor.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			if (cell_data->live_neighbour_count == 3) {
+			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = true;
-			} else if (cell_data->live_neighbour_count != 2) {
+			} else if (cell_data->live_neighbor_count != 2) {
 				cell_data->is_alive = false;
 			}
 		}
@@ -260,7 +260,7 @@ int main(int argc, char* argv[])
 		cout << endl;
 	}
 	comm.barrier();
-	cout << "processed neighbours: " << processed_neighbours << endl;
+	cout << "processed neighbors: " << processed_neighbors << endl;
 	cout << "Process " << comm.rank() << ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) / total << " cells / second"<< endl;
 
 	return EXIT_SUCCESS;

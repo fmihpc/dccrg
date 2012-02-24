@@ -77,7 +77,7 @@ public:
 	#else
 	static size_t size(void)
 	{
-		// processes don't need other processes' live neighbour info
+		// processes don't need other processes' live neighbor info
 		return sizeof(uint8_t) * Cell::data_size;
 	}
 	#endif
@@ -225,8 +225,8 @@ int main(int argc, char* argv[])
 	grid.initialize(comm, load_balancer.c_str(), neighborhood_size, maximum_refinement_level);
 	grid.balance_load();
 
-	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbours();
-	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbour();
+	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbors();
+	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbor();
 
 	double total_solution_time = 0;
 	double sends_size = 0, receives_size = 0;
@@ -238,13 +238,13 @@ int main(int argc, char* argv[])
 		const boost::unordered_map<int, std::vector<uint64_t> >* receive_lists = grid.get_receive_lists();
 		receives_size += get_traffic_size(receive_lists);
 
-		grid.start_remote_neighbour_data_update();
+		grid.start_remote_neighbor_data_update();
 
 		total_solution_time += solve<Cell>(solution_time, inner_cells, grid);
-		grid.wait_neighbour_data_update_receives();
+		grid.wait_neighbor_data_update_receives();
 
 		total_solution_time += solve<Cell>(solution_time, outer_cells, grid);
-		grid.wait_neighbour_data_update_sends();
+		grid.wait_neighbor_data_update_sends();
 	}
 
 	for (int process = 0; process < comm.size(); process++) {
