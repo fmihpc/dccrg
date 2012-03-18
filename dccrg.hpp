@@ -5692,9 +5692,7 @@ private:
 		}
 
 		// neighbors
-		sort(this->neighbors.at(cell).begin(), this->neighbors.at(cell).end());
 		std::vector<uint64_t> compare_neighbors = this->find_neighbors_of(cell);
-		sort(compare_neighbors.begin(), compare_neighbors.end());
 
 		if ((
 			this->neighbors.at(cell).size() != compare_neighbors.size())
