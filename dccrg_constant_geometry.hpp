@@ -200,12 +200,18 @@ public:
 
 	/*!
 	Returns the length of given cell in x direction.
+
+	Returns a quiet nan if given an invalid cell.
 	*/
 	double get_cell_x_size(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 
 		return this->cell_x_size / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
@@ -215,9 +221,13 @@ public:
 	*/
 	double get_cell_y_size(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 
 		return this->cell_y_size / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
@@ -227,9 +237,13 @@ public:
 	*/
 	double get_cell_z_size(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
 
 		return this->cell_z_size / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
@@ -240,11 +254,11 @@ public:
 	*/
 	double get_cell_x(const uint64_t cell) const
 	{
-		 if (cell == 0) {
-			return std::numeric_limits<double>::quiet_NaN();
-		 }
+		const int refinement_level = this->get_refinement_level(cell);
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -258,11 +272,11 @@ public:
 	*/
 	double get_cell_y(const uint64_t cell) const
 	{
-		 if (cell == 0) {
-			return std::numeric_limits<double>::quiet_NaN();
-		 }
+		const int refinement_level = this->get_refinement_level(cell);
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -276,11 +290,11 @@ public:
 	*/
 	double get_cell_z(const uint64_t cell) const
 	{
-		 if (cell == 0) {
-			return std::numeric_limits<double>::quiet_NaN();
-		 }
+		const int refinement_level = this->get_refinement_level(cell);
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -403,62 +417,247 @@ public:
 			return error_cell;
 		}
 
-		return this->get_cell_from_indices(this->get_x_index_of_coord(x), this->get_y_index_of_coord(y), this->get_z_index_of_coord(z), refinement_level);
+		return this->get_cell_from_indices(
+			this->get_x_index_of_coord(x),
+			this->get_y_index_of_coord(y),
+			this->get_z_index_of_coord(z),
+			refinement_level
+		);
 	}
 
 
 	/*!
-	Returns the smallest cell at given coordinates or 0 if outside of the grid
+	Returns the real value of given x coordinate in this geometry.
+
+	Returns given x if it is inside this geometry.
+	Returns a quiet NaN if this geometry is not periodic in x direction
+	and given x is outside of the geometry.
+	If this geometry is periodic in x returns a value inside the
+	geometry that is at the same location in the geometry as given x.
 	*/
-	/*uint64_t get_cell(const double x, const double y, const double z) const
+	double get_real_x(const double x) const
 	{
-		return this->get_cell_from_indices(this->get_x_index(x), this->get_y_index(y), this->get_z_index(z), 0, this->max_refinement_level);
-	}*/
+		if (x >= this->get_x_start()
+		&& x <= this->get_x_end()) {
+
+			return x;
+
+		} else if (!this->periodic[0]) {
+
+			return std::numeric_limits<double>::quiet_NaN();
+
+		} else {
+			const double grid_size = this->get_x_end() - this->get_x_start();
+
+			if (x < this->get_x_start()) {
+
+				const double distance = this->get_x_start() - x;
+				return x + grid_size * ceil(distance/ grid_size);
+
+			} else {
+
+				const double distance = x - this->get_x_end();
+				return x - grid_size * ceil(distance/ grid_size);
+			}
+		}
+	}
+
+	/*!
+	Returns the real value of given y coordinate in this geometry.
+
+	Returns given y if it is inside this geometry.
+	Returns a quiet NaN if this geometry is not periodic in y direction
+	and given y is outside of the geometry.
+	If this geometry is periodic in y returns a value inside the
+	geometry that is at the same location in the geometry as given y.
+	*/
+	double get_real_y(const double y) const
+	{
+		if (y >= this->get_y_start()
+		&& y <= this->get_y_end()) {
+
+			return y;
+
+		} else if (!this->periodic[0]) {
+
+			return std::numeric_limits<double>::quiet_NaN();
+
+		} else {
+			const double grid_size = this->get_y_end() - this->get_y_start();
+
+			if (y < this->get_y_start()) {
+
+				const double distance = this->get_y_start() - y;
+				return y + grid_size * ceil(distance/ grid_size);
+
+			} else {
+
+				const double distance = y - this->get_y_end();
+				return y - grid_size * ceil(distance/ grid_size);
+			}
+		}
+	}
+
+	/*!
+	Returns the real value of given z coordinate in this geometry.
+
+	Returns given z if it is inside this geometry.
+	Returns a quiet NaN if this geometry is not periodic in z direction
+	and given z is outside of the geometry.
+	If this geometry is periodic in z returns a value inside the
+	geometry that is at the same location in the geometry as given z.
+	*/
+	double get_real_z(const double z) const
+	{
+		if (z >= this->get_z_start()
+		&& z <= this->get_z_end()) {
+
+			return z;
+
+		} else if (!this->periodic[0]) {
+
+			return std::numeric_limits<double>::quiet_NaN();
+
+		} else {
+			const double grid_size = this->get_z_end() - this->get_z_start();
+
+			if (z < this->get_z_start()) {
+
+				const double distance = this->get_z_start() - z;
+				return z + grid_size * ceil(distance/ grid_size);
+
+			} else {
+
+				const double distance = z - this->get_z_end();
+				return z - grid_size * ceil(distance/ grid_size);
+			}
+		}
+	}
+
 
 	/*!
 	Returns the x index of given location, starting from 0.
-	Returns an invalid index if given location is outside of the grid.
+
+	Returns error_index if given location is outside of the grid
+	and the grid is not periodic in that direction.
 	*/
-	uint64_t get_x_index_of_coord(const double x) const
+	uint64_t get_x_index_of_coord(double x) const
 	{
-		assert((x >= this->get_x_start()) and (x <= this->get_x_start() + this->get_x_length() * this->cell_x_size));
-		return uint64_t(floor((x - this->get_x_start()) / (this->cell_x_size / (uint64_t(1) << this->max_refinement_level))));
+		x = this->get_real_x(x);
+
+		if (isnan(x)
+		|| x < this->get_x_start()
+		|| x > this->get_x_end()) {
+
+			return error_index;
+
+		} else {
+
+			return uint64_t(floor(
+				(x - this->get_x_start())
+				/ (this->cell_x_size / (uint64_t(1) << this->max_refinement_level))
+			));
+		}
 	}
 
 	/*!
 	Returns the y index of given location, starting from 0.
-	Returns an invalid index if given location is outside of the grid.
+
+	Returns error_index if given location is outside of the grid
+	and the grid is not periodic in that direction.
 	*/
-	uint64_t get_y_index_of_coord(const double y) const
+	uint64_t get_y_index_of_coord(double y) const
 	{
-		assert((y >= this->get_y_start()) and (y <= this->get_y_start() + this->get_y_length() * this->cell_y_size));
-		return uint64_t(floor((y - this->get_y_start()) / (this->cell_y_size / (uint64_t(1) << this->max_refinement_level))));
+		y = this->get_real_y(y);
+
+		if (isnan(y)
+		|| y < this->get_y_start()
+		|| y > this->get_y_end()) {
+
+			return error_index;
+
+		} else {
+
+			return uint64_t(floor(
+				(y - this->get_y_start())
+				/ (this->cell_y_size / (uint64_t(1) << this->max_refinement_level))
+			));
+		}
 	}
 
 	/*!
 	Returns the z index of given location, starting from 0.
-	Returns an invalid index if given location is outside of the grid.
+
+	Returns error_index if given location is outside of the grid
+	and the grid is not periodic in that direction.
 	*/
-	uint64_t get_z_index_of_coord(const double z) const
+	uint64_t get_z_index_of_coord(double z) const
 	{
-		assert((z >= this->get_z_start()) and (z <= this->get_z_start() + this->get_z_length() * this->cell_z_size));
-		return uint64_t(floor((z - this->get_z_start()) / (this->cell_z_size / (uint64_t(1) << this->max_refinement_level))));
+		z = this->get_real_z(z);
+
+		if (isnan(z)
+		|| z < this->get_z_start()
+		|| z > this->get_z_end()) {
+
+			return error_index;
+
+		} else {
+
+			return uint64_t(floor(
+				(z - this->get_z_start())
+				/ (this->cell_z_size / (uint64_t(1) << this->max_refinement_level))
+			));
+		}
 	}
 
 
 	// Optional BOOST serialization support
 	#ifdef BOOST_SERIALIZATION_LIBRARY_VERSION
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		#ifdef DCCRG_ARBITRARY_STRETCH
-		ar & x_coordinates & y_coordinates & z_coordinates;
-		#else
-		ar & x_start & y_start & z_start;
-		ar & cell_x_size & cell_y_size & cell_z_size;
-		#endif
-		ar & x_length & y_length & z_length & maximum_refinement_level;
+		ar & this->x_start
+			& this->y_start
+			& this->z_start
+			& this->cell_x_size
+			& this->cell_y_size
+			& this->cell_z_size
+			& this->x_length
+			& this->y_length
+			& this->z_length
+			& this->maximum_refinement_level
+			& this->periodic;
 	}
 	#endif
 
+
+	/*!
+	Sets the periodicity of the geometry.
+
+	index = 0 == x direction.
+	*/
+	void set_periodicity(const size_t index, const bool value)
+	{
+		if (index > 2) {
+			return;
+		}
+
+		this->periodic[index] = value;
+	}
+
+
+	/*!
+	Returns whether the geometry in periodic in given direction.
+
+	index = 0 == x direction.
+	Returns false if given index > 2.
+	*/
+	bool is_periodic(const size_t index) const
+	{
+		if (index > 2) {
+			return false;
+		}
+
+		return this->periodic[index];
+	}
 
 
 private:
@@ -467,6 +666,9 @@ private:
 	double x_start, y_start, z_start;
 	// length of unrefined cells in all directions
 	double cell_x_size, cell_y_size, cell_z_size;
+
+	// periodic[0] == true means that the grid wraps around in x direction
+	bool periodic[3];
 
 
 };	// class

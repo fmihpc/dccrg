@@ -224,9 +224,9 @@ public:
 		Set grid parameters
 		*/
 
-		this->periodic[0] = periodic_in_x;
-		this->periodic[1] = periodic_in_y;
-		this->periodic[2] = periodic_in_z;
+		this->set_periodicity(0, periodic_in_x);
+		this->set_periodicity(1, periodic_in_y);
+		this->set_periodicity(2, periodic_in_z);
 
 		// set / check neighborhood_of
 		this->neighborhood_size = neighborhood_size;
@@ -1490,7 +1490,7 @@ public:
 			for (unsigned int dimension = 0; dimension < 3; dimension++) {
 				if (offsets[dimension] < 0) {
 
-					if (this->periodic[dimension]) {
+					if (this->is_periodic(dimension)) {
 
 						// neighborhood might wrap around the grid several times
 						for (int i = 0; i > offsets[dimension]; i--) {
@@ -1525,7 +1525,7 @@ public:
 
 				} else {
 
-					if (this->periodic[dimension]) {
+					if (this->is_periodic(dimension)) {
 						for (int i = 0; i < offsets[dimension]; i++) {
 
 							#ifdef DEBUG
@@ -2553,21 +2553,17 @@ public:
 	*/
 	uint64_t get_existing_cell(const double x, const double y, const double z) const
 	{
-		if (x < this->get_x_start()
-			|| x > this->get_x_end()
-			|| y < this->get_y_start()
-			|| y > this->get_y_end()
-			|| z < this->get_z_start()
-			|| z > this->get_z_end()
-		) {
-			return error_cell;
-		}
-
-		const Types<3>::indices_t indices = {
+		const Types<3>::indices_t indices = {{
 			this->get_x_index_of_coord(x),
 			this->get_y_index_of_coord(y),
 			this->get_z_index_of_coord(z)
-		};
+		}};
+
+		if (indices[0] == error_index
+		|| indices[1] == error_index
+		|| indices[2] == error_index) {
+			return error_cell;
+		}
 
 		return this->get_existing_cell(indices, 0, this->max_refinement_level);
 	}
@@ -2661,9 +2657,6 @@ private:
 	unsigned int neighborhood_size;
 	// the grid is distributed between these processes
 	boost::mpi::communicator comm;
-
-	// periodic[0] == true means that the grid wraps around in x direction
-	bool periodic[3];
 
 	// cells and their data on this process
 	boost::unordered_map<uint64_t, UserData> cells;
@@ -3651,7 +3644,7 @@ private:
 					distance[i] = indices2[i] - (indices1[i] + cell1_size);
 				}
 
-				if (this->periodic[i]) {
+				if (this->is_periodic(i)) {
 					const uint64_t distance_to_end = grid_length[i] - (indices2[i] + cell2_size);
 					distance[i] = std::min(distance[i], indices1[i] + distance_to_end);
 				}
@@ -3662,7 +3655,7 @@ private:
 					distance[i] = indices1[i] - (indices2[i] + cell2_size);
 				}
 
-				if (this->periodic[i]) {
+				if (this->is_periodic(i)) {
 					const uint64_t distance_to_end = grid_length[i] - (indices1[i] + cell1_size);
 					distance[i] = std::min(distance[i], indices2[i] + distance_to_end);
 				}
