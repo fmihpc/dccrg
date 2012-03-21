@@ -14,13 +14,6 @@ GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
 along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
-
-
-TODO:
-Initial condition is the one in (figures 9.4 - 9.9 of):
-LeVeque, R. J., High-resolution conservative algorithms for advection in
-incompressible flow, SIAM J. Numer. Anal., 33, 627-665, 1996
-but the used solver is probably the simplest possible.
 */
 
 #include "algorithm"
