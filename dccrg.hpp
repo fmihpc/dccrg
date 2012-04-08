@@ -419,7 +419,7 @@ public:
 	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells)
 	*/
-	std::vector<uint64_t> get_cells(void) const
+	std::vector<uint64_t> get_cells() const
 	{
 		std::vector<uint64_t> all_cells;
 		all_cells.reserve(this->cells.size());
@@ -472,7 +472,7 @@ public:
 	/*!
 	Returns a begin const_iterator to the internal storage of local cells and their data.
 	*/
-	typename boost::unordered_map<uint64_t, UserData>::const_iterator begin(void) const
+	typename boost::unordered_map<uint64_t, UserData>::const_iterator begin() const
 	{
 		return this->cells.begin();
 	}
@@ -480,7 +480,7 @@ public:
 	/*!
 	Returns an end const_iterator to the internal storage of local cells and their data.
 	*/
-	typename boost::unordered_map<uint64_t, UserData>::const_iterator end(void) const
+	typename boost::unordered_map<uint64_t, UserData>::const_iterator end() const
 	{
 		return this->cells.end();
 	}
@@ -489,7 +489,7 @@ public:
 	/*!
 	Returns the number of local cells without children, e.g. leaf cells.
 	*/
-	size_t size(void) const
+	size_t size() const
 	{
 		return this->cells.size();
 	}
@@ -498,7 +498,7 @@ public:
 	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells) and don't have neighbors on other processes
 	*/
-	std::vector<uint64_t> get_cells_with_local_neighbors(void) const
+	std::vector<uint64_t> get_cells_with_local_neighbors() const
 	{
 		std::vector<uint64_t> return_cells;
 		return_cells.reserve(this->cells.size());
@@ -540,7 +540,7 @@ public:
 	/*!
 	Returns all cells on this process that don't have children (e.g. leaf cells) and have at least one neighbor on another processes
 	*/
-	std::vector<uint64_t> get_cells_with_remote_neighbor(void) const
+	std::vector<uint64_t> get_cells_with_remote_neighbor() const
 	{
 		std::vector<uint64_t> return_cells;
 		return_cells.reserve(this->cells.size());
@@ -582,7 +582,7 @@ public:
 	/*!
 	Returns all cells in the grid that don't have children (e.g. leaf cells)
 	*/
-	std::vector<uint64_t> get_all_cells(void) const
+	std::vector<uint64_t> get_all_cells() const
 	{
 		std::vector<uint64_t> all_cells;
 		all_cells.reserve(this->cell_process.size());
@@ -716,7 +716,7 @@ public:
 
 	When calling balance_load after this function has_been_prepared must be true.
 	*/
-	void prepare_to_balance_load(void)
+	void prepare_to_balance_load()
 	{
 		this->make_new_partition(true);
 		this->prepare_to_move_cells();
@@ -732,7 +732,7 @@ public:
 
 	When calling migrate_cells after this function has_been_prepared must be true.
 	*/
-	void prepare_to_migrate_cells(void)
+	void prepare_to_migrate_cells()
 	{
 		this->make_new_partition(true);
 		this->prepare_to_move_cells();
@@ -749,7 +749,7 @@ public:
 	Cells' user data is only sent to / received from a process once.
 	Must be called simultaneously on all processes
 	*/
-	void update_remote_neighbor_data(void)
+	void update_remote_neighbor_data()
 	{
 		this->start_remote_neighbor_data_update();
 		this->wait_neighbor_data_update();
@@ -760,7 +760,7 @@ public:
 	Starts the update of neighbor data between processes and returns before (probably) it has completed
 	Must be called simultaneously on all processes
 	*/
-	void start_remote_neighbor_data_update(void)
+	void start_remote_neighbor_data_update()
 	{
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
@@ -778,7 +778,7 @@ public:
 	Waits until all neighbor data update transfers between processes have completed and incorporates that data.
 	Must be called simultaneously on all processes.
 	*/
-	void wait_neighbor_data_update(void)
+	void wait_neighbor_data_update()
 	{
 		this->wait_neighbor_data_update_receives();
 		this->wait_neighbor_data_update_sends();
@@ -787,9 +787,9 @@ public:
 
 	/*!
 	Waits until all sends associated with neighbor data update transfers between processes have completed.
-	Must be called simultaneously on all processes and probably must be called after wait...update_receives(void).
+	Must be called simultaneously on all processes and probably must be called after wait...update_receives().
 	*/
-	void wait_neighbor_data_update_sends(void)
+	void wait_neighbor_data_update_sends()
 	{
 		this->wait_user_data_transfer_sends();
 	}
@@ -797,9 +797,9 @@ public:
 
 	/*!
 	Waits until all receives associated with neighbor data update transfers between processes have completed and incorporates that data.
-	Must be called simultaneously on all processes and probably must be called before wait...update_sends(void).
+	Must be called simultaneously on all processes and probably must be called before wait...update_sends().
 	*/
-	void wait_neighbor_data_update_receives(void)
+	void wait_neighbor_data_update_receives()
 	{
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
@@ -817,7 +817,7 @@ public:
 	The total amount of cells to be sent is returned so if a cell's data will be sent to
 	N processes it is counted N times.
 	*/
-	uint64_t get_number_of_update_send_cells(void) const
+	uint64_t get_number_of_update_send_cells() const
 	{
 		uint64_t result = 0;
 		for (
@@ -838,7 +838,7 @@ public:
 	/*!
 	Returns the number of cells whose data this process has to receive during a neighbor data update.
 	*/
-	uint64_t get_number_of_update_receive_cells(void) const
+	uint64_t get_number_of_update_receive_cells() const
 	{
 		uint64_t result = 0;
 		for (
@@ -914,7 +914,7 @@ public:
 	/*!
 	Returns the size of cells' neihgbourhood in every direction.
 	*/
-	unsigned int get_neighborhood_size(void) const
+	unsigned int get_neighborhood_size() const
 	{
 		return this->neighborhood_size;
 	}
@@ -1406,7 +1406,7 @@ public:
 	Returns cells that were created by refinement on this process.
 	Moves user data of unrefined cells to the process of their parent.
 	*/
-	std::vector<uint64_t> stop_refining(void)
+	std::vector<uint64_t> stop_refining()
 	{
 		this->induce_refines();
 
@@ -1424,7 +1424,7 @@ public:
 	Returns cells that were removed by unrefinement whose parent is on this process
 	Removed cells data is also on this process, but only until balance_load() is called
 	*/
-	std::vector<uint64_t> get_removed_cells(void) const
+	std::vector<uint64_t> get_removed_cells() const
 	{
 		std::vector<uint64_t> unref_removed_cells;
 		unref_removed_cells.reserve(this->unrefined_cell_data.size());
@@ -2113,7 +2113,7 @@ public:
 	/*!
 	Removes user data of refined and unrefined cells from this process.
 	*/
-	void clear_refined_unrefined_data(void)
+	void clear_refined_unrefined_data()
 	{
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
@@ -2364,7 +2364,7 @@ public:
 	/*!
 	Executes unpin(cell) for all cells on this process.
 	*/
-	void unpin_local_cells(void)
+	void unpin_local_cells()
 	{
 		#ifdef DEBUG
 		// check that all child cells on this process are also in this->cells.
@@ -2403,7 +2403,7 @@ public:
 
 	Must be called simultaneously on all processes.
 	*/
-	void unpin_all_cells(void)
+	void unpin_all_cells()
 	{
 		this->new_pin_requests.clear();
 		this->pin_requests.clear();
@@ -2421,7 +2421,7 @@ public:
 	#else
 	const boost::unordered_map<int, std::vector<uint64_t> >*
 	#endif
-	get_send_lists(void)
+	get_send_lists()
 	{
 		return &(this->cells_to_send);
 	}
@@ -2437,7 +2437,7 @@ public:
 	#else
 	const boost::unordered_map<int, std::vector<uint64_t> >*
 	#endif
-	get_receive_lists(void)
+	get_receive_lists()
 	{
 		return &(this->cells_to_receive);
 	}
@@ -2447,7 +2447,7 @@ public:
 	Returns a pointer to the set of local cells which have at least one neighbor
 	on another process.
 	*/
-	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbors(void) const
+	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbors() const
 	{
 		return &(this->cells_with_remote_neighbors);
 	}
@@ -2455,7 +2455,7 @@ public:
 	/*!
 	Returns a vector of local cells which have at least one neighbor on another process.
 	*/
-	std::vector<uint64_t> get_list_of_cells_with_remote_neighbors(void) const
+	std::vector<uint64_t> get_list_of_cells_with_remote_neighbors() const
 	{
 		std::vector<uint64_t> result(
 			this->cells_with_remote_neighbors.begin(),
@@ -2467,7 +2467,7 @@ public:
 	/*!
 	Returns a pointer to the set of remote cells which have at least one local neighbor.
 	*/
-	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbors(void) const
+	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbors() const
 	{
 		return &(this->remote_cells_with_local_neighbors);
 	}
@@ -2475,7 +2475,7 @@ public:
 	/*!
 	See get_remote_neighbors().
 	*/
-	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors(void) const
+	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors() const
 	{
 		std::vector<uint64_t> result(
 			this->remote_cells_with_local_neighbors.begin(),
@@ -2545,7 +2545,7 @@ public:
 	Returns a pointer to the list of cells that will be added
 	to this process after preparing to migrate or load balance cells.
 	*/
-	const boost::unordered_set<uint64_t>* get_balance_added_cells(void) const
+	const boost::unordered_set<uint64_t>* get_balance_added_cells() const
 	{
 		return &(this->added_cells);
 	}
@@ -2554,7 +2554,7 @@ public:
 	Returns a pointer to the list of cells that will be removed
 	from this process after preparing to migrate or load balance cells.
 	*/
-	const boost::unordered_set<uint64_t>* get_balance_removed_cells(void) const
+	const boost::unordered_set<uint64_t>* get_balance_removed_cells() const
 	{
 		return &(this->removed_cells);
 	}
@@ -2656,7 +2656,7 @@ public:
 	}
 
 
-	boost::unordered_map<uint64_t, double>::size_type get_number_of_cell_weights(void) const
+	boost::unordered_map<uint64_t, double>::size_type get_number_of_cell_weights() const
 	{
 		return this->cell_weights.size();
 	}
@@ -2774,7 +2774,7 @@ private:
 	Must be called simultaneously on all processes.
 	Clears user-given weights of all cells.
 	*/
-	void move_cells(void) {
+	void move_cells() {
 		// TODO: get rid of added_cells and removed_cells and use cells_to_send and receive instead?
 
 		this->cell_weights.clear();
@@ -2955,7 +2955,7 @@ private:
 	Must be called simultaneously on all processes.
 	move_cells must be the next dccrg function to be called after this one.
 	*/
-	void prepare_to_move_cells(void) {
+	void prepare_to_move_cells() {
 
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
@@ -3071,7 +3071,7 @@ private:
 
 	Must be called simultaneously on all processes.
 	*/
-	void update_pin_requests(void)
+	void update_pin_requests()
 	{
 		std::vector<uint64_t> new_pinned_cells, new_pinned_processes;
 
@@ -3354,7 +3354,7 @@ private:
 
 	Assumes up-to-date neighbor lists, clears previous send / receive lists.
 	*/
-	void recalculate_neighbor_update_send_receive_lists(void)
+	void recalculate_neighbor_update_send_receive_lists()
 	{
 		// clear previous lists
 		this->cells_to_send.clear();
@@ -3571,7 +3571,7 @@ private:
 
 	Uses current neighbor lists.
 	*/
-	void update_remote_neighbor_info(void)
+	void update_remote_neighbor_info()
 	{
 		// TODO this probably can't be optimized without storing neighbor lists also for remote neighbors
 		this->cells_with_remote_neighbors.clear();
@@ -3732,7 +3732,7 @@ private:
 
 	After this function cells_to_refine will contain the refines of all processes.
 	*/
-	void induce_refines(void)
+	void induce_refines()
 	{
 		std::vector<uint64_t> new_refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		while (all_reduce(this->comm, new_refines.size(), std::plus<uint64_t>()) > 0) {
@@ -3925,7 +3925,7 @@ private:
 	cells_to_refine and cells_not_to_unrefine must be identical between processes.
 	After this function cells_to_unrefine will contain the unrefines of all processes.
 	*/
-	void override_unrefines(void)
+	void override_unrefines()
 	{
 		/*
 		TODO: make this a function of maximum allowed difference in refinement levels
@@ -4080,7 +4080,7 @@ private:
 	Returns new cells created on this process by refinement.
 	Moves unrefined cell data to the process of their parent.
 	*/
-	std::vector<uint64_t> execute_refines(void)
+	std::vector<uint64_t> execute_refines()
 	{
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
@@ -4968,7 +4968,7 @@ private:
 	/*!
 	Waits for the sends of user data transfers between processes to complete.
 	*/
-	void wait_user_data_transfer_sends(void)
+	void wait_user_data_transfer_sends()
 	{
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
@@ -5597,7 +5597,7 @@ private:
 	/*!
 	Returns false if the same cells don't exist on the same process for all processes.
 	*/
-	bool is_consistent(void)
+	bool is_consistent()
 	{
 		// sort existing cells from this process
 		std::vector<uint64_t> local_cells;
@@ -5764,7 +5764,7 @@ private:
 	/*!
 	Returns false if neighbor lists on this process aren't consistent
 	*/
-	bool verify_neighbors(void)
+	bool verify_neighbors()
 	{
 		for (typename boost::unordered_map<uint64_t, int>::const_iterator
 			cell = this->cell_process.begin();
@@ -5844,7 +5844,7 @@ private:
 
 	Remote neighbor info consists of cells_with_remote_neighbors and remote_cells_with_local_neighbors.
 	*/
-	bool verify_remote_neighbor_info(void)
+	bool verify_remote_neighbor_info()
 	{
 		for (boost::unordered_map<uint64_t, int>::const_iterator
 			item = this->cell_process.begin();
@@ -5988,7 +5988,7 @@ private:
 	/*!
 	Returns true if user data exists for local cells.
 	*/
-	bool verify_user_data(void)
+	bool verify_user_data()
 	{
 		for (boost::unordered_map<uint64_t, int>::const_iterator
 			item = this->cell_process.begin();
@@ -6021,7 +6021,7 @@ private:
 	/*!
 	Returns true if all cells are where pin reqests should have placed them.
 	*/
-	bool pin_requests_succeeded(void)
+	bool pin_requests_succeeded()
 	{
 		for (boost::unordered_map<uint64_t, int>::const_iterator
 			pin_request = this->pin_requests.begin();
