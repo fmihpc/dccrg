@@ -1038,6 +1038,20 @@ public:
 
 
 	/*!
+	Returns remote neighbors of local cells.
+
+	Returns cells on other processes which at least one local cell
+	considers as neighbors.
+	Use update_remote_neighbor_data to make sure that a local copy
+	of remote neighbors' data exists.
+	*/
+	std::vector<uint64_t> get_remote_neighbors() const
+	{
+		return this->get_list_of_remote_cells_with_local_neighbors();
+	}
+
+
+	/*!
 	Returns true if given cell is on this process and false otherwise.
 	*/
 	bool is_local(const uint64_t cell) const
@@ -2459,7 +2473,7 @@ public:
 	}
 
 	/*!
-	Returns a vector of remote cells which have at least one local neighbor.
+	See get_remote_neighbors().
 	*/
 	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors(void) const
 	{
