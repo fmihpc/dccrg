@@ -20,6 +20,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DCCRG_HPP
 #define DCCRG_HPP
 
+
+/*
+If compilation fails with a complaint about
+MPI_UNSIGNED_LONG_LONG try replacing it with
+MPI_UNSIGNED_LONG in the following:
+*/
+#ifndef MPI_UINT64_T
+#define MPI_UINT64_T MPI_UNSIGNED_LONG_LONG
+#endif
+
+
 /*!
 \mainpage Distributed Cartesian Cell-Refinable Grid.
 
@@ -6045,6 +6056,8 @@ private:
 };
 
 }	// namespace
+
+#undef MPI_UINT64_T
 
 #endif
 
