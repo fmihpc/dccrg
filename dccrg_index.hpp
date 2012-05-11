@@ -358,6 +358,29 @@ public:
 	}
 
 
+	/*!
+	Returns the refinement level 0 parent of given cell.
+
+	If given a refinement level 0 cell returns the same cell.
+	Returns dccrg::error_cell otherwise.
+	*/
+	uint64_t get_level_0_parent(const uint64_t cell) const
+	{
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (refinement_level < 0
+		|| refinement_level > this->max_refinement_level) {
+			return error_cell;
+		}
+
+		if (refinement_level == 0) {
+			return cell;
+		}
+
+		return this->get_cell_from_indices(this->get_indices(cell), 0);
+	}
+
+
 
 protected:
 

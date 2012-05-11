@@ -784,39 +784,63 @@ public:
 
 
 	/*!
-	Refines the grid so that at least the given cells whose parents are on this process will exist in the grid.
+	Refines the current grid so that the given cells exist.
 
-	Must be called simultaneously on all processes.
-	Does not store the user data of any refined cell.
-	Returns true on this process if successful and false if given an invalid cell (0 or a cell with a too large refinement level).
+	Must be called by all processes and only cells of
+	refinement level 0 must exist in the grid.
+	Ignores cells in given list that aren't a (grand...)
+	child of a local cell.
+	Returns true on success and false otherwise.
 	*/
-	bool load(const std::vector<uint64_t>& cells)
+	bool load(const std::vector<uint64_t>& given_cells)
 	{
-		// see for example http://www.informit.com/articles/article.aspx?p=376878&rll=1 for an explanation about template<template...
+		boost::unordered_set<uint64_t> children_of_local_cells;
 
-		// calculate which cells must be refined...
-		boost::unordered_set<uint64_t> cells_to_refine;
+		int max_ref_lvl_of_given = 0;
 
-		// ...and check for invalid cells
-		BOOST_FOREACH(const uint64_t& cell, cells) {
+		BOOST_FOREACH(const uint64_t given_cell, given_cells) {
 
-			if (cell == 0) {
-				return false;
+			const int refinement_level = this->get_refinement_level(given_cell);
+			max_ref_lvl_of_given = std::max(refinement_level, max_ref_lvl_of_given);
+
+			if (refinement_level == 0) {
+				continue;
 			}
 
-			if (this->get_refinement_level(cell) < 0) {
-				return false;
+			const uint64_t parent = this->get_level_0_parent(given_cell);
+			if (this->cell_process.count(parent) == 0) {
+				continue;
 			}
 
-			// refine all parents of current cell
-			uint64_t parent = this->get_parent_for_removed(cell);
-			while (parent != this->get_parent_for_removed(parent)) {
-				cells_to_refine.insert(parent);
+			if (this->cell_process.at(parent) != this->comm.rank()) {
+				continue;
 			}
-			cells_to_refine.insert(parent);
+
+			children_of_local_cells.insert(given_cell);
 		}
 
-		// keep refining until no more refines on any process, TODO
+		/*
+		Starting from refinement level 0 refine each local cell
+		that has a child in given_cells
+		*/
+		std::vector<boost::unordered_set<uint64_t> > cells_and_parents(max_ref_lvl_of_given);
+
+		BOOST_FOREACH(const uint64_t cell, children_of_local_cells) {
+			uint64_t current_child = cell;
+			const int refinement_level = this->get_refinement_level(current_child);
+			for (int i = refinement_level - 1; i >= 0; i--) {
+				const uint64_t parent = this->get_parent_for_removed(current_child);
+				cells_and_parents[i].insert(parent);
+				current_child = parent;
+			}
+		}
+
+		for (int current_ref_lvl = 0; current_ref_lvl < max_ref_lvl_of_given; current_ref_lvl++) {
+			BOOST_FOREACH(const uint64_t cell, cells_and_parents[current_ref_lvl]) {
+				this->refine_completely(cell);
+			}
+			this->stop_refining();
+		}
 
 		return true;
 	}
