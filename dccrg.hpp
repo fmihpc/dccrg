@@ -480,6 +480,154 @@ public:
 		return all_cells;
 	}
 
+
+	#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+	/*
+	Writes the current grid data into a file with given name.
+
+	Returns true on success, false otherwise (one one or more processes)
+	Data stored in local cells is also written.
+	The file is written in parallel using MPI_IO.
+	Must be called by all processes.
+	Data is written starting at start_offset given in bytes
+	(e.g. write global simulation data yourself into the
+	beginning of the file).
+	*/
+	/*bool write_grid(const std::string& name, const MPI_Offset& start_offset) const
+	{
+		File format:
+
+		The file starts with (at offset given by the user) a
+		list of cells in the file and the offset (in bytes) of
+		their data in the file.
+		After the list of all cells and the offsets of their data
+		follows the cell data itself.
+
+		// MPI_File_open wants a non-constant string
+		char* name_c_string = new char [name.size() + 1];
+		strncpy(name_c_string, name.c_str(), name.size() + 1);
+
+		MPI_File outfile;
+
+		int result = MPI_File_open(
+			this->comm,
+			name_c_string,
+			MPI_MODE_CREATE | MPI_MODE_WRONLY,
+			MPI_INFO_NULL,
+			&outfile
+		);
+
+		delete [] name_c_string;
+
+		if (result != MPI_SUCCESS) {
+			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+			int string_length;
+			MPI_Error_string(result, mpi_error_string, &string_length);
+			mpi_error_string[string_length + 1] = '\0';
+			std::cerr << "Couldn't open file " << name_c_string
+				<< ": " << mpi_error_string
+				<< std::endl;
+			return false;
+		}
+
+		// create one datatype representing all local data
+		MPI_Datatype final_type;
+
+		// datatypes of local cells from which final_type is created
+		std::vector<MPI_Datatype> datatypes;
+		datatypes.reserve(this->cells.size() + 1);
+		std::vector<int> block_lengths(this->cells.size() + 1, 1);
+		std::vector<MPI_Aint> displacements(this->cells.size() + 1, 0);
+
+		// record the offset at which local cells' data starts, init with dummy values
+		std::vector<std::pair<uint64_t, uint64_t> > local_cell_offsets(this->cells.size());
+		size_t i = 0;
+		BOOST_FOREACH(const cell_and_data_pair_t& cell_and_data, this->cells) {
+			const uint64_t cell = cell_and_data.first;
+			// offset everything by start_offset
+			local_cell_offsets[i] = std::make_pair(cell, (size_t) start_offset);
+			std::cout << cell << ", " << start_offset << std::endl;
+			i++;
+		}
+
+		// first datatype is the local cell and offset list at displacement 0
+		datatypes.push_back(MPI_BYTE);
+		block_lengths[0] = local_cell_offsets.size() * sizeof(std::pair<uint64_t, uint64_t>);
+
+		// gather datatypes, etc. of local cells
+		size_t local_file_byte_offset = 0;
+		//TODO: handle zero local cells; if (local_cell_offsets.size() > 0) {
+		for (size_t i = 0; i < local_cell_offsets.size(); i++) {
+			const uint64_t cell = local_cell_offsets[i].first;
+			datatypes.push_back(this->cells.at(cell).mpi_datatype());
+			displacements[i + 1] = (MPI_Aint)((uint8_t*) this->cells.at(cell).at() - (uint8_t*) &local_cell_offsets[0]);
+
+			// first set cell data offset in file relative to own cells
+			local_cell_offsets[i].second += local_file_byte_offset;
+			int current_bytes;
+			MPI_Type_size(datatypes[i + 1], &current_bytes);
+			local_file_byte_offset += (size_t) current_bytes;
+		}
+
+		// number of bytes each process will write
+		std::vector<size_t> number_of_bytes;
+		all_gather(this->comm, local_file_byte_offset, number_of_bytes);
+
+		std::vector<uint64_t> number_of_cells;
+		all_gather(this->comm, this->cells.size(), number_of_cells);
+
+		// offset local cell data in file with data size of previous processes
+		size_t global_file_byte_offset = 0;
+		for (size_t i = 0; i < (size_t) this->comm.rank(); i++) {
+			global_file_byte_offset += number_of_bytes[i];
+		}
+
+		for (size_t i = 0; i < local_cell_offsets.size(); i++) {
+			local_cell_offsets[i].second += global_file_byte_offset;
+		}
+
+		// offset local cell list in file by nr of cell of previous processes
+		for (size_t i = 0; i < (size_t) this->comm.rank(); i++) {
+			displacements[0] += number_of_cells[i] * sizeof(std::pair<uint64_t, uint64_t>);
+		}
+
+		assert(MPI_Type_create_struct(
+			datatypes.size(),
+			&block_lengths[0],
+			&displacements[0],
+			&datatypes[0],
+			&final_type
+		) == MPI_SUCCESS);
+
+		// write the file
+		// FIXME? Doesn't work, openmpi always returns invalid datatype when using final_type
+		result = MPI_File_write_at_all(
+			outfile,
+			start_offset,
+			(void*) &local_cell_offsets[0],
+			1,
+			final_type,
+			MPI_STATUS_IGNORE
+		);
+
+		if (result != MPI_SUCCESS) {
+			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+			int string_length;
+			MPI_Error_string(result, mpi_error_string, &string_length);
+			mpi_error_string[string_length + 1] = '\0';
+			std::cerr << "Couldn't write to file " << name
+				<< ": " << mpi_error_string
+				<< std::endl;
+			return false;
+		}
+
+		assert(MPI_File_close(&outfile) == MPI_SUCCESS);
+
+		return true;
+	}*/
+	#endif
+
+
 	/*!
 	Returns a begin const_iterator to the internal storage of local cells and their data.
 	*/
