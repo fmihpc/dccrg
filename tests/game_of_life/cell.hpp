@@ -52,13 +52,18 @@ public:
 	// use MPI directly for data transfers
 	#else
 
-	void* at(void)
+	void* at()
+	{
+		return this;
+	}
+
+	const void* at() const
 	{
 		return this;
 	}
 
 	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	MPI_Datatype mpi_datatype(void) const
+	MPI_Datatype mpi_datatype() const
 	{
 		MPI_Datatype type;
 		MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
