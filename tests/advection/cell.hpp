@@ -36,20 +36,33 @@ public:
 	boost::array<double, 6> data;
 
 	// returns the start of this class, e.g. data for dccrg
-	void* at(void)
+	void* at()
 	{
 		return &(this->data[0]);
 	}
 
-	// returns the length in bytes to transfer between processes for dccrg
-	static size_t size(void)
+	#ifdef DCCRG_USER_MPI_DATA_TYPE
+
+	// returns MPI_Datatype corresponding to cell data to transfer
+	MPI_Datatype mpi_datatype() const
 	{
 		// transfer cell density and velocities to other processes
 		// TODO: only transfer velocities after they have changed
+		MPI_Datatype type;
+		MPI_Type_contiguous(4 * sizeof(double), MPI_BYTE, &type);
+		return type;
+	}
+
+	#else
+
+	// returns the length in bytes to transfer between processes for dccrg
+	static size_t size()
+	{
 		return 4 * sizeof(double);
 	}
 
-	
+	#endif
+
 	/*
 	References to variables stored in the cell
 	*/
@@ -66,73 +79,73 @@ public:
 	}
 
 	// density
-	double& density(void)
+	double& density()
 	{
 		return this->data[0];
 	}
 
 
-	const double& density(void) const
+	const double& density() const
 	{
 		return this->data[0];
 	}
 
 	// vx
-	double& vx(void)
+	double& vx()
 	{
 		return this->data[1];
 	}
 
 
-	const double& vx(void) const
+	const double& vx() const
 	{
 		return this->data[1];
 	}
 
 	// vy
-	double& vy(void)
+	double& vy()
 	{
 		return this->data[2];
 	}
 
 
-	const double& vy(void) const
+	const double& vy() const
 	{
 		return this->data[2];
 	}
 
 	// vz
-	double& vz(void)
+	double& vz()
 	{
 		return this->data[3];
 	}
 
 
-	const double& vz(void) const
+	const double& vz() const
 	{
 		return this->data[3];
 	}
 
 	// flux
-	double& flux(void)
+	double& flux()
 	{
 		return this->data[4];
 	}
 
 
-	const double& flux(void) const
+	const double& flux() const
 	{
 		return this->data[4];
 	}
 
 	// max difference
-	double& max_diff(void)
+	double& max_diff()
 	{
 		return this->data[5];
 	}
 
 
-	const double& max_diff(void) const
+	const double& max_diff() const
 	{
 		return this->data[5];
 	}

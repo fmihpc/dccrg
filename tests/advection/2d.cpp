@@ -1151,7 +1151,9 @@ int main(int argc, char* argv[])
 		// wait until local data has been sent
 		grid.wait_neighbor_data_update_sends();
 
-		neighbor_receive_size += Cell::size() * (grid.get_number_of_update_receive_cells() + grid.get_number_of_update_send_cells());
+		neighbor_receive_size +=
+			4 * sizeof(double)
+			* (grid.get_number_of_update_receive_cells() + grid.get_number_of_update_send_cells());
 
 		/*
 		Starting from this point local cells and copies of remote cells have
