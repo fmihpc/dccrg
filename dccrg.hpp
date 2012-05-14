@@ -689,6 +689,13 @@ public:
 			this->comm
 		) == MPI_SUCCESS);
 
+		// deallocate datatypes
+		assert(MPI_Type_free(&final_type) == MPI_SUCCESS);
+		BOOST_FOREACH(MPI_Datatype& type, datatypes) {
+			assert(MPI_Type_free(&type) == MPI_SUCCESS);
+		}
+
+		// write cell data
 		result = MPI_File_write_at_all(
 			outfile,
 			(MPI_Aint) cell_data_offset,
@@ -5030,6 +5037,16 @@ private:
 			);
 
 			MPI_Type_free(&receive_datatype);
+			#ifdef DCCRG_USER_MPI_DATA_TYPE
+			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
+				if (MPI_Type_free(&type) != MPI_SUCCESS) {
+					std::cout << __FILE__ << ":" << __LINE__
+						<< "Couldn't free MPI_Datatype"
+						<< std::endl;
+						abort();
+				}
+			}
+			#endif
 		}
 
 		// send one MPI datatype per process
@@ -5093,6 +5110,16 @@ private:
 			);
 
 			MPI_Type_free(&send_datatype);
+			#ifdef DCCRG_USER_MPI_DATA_TYPE
+			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
+				if (MPI_Type_free(&type) != MPI_SUCCESS) {
+					std::cout << __FILE__ << ":" << __LINE__
+						<< "Couldn't free MPI_Datatype"
+						<< std::endl;
+						abort();
+				}
+			}
+			#endif
 		}
 
 		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
