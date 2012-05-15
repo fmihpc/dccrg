@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "stdint.h"
 
-#include "dccrg_constant_geometry.hpp"
+#include "../../dccrg_constant_geometry.hpp"
 
 #include "cell.hpp"
 
