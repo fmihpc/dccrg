@@ -100,25 +100,24 @@ void apply_rules(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_g
 /*!
 Writes the game state into a file named game_of_life_, postfixed with the timestep and .dc
 Fileformat:
-double x_start
-double y_start
-double z_start
-double cell_x_size
-double cell_y_size
-double cell_z_size
+uint64_t time step
+double   x_start
+double   y_start
+double   z_start
+double   cell_x_size
+double   cell_y_size
+double   cell_z_size
 uint64_t x_length
 uint64_t y_length
 uint64_t z_length
-int8_t maximum_refinement_level
-uint64_t cell1
-uint8_t is_alive1
-uint64_t cell2
-uint8_t is_alive2
-uint64_t cell3
-uint8_t is_alive3
+int8_t   maximum_refinement_level
+uint64_t 1st cell
+uint64_t  1st cell is_alive
+uint64_t 2nd cell
+uint64_t  2nd cell is_alive
 ...
 */
-bool write_game_data(const int step, communicator comm, Dccrg<game_of_life_cell>* game_grid)
+bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_cell>* game_grid)
 {
 	int result;
 
@@ -165,10 +164,10 @@ bool write_game_data(const int step, communicator comm, Dccrg<game_of_life_cell>
 
 	// header
 	if (comm.rank() == 0) {
-		bytes += 6 * sizeof(double) + 3 * sizeof(uint64_t) + sizeof(int);
+		bytes += sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
 	}
 	vector<uint64_t> cells = game_grid->get_cells();
-	bytes += cells.size() * (sizeof(uint64_t) + sizeof(uint8_t));
+	bytes += cells.size() * (sizeof(uint64_t) + sizeof(uint64_t));
 
 	// collect data from this process into one buffer
 	uint8_t* buffer = new uint8_t [bytes];
@@ -177,6 +176,10 @@ bool write_game_data(const int step, communicator comm, Dccrg<game_of_life_cell>
 
 	// header
 	if (comm.rank() == 0) {
+
+		memcpy(buffer + offset, &step, sizeof(uint64_t));
+		offset += sizeof(uint64_t);
+
 		{
 		double value = game_grid->get_x_start();
 		memcpy(buffer + offset, &value, sizeof(double));
@@ -221,9 +224,9 @@ bool write_game_data(const int step, communicator comm, Dccrg<game_of_life_cell>
 		offset += sizeof(uint64_t);
 
 		game_of_life_cell* data = (*game_grid)[cells[i]];
-		const uint8_t alive = data->is_alive ? 1 : 0;
-		memcpy(buffer + offset, &alive, sizeof(uint8_t));
-		offset += sizeof(uint8_t);
+		const uint64_t alive = data->is_alive ? 1 : 0;
+		memcpy(buffer + offset, &alive, sizeof(uint64_t));
+		offset += sizeof(uint64_t);
 	}
 
 	vector<size_t> all_bytes;
@@ -288,7 +291,7 @@ int main(int argc, char* argv[])
 	initialize_game(&cells_with_remote_neighbor, &game_grid);
 
 	#define TURNS 10
-	for (int turn = 0; turn < TURNS; turn++) {
+	for (unsigned int turn = 0; turn < TURNS; turn++) {
 
 		write_game_data(turn, comm, &game_grid);
 

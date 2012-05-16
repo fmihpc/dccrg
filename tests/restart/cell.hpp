@@ -60,6 +60,7 @@ public:
 		MPI_Datatype type;
 
 		if (Cell::transfer_only_life) {
+			// this is used when saving and restarting the game
 			MPI_Type_contiguous(sizeof(uint64_t), MPI_BYTE, &type);
 		} else {
 			MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
@@ -69,6 +70,7 @@ public:
 	}
 };
 
+// == true when saving and restarting
 bool Cell::transfer_only_life = false;
 
 #endif

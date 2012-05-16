@@ -21,6 +21,10 @@ game_of_life_with_output: game_of_life_with_output.cpp $(HEADERS) Makefile
 dc2vtk: dc2vtk.cpp ../dccrg_constant_geometry.hpp Makefile
 	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
+d: data
+data:
+	rm -f *.dc *.vtk
+
 c: clean
-clean:
-	rm -f simple_game_of_life game_of_life game_of_life_with_output dc2vtk *dc *.vtk
+clean: data
+	rm -f simple_game_of_life game_of_life game_of_life_with_output dc2vtk

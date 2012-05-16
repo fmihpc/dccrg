@@ -10,7 +10,7 @@ Turns the files saved from game_of_life_with_output.cpp into .vtk files, visuali
 #include "iostream"
 #include "stdint.h"
 
-#include "../dccrg_constant_geometry.hpp"
+#include "../../dccrg_constant_geometry.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -115,24 +115,42 @@ int main(int argc, char* argv[])
 		}
 		//cout << "max_ref_level: " << max_ref_level << endl;
 
-		// read in game data
-		boost::unordered_map<uint64_t, uint64_t> game_data;
-		do {
-			uint64_t cell;
-			result = fread(&cell, sizeof(uint64_t), 1, infile);
-			if (result != 1) {
-				break;
-			}
+		uint64_t number_of_cells;
+		result = fread(&number_of_cells, sizeof(uint64_t), 1, infile);
+		if (result != 1) {
+			cerr << "Couldn't read number of cells" << endl;
+			exit(EXIT_FAILURE);
+		}
+		//cout << "number of cells: " << number_of_cells << endl;
 
-			uint64_t is_alive;
-			result = fread(&is_alive, sizeof(uint64_t), 1, infile);
+		// read in game data (cell, is_alive)
+		std::vector<std::pair<uint64_t, uint64_t> > cell_data(number_of_cells);
+
+		// read in cell list
+		for (uint64_t i = 0; i < number_of_cells; i++) {
+			result = fread(&(cell_data[i].first), sizeof(uint64_t), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't read is_alive for cell " << cell << endl;
+				cerr << "Couldn't id of " << i + 1 << "th cell" << endl;
 				exit(EXIT_FAILURE);
 			}
 
-			game_data[cell] = is_alive;
-		} while (result == 1);
+			// skip data offset
+			uint64_t temp;
+			result = fread(&temp, sizeof(uint64_t), 1, infile);
+			if (result != 1) {
+				cerr << "Couldn't data offset for cell " << cell_data[i].first << endl;
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		// read in cell data
+		for (uint64_t i = 0; i < number_of_cells; i++) {
+			result = fread(&(cell_data[i].second), sizeof(uint64_t), 1, infile);
+			if (result != 1) {
+				cerr << "Couldn't read is_alive of cell " << cell_data[i].first << endl;
+				exit(EXIT_FAILURE);
+			}
+		}
 
 		ConstantGeometry geometry;
 		geometry.set_geometry(
@@ -152,57 +170,48 @@ int main(int argc, char* argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		outfile << "# vtk DataFile Version 2.0" << std::endl;
-		outfile << "Game of Life data" << std::endl;
-		outfile << "ASCII" << std::endl;
-		outfile << "DATASET UNSTRUCTURED_GRID" << std::endl;
-
-		// write cells in a known order
-		vector<uint64_t> cells;
-		cells.reserve(game_data.size());
-		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
-			data = game_data.begin();
-			data != game_data.end();
-			data++
-		) {
-			cells.push_back(data->first);
-		}
-		sort(cells.begin(), cells.end());
+		outfile
+			<< "# vtk DataFile Version 2.0\n"
+			<< "Game of Life data\n"
+			<< "ASCII\n"
+			<< "DATASET UNSTRUCTURED_GRID"
+			<< std::endl;
 
 		// write separate points for every cells' corners
-		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
-		for (unsigned int i = 0; i < cells.size(); i++) {
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
+		outfile << "POINTS " << cell_data.size() * 8 << " float" << std::endl;
+		for (uint64_t i = 0; i < cell_data.size(); i++) {
+			const uint64_t cell = cell_data[i].first;
+			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
+			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
+			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
+			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
+			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
+			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
+			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
+			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
 		}
 
 		// map cells to written points
-		outfile << "CELLS " << cells.size() << " " << cells.size() * 9 << std::endl;
-		for (unsigned int j = 0; j < cells.size(); j++) {
+		outfile << "CELLS " << cell_data.size() << " " << cell_data.size() * 9 << "\n";
+		for (unsigned int j = 0; j < cell_data.size(); j++) {
 			outfile << "8 ";
 			for (int i = 0; i < 8; i++) {
 				 outfile << j * 8 + i << " ";
 			}
-			outfile << std::endl;
+			outfile << "\n";
 		}
 
 		// cell types
-		outfile << "CELL_TYPES " << cells.size() << std::endl;
-		for (unsigned int i = 0; i < cells.size(); i++) {
-			outfile << 11 << std::endl;
+		outfile << "CELL_TYPES " << cell_data.size() << "\n";
+		for (unsigned int i = 0; i < cell_data.size(); i++) {
+			outfile << 11 << "\n";
 		}
 
-		outfile << "CELL_DATA " << cells.size() << endl;
-		outfile << "SCALARS is_alive int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << game_data[*cell] << endl;
+		outfile << "CELL_DATA " << cell_data.size() << "\n";
+		outfile << "SCALARS is_alive int 1" << "\n";
+		outfile << "LOOKUP_TABLE default" << "\n";
+		for (uint64_t i = 0; i < cell_data.size(); i++) {
+			outfile << cell_data[i].second << "\n";
 		}
 
 		fclose(infile);

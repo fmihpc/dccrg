@@ -1,7 +1,7 @@
 /*
-A class for saving game of life tests of dccrg to vtk files.
+A class for game of life restart test of dccrg.
 
-Copyright 2010, 2011 Finnish Meteorological Institute
+Copyright 2010, 2011, 2012 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -32,34 +32,35 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 using namespace std;
 
-/*!
-Saves the current state of given game of life grid into the given dc file.
-
-Header format:
-uint64_t time step
-double   x_start
-double   y_start
-double   z_start
-double   cell_x_size
-double   cell_y_size
-double   cell_z_size
-uint64_t x_length in cells
-uint64_t y_length in cells
-uint64_t z_length in cells
-int      maximum_refinement_level
-*/
-template<class UserGeometry> class Save
+template<class UserGeometry> class IO
 {
 public:
 
+	/*!
+	Saves the current state of given game of life grid into the given dc file.
+
+	Header format:
+	uint64_t time step
+	double   x_start
+	double   y_start
+	double   z_start
+	double   cell_x_size
+	double   cell_y_size
+	double   cell_z_size
+	uint64_t x_length in cells
+	uint64_t y_length in cells
+	uint64_t z_length in cells
+	int      maximum_refinement_level
+	*/
 	static void save(
 		const string& name,
 		const uint64_t step,
 		const boost::mpi::communicator& comm,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
+		Cell::transfer_only_life = true;
 		std::remove(name.c_str());
-		
+
 		comm.barrier();
 
 		// MPI_File_open wants a non-constant string
@@ -86,7 +87,7 @@ public:
 			std::cerr << "Couldn't open file " << name_c_string
 				<< ": " << mpi_error_string
 				<< std::endl;
-			return false;
+			abort();
 		}
 
 		// process 0 writes the header
@@ -100,38 +101,38 @@ public:
 			offset += sizeof(uint64_t);
 
 			{
-			double value = game_grid->get_x_start();
+			double value = game_grid.get_x_start();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid->get_y_start();
+			value = game_grid.get_y_start();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid->get_z_start();
+			value = game_grid.get_z_start();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid->get_cell_x_size(1);
+			value = game_grid.get_cell_x_size(1);
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid->get_cell_y_size(1);
+			value = game_grid.get_cell_y_size(1);
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid->get_cell_z_size(1);
+			value = game_grid.get_cell_z_size(1);
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
 			}
 			{
-			uint64_t value = game_grid->get_x_length();
+			uint64_t value = game_grid.get_x_length();
 			memcpy(buffer + offset, &value, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
-			value = game_grid->get_y_length();
+			value = game_grid.get_y_length();
 			memcpy(buffer + offset, &value, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
-			value = game_grid->get_z_length();
+			value = game_grid.get_z_length();
 			memcpy(buffer + offset, &value, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 			}
 			{
-			int value = game_grid->get_maximum_refinement_level();
+			int value = game_grid.get_maximum_refinement_level();
 			memcpy(buffer + offset, &value, sizeof(int));
 			offset += sizeof(int);
 			}
@@ -156,7 +157,7 @@ public:
 					<< " Couldn't write cell list to file " << name
 					<< ": " << mpi_error_string
 					<< std::endl;
-				return false;
+				abort();
 			}
 
 		} else {
@@ -170,7 +171,75 @@ public:
 			);
 		}
 
+		MPI_File_close(&outfile);
+
 		game_grid.write_grid(name, header_size);
+		Cell::transfer_only_life = false;
+	}
+
+
+	static void load(
+		const string& name,
+		uint64_t& step,
+		const boost::mpi::communicator& comm,
+		dccrg::Dccrg<Cell, UserGeometry>& game_grid
+	) {
+		Cell::transfer_only_life = true;
+
+		// MPI_File_open wants a non-constant string
+		char* name_c_string = new char [name.size() + 1];
+		strncpy(name_c_string, name.c_str(), name.size() + 1);
+
+		MPI_File infile;
+
+		int result = MPI_File_open(
+			comm,
+			name_c_string,
+			MPI_MODE_RDONLY,
+			MPI_INFO_NULL,
+			&infile
+		);
+
+		delete [] name_c_string;
+
+		if (result != MPI_SUCCESS) {
+			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+			int string_length;
+			MPI_Error_string(result, mpi_error_string, &string_length);
+			mpi_error_string[string_length + 1] = '\0';
+			std::cerr << "Couldn't open file " << name_c_string
+				<< ": " << mpi_error_string
+				<< std::endl;
+			abort();
+		}
+
+		// read only time step from header, other grid parameters are known
+		result = MPI_File_read_at_all(
+			infile,
+			0,
+			&step,
+			sizeof(uint64_t),
+			MPI_BYTE,
+			MPI_STATUS_IGNORE
+		);
+
+		if (result != MPI_SUCCESS) {
+			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+			int string_length;
+			MPI_Error_string(result, mpi_error_string, &string_length);
+			mpi_error_string[string_length + 1] = '\0';
+			std::cerr << "Couldn't read time step: "
+				<< mpi_error_string
+				<< std::endl;
+			abort();
+		}
+
+		MPI_File_close(&infile);
+
+		const size_t header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
+		game_grid.read_grid(name, header_size);
+
+		Cell::transfer_only_life = false;
 	}
 };
 

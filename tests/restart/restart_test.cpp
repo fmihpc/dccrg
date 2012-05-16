@@ -24,15 +24,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "string"
 #include "zoltan.h"
 
 #include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
+// include restart cell before gol cell
+#include "cell.hpp"
 #include "../game_of_life/initialize.hpp"
 #include "../game_of_life/solve.hpp"
-#include "cell.hpp"
-#include "save.hpp"
+#include "IO.hpp"
 
 using namespace std;
 using namespace boost;
@@ -244,16 +246,20 @@ int main(int argc, char* argv[])
 	/*
 	Options
 	*/
-	char direction;
-	bool save = false, verbose = false;
+	string restart_name;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
-		("verbose", "Print information about the game");
+		("restart",
+			boost::program_options::value<std::string>(&restart_name)->default_value(""),
+			"restart the game from file arg (don't restart if name is empty)");
 
 	// read options from command line
 	boost::program_options::variables_map option_variables;
-	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, options), option_variables);
+	boost::program_options::store(
+		boost::program_options::parse_command_line(argc, argv, options),
+		option_variables
+	);
 	boost::program_options::notify(option_variables);
 
 	// print a help message if asked
@@ -265,18 +271,11 @@ int main(int argc, char* argv[])
 		return EXIT_SUCCESS;
 	}
 
-	if (option_variables.count("verbose") > 0) {
-		verbose = true;
-	}
-
 	// intialize Zoltan
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 		cerr << "Zoltan_Initialize failed" << endl;
 		abort();
-	}
-	if (verbose && comm.rank() == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
 	// initialize grid
@@ -293,16 +292,45 @@ int main(int argc, char* argv[])
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(comm, "RANDOM", neighborhood_size);
 
-	Initialize<ConstantGeometry>::initialize(game_grid, grid_size);
-
-	// save initial state
-	game_grid.write_grid("gol_0.dc", 0);
-
-	const int time_steps = 25;
-	if (verbose && comm.rank() == 0) {
-		cout << "step: ";
+	if (comm.rank() != 0) {
+		vector<uint64_t> temp_cells = game_grid.get_cells();
+		BOOST_FOREACH(const uint64_t& cell, temp_cells) {
+			game_grid.pin(cell, 0);
+		}
 	}
-	for (int step = 0; step < time_steps; step++) {
+	game_grid.migrate_cells();
+	game_grid.unpin_all_cells();
+
+	const uint64_t time_steps = 25;
+	uint64_t step = 0;
+
+	// start a new game
+	if (restart_name == "") {
+
+		Initialize<ConstantGeometry>::initialize(game_grid, grid_size);
+
+		// save initial state
+		IO<ConstantGeometry>::save(
+			"gol_0.dc",
+			0,
+			comm,
+			game_grid
+		);
+
+	// restart from saved game
+	} else {
+
+		IO<ConstantGeometry>::load(
+			restart_name,
+			step,
+			comm,
+			game_grid
+		);
+
+		step++;
+	}
+
+	for ( ; step < time_steps; step++) {
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();
@@ -310,22 +338,24 @@ int main(int argc, char* argv[])
 
 		int result = check_game_of_life_state(step, game_grid);
 		if (grid_size != 15 || result != EXIT_SUCCESS) {
-			cout << "Process " << comm.rank() << ": Game of Life test failed on timestep: " << step << endl;
+			cout << "Process " << comm.rank()
+				<< ": Game of Life test failed on time step: " << step
+				<< endl;
 			abort();
-		}
-
-		if (verbose && comm.rank() == 0) {
-			cout << step << " ";
-			cout.flush();
 		}
 
 		Solve<ConstantGeometry>::solve(game_grid);
 
-		game_grid.write_grid("gol_" + boost::lexical_cast<std::string>(step) + ".dc");
+		IO<ConstantGeometry>::save(
+			"gol_" + boost::lexical_cast<std::string>(step) + ".dc",
+			step,
+			comm,
+			game_grid
+		);
 	}
 
 	if (comm.rank() == 0) {
-		cout << "\nPassed" << endl;
+		cout << "Passed" << endl;
 	}
 
 	return EXIT_SUCCESS;
