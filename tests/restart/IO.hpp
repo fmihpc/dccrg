@@ -16,8 +16,8 @@ You should have received a copy of the GNU Lesser General Public License
 along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SAVE_HPP
-#define SAVE_HPP
+#ifndef IO_HPP
+#define IO_HPP
 
 #include "algorithm"
 #include "boost/foreach.hpp"
