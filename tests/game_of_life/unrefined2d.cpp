@@ -18,6 +18,7 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 
 #include "cell.hpp"
 #include "initialize.hpp"
+#include "refine.hpp"
 #include "save.hpp"
 #include "solve.hpp"
 
@@ -148,80 +149,7 @@ int main(int argc, char* argv[])
 	const int time_steps = 25;
 	for (int step = 0; step < time_steps; step++) {
 
-		// refine random unrefined cells and unrefine random refined cells
-		vector<uint64_t> cells = game_grid.get_cells();
-		random_shuffle(cells.begin(), cells.end());
-
-		if (step % 2 == 0) {
-
-			for (int i = 0, refined = 0;
-				i < int(cells.size()) && refined <= grid_size * grid_size / (5 * comm.size());
-				i++
-			) {
-				if (game_grid.get_refinement_level(cells[i]) == 0) {
-					game_grid.refine_completely(cells[i]);
-					refined++;
-				}
-			}
-
-		} else {
-
-			for (int i = 0, unrefined = 0;
-				i < int(cells.size()) && unrefined <= grid_size * grid_size / (4 * comm.size());
-				i++
-			) {
-				if (game_grid.get_refinement_level(cells[i]) > 0) {
-					game_grid.unrefine_completely(cells[i]);
-					unrefined++;
-				}
-			}
-		}
-
-		vector<uint64_t> new_cells = game_grid.stop_refining();
-
-		// assign parents' state to children
-		for (vector<uint64_t>::const_iterator new_cell = new_cells.begin(); new_cell != new_cells.end(); new_cell++) {
-			Cell* new_cell_data = game_grid[*new_cell];
-			if (new_cell_data == NULL) {
-				cerr << __FILE__ << ":" << __LINE__
-					<< " no data for created cell " << *new_cell
-					<< std::endl;
-				abort();
-			}
-			Cell* parent_data = game_grid[game_grid.get_parent(*new_cell)];
-			if (parent_data == NULL) {
-				cerr << __FILE__ << ":" << __LINE__
-					<< " no data for parent cell " << game_grid.get_parent(*new_cell)
-					<< std::endl;
-				abort();
-			}
-			new_cell_data->data[0] = parent_data->data[0];
-		}
-
-		// "interpolate" parent cell's value from unrefined children
-		vector<uint64_t> removed_cells = game_grid.get_removed_cells();
-		for (vector<uint64_t>::const_iterator
-			removed_cell = removed_cells.begin();
-			removed_cell != removed_cells.end();
-			removed_cell++
-		) {
-			Cell* removed_cell_data = game_grid[*removed_cell];
-			if (removed_cell_data == NULL) {
-				cerr << __FILE__ << ":" << __LINE__
-					<< " no data for removed cell after unrefining: " << *removed_cell
-					<< std::endl;
-				abort();
-			}
-			Cell* parent_data = game_grid[game_grid.get_parent_for_removed(*removed_cell)];
-			if (parent_data == NULL) {
-				cerr << __FILE__ << ":" << __LINE__
-					<< " no data for parent cell after unrefining: " << game_grid.get_parent_for_removed(*removed_cell)
-					<< std::endl;
-				abort();
-			}
-			parent_data->data[0] = removed_cell_data->data[0];
-		}
-		game_grid.clear_refined_unrefined_data();
+		Refine<ArbitraryGeometry>::refine(game_grid, grid_size, step, comm.size());
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();

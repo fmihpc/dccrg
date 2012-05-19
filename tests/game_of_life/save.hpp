@@ -29,8 +29,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "cell.hpp"
 
-using namespace std;
-
 /*!
 Saves the current state of given game of life grid into one vtk file per process.
 
@@ -41,55 +39,55 @@ template<class UserGeometry> class Save
 public:
 
 	static void save(
-		const string& name,
+		const std::string& name,
 		const int process,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
-		vector<uint64_t> cells = game_grid.get_cells();
+		std::vector<uint64_t> cells = game_grid.get_cells();
 		sort(cells.begin(), cells.end());
 
 		// write the grid into a file
 		game_grid.write_vtk_file(name.c_str());
 		// prepare to write the game data into the same file
-		ofstream outfile(name.c_str(), ofstream::app);
-		outfile << "CELL_DATA " << cells.size() << endl;
+		std::ofstream outfile(name.c_str(), std::ofstream::app);
+		outfile << "CELL_DATA " << cells.size() << std::endl;
 
 		// go through the grids cells and write their state into the file
-		outfile << "SCALARS is_alive float 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
+		outfile << "SCALARS is_alive float 1" << std::endl;
+		outfile << "LOOKUP_TABLE default" << std::endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
 			Cell* cell_data = game_grid[cell];
-			outfile << cell_data->data[0] << endl;
+			outfile << cell_data->data[0] << std::endl;
 		}
 
 		// write each cells total live neighbor count
-		outfile << "SCALARS live_neighbor_count float 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
+		outfile << "SCALARS live_neighbor_count float 1" << std::endl;
+		outfile << "LOOKUP_TABLE default" << std::endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
 			Cell* cell_data = game_grid[cell];
-			outfile << cell_data->data[1] << endl;
+			outfile << cell_data->data[1] << std::endl;
 		}
 
 		// write each cells neighbor count
-		outfile << "SCALARS neighbors int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
+		outfile << "SCALARS neighbors int 1" << std::endl;
+		outfile << "LOOKUP_TABLE default" << std::endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
-			outfile << neighbors->size() << endl;
+			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			outfile << neighbors->size() << std::endl;
 		}
 
 		// write each cells process
-		outfile << "SCALARS process int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
+		outfile << "SCALARS process int 1" << std::endl;
+		outfile << "LOOKUP_TABLE default" << std::endl;
 		for (uint64_t i = 0; i < cells.size(); i++) {
-			outfile << process << endl;
+			outfile << process << std::endl;
 		}
 
 		// write each cells id
-		outfile << "SCALARS id int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
+		outfile << "SCALARS id int 1" << std::endl;
+		outfile << "LOOKUP_TABLE default" << std::endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
-			outfile << cell << endl;
+			outfile << cell << std::endl;
 		}
 		outfile.close();
 	}
