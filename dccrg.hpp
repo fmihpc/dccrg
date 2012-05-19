@@ -582,7 +582,7 @@ public:
 
 		// get number of cells each process will write
 		std::vector<uint64_t> number_of_cells;
-		all_gather(this->comm, this->cells.size(), number_of_cells);
+		all_gather(this->comm, uint64_t(this->cells.size()), number_of_cells);
 
 		const uint64_t total_number_of_cells =
 			all_reduce(this->comm, this->cells.size(), std::plus<uint64_t>());
@@ -797,7 +797,7 @@ public:
 	bool read_grid(
 		const std::string& name,
 		const MPI_Offset& start_offset,
-		const uint64_t& number_of_cells = ~uint64_t(0)
+		const uint64_t& /*number_of_cells*/ = ~uint64_t(0)
 	) {
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
