@@ -1202,6 +1202,28 @@ public:
 
 
 	/*!
+	Returns those cells from given that are either local or a child of local.
+
+	Assumes local cells are of refinement level 0.
+	*/
+	boost::unordered_set<uint64_t> get_cells_overlapping_local(const std::vector<uint64_t>& given_cells)
+	{
+		boost::unordered_set<uint64_t> result;
+
+		BOOST_FOREACH(const uint64_t cell, given_cells) {
+
+			const uint64_t parent = this->get_level_0_parent(cell);
+			if (this->cell_process.count(parent) > 0
+			&& this->cell_process.at(parent) == this->comm.rank()) {
+				result.insert(cell);
+			}
+		}
+
+		return result;
+	}
+
+
+	/*!
 	Refines the current grid so that the given cells exist.
 
 	Must be called by all processes and only cells of
@@ -1212,38 +1234,23 @@ public:
 	*/
 	bool load(const std::vector<uint64_t>& given_cells)
 	{
-		boost::unordered_set<uint64_t> children_of_local_cells;
+		boost::unordered_set<uint64_t> overlapping
+			= this->get_cells_overlapping_local(given_cells);
 
-		int max_ref_lvl_of_given = 0;
-
-		BOOST_FOREACH(const uint64_t given_cell, given_cells) {
-
-			const int refinement_level = this->get_refinement_level(given_cell);
-			max_ref_lvl_of_given = std::max(refinement_level, max_ref_lvl_of_given);
-
-			if (refinement_level == 0) {
-				continue;
-			}
-
-			const uint64_t parent = this->get_level_0_parent(given_cell);
-			if (this->cell_process.count(parent) == 0) {
-				continue;
-			}
-
-			if (this->cell_process.at(parent) != this->comm.rank()) {
-				continue;
-			}
-
-			children_of_local_cells.insert(given_cell);
+		int max_ref_lvl_of_overlapping = 0;
+		BOOST_FOREACH(const uint64_t cell, overlapping) {
+			const int refinement_level = this->get_refinement_level(cell);
+			max_ref_lvl_of_overlapping
+				= std::max(refinement_level, max_ref_lvl_of_overlapping);
 		}
 
 		/*
 		Starting from refinement level 0 refine each local cell
 		that has a child in given_cells
 		*/
-		std::vector<boost::unordered_set<uint64_t> > cells_and_parents(max_ref_lvl_of_given);
+		std::vector<boost::unordered_set<uint64_t> > cells_and_parents(max_ref_lvl_of_overlapping);
 
-		BOOST_FOREACH(const uint64_t cell, children_of_local_cells) {
+		BOOST_FOREACH(const uint64_t cell, overlapping) {
 			uint64_t current_child = cell;
 			const int refinement_level = this->get_refinement_level(current_child);
 			for (int i = refinement_level - 1; i >= 0; i--) {
@@ -1253,7 +1260,7 @@ public:
 			}
 		}
 
-		for (int current_ref_lvl = 0; current_ref_lvl < max_ref_lvl_of_given; current_ref_lvl++) {
+		for (int current_ref_lvl = 0; current_ref_lvl < max_ref_lvl_of_overlapping; current_ref_lvl++) {
 			BOOST_FOREACH(const uint64_t cell, cells_and_parents[current_ref_lvl]) {
 				this->refine_completely(cell);
 			}

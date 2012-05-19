@@ -7,7 +7,10 @@ all: load
 load: load.cpp ../../dccrg.hpp ../../dccrg_index.hpp ../../dccrg_constant_geometry.hpp Makefile
 	$(CXX) load.cpp $(INCLUDES) -o load
 
-c: clean
-clean:
-	rm -f load load.visit load_*vtk
+d: data
+data:
+	rm -rf load.visit load_*vtk
 
+c: clean
+clean: data
+	rm -f load
