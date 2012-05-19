@@ -862,7 +862,8 @@ public:
 		data_offsets.reserve(this->cells.size());
 
 		for (uint64_t i = 0; i < all_data_offsets.size(); i++) {
-			if (this->cells.count(all_data_offsets[i].first) > 0) {
+			const uint64_t cell = all_data_offsets[i].first;
+			if (this->cell_overlaps_local(cell)) {
 				data_offsets.push_back(all_data_offsets[i]);
 			}
 		}
