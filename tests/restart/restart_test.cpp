@@ -291,15 +291,7 @@ int main(int argc, char* argv[])
 
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(comm, "RANDOM", neighborhood_size);
-
-	if (comm.rank() != 0) {
-		vector<uint64_t> temp_cells = game_grid.get_cells();
-		BOOST_FOREACH(const uint64_t& cell, temp_cells) {
-			game_grid.pin(cell, 0);
-		}
-	}
-	game_grid.migrate_cells();
-	game_grid.unpin_all_cells();
+	game_grid.balance_load();
 
 	const uint64_t time_steps = 25;
 	uint64_t step = 0;

@@ -871,39 +871,52 @@ public:
 		// create a file view representing local cell data
 		MPI_Datatype file_type;
 
-		// datatypes of local cells
-		std::vector<MPI_Datatype> datatypes(this->cells.size());
+		if (this->cells.size() > 0) {
 
-		// 1 datatype per local cell
-		std::vector<int> block_lengths(this->cells.size(), 1);
+			// datatypes of local cells
+			std::vector<MPI_Datatype> datatypes(this->cells.size());
 
-		// address of local cell data relative to start of file
-		std::vector<MPI_Aint> file_displacements(this->cells.size(), 0);
+			// 1 datatype per local cell
+			std::vector<int> block_lengths(this->cells.size(), 1);
 
-		for (uint64_t i = 0; i < data_offsets.size(); i++) {
-			const uint64_t cell = data_offsets[i].first;
-			datatypes[i] = this->cells.at(cell).mpi_datatype();
-			file_displacements[i] = data_offsets[i].second;
-		}
+			// address of local cell data relative to start of file
+			std::vector<MPI_Aint> file_displacements(this->cells.size(), 0);
 
-		if (MPI_Type_create_struct(
-			datatypes.size(),
-			&block_lengths[0],
-			&file_displacements[0],
-			&datatypes[0],
-			&file_type) != MPI_SUCCESS
-		) {
-			std::cerr << "Process " << this->comm.rank()
-				<< " Couldn't create datatype for file view"
-				<< std::endl;
-			abort();
-		}
+			for (uint64_t i = 0; i < data_offsets.size(); i++) {
+				const uint64_t cell = data_offsets[i].first;
+				datatypes[i] = this->cells.at(cell).mpi_datatype();
+				file_displacements[i] = data_offsets[i].second;
+			}
 
-		if (MPI_Type_commit(&file_type) != MPI_SUCCESS) {
-			std::cerr << "Process " << this->comm.rank()
-				<< " Couldn't commit datatype for file view"
-				<< std::endl;
-			abort();
+			if (MPI_Type_create_struct(
+				datatypes.size(),
+				&block_lengths[0],
+				&file_displacements[0],
+				&datatypes[0],
+				&file_type) != MPI_SUCCESS
+			) {
+				std::cerr << "Process " << this->comm.rank()
+					<< " Couldn't create datatype for file view"
+					<< std::endl;
+				abort();
+			}
+
+			if (MPI_Type_commit(&file_type) != MPI_SUCCESS) {
+				std::cerr << "Process " << this->comm.rank()
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+
+		// create an empty file type
+		} else {
+			MPI_Type_contiguous(0, MPI_BYTE, &file_type);
+			if (MPI_Type_commit(&file_type) != MPI_SUCCESS) {
+				std::cerr << "Process " << this->comm.rank()
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
 		}
 
 		// set the file view corresponding to local cell data
@@ -912,7 +925,7 @@ public:
 			0,
 			MPI_BYTE,
 			file_type,
-			NULL,
+			const_cast<char*>("native"),
 			MPI_INFO_NULL
 		);
 
@@ -929,48 +942,104 @@ public:
 
 		MPI_Type_free(&file_type);
 
-		// address of local cell data relative to data of 1st cell
-		std::vector<MPI_Aint> local_displacements(this->cells.size(), 0);
-
-		for (uint64_t i = 0; i < data_offsets.size(); i++) {
-			local_displacements[i]
-				= (uint8_t*) this->cells.at(data_offsets[i].first).at()
-				- (uint8_t*) this->cells.at(data_offsets[0].first).at();
-		}
 
 		// create a datatype representing local cell data
 		MPI_Datatype local_type;
 
-		if (MPI_Type_create_struct(
-			datatypes.size(),
-			&block_lengths[0],
-			&local_displacements[0],
-			&datatypes[0],
-			&local_type) != MPI_SUCCESS
-		) {
-			std::cerr << "Process " << this->comm.rank()
-				<< " Couldn't create datatype for local cells"
+		if (this->cells.size() > 0) {
+
+			// datatypes of local cells
+			std::vector<MPI_Datatype> datatypes(this->cells.size());
+
+			// 1 datatype per local cell
+			std::vector<int> block_lengths(this->cells.size(), 1);
+
+			// address of local cell data relative to data of 1st cell
+			std::vector<MPI_Aint> local_displacements(this->cells.size(), 0);
+
+			for (uint64_t i = 0; i < data_offsets.size(); i++) {
+				const uint64_t
+					cell = data_offsets[i].first,
+					first_cell = data_offsets[0].first;
+
+				datatypes[i] = this->cells.at(cell).mpi_datatype();
+				local_displacements[i]
+					= (uint8_t*) this->cells.at(cell).at()
+					- (uint8_t*) this->cells.at(first_cell).at();
+			}
+
+			if (MPI_Type_create_struct(
+				datatypes.size(),
+				&block_lengths[0],
+				&local_displacements[0],
+				&datatypes[0],
+				&local_type) != MPI_SUCCESS
+			) {
+				std::cerr << "Process " << this->comm.rank()
+					<< " Couldn't create datatype for local cells"
+					<< std::endl;
+				abort();
+			}
+
+			if (MPI_Type_commit(&local_type) != MPI_SUCCESS) {
+				std::cerr << "Process " << this->comm.rank()
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+
+			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
+				MPI_Type_free(&type);
+			}
+
+		// create an empty type for local data
+		} else {
+			MPI_Type_contiguous(0, MPI_BYTE, &local_type);
+			if (MPI_Type_commit(&local_type) != MPI_SUCCESS) {
+				std::cerr << "Process " << this->comm.rank()
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+		}
+
+		// read local cell data from file
+		if (this->cells.size() > 0) {
+			result = MPI_File_read_at_all(
+				infile,
+				0,
+				this->cells.at(data_offsets[0].first).at(),
+				1,
+				local_type,
+				MPI_STATUS_IGNORE
+			);
+		} else {
+			uint64_t temp;
+			result = MPI_File_read_at_all(
+				infile,
+				0,
+				&temp,
+				1,
+				local_type,
+				MPI_STATUS_IGNORE
+			);
+		}
+
+		if (result != MPI_SUCCESS) {
+			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+			int string_length;
+			MPI_Error_string(result, mpi_error_string, &string_length);
+			mpi_error_string[string_length + 1] = '\0';
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->comm.rank()
+				<< " couldn't read local cell data"
 				<< std::endl;
 			abort();
 		}
 
-		BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-			MPI_Type_free(&type);
-		}
+		MPI_Type_free(&local_type);
 
-		if (MPI_File_read_at_all(
-			infile,
-			0,
-			this->cells.at(data_offsets[0].first).at(),
-			1,
-			local_type,
-			MPI_STATUS_IGNORE) != MPI_SUCCESS
-		) {
-			std::cerr << "Process " << this->comm.rank()
-				<< " Couldn't read local cell data"
-				<< std::endl;
-			abort();
-		}
+		MPI_File_close(&infile);
 		#endif
 
 		return true;

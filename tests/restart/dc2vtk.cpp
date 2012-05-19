@@ -130,7 +130,7 @@ int main(int argc, char* argv[])
 		for (uint64_t i = 0; i < number_of_cells; i++) {
 			result = fread(&(cell_data[i].first), sizeof(uint64_t), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't id of " << i + 1 << "th cell" << endl;
+				cerr << "Couldn't read id of " << i + 1 << "th cell" << endl;
 				exit(EXIT_FAILURE);
 			}
 
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 			uint64_t temp;
 			result = fread(&temp, sizeof(uint64_t), 1, infile);
 			if (result != 1) {
-				cerr << "Couldn't data offset for cell " << cell_data[i].first << endl;
+				cerr << "Couldn't read data offset of cell " << cell_data[i].first << endl;
 				exit(EXIT_FAILURE);
 			}
 		}
