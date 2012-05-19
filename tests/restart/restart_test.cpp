@@ -27,7 +27,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "string"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
 #include "../../dccrg.hpp"
 
 // include restart cell before gol cell
