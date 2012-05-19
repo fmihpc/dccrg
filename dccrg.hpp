@@ -1202,6 +1202,27 @@ public:
 
 
 	/*!
+	Returns true if given cell overlaps a local cell.
+
+	Returns true if given cell is either a local cell of
+	refinement level 0 or is a (grandgrand...)child of a
+	local cell with refinement level 0.
+	Returns false otherwise.
+	*/
+	bool cell_overlaps_local(const uint64_t cell)
+	{
+		const uint64_t parent = this->get_level_0_parent(cell);
+
+		if (this->cell_process.count(parent) > 0
+		&& this->cell_process.at(parent) == this->comm.rank()) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+
+	/*!
 	Returns those cells from given that are either local or a child of local.
 
 	Assumes local cells are of refinement level 0.
@@ -1212,9 +1233,7 @@ public:
 
 		BOOST_FOREACH(const uint64_t cell, given_cells) {
 
-			const uint64_t parent = this->get_level_0_parent(cell);
-			if (this->cell_process.count(parent) > 0
-			&& this->cell_process.at(parent) == this->comm.rank()) {
+			if (this->cell_overlaps_local(cell)) {
 				result.insert(cell);
 			}
 		}
