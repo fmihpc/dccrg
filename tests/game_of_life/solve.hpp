@@ -29,8 +29,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "cell.hpp"
 
-using namespace std;
-
 /*!
 Advances the game of life on given grid one turn.
 
@@ -52,7 +50,7 @@ public:
 
 			Cell* cell_data = game_grid[cell];
 			if (cell_data == NULL) {
-				cerr << __FILE__ << ":" << __LINE__
+				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for cell: " << cell
 					<< std::endl;
 				abort();
@@ -62,11 +60,11 @@ public:
 				cell_data->data[1 + i] = 0;
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(cell) == 0) {
 
-				for (vector<uint64_t>::const_iterator
+				for (std::vector<uint64_t>::const_iterator
 					neighbor = neighbors->begin();
 					neighbor != neighbors->end();
 					neighbor++
@@ -77,7 +75,7 @@ public:
 
 					Cell* neighbor_data = game_grid[*neighbor];
 					if (neighbor_data == NULL) {
-						cerr << __FILE__ << ":" << __LINE__
+						std::cerr << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of cell " << cell
 							<< ": " << *neighbor
 							<< std::endl;
@@ -121,7 +119,7 @@ public:
 			// refined cells total the neighbor counts of siblings
 			} else {
 
-				for (vector<uint64_t>::const_iterator
+				for (std::vector<uint64_t>::const_iterator
 					neighbor = neighbors->begin();
 					neighbor != neighbors->end(); 
 					neighbor++
@@ -132,7 +130,7 @@ public:
 
 					Cell* neighbor_data = game_grid[*neighbor];
 					if (neighbor_data == NULL) {
-						cerr << __FILE__ << ":" << __LINE__
+						std::cerr << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of refined cell " << cell
 							<< ": " << *neighbor
 							<< std::endl;
@@ -232,8 +230,8 @@ public:
 				current_live_unrefined_neighbors.insert(cell_data->data[2 + i]);
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
-			for (vector<uint64_t>::const_iterator
+			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			for (std::vector<uint64_t>::const_iterator
 				neighbor = neighbors->begin();
 				neighbor != neighbors->end();
 				neighbor++

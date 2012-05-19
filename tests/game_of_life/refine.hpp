@@ -115,6 +115,7 @@ public:
 			}
 			parent_data->data[0] = removed_cell_data->data[0];
 		}
+
 		grid.clear_refined_unrefined_data();
 	}
 };

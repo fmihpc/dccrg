@@ -2,7 +2,7 @@
 PROCS := 2
 
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
-INCLUDES = -I../game_of_life -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 MPICXX = mpic++ $(FLAGS)
 CXX = g++ $(FLAGS)
 
@@ -13,6 +13,7 @@ HEADERS = \
 	../../dccrg_index.hpp \
 	../../dccrg_constant_geometry.hpp \
 	../game_of_life/initialize.hpp \
+	../game_of_life/refine.hpp \
 	../game_of_life/solve.hpp \
 	cell.hpp \
 	IO.hpp

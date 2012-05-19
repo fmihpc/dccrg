@@ -33,6 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "cell.hpp"
 #include "../game_of_life/initialize.hpp"
 #include "../game_of_life/solve.hpp"
+#include "../game_of_life/refine.hpp"
 #include "IO.hpp"
 
 using namespace std;

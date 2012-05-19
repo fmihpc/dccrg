@@ -783,7 +783,8 @@ public:
 
 	Returns true on success, false otherwise (one one or more processes)
 	The file is read in parallel using MPI_IO.
-	Must be called by all processes.
+	Must be called by all processes and all cells in the grid must be of
+	refinement level 0 prior to calling this function.
 	Data is read starting at start_offset given in bytes
 	(e.g. read global simulation data yourself from the
 	beginning of the file).
@@ -796,8 +797,8 @@ public:
 	*/
 	bool read_grid(
 		const std::string& name,
-		const MPI_Offset& start_offset,
-		const uint64_t& /*number_of_cells*/ = ~uint64_t(0)
+		const MPI_Offset start_offset,
+		const uint64_t /*number_of_cells*/ = ~uint64_t(0)
 	) {
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
@@ -868,6 +869,25 @@ public:
 			}
 		}
 		all_data_offsets.clear();
+
+		// refine the grid
+		std::vector<uint64_t> local_cells;
+		local_cells.reserve(data_offsets.size());
+		for (std::vector<std::pair<uint64_t, uint64_t> >::const_iterator
+			item = data_offsets.begin();
+			item != data_offsets.end();
+			item++
+		) {
+			local_cells.push_back(item->first);
+		}
+
+		if (!this->load(local_cells)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "Couldn't load grid"
+				<< std::endl;
+			abort();
+		}
+		local_cells.clear();
 
 		// create a file view representing local cell data
 		MPI_Datatype file_type;
@@ -1285,6 +1305,7 @@ public:
 				this->refine_completely(cell);
 			}
 			this->stop_refining();
+			this->clear_refined_unrefined_data();
 		}
 
 		return true;
