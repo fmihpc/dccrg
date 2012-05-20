@@ -493,11 +493,14 @@ public:
 	beginning of the file).
 	Requires at least as much additional memory as local cell data.
 
-	Does nothing unless DCCRG_CELL_DATA_SIZE_FROM_USER is defined
+	Does nothing unless DCCRG_CELL_DATA_SIZE_FROM_USER and
+	DCCRG_USER_MPI_DATA_TYPE are defined
 	*/
 	bool write_grid(const std::string& name, const MPI_Offset& start_offset)
 	{
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		#ifdef DCCRG_USER_MPI_DATA_TYPE
+
 		/*
 		File format:
 
@@ -773,6 +776,7 @@ public:
 			return false;
 		}
 		#endif
+		#endif
 
 		return true;
 	}
@@ -790,7 +794,8 @@ public:
 	beginning of the file).
 	TODO: ?Requires at least as much additional memory as local cell data?
 
-	Does nothing unless DCCRG_CELL_DATA_SIZE_FROM_USER is defined
+	Does nothing unless DCCRG_CELL_DATA_SIZE_FROM_USER and
+	DCCRG_USER_MPI_DATA_TYPE are defined
 
 	TODO: Reads at most number_of_cells number of cell data offsets at a time,
 	give a smaller number if all cell ids won't fit	into memory at once.
@@ -801,6 +806,7 @@ public:
 		const uint64_t /*number_of_cells*/ = ~uint64_t(0)
 	) {
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+		#ifdef DCCRG_USER_MPI_DATA_TYPE
 
 		// MPI_File_open wants a non-constant string
 		char* name_c_string = new char [name.size() + 1];
@@ -1061,6 +1067,8 @@ public:
 		MPI_Type_free(&local_type);
 
 		MPI_File_close(&infile);
+
+		#endif
 		#endif
 
 		return true;
@@ -5047,13 +5055,67 @@ private:
 
 			// send user data of removed cell to the parent's process
 			} else if (this->comm.rank() == process_of_unrefined) {
-				this->cells_to_send[process_of_parent].push_back(unrefined);
+
+				this->cells_to_send[process_of_parent].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(unrefined, -1)
+					#else
+					unrefined
+					#endif
+				);
 
 			// receive user data of removed cell from its process
 			} else if (this->comm.rank() == process_of_parent) {
-				this->cells_to_receive[process_of_unrefined].push_back(unrefined);
+				this->cells_to_receive[process_of_unrefined].push_back(
+					#ifdef DCCRG_SEND_SINGLE_CELLS
+					std::make_pair(unrefined, -1)
+					#else
+					unrefined
+					#endif
+				);
 			}
 		}
+
+		// receive cells in known order and add message tags
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			#endif
+			sender = this->cells_to_receive.begin();
+			sender != this->cells_to_receive.end();
+			sender++
+		) {
+			std::sort(sender->second.begin(), sender->second.end());
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			// TODO: merge with identical code in make_new_partition
+			for (unsigned int i = 0; i < sender->second.size(); i++) {
+				 sender->second[i].second = i + 1;
+			}
+			#endif
+		}
+
+		// send cells in known order and add message tags
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::iterator
+			#endif
+			receiver = this->cells_to_send.begin();
+			receiver != this->cells_to_send.end();
+			receiver++
+		) {
+			std::sort(receiver->second.begin(), receiver->second.end());
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			// TODO: check that message tags don't overflow
+			for (unsigned int i = 0; i < receiver->second.size(); i++) {
+				receiver->second[i].second = i + 1;
+			}
+			#endif
+		}
+
 
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS

@@ -12,9 +12,9 @@ HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
 	../../dccrg_constant_geometry.hpp \
-	../game_of_life/initialize.hpp \
-	../game_of_life/refine.hpp \
-	../game_of_life/solve.hpp \
+	initialize.hpp \
+	refine.hpp \
+	solve.hpp \
 	cell.hpp \
 	IO.hpp
 
@@ -22,6 +22,7 @@ all: $(PROGRAMS)
 
 restart_test: restart_test.cpp $(HEADERS) Makefile
 	@echo "MPICXX restart_test " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE restart_test.cpp $(INCLUDES) -o restart_test
+	#@echo "MPICXX restart_test " && $(MPICXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE restart_test.cpp $(INCLUDES) -o restart_test
 
 dc2vtk: dc2vtk.cpp ../../dccrg_constant_geometry.hpp Makefile
 	@echo "CXX dc2vtk " && $(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
@@ -38,7 +39,7 @@ data:
 # remove executables
 c: clean
 clean: data
-	rm -f $(PROGRAMS)
+	@rm -f $(PROGRAMS)
 
 t: test
 test: restart_test

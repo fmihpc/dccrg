@@ -16,8 +16,8 @@ You should have received a copy of the GNU Lesser General Public License
 along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef CELL_HPP
-#define CELL_HPP
+#ifndef RESTART_CELL_HPP
+#define RESTART_CELL_HPP
 
 #include "boost/array.hpp"
 #include "stdint.h"

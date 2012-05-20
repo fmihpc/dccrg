@@ -2,21 +2,26 @@ FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-PROGRAMS =						\
-	game_of_life_test_all_cells_boost_mpi		\
-	game_of_life_test_all_cells_mpi			\
-	game_of_life_test_all_cells_mpi_datatype	\
-	game_of_life_test_boost_mpi			\
-	game_of_life_test_mpi				\
-	game_of_life_test_mpi_datatype			\
-	scalability					\
-	scalability3d					\
-	refined						\
-	refined2d					\
-	unrefined2d					\
-	refined_scalability3d				\
-	scalability1d					\
-	hierarchical_test				\
+PROGRAMS = \
+	game_of_life_test_all_cells_boost_mpi \
+	game_of_life_test_all_cells_mpi \
+	game_of_life_test_all_cells_mpi_datatype \
+	game_of_life_test_boost_mpi \
+	game_of_life_test_mpi \
+	game_of_life_test_mpi_datatype \
+	unrefined2d_all_cells_boost_mpi \
+	unrefined2d_all_cells_mpi \
+	unrefined2d_all_cells_mpi_datatype \
+	unrefined2d_boost_mpi \
+	unrefined2d_mpi \
+	unrefined2d_mpi_datatype \
+	scalability \
+	scalability3d \
+	refined \
+	refined2d \
+	refined_scalability3d \
+	scalability1d \
+	hierarchical_test \
 	pinned_cells
 
 HEADERS = \
@@ -61,8 +66,23 @@ refined: refined.cpp $(HEADERS) Makefile
 refined2d: refined2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG refined2d.cpp $(INCLUDES) -o refined2d
 
-unrefined2d: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) -o unrefined2d
+unrefined2d_all_cells_boost_mpi: unrefined2d.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_boost_mpi
+
+unrefined2d_all_cells_mpi: unrefined2d.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi
+
+unrefined2d_all_cells_mpi_datatype: unrefined2d.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi_datatype
+
+unrefined2d_boost_mpi: unrefined2d.cpp $(HEADERS) Makefile
+	$(CXX) -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_boost_mpi
+
+unrefined2d_mpi: unrefined2d.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
+
+unrefined2d_mpi_datatype: unrefined2d.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi_datatype
 
 refined_scalability3d: refined_scalability3d.cpp $(HEADERS) Makefile
 	$(CXX) refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d

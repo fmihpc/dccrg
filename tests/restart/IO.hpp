@@ -30,8 +30,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "cell.hpp"
 
-using namespace std;
-
 template<class UserGeometry> class IO
 {
 public:
@@ -53,7 +51,7 @@ public:
 	int      maximum_refinement_level
 	*/
 	static void save(
-		const string& name,
+		const std::string& name,
 		const uint64_t step,
 		const boost::mpi::communicator& comm,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
@@ -179,7 +177,7 @@ public:
 
 
 	static void load(
-		const string& name,
+		const std::string& name,
 		uint64_t& step,
 		const boost::mpi::communicator& comm,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
