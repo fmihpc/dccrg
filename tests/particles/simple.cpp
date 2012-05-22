@@ -319,7 +319,7 @@ int main(int argc, char* argv[])
 
 		BOOST_FOREACH(uint64_t remote_neighbor, *remote_neighbors) {
 			Cell* data = grid[remote_neighbor];
-			data->prepare_to_receive_particles();
+			data->resize();
 		}
 
 		// update particle data between neighboring cells on different processes
