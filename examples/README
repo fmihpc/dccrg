@@ -1,0 +1,24 @@
+This directory contains some simple examples on how to use dccrg.
+
+If you've installed the prerequisites into the default system
+location or into your home directory you should be able to compile
+the example by running make in this directory.
+
+simple_game_of_life demonstrates the most basic usage of dccrg
+and doesn't produce any output.
+
+game_of_life shows how to overlap computation and communication
+but is otherise quite close to the simple version.
+
+game_of_life_with_output is the same as game_of_life but it also
+saves the game into .dc files which can be converted to vtk
+format with dc2vtk.
+
+dc2vtk converts the .dc produced by game_of_life_with_output
+into vtk files visualizable with VisIt
+(https://wci.llnl.gov/codes/visit)
+After running the game_of_life_with_output program you can view
+the result with
+./dc2vtk *.dc
+and
+visit -o game_of_life_000.vtk

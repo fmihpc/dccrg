@@ -1,0 +1,7 @@
+This directory collects different tests developed for dccrg.
+
+Many test programs print additional help when run with the
+--help argument.
+
+You can use VisIt to visualize the test results:
+https://wci.llnl.gov/codes/visit

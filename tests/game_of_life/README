@@ -1,0 +1,6 @@
+The game of life tests of dccrg.
+Use --help to list supported options.
+
+See the cell class in cell.hpp for all the
+permutations of sending cell data with dccrg
+and the required C preprocessor defines.

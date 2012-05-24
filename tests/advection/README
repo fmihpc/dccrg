@@ -1,0 +1,5 @@
+The advection test of dccrg in pseudo-2-d.
+Use --help to see a list of options.
+
+Use dc2vtk to transform results into format
+that VisIt understands.

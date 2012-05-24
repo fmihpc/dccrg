@@ -1,5 +1,11 @@
-The distributed cartesian cell-refinable grid is a parallel grid for FVM
-simulations.
+The distributed cartesian cell-refinable grid is a parallel grid for
+simulation development.
 
-For installation instructions see the INSTALL file, for other documentation
-see the project's home page: dccrg.berlios.de
+For installation instructions see the INSTALL file. For other documentation
+see the project wiki (https://gitorious.org/dccrg/pages/Home) and the
+README files in examples and tests directories. You can generate doxygen
+documentation into the documentation/html directory by running
+doxygen Doxyfile
+in this directory.
+
+See the files COPYING and COPYING.LESSER for license information.

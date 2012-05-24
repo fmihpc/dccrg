@@ -1,0 +1,4 @@
+Particle propagation test of dccrg showing how to
+store and use a variable amount of data in dccrg cells.
+
+simple_result.gif shows the expected result.

@@ -1,0 +1,9 @@
+dccrg is a header only library so installation consists of
+putting the .hpp files in this directory somewhere where
+your compiler can find them.
+
+dccrg requires boost::mpi and Zoltan which might be available
+from your distribution. If not you can compile them for
+example into your home directory. Installation instructions
+for several machines are given in
+https://gitorious.org/dccrg/pages/Install
