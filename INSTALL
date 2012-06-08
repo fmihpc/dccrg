@@ -7,3 +7,9 @@ from your distribution. If not you can compile them for
 example into your home directory. Installation instructions
 for several machines are given in
 https://gitorious.org/dccrg/pages/Install
+
+One can optionally use sfc++ (https://gitorious.org/sfc++)
+by defining USE_SFC when compiling programs that use dccrg.
+In that case the cells of the grid are initially distributed
+by a space-filling curve which should give much better
+load balance than the default linear ordering based on cell ids.
