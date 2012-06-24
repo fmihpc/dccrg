@@ -3319,6 +3319,123 @@ public:
 	}
 
 
+	/*!
+	Not implemented yet.
+	Adds a new neighborhood for remote neighbor updates.
+
+	Must be called with identical parameters on all processes.
+	Returns true on success and false in any of the following cases:
+	-given id already exists, use remove_remote_... before calling this
+	-(part of) given neighborhood is outside of initial neighborhood size
+
+	Use this to reduce data transfers between processes when the full
+	neighborhood doesn't have to be used.
+	*/
+	bool add_remote_update_neighborhood(
+		const int id,
+		const std::vector<Types<3>::neighborhood_item_t>&
+	) {
+		if (this->user_hood_of.count(id) > 0) {
+
+			#ifdef DEBUG
+			if (this->user_hood_to.count(id) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should have id " << id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.count(id) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should have id " << id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_to.count(id) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should have id " << id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_cells_to_send.count(id) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should have id " << id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_cells_to_receive.count(id) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should have id " << id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			return false;
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_to.count(id) > 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should not have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.count(id) > 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should not have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.count(id) > 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should not have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_send.count(id) > 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should not have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_receive.count(id) > 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should not have id " << id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		return false;
+	}
+
+
+	/*!
+	Removes the given neighborhood from remote neighbor updates.
+
+	Must be called with identical id on all processes.
+	Frees local neighbor lists and other resources associated
+	with given neighborhood.
+	*/
+	void add_remote_update_neighborhood(const int id)
+	{
+		this->user_hood_of.erase(id);
+		this->user_hood_to.erase(id);
+		this->user_neigh_of.erase(id);
+		this->user_neigh_to.erase(id);
+		this->user_neigh_cells_to_send.erase(id);
+		this->user_neigh_cells_to_receive.erase(id);
+	}
+
+
 
 private:
 
@@ -3341,6 +3458,14 @@ private:
 	*/
 	std::vector<Types<3>::neighborhood_item_t> neighborhood_of, neighborhood_to;
 
+	/*
+	User defined versions of neighborhood_of and _to.
+	*/
+	boost::unordered_map<
+		int, // user defined id of neighborhood
+		std::vector<Types<3>::neighborhood_item_t>
+	> user_hood_of, user_hood_to;
+
 	/*!
 	Cell on this process and those cells that aren't neighbors of this cell but whose neighbor this cell is.
 	For example with a stencil size of 1 in the following grid:
@@ -3355,6 +3480,14 @@ private:
 	neighbors_to[5] is empty because neighbors[5] = 1, 6, 9, 10
 	*/
 	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbors_to;
+
+	/*
+	User defined versions of neighbors_of and _to
+	*/
+	boost::unordered_map<
+		int, // user defined id of neighbor lists
+		boost::unordered_map<uint64_t, std::vector<uint64_t> >
+	> user_neigh_of, user_neigh_to;
 
 	// on which process every cell in the grid is
 	boost::unordered_map<uint64_t, int> cell_process;
@@ -3381,6 +3514,21 @@ private:
 	#else
 	boost::unordered_map<int, std::vector<uint64_t> > cells_to_send, cells_to_receive;
 	#endif
+
+	/*
+	User defined neighborhood versions of cells_to_send and _receive.
+	*/
+	boost::unordered_map<
+		int, // user defined id of neighbor lists
+		boost::unordered_map<
+			int, // process to send to / receive from
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			std::vector<std::pair<uint64_t, int> >
+			#else
+			std::vector<uint64_t>
+			#endif
+		>
+	> user_neigh_cells_to_send, user_neigh_cells_to_receive;
 
 	// cells added to / removed from this process by load balancing
 	boost::unordered_set<uint64_t> added_cells, removed_cells;
