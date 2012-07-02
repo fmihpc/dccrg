@@ -22,4 +22,3 @@ To use sfc++ in dccrg define USE_SFC when compiling a
 program using dccrg and sfc++ will be used to partition
 the initial cells between processes using a Hilber
 space-filling curve.
-
