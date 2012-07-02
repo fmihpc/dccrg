@@ -1,5 +1,4 @@
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
-#FLAGS = -O0 -g -W -Wall -Wextra -pedantic -std=c++0x -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 

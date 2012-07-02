@@ -1,6 +1,21 @@
-The game of life tests of dccrg.
-Use --help to list supported options.
+The game of life tests of dccrg. See the ../README file
+for information common to all tests.
 
-See the cell class in cell.hpp for all the
-permutations of sending cell data with dccrg
-and the required C preprocessor defines.
+Running make in this directory should produce around 20
+executables. The game_of_life_* programs serve as a basic
+test. Without additional arguments they should all print
+Passed and return successfully after less than one minute.
+
+The unrefined2d_* programs test basic adaptive mesh
+refinement functionality of dccrg. Their correctness must
+be examined by hand from the vtk files they produce when
+given the --save command line option. One should see basic
+Conway's Game of Life patterns moving through the grid or
+staying still and the grid being adapted during the runs.
+
+The cell class in cell.hpp is an example of how to use /
+support the different mechanisms available in dccrg for
+sending cell data between processes. The Makefile shows
+which preprocessor defines must be used for specific
+functionality.
+

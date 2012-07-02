@@ -1,5 +1,5 @@
 /*
-Tests the grid with variable amount of data in cells
+Tests the grid with variable amount of data in cells using serialization
 */
 
 #include "boost/mpi.hpp"
@@ -115,3 +115,4 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
+

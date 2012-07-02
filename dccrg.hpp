@@ -5408,6 +5408,50 @@ private:
 
 
 	/*!
+	Allocates incoming cell data
+
+	Use this function before functions receiving data of remote cells
+	(like start_user_data_transfers or balance_load) in order
+	to modify the default constructed incoming cells before they start
+	receiving data from other processes.
+
+	For example if the default constructed version of cell data class
+	doesn't return a correct MPI_Datatype when updating remote neighbor
+	data then call this beforehand and use get_remote_neighbors() to
+	get a list of cells which you should change.
+
+	If remote neighbor data should be allocated use true, otherwise
+	false...
+	*/
+	/*void allocate_incoming_cells(const bool allocate_remote_neighbors)
+	{
+		boost::unordered_map<uint64_t, UserData>& destination;
+
+		if (allocate_remote_neighbors) {
+			destination = this->remote_neighbors;
+		} else {
+			destination = this->cells;
+		}
+
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			sender = this->cells_to_receive.begin();
+			sender != this->cells_to_receive.end();
+			sender++
+		) {
+			for (std::vector<std::pair<uint64_t, int> >::const_iterator
+				item = sender->second.begin();
+				item != sender->second.end();
+				item++
+			) {
+				destination[item->first];
+			}
+		}
+		...
+	}*/
+
+
+	/*!
 	Starts user data transfers between processes based on cells_to_send and cells_to_receive.
 
 	User data arriving to this process is saved in given destination.

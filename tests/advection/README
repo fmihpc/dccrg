@@ -1,5 +1,8 @@
-The advection test of dccrg in pseudo-2-d.
-Use --help to see a list of options.
+The advection test of dccrg in pseudo-2-d. See the ../README
+file for information common to all tests.
 
-Use dc2vtk to transform results into format
-that VisIt understands.
+Turn the .dc files into vtk files with dc2vtk. The variables
+to plot is VisIt are density, max_diff, process,
+refinement_level, velocity_magnitude. Additionally you can
+plot the velocity vector field by clicking
+Add->Vector->velocity.

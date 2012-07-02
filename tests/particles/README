@@ -1,4 +1,13 @@
 Particle propagation test of dccrg showing how to
 store and use a variable amount of data in dccrg cells.
+See the ../README file for information common to all tests.
 
-simple_result.gif shows the expected result.
+simple_result.gif shows the expected result when visualized
+with VisIt: Open simple_grid.visit then overlay
+simple_particles.visit. Then click Add->Pseudocolor->cell
+then select simple_grid.visit and click activate. Click
+Add->Mesh->mesh and if VisIt asks about database
+correlation answer yes. Double-click on Pseudocolor-cell
+and change Point size (pixels) to 20. Finally click draw,
+the result should be quite close to simple_result.gif.
+

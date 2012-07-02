@@ -1,2 +1,4 @@
 Shows which constructors of the cell class are
-called when using dccrg.
+called when using dccrg. See the ../README file
+for information common to all tests.
+

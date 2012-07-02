@@ -1,5 +1,4 @@
-FLAGS = -O3 -W -Wall -Wextra -pedantic
-#FLAGS = -O0 -pg -g -W -Wall -Wextra -pedantic -DDEBUG
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 CXX = g++ $(FLAGS)
 

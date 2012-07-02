@@ -1,24 +1,35 @@
 This directory contains some simple examples on how to use dccrg.
 
-If you've installed the prerequisites into the default system
-location or into your home directory you should be able to compile
-the example by running make in this directory.
+If the prerequisites of dccrg are in the default system location
+or in your home directory you can compile the examples by
+running make in this directory. Otherwise modify the Makefile
+accordingly, for example, by changing the -I$$HOME/include and
+-L$$HOME/lib items on the INCLUDES line.
 
-simple_game_of_life demonstrates the most basic usage of dccrg
-and doesn't produce any output.
+simple_game_of_life demonstrates the basic usage of dccrg and
+doesn't produce any output.
 
 game_of_life shows how to overlap computation and communication
-but is otherise quite close to the simple version.
+and has been split into functions.
 
 game_of_life_with_output is the same as game_of_life but it also
 saves the game into .dc files which can be converted to vtk
 format with dc2vtk.
 
-dc2vtk converts the .dc produced by game_of_life_with_output
-into vtk files visualizable with VisIt
+dc2vtk converts the .dc files produced by
+game_of_life_with_output into vtk files visualizable with VisIt
 (https://wci.llnl.gov/codes/visit)
 After running the game_of_life_with_output program you can view
 the result with
 ./dc2vtk *.dc
 and
 visit -o game_of_life_000.vtk
+Under Plots click Add->Mesh->mesh and Add->Pseudocolor->is_alive
+Then click Draw. You should see 10 by 10 grid with cells with
+either the value 0 or 1. You can view other time steps by using
+the VCR controls above the Plots buttons. You can change the
+variable to visualize by selecting Pseudocolor in the list below
+the Plot buttons and clicking Variables and the required variable.
+The game_of_life_with_output program only saves the is_alive
+variable. For more advanced usage of VisIt see its documentation
+at the page given above.

@@ -1,5 +1,7 @@
 /*
-Tests the grid with variable amount of data in cells and variable amount of data sent during neighbor data updates
+Tests the grid with variable amount of data in cells and
+variable amount of data sent during neighbor data updates
+using serialization.
 */
 
 #include "boost/mpi.hpp"
@@ -194,3 +196,4 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
+

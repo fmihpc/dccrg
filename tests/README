@@ -1,7 +1,32 @@
-This directory collects different tests developed for dccrg.
+This directory collects different tests developed for dccrg
+and can be used to check that the installation of dccrg's
+requirements was successful and also that dccrg itself works.
+
+All of the tests should work with any number of processes, if
+that's not the case please send at least the output of the
+failing program(s) to one of the people listed in the
+../CREDITS file.
 
 Many test programs print additional help when run with the
---help argument.
+--help command line option, for example listing additional
+command line options.
 
 You can use VisIt to visualize the test results:
 https://wci.llnl.gov/codes/visit
+See the ../examples/README file for basic VisIt instructions.
+
+Each test directory has its own Makefile which assumes that
+dccrg's requirements are installed into a default system
+path or into your home directory. If that is not the case
+modify the makefiles accordingly, most likely changing the
+-I$$HOME/include -L$$HOME/lib items on the INCLUDE line to
+something else should suffice. The makefiles use g++ for
+compiling serial programs and mpic++ for parallel.
+
+The most basic tests are in the game_of_life directory. The
+advection and particles directories contain more advanced
+tests and using them succesfully is a strong indication that
+dccrg and its dependencies are installed correctly. Tests in
+other directories check different parts of dccrg and also
+serve as code examples.
+

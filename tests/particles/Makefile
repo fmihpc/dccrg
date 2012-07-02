@@ -13,7 +13,7 @@ HEADERS = \
 all: $(PROGRAMS)
 
 simple: simple.cpp $(HEADERS) Makefile
-	$(CXX) -DNDEBUG $(HOME)/profile/profile.cpp simple.cpp $(INCLUDES) -o simple
+	$(CXX) simple.cpp $(INCLUDES) -o simple
 
 d: data
 data:
@@ -22,3 +22,4 @@ data:
 c: clean
 clean: data
 	rm -f $(PROGRAMS)
+
