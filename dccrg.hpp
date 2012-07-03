@@ -1523,6 +1523,18 @@ public:
 	The local copy of remote neighbors' data is updated, for example, by calling
 	update_remote_neighbor_data().
 	Returns NULL if given cell doesn't exist or is on another process.
+
+	The neighbors are always in the following order:
+	1) if all neighbors are of the same size then they are in z order, e.g.
+	with a neighborhood size of 2 the first neighbor is at offset (-2, -2, -2)
+	from the given cell, the second one is at (-1, -2, -2), etc, in size units
+	of the given cell.
+	2) if one or more of the cells in 1) is refined then instead of one cell
+	there are 8 which are again in z order.
+	For example with maximum refinement level 1 and neighborhood size of 1
+	the neighbors of a cell of refinement level 0 at indices (2, 2, 2) could
+	be in the following order: (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0),
+	rest of refined cells..., (2, 0, 0), (3, 0, 0), (0, 2, 0), (2, 2, 0), ...
 	*/
 	const std::vector<uint64_t>* get_neighbors(const uint64_t cell) const
 	{
@@ -1547,7 +1559,8 @@ public:
 	Returns a pointer to the cells that consider given cell as a neighbor.
 
 	This list doesn't include 0s even if the grid isn't periodic in some direction.
-	Returns NULL if given cell doesn't exist or is on another process
+	Returns NULL if given cell doesn't exist or is on another process.
+	Neighbors returned by this function are in no particular order.
 	*/
 	const std::vector<uint64_t>* get_neighbors2(const uint64_t cell) const
 	{
