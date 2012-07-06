@@ -7,3 +7,8 @@ Make dccrg even more modular:
  starting with find_.
 -separate parallel logic into a separate file.
 -only put logic related to cell data into dccrg.hpp.
+
+Allow users to preallocate their cells when updating
+remote neighbor data, load balancing, etc. This way
+default constructed user cells don't have to be able
+to return correct MPI_Datatypes to dccrg.
