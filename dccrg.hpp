@@ -1558,6 +1558,31 @@ public:
 	}
 
 	/*!
+	Same as the function without id but returns neighbors for the given neighborhood.
+
+	Neighbors are in the same order as the offsets in the neighborhood with given id.
+	*/
+	const std::vector<uint64_t>* get_neighbors(const uint64_t cell, const int id) const
+	{
+		if (this->cells.count(cell) > 0) {
+			#ifdef DEBUG
+			if (this->user_neigh_of.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->comm.rank()
+					<< ": Neighbor list for cell " << cell
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+			#endif
+			return &(this->user_neigh_of.at(cell));
+		} else {
+			return NULL;
+		}
+	}
+
+
+	/*!
 	Returns a pointer to the cells that consider given cell as a neighbor.
 
 	This list doesn't include 0s even if the grid isn't periodic in some direction.
@@ -1577,6 +1602,27 @@ public:
 			}
 			#endif
 			return &(this->neighbors_to.at(cell));
+		} else {
+			return NULL;
+		}
+	}
+
+	/*!
+	Same as the functions without id but with respect to the given neighborhood.
+	*/
+	const std::vector<uint64_t>* get_neighbors2(const uint64_t cell, const int id) const
+	{
+		if (this->cells.count(cell) > 0) {
+			#ifdef DEBUG
+			if (this->user_neigh_to.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbors_to list for cell " << cell
+					<< " doesn't exist"
+					<< std::endl;
+				abort();
+			}
+			#endif
+			return &(this->user_neigh_to.at(cell));
 		} else {
 			return NULL;
 		}
@@ -3445,7 +3491,7 @@ public:
 		this->user_hood_of[id] = given_neigh;
 		this->user_hood_to[id];
 		BOOST_FOREACH(const Types<3>::neighborhood_item_t& neigh_item, given_neigh) {
-			Types<3>::neighborhood_item_t neigh_item_to = {{
+			const Types<3>::neighborhood_item_t neigh_item_to = {{
 				-neigh_item[0],
 				-neigh_item[1],
 				-neigh_item[2]
@@ -3453,7 +3499,9 @@ public:
 			this->user_hood_to[id].push_back(neigh_item_to);
 		}
 
-		this->update_user_neighbors();
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+			this->update_user_neighbors(item->first, id);
+		}
 
 		return true;
 	}
