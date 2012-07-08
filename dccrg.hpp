@@ -2143,11 +2143,11 @@ public:
 	std::vector<Types<3>::indices_t> indices_from_neighborhood(
 		const Types<3>::indices_t indices,
 		const uint64_t size_in_indices,
-		const std::vector<Types<3>::neighborhood_item_t>* neighborhood
+		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
 		// TODO: make neighborhood a const reference
 		std::vector<Types<3>::indices_t> return_indices;
-		return_indices.reserve(neighborhood->size());
+		return_indices.reserve(neighborhood.size());
 
 		// grid length in indices
 		const uint64_t grid_length[3] = {
@@ -2167,7 +2167,7 @@ public:
 		}
 		#endif
 
-		BOOST_FOREACH(const Types<3>::neighborhood_item_t& offsets, *neighborhood) {
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& offsets, neighborhood) {
 
 			Types<3>::indices_t temp_indices = {{indices[0], indices[1], indices[2]}};
 
@@ -2300,7 +2300,7 @@ public:
 		const std::vector<Types<3>::indices_t> indices_of = this->indices_from_neighborhood(
 			this->get_indices(cell),
 			cell_size,
-			&(this->neighborhood_of)
+			this->neighborhood_of
 		);
 
 		BOOST_FOREACH(const Types<3>::indices_t& index_of, indices_of) {
@@ -2490,7 +2490,7 @@ public:
 			std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 				indices,
 				size_in_indices,
-				&(this->neighborhood_to)
+				this->neighborhood_to
 			);
 
 			BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -2527,7 +2527,7 @@ public:
 				std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 					indices,
 					size_in_indices,
-					&(this->neighborhood_to)
+					this->neighborhood_to
 				);
 
 				BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -2552,7 +2552,7 @@ public:
 		std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 			indices,
 			size_in_indices,
-			&(this->neighborhood_to)
+			this->neighborhood_to
 		);
 
 		BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -2645,7 +2645,7 @@ public:
 			const std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 				indices,
 				size_in_indices,
-				&(this->neighborhood_to)
+				this->neighborhood_to
 			);
 
 			BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -4370,20 +4370,69 @@ private:
 		}
 		#endif
 
+		// find neighbors_of, should be in order given by user
 		this->user_neigh_of[id][cell].clear();
-		this->user_neigh_to[id][cell].clear();
-
 		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_of[id]) {
 			std::vector<uint64_t> cells_at_offset
 				= this->get_neighbors_of(cell, item[0], item[1], item[2]);
 			this->user_neigh_of[id][cell].push_back(cells_at_offset);
 		}
 
-		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_to[id]) {
+		// find neighbors_to
+		this->user_neigh_to[id][cell].clear();
+
+		// get volumes within which to search
+		const Types<3>::indices_t indices = this->get_indices(cell);
+		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
+
+		// minimum indices of volumes
+		std::vector<Types<3>::indices_t> search_indices_min = this->indices_from_neighborhood(
+			indices,
+			size_in_indices,
+			this->user_hood_to[id]
+		);
+
+		// maximum indinces, assume grid won't end between min and max indices
+		std::vector<Types<3>::indices_t> search_indices_max(search_indices_min);
+		BOOST_FOREACH(Types<3>::indices_t& index_max, search_indices_max) {
+			for (size_t i = 0; i < 3; i++) {
+				index_max[i] += size_in_indices;
+			}
+		}
+
+
+
+
+		const int refinement_level = this->get_refinement_level(cell);
+		int
+			min_search_level = refinement_level,
+			max_search_level = refinement_level;
+
+		if (min_search_level > 0) {
+			min_search_level--;
+		}
+		if (max_search_level < this->maximum_refinement_level) {
+			max_search_level++;
+		}
+
+
+
+		/*	if (search_index[0] == error_index) {
+				continue;
+			}
+
+			const uint64_t found = this->get_cell_from_indices(search_index, refinement_level - 1);
+			// only add if found cell doesn't have children
+			if (found == this->get_child(found)) {
+				unique_neighbors.insert(found);
+			}
+		}
+
+
 			std::vector<uint64_t> cells_at_offset
 				= this->get_neighbors_to(cell, item[0], item[1], item[2]);
 			this->user_neigh_to[id][cell].push_back(cells_at_offset);
-		}
+		}*/
 	}
 
 
