@@ -406,7 +406,7 @@ public:
 				= this->find_neighbors_to(item.first, this->neighborhood_to);
 		}
 		#ifdef DEBUG
-		if (!this->verify_neighbors()) {
+		if (!this->verify_neighbors(this->neighborhood_of, this->neighborhood_to)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are inconsistent" << std::endl;
 			// TODO: throw an exception instead when debugging?
 			exit(EXIT_FAILURE);
@@ -3777,7 +3777,7 @@ private:
 			exit(EXIT_FAILURE);
 		}
 
-		if (!this->verify_neighbors()) {
+		if (!this->verify_neighbors(this->neighborhood_of, this->neighborhood_to)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are incorrect" << std::endl;
 			exit(EXIT_FAILURE);
 		}
@@ -4341,7 +4341,7 @@ private:
 		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors.at(cell));
 
 		#ifdef DEBUG
-		if (!this->verify_neighbors(cell)) {
+		if (!this->verify_neighbors(cell, this->neighborhood_of, this->neighborhood_to)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Neighbor update failed for cell " << cell
 				<< " (child of " << this->get_parent(cell) << ")"
@@ -5468,7 +5468,7 @@ private:
 		this->update_remote_neighbor_info();
 
 		#ifdef DEBUG
-		if (!this->verify_neighbors()) {
+		if (!this->verify_neighbors(this->neighborhood_of, this->neighborhood_to)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are inconsistent" << std::endl;
 			exit(EXIT_FAILURE);
 		}
@@ -6673,44 +6673,61 @@ private:
 	/*!
 	Return false if neighbors lists of the given cell aren't consistent
 	*/
-	bool verify_neighbors(const uint64_t cell)
-	{
+	bool verify_neighbors(
+		const uint64_t cell,
+		const std::vector<Types<3>::neighborhood_item_t>& hood_of,
+		const std::vector<Types<3>::neighborhood_item_t>& hood_to
+	) {
 		if (cell == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			return false;
 		}
 
 		if (cell > this->last_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't exist" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__ <<
+				" Cell " << cell << " shouldn't exist"
+				<< std::endl;
 			return false;
 		}
 
 		if (this->cell_process.count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " doesn't exist" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Cell " << cell << " doesn't exist"
+				<< std::endl;
 			return false;
 		}
 
 		if (cell == this->get_child(cell)) {
 
 			if (this->neighbors.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " No neighbor list for cell " << cell << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No neighbor list for cell " << cell
+					<< std::endl;
 				return false;
 			}
 
 			if (this->neighbors_to.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " No neighbor_to list for cell " << cell << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No neighbor_to list for cell " << cell
+					<< std::endl;
 				return false;
 			}
 
 		} else {
 
 			if (this->neighbors.count(cell) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor list for cell " << cell << " shouldn't exist" << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor list for cell " << cell
+					<< " shouldn't exist"
+					<< std::endl;
 				return false;
 			}
 
 			if (this->neighbors_to.count(cell) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor_to list for cell " << cell << " shouldn't exist" << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor_to list for cell " << cell
+					<< " shouldn't exist"
+					<< std::endl;
 				return false;
 			}
 
@@ -6722,7 +6739,7 @@ private:
 
 		// neighbors
 		std::vector<uint64_t> compare_neighbors
-			= this->find_neighbors_of(cell, this->neighborhood_of);
+			= this->find_neighbors_of(cell, hood_of);
 
 		if ((
 			this->neighbors.at(cell).size() != compare_neighbors.size())
@@ -6753,7 +6770,7 @@ private:
 			sort(this->neighbors_to.at(cell).begin(), this->neighbors_to.at(cell).end());
 		}
 		std::vector<uint64_t> compare_neighbors_to
-			= this->find_neighbors_to(cell, this->neighborhood_to);
+			= this->find_neighbors_to(cell, hood_to);
 		if (compare_neighbors_to.size() > 0) {
 			sort(compare_neighbors_to.begin(), compare_neighbors_to.end());
 		}
@@ -6788,8 +6805,10 @@ private:
 	/*!
 	Returns false if neighbor lists on this process aren't consistent
 	*/
-	bool verify_neighbors()
-	{
+	bool verify_neighbors(
+		const std::vector<Types<3>::neighborhood_item_t>& hood_of,
+		const std::vector<Types<3>::neighborhood_item_t>& hood_to
+	) {
 		for (typename boost::unordered_map<uint64_t, int>::const_iterator
 			cell = this->cell_process.begin();
 			cell != this->cell_process.end();
@@ -6799,7 +6818,7 @@ private:
 				continue;
 			}
 
-			if (!this->verify_neighbors(cell->first)) {
+			if (!this->verify_neighbors(cell->first, hood_of, hood_to)) {
 				return false;
 			}
 		}
@@ -6815,7 +6834,7 @@ private:
 	*/
 	bool verify_remote_neighbor_info(const uint64_t cell)
 	{
-		if (!this->verify_neighbors(cell)) {
+		if (!this->verify_neighbors(cell, this->neighborhood_of, this->neighborhood_to)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Cell " << cell
 				<< " has inconsistent neighbors"
