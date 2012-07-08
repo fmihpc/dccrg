@@ -1635,11 +1635,11 @@ public:
 
 			if (this->neighborhood_size == 0) {
 				// skip diagonal offsets
-				const int zeros_in_current =
-					((current_k == 0) ? 1 : 0)
+				const int zero_offsets_in_current =
+					  ((current_i == 0) ? 1 : 0)
 					+ ((current_j == 0) ? 1 : 0)
-					+ ((current_i == 0) ? 1 : 0);
-				if (zeros_in_current != 2) {
+					+ ((current_k == 0) ? 1 : 0);
+				if (zero_offsets_in_current != 2) {
 					continue;
 				}
 			}
@@ -2144,8 +2144,8 @@ public:
 		const Types<3>::indices_t indices,
 		const uint64_t size_in_indices,
 		const std::vector<Types<3>::neighborhood_item_t>* neighborhood
-	) const
-	{
+	) const {
+		// TODO: make neighborhood a const reference
 		std::vector<Types<3>::indices_t> return_indices;
 		return_indices.reserve(neighborhood->size());
 
@@ -3346,7 +3346,7 @@ public:
 	*/
 	bool add_remote_update_neighborhood(
 		const int id,
-		const std::vector<Types<3>::neighborhood_item_t>&
+		const std::vector<Types<3>::neighborhood_item_t>& given_neigh
 	) {
 		if (this->user_hood_of.count(id) > 0) {
 
@@ -3427,7 +3427,29 @@ public:
 		}
 		#endif
 
-		return false;
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& neigh_item, given_neigh) {
+			for (size_t i = 0; i < 3; i++) {
+				if ((unsigned int) abs(neigh_item[i]) > this->neighborhood_size) {
+					return false;
+				}
+			}
+		}
+
+		// set user_hood_of and _to
+		this->user_hood_of[id] = given_neigh;
+		this->user_hood_to[id];
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& neigh_item, given_neigh) {
+			Types<3>::neighborhood_item_t neigh_item_to = {{
+				-neigh_item[0],
+				-neigh_item[1],
+				-neigh_item[2]
+			}};
+			this->user_hood_to[id].push_back(neigh_item_to);
+		}
+
+		this->update_user_neighbors();
+
+		return true;
 	}
 
 
@@ -3438,7 +3460,7 @@ public:
 	Frees local neighbor lists and other resources associated
 	with given neighborhood.
 	*/
-	void add_remote_update_neighborhood(const int id)
+	void remove_remote_update_neighborhood(const int id)
 	{
 		this->user_hood_of.erase(id);
 		this->user_hood_to.erase(id);
@@ -4307,7 +4329,6 @@ private:
 			return;
 		}
 
-		// get the neighbors_of of given cell
 		this->neighbors.at(cell) = this->find_neighbors_of(cell);
 		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors.at(cell));
 
@@ -4320,6 +4341,49 @@ private:
 			abort();
 		}
 		#endif
+	}
+
+
+	/*!
+	Updates the neighbors and _to of given cell based on given neighborhood.
+
+	Does nothing in the following cases:
+		-given cell doesn't exist in the grid
+		-given cell has children
+	Assumes that update_neighbors(cell) has been called prior to this.
+	*/
+	void update_user_neighbors(const uint64_t cell, const int id)
+	{
+		if (this->user_hood_of.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No user neighborhood with id " << id
+				<< std::endl;
+			abort();
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_to.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No user neighborhood to with id " << id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		this->user_neigh_of[id][cell].clear();
+		this->user_neigh_to[id][cell].clear();
+
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_of[id]) {
+			std::vector<uint64_t> cells_at_offset
+				= this->get_neighbors_of(cell, item[0], item[1], item[2]);
+			this->user_neigh_of[id][cell].push_back(cells_at_offset);
+		}
+
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_to[id]) {
+			std::vector<uint64_t> cells_at_offset
+				= this->get_neighbors_to(cell, item[0], item[1], item[2]);
+			this->user_neigh_to[id][cell].push_back(cells_at_offset);
+		}
 	}
 
 
