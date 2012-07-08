@@ -401,7 +401,8 @@ public:
 		// update neighbor lists of created cells
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 			this->neighbors[item.first] = this->find_neighbors_of(item.first);
-			this->neighbors_to[item.first] = this->find_neighbors_to(item.first);
+			this->neighbors_to[item.first]
+				= this->find_neighbors_to(item.first, this->neighborhood_to);
 		}
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
@@ -2453,9 +2454,12 @@ public:
 	Doesn't use existing neighbor lists and hence is slow but works if for example given cell was moved to another process by load balancing.
 	Returned cells might not be in any particular order.
 	Assumes a maximum refinement level difference of one between neighbors (both cases: neighbors_of, neighbors_to).
+	Find cells from given neighborhood.
 	*/
-	std::vector<uint64_t> find_neighbors_to(const uint64_t cell) const
-	{
+	std::vector<uint64_t> find_neighbors_to(
+		const uint64_t cell,
+		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
+	) const {
 		std::vector<uint64_t> return_neighbors;
 
 		if (cell == 0
@@ -2490,7 +2494,7 @@ public:
 			std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 				indices,
 				size_in_indices,
-				this->neighborhood_to
+				neighborhood
 			);
 
 			BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -2527,7 +2531,7 @@ public:
 				std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 					indices,
 					size_in_indices,
-					this->neighborhood_to
+					neighborhood
 				);
 
 				BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -2552,7 +2556,7 @@ public:
 		std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 			indices,
 			size_in_indices,
-			this->neighborhood_to
+			neighborhood
 		);
 
 		BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
@@ -3737,8 +3741,10 @@ private:
 				continue;
 			}
 
-			this->neighbors[added_cell] = this->find_neighbors_of(added_cell);
-			this->neighbors_to[added_cell] = this->find_neighbors_to(added_cell);
+			this->neighbors[added_cell]
+				= this->find_neighbors_of(added_cell);
+			this->neighbors_to[added_cell]
+				= this->find_neighbors_to(added_cell, this->neighborhood_to);
 		}
 
 		this->wait_user_data_transfer_receives(
@@ -4802,7 +4808,8 @@ private:
 			}
 
 			// neighbors_to
-			std::vector<uint64_t> neighbors_to = this->find_neighbors_to(refined);
+			std::vector<uint64_t> neighbors_to
+				= this->find_neighbors_to(refined, this->neighborhood_to);
 			BOOST_FOREACH(const uint64_t& neighbor_to, neighbors_to) {
 
 				if (neighbor_to == 0) {
@@ -5438,7 +5445,8 @@ private:
 				}
 			}
 
-			const std::vector<uint64_t> new_neighbors_to = this->find_neighbors_to(parent);
+			const std::vector<uint64_t> new_neighbors_to
+				= this->find_neighbors_to(parent, this->neighborhood_to);
 			BOOST_FOREACH(const uint64_t& neighbor, new_neighbors_to) {
 				if (this->cell_process.at(neighbor) == this->comm.rank()) {
 					update_neighbors.insert(neighbor);
@@ -6778,7 +6786,8 @@ private:
 		if (this->neighbors_to.at(cell).size() > 0) {
 			sort(this->neighbors_to.at(cell).begin(), this->neighbors_to.at(cell).end());
 		}
-		std::vector<uint64_t> compare_neighbors_to = this->find_neighbors_to(cell);
+		std::vector<uint64_t> compare_neighbors_to
+			= this->find_neighbors_to(cell, this->neighborhood_to);
 		if (compare_neighbors_to.size() > 0) {
 			sort(compare_neighbors_to.begin(), compare_neighbors_to.end());
 		}
@@ -6990,7 +6999,8 @@ private:
 				}
 
 				// search in neighbors_to
-				std::vector<uint64_t> neighbors_to = this->find_neighbors_to(item->first);
+				std::vector<uint64_t> neighbors_to
+					= this->find_neighbors_to(item->first, this->neighborhood_to);
 				BOOST_FOREACH(const uint64_t& neighbor, neighbors_to) {
 
 					if (neighbor == 0) {
