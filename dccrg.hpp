@@ -400,7 +400,8 @@ public:
 
 		// update neighbor lists of created cells
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			this->neighbors[item.first] = this->find_neighbors_of(item.first);
+			this->neighbors[item.first]
+				= this->find_neighbors_of(item.first, this->neighborhood_of);
 			this->neighbors_to[item.first]
 				= this->find_neighbors_to(item.first, this->neighborhood_to);
 		}
@@ -1958,7 +1959,8 @@ public:
 		}
 		#endif
 
-		const std::vector<uint64_t> neighbors = this->find_neighbors_of(parent, 2, true);
+		const std::vector<uint64_t> neighbors
+			= this->find_neighbors_of(parent, this->neighborhood_of, 2, true);
 
 		// TODO: same as in override_unrefines()
 		const int max_diff = 1;
@@ -2249,16 +2251,16 @@ public:
 	/*!
 	Returns the existing neighbors (that don't have children) of given cell.
 
+	Uses given neighborhood when searching for neighbors.
 	max_diff is the distance to search in refinement level from given cell inclusive.
 	Returns nothing if the following cases:
 		-given cell has children
 		-given doesn't exist
-	Doesn't use existing neighbor lists and hence is slow but works if for example
-	given cell was moved to another process by load balancing.
 	TODO: make private?
 	*/
 	std::vector<uint64_t> find_neighbors_of(
 		const uint64_t cell,
+		const std::vector<Types<3>::neighborhood_item_t>& neighborhood,
 		const int max_diff = 1,
 		const bool has_children = false
 	) const {
@@ -2301,7 +2303,7 @@ public:
 		const std::vector<Types<3>::indices_t> indices_of = this->indices_from_neighborhood(
 			this->get_indices(cell),
 			cell_size,
-			this->neighborhood_of
+			neighborhood
 		);
 
 		BOOST_FOREACH(const Types<3>::indices_t& index_of, indices_of) {
@@ -3742,7 +3744,7 @@ private:
 			}
 
 			this->neighbors[added_cell]
-				= this->find_neighbors_of(added_cell);
+				= this->find_neighbors_of(added_cell, this->neighborhood_of);
 			this->neighbors_to[added_cell]
 				= this->find_neighbors_to(added_cell, this->neighborhood_to);
 		}
@@ -4335,7 +4337,7 @@ private:
 			return;
 		}
 
-		this->neighbors.at(cell) = this->find_neighbors_of(cell);
+		this->neighbors.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of);
 		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors.at(cell));
 
 		#ifdef DEBUG
@@ -4385,60 +4387,8 @@ private:
 		}
 
 		// find neighbors_to
-		this->user_neigh_to[id][cell].clear();
-
-		// get volumes within which to search
-		const Types<3>::indices_t indices = this->get_indices(cell);
-		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
-
-		// minimum indices of volumes
-		std::vector<Types<3>::indices_t> search_indices_min = this->indices_from_neighborhood(
-			indices,
-			size_in_indices,
-			this->user_hood_to[id]
-		);
-
-		// maximum indinces, assume grid won't end between min and max indices
-		std::vector<Types<3>::indices_t> search_indices_max(search_indices_min);
-		BOOST_FOREACH(Types<3>::indices_t& index_max, search_indices_max) {
-			for (size_t i = 0; i < 3; i++) {
-				index_max[i] += size_in_indices;
-			}
-		}
-
-
-
-
-		const int refinement_level = this->get_refinement_level(cell);
-		int
-			min_search_level = refinement_level,
-			max_search_level = refinement_level;
-
-		if (min_search_level > 0) {
-			min_search_level--;
-		}
-		if (max_search_level < this->maximum_refinement_level) {
-			max_search_level++;
-		}
-
-
-
-		/*	if (search_index[0] == error_index) {
-				continue;
-			}
-
-			const uint64_t found = this->get_cell_from_indices(search_index, refinement_level - 1);
-			// only add if found cell doesn't have children
-			if (found == this->get_child(found)) {
-				unique_neighbors.insert(found);
-			}
-		}
-
-
-			std::vector<uint64_t> cells_at_offset
-				= this->get_neighbors_to(cell, item[0], item[1], item[2]);
-			this->user_neigh_to[id][cell].push_back(cells_at_offset);
-		}*/
+		this->user_neigh_to[id][cell]
+			= this->find_neighbors_to(cell, this->user_hood_to[id]);
 	}
 
 
@@ -4787,7 +4737,7 @@ private:
 		BOOST_FOREACH(const uint64_t& refined, this->cells_to_refine) {
 
 			// neighbors_of
-			std::vector<uint64_t> neighbors_of = this->find_neighbors_of(refined);
+			std::vector<uint64_t> neighbors_of = this->find_neighbors_of(refined, this->neighborhood_of);
 
 			BOOST_FOREACH(const uint64_t& neighbor_of, neighbors_of) {
 
@@ -4910,7 +4860,8 @@ private:
 			}
 			#endif
 
-			const std::vector<uint64_t> neighbors = this->find_neighbors_of(parent, 2, true);
+			const std::vector<uint64_t> neighbors
+				= this->find_neighbors_of(parent, this->neighborhood_of, 2, true);
 
 			BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 
@@ -4970,7 +4921,13 @@ private:
 			const int ref_lvl = this->get_refinement_level(unrefined);
 
 			// neighbors_of
-			const std::vector<uint64_t> neighbors = this->find_neighbors_of(this->get_parent(unrefined), 2, true);
+			const std::vector<uint64_t> neighbors
+				= this->find_neighbors_of(
+					this->get_parent(unrefined),
+					this->neighborhood_of,
+					2,
+					true
+				);
 
 			BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 
@@ -5200,7 +5157,13 @@ private:
 				No need to update local neighbors_to of refined cell, if they are larger
 				they will also be refined and updated.
 				*/
-				const std::vector<uint64_t> neighbors = this->find_neighbors_of(refined, 2, true);
+				const std::vector<uint64_t> neighbors
+					= this->find_neighbors_of(
+						refined,
+						this->neighborhood_of,
+						2,
+						true
+					);
 
 				BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 					if (neighbor == 0) {
@@ -5433,7 +5396,9 @@ private:
 			}
 			#endif
 
-			const std::vector<uint64_t> new_neighbors_of = this->find_neighbors_of(parent);
+			const std::vector<uint64_t> new_neighbors_of
+				= this->find_neighbors_of(parent, this->neighborhood_of);
+
 			BOOST_FOREACH(const uint64_t& neighbor, new_neighbors_of) {
 
 				if (neighbor == 0) {
@@ -6756,7 +6721,8 @@ private:
 		}
 
 		// neighbors
-		std::vector<uint64_t> compare_neighbors = this->find_neighbors_of(cell);
+		std::vector<uint64_t> compare_neighbors
+			= this->find_neighbors_of(cell, this->neighborhood_of);
 
 		if ((
 			this->neighbors.at(cell).size() != compare_neighbors.size())
@@ -6977,7 +6943,8 @@ private:
 				bool no_remote_neighbor = true;
 
 				// search in neighbors_of
-				const std::vector<uint64_t> neighbors_of = this->find_neighbors_of(item->first);
+				const std::vector<uint64_t> neighbors_of
+					= this->find_neighbors_of(item->first, this->neighborhood_of);
 
 				BOOST_FOREACH(const uint64_t& neighbor, neighbors_of) {
 
