@@ -1566,16 +1566,16 @@ public:
 	{
 		if (this->cells.count(cell) > 0) {
 			#ifdef DEBUG
-			if (this->user_neigh_of.count(cell) == 0) {
+			if (this->user_neigh_of.at(id).count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->comm.rank()
 					<< ": Neighbor list for cell " << cell
-					<< " doesn't exist"
+					<< " doesn't exist for neighborhood id " << id
 					<< std::endl;
 				abort();
 			}
 			#endif
-			return &(this->user_neigh_of.at(cell));
+			return &(this->user_neigh_of.at(id).at(cell));
 		} else {
 			return NULL;
 		}
@@ -1614,15 +1614,15 @@ public:
 	{
 		if (this->cells.count(cell) > 0) {
 			#ifdef DEBUG
-			if (this->user_neigh_to.count(cell) == 0) {
+			if (this->user_neigh_to.at(id).count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbors_to list for cell " << cell
-					<< " doesn't exist"
+					<< " doesn't exist for neighborhood id " << id
 					<< std::endl;
 				abort();
 			}
 			#endif
-			return &(this->user_neigh_to.at(cell));
+			return &(this->user_neigh_to.at(id).at(cell));
 		} else {
 			return NULL;
 		}
@@ -3389,6 +3389,7 @@ public:
 	Adds a new neighborhood for remote neighbor updates.
 
 	Must be called with identical parameters on all processes.
+	No neighborhood_item_t should have all offsets equal to 0.
 	Returns true on success and false in any of the following cases:
 	-given id already exists, use remove_remote_... before calling this
 	-(part of) given neighborhood is outside of initial neighborhood size
@@ -3418,20 +3419,6 @@ public:
 			}
 
 			if (this->user_neigh_to.count(id) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_cells_to_send.count(id) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_cells_to_receive.count(id) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Should have id " << id
 					<< std::endl;
@@ -3485,6 +3472,10 @@ public:
 					return false;
 				}
 			}
+
+			if (neigh_item[0] == 0 && neigh_item[1] == 0 && neigh_item[2] == 0) {
+				return false;
+			}
 		}
 
 		// set user_hood_of and _to
@@ -3500,7 +3491,7 @@ public:
 		}
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			this->update_user_neighbors(item->first, id);
+			this->update_user_neighbors(item.first, id);
 		}
 
 		return true;
@@ -4248,16 +4239,31 @@ private:
 	/*!
 	Calculates what to send and where during a remote neighbor data update.
 
-	Assumes up-to-date neighbor lists, clears previous send / receive lists.
+	Assumes up-to-date internal and user neighbor lists,
+	clears previous send / receive lists.
 	*/
 	void recalculate_neighbor_update_send_receive_lists()
 	{
 		// clear previous lists
 		this->cells_to_send.clear();
 		this->cells_to_receive.clear();
+		this->user_neigh_cells_to_send.clear();
+		this->user_neigh_cells_to_receive.clear();
 
 		// only send a cell to a process once
-		boost::unordered_map<int, boost::unordered_set<uint64_t> > unique_cells_to_send, unique_cells_to_receive;
+		boost::unordered_map<
+			int, // process to send to / receive from
+			boost::unordered_set<uint64_t>
+		> unique_cells_to_send, unique_cells_to_receive;
+
+		// user neighborhood versions of the above
+		boost::unordered_map<
+			int, // id of user's neighborhood
+			boost::unordered_map<
+				int, // process to send to / receive from
+				boost::unordered_set<uint64_t>
+			>
+		> user_neigh_unique_sends, user_neigh_unique_receives;
 
 		// calculate new lists for neighbor data updates
 		BOOST_FOREACH(const uint64_t& cell, this->cells_with_remote_neighbors) {
@@ -4285,6 +4291,25 @@ private:
 				}
 			}
 
+			// user defined neighborhood version of the above
+			for (boost::unordered_map<int, boost::unordered_map<uint64_t, std::vector<uint64_t> > >::const_iterator
+				item = this->user_neigh_of.begin();
+				item != this->user_neigh_of.end();
+				item++
+			) {
+				const int hood_id = item->first;
+				BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(hood_id).at(cell)) {
+
+					if (neighbor == 0) {
+						continue;
+					}
+
+					if (this->cell_process.at(neighbor) != current_process) {
+						user_neigh_unique_receives[hood_id][this->cell_process.at(neighbor)].insert(neighbor);
+					}
+				}
+			}
+
 			// data must be sent to neighbors_to
 			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors_to.at(cell)) {
 
@@ -4294,6 +4319,25 @@ private:
 
 				if (this->cell_process.at(neighbor) != current_process) {
 					unique_cells_to_send[this->cell_process.at(neighbor)].insert(cell);
+				}
+			}
+
+			// user defined neighborhood version of the above
+			for (boost::unordered_map<int, boost::unordered_map<uint64_t, std::vector<uint64_t> > >::const_iterator
+				item = this->user_neigh_to.begin();
+				item != this->user_neigh_to.end();
+				item++
+			) {
+				const int hood_id = item->first;
+				BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_to.at(hood_id).at(cell)) {
+
+					if (neighbor == 0) {
+						continue;
+					}
+
+					if (this->cell_process.at(neighbor) != current_process) {
+						user_neigh_unique_sends[hood_id][this->cell_process.at(neighbor)].insert(cell);
+					}
 				}
 			}
 		}
@@ -4329,6 +4373,49 @@ private:
 			#endif
 		}
 
+		// user defined neighborhood version of the above
+		for (boost::unordered_map<int, boost::unordered_map<int, boost::unordered_set<uint64_t> > >::const_iterator
+			item = user_neigh_unique_sends.begin();
+			item != user_neigh_unique_sends.end();
+			item++
+		) {
+			const int hood_id = item->first;
+
+			for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator
+				receiver = item->second.begin();
+				receiver != item->second.end();
+				receiver++
+			) {
+				this->user_neigh_cells_to_send[hood_id][receiver->first].reserve(receiver->second.size());
+
+				BOOST_FOREACH(const uint64_t& cell, receiver->second) {
+					this->user_neigh_cells_to_send[hood_id][receiver->first].push_back(
+						#ifdef DCCRG_SEND_SINGLE_CELLS
+						std::make_pair(cell, -1)
+						#else
+						cell
+						#endif
+					);
+				}
+
+				sort(
+					this->user_neigh_cells_to_send[hood_id][receiver->first].begin(),
+					this->user_neigh_cells_to_send[hood_id][receiver->first].end()
+				);
+
+				#ifdef DCCRG_SEND_SINGLE_CELLS
+				// sequential tags for messages: 1, 2, ...
+				for (unsigned int
+					i = 0;
+					i < this->user_neigh_cells_to_send[hood_id][receiver->first].size();
+					i++
+				) {
+					this->user_neigh_cells_to_send[hood_id][receiver->first][i].second = i + 1;
+				}
+				#endif
+			}
+		}
+
 		// populate final receive list data structures and sort them
 		for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator
 			sender = unique_cells_to_receive.begin();
@@ -4359,6 +4446,50 @@ private:
 				this->cells_to_receive[sender->first][i].second = i + 1;
 			}
 			#endif
+		}
+
+		// user defined neighborhood version of the above
+		for (boost::unordered_map<int, boost::unordered_map<int, boost::unordered_set<uint64_t> > >::const_iterator
+			item = user_neigh_unique_receives.begin();
+			item != user_neigh_unique_receives.end();
+			item++
+		) {
+			const int hood_id = item->first;
+
+			for (boost::unordered_map<int, boost::unordered_set<uint64_t> >::const_iterator
+				sender = item->second.begin();
+				sender != item->second.end();
+				sender++
+			) {
+				this->user_neigh_cells_to_receive[hood_id][sender->first].reserve(sender->second.size());
+
+				BOOST_FOREACH(const uint64_t& cell, sender->second) {
+
+					this->user_neigh_cells_to_receive[hood_id][sender->first].push_back(
+						#ifdef DCCRG_SEND_SINGLE_CELLS
+						std::make_pair(cell, -1)
+						#else
+						cell
+						#endif
+					);
+				}
+
+				sort(
+					this->user_neigh_cells_to_receive[hood_id][sender->first].begin(),
+					this->user_neigh_cells_to_receive[hood_id][sender->first].end()
+				);
+
+				#ifdef DCCRG_SEND_SINGLE_CELLS
+				// sequential tags for messages: 1, 2, ...
+				for (unsigned int
+					i = 0;
+					i < this->user_neigh_cells_to_receive[hood_id][sender->first].size();
+					i++
+				) {
+					this->user_neigh_cells_to_receive[hood_id][sender->first][i].second = i + 1;
+				}
+				#endif
+			}
 		}
 	}
 
@@ -4431,7 +4562,11 @@ private:
 		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_of[id]) {
 			std::vector<uint64_t> cells_at_offset
 				= this->get_neighbors_of(cell, item[0], item[1], item[2]);
-			this->user_neigh_of[id][cell].push_back(cells_at_offset);
+			this->user_neigh_of[id][cell].insert(
+				this->user_neigh_of[id][cell].end(),
+				cells_at_offset.begin(),
+				cells_at_offset.end()
+			);
 		}
 
 		// find neighbors_to
