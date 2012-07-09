@@ -16,14 +16,10 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "algorithm"
 #include "boost/assign/list_of.hpp"
 #include "boost/foreach.hpp"
-#include "boost/lexical_cast.hpp"
 #include "boost/mpi.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
-#include "fstream"
 #include "iostream"
 #include "vector"
 #include "zoltan.h"
