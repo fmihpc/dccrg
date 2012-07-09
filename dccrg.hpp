@@ -1423,11 +1423,11 @@ public:
 	{
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
-		this->remote_neighbors
+		this->remote_neighbors, this->cells_to_receive, this->cells_to_send
+		#elif defined (DCCRG_CELL_DATA_SIZE_FROM_USER)
+		this->remote_neighbors, this->cells_to_receive, this->cells_to_send
 		#else
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->remote_neighbors
-		#endif
+		this->cells_to_receive, this->cells_to_send
 		#endif
 		);
 	}
@@ -1463,7 +1463,7 @@ public:
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->remote_neighbors
+		this->remote_neighbors, this->cells_to_receive
 		#endif
 		#endif
 		);
@@ -3699,11 +3699,11 @@ private:
 
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
-		this->cells
+		this->cells, this->cells_to_receive, this->cells_to_send
+		#elif defined (DCCRG_CELL_DATA_SIZE_FROM_USER)
+		this->cells, this->cells_to_receive, this->cells_to_send
 		#else
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->cells
-		#endif
+		this->cells_to_receive, this->cells_to_send
 		#endif
 		);
 
@@ -3791,7 +3791,7 @@ private:
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->cells
+		this->cells, this->cells_to_receive
 		#endif
 		#endif
 		);
@@ -3866,11 +3866,11 @@ private:
 
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
-		this->cells
+		this->cells, this->cells_to_receive, this->cells_to_send
+		#elif defined (DCCRG_CELL_DATA_SIZE_FROM_USER)
+		this->cells, this->cells_to_receive, this->cells_to_send
 		#else
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->cells
-		#endif
+		this->cells_to_receive, this->cells_to_send
 		#endif
 		);
 
@@ -3945,7 +3945,7 @@ private:
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->cells
+		this->cells, this->cells_to_receive
 		#endif
 		#endif
 		);
@@ -5546,11 +5546,11 @@ private:
 
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
-		this->unrefined_cell_data
+		this->unrefined_cell_data, this->cells_to_receive, this->cells_to_send
+		#elif defined (DCCRG_CELL_DATA_SIZE_FROM_USER)
+		this->unrefined_cell_data, this->cells_to_receive, this->cells_to_send
 		#else
-		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->unrefined_cell_data
-		#endif
+		this->cells_to_receive, this->cells_to_send
 		#endif
 		);
 
@@ -5660,7 +5660,7 @@ private:
 		this->wait_user_data_transfer_receives(
 		#ifndef DCCRG_SEND_SINGLE_CELLS
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-		this->unrefined_cell_data
+		this->unrefined_cell_data, this->cells_to_receive
 		#endif
 		#endif
 		);
@@ -5740,20 +5740,26 @@ private:
 	*/
 	void start_user_data_transfers(
 	#ifdef DCCRG_SEND_SINGLE_CELLS
-	boost::unordered_map<uint64_t, UserData>& destination
+	boost::unordered_map<uint64_t, UserData>& destination,
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
+	#elif defined (DCCRG_CELL_DATA_SIZE_FROM_USER)
+	boost::unordered_map<uint64_t, UserData>& destination,
+	boost::unordered_map<int, std::vector<uint64_t> >& receive_item,
+	boost::unordered_map<int, std::vector<uint64_t> >& send_item
 	#else
-	#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-	boost::unordered_map<uint64_t, UserData>& destination
+	boost::unordered_map<int, std::vector<uint64_t> >& receive_item,
+	boost::unordered_map<int, std::vector<uint64_t> >& send_item
 	#endif
-	#endif
-	)
-	{
+	) {
 		#ifdef DCCRG_SEND_SINGLE_CELLS
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			sender = this->cells_to_receive.begin();
-			sender != this->cells_to_receive.end();
+			//sender = this->cells_to_receive.begin();
+			//sender != this->cells_to_receive.end();
+			sender = receive_item.begin();
+			sender != receive_item.end();
 			sender++
 		) {
 			#ifdef DEBUG
@@ -5772,6 +5778,7 @@ private:
 				item != sender->second.end();
 				item++
 			) {
+				// TODO: preallocate MPI_Requests?
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 				this->receive_requests[sender->first].push_back(MPI_Request());
 
@@ -5814,8 +5821,10 @@ private:
 
 		// post all sends
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			receiver = this->cells_to_send.begin();
-			receiver != this->cells_to_send.end();
+			//receiver = this->cells_to_send.begin();
+			//receiver != this->cells_to_send.end();
+			receiver = send_item.begin();
+			receiver != send_item.end();
 			receiver++
 		) {
 			#ifdef DEBUG
@@ -5878,10 +5887,13 @@ private:
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 		// receive one MPI datatype per process
 		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			sender = this->cells_to_receive.begin();
-			sender != this->cells_to_receive.end();
+			//sender = this->cells_to_receive.begin();
+			//sender != this->cells_to_receive.end();
+			sender = receive_item.begin();
+			sender != receive_item.end();
 			sender++
 		) {
+			// TODO: still needed?
 			std::sort(sender->second.begin(), sender->second.end());
 
 			// reserve space for incoming user data at our end
@@ -5956,8 +5968,10 @@ private:
 
 		// send one MPI datatype per process
 		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			receiver = this->cells_to_send.begin();
-			receiver != this->cells_to_send.end();
+			//receiver = this->cells_to_send.begin();
+			//receiver != this->cells_to_send.end();
+			receiver = send_item.begin();
+			receiver != send_item.end();
 			receiver++
 		) {
 			std::sort(receiver->second.begin(), receiver->second.end());
@@ -6036,7 +6050,7 @@ private:
 				continue;
 			}
 
-			if (this->cells_to_receive.count(sender) == 0) {
+			if (receive_item.count(sender) == 0) {
 				// no data to send / receive
 				continue;
 			}
@@ -6060,14 +6074,14 @@ private:
 				continue;
 			}
 
-			if (this->cells_to_send.count(receiver) == 0) {
+			if (send_item.count(receiver) == 0) {
 				// no data to send / receive
 				continue;
 			}
 
-			std::sort(this->cells_to_send.at(receiver).begin(), this->cells_to_send.at(receiver).end());
+			std::sort(send_item.at(receiver).begin(), send_item.at(receiver).end());
 			// construct the outgoing data vector
-			BOOST_FOREACH(const uint64_t& cell, this->cells_to_send.at(receiver)) {
+			BOOST_FOREACH(const uint64_t& cell, send_item.at(receiver)) {
 				UserData* user_data = (*this)[cell];
 				assert(user_data != NULL);
 				this->outgoing_data[receiver].push_back(*user_data);
@@ -6081,7 +6095,7 @@ private:
 				continue;
 			}
 
-			if (this->cells_to_send.count(receiver) == 0) {
+			if (send_item.count(receiver) == 0) {
 				// no data to send / receive
 				continue;
 			}
@@ -6109,7 +6123,8 @@ private:
 	void wait_user_data_transfer_receives(
 	#ifndef DCCRG_SEND_SINGLE_CELLS
 	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
-	boost::unordered_map<uint64_t, UserData>& destination
+	boost::unordered_map<uint64_t, UserData>& destination,
+	boost::unordered_map<int, std::vector<uint64_t> >& receive_item
 	#endif
 	#endif
 	) {
@@ -6152,10 +6167,10 @@ private:
 			sender != this->incoming_data.end();
 			sender++
 		) {
-			std::sort(this->cells_to_receive.at(sender->first).begin(), this->cells_to_receive.at(sender->first).end());
+			std::sort(receive_item.at(sender->first).begin(), receive_item.at(sender->first).end());
 
 			int i = 0;
-			BOOST_FOREACH(const uint64_t& cell, this->cells_to_receive.at(sender->first)) {
+			BOOST_FOREACH(const uint64_t& cell, receive_item.at(sender->first)) {
 				// TODO move data instead of copying
 				destination[cell] = this->incoming_data.at(sender->first)[i];
 				i++;
