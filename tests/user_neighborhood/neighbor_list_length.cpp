@@ -284,6 +284,7 @@ int main(int argc, char* argv[])
 			abort();
 	}
 	BOOST_FOREACH(const uint64_t cell, cells) {
+		// check number of neighbors
 		const vector<uint64_t>* neighbors = grid.get_neighbors(cell, hood_id);
 		if (neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -300,6 +301,34 @@ int main(int argc, char* argv[])
 				<< " and neighborhood id " << hood_id
 				<< ": " << neighbors_to->size()
 				<< std::endl;
+			abort();
+		}
+		// check ids and ordering of neighbors_of
+		const vector<uint64_t>* default_neighbors = grid.get_neighbors(cell);
+		if (default_neighbors->size() != 124) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of neighbors for cell " << cell
+				<< " in default neighborhood"
+				<< std::endl;
+			abort();
+		}
+		if (
+			!std::equal(
+				neighbors->begin(),
+				neighbors->end(),
+				default_neighbors->begin()
+			)
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " User neighbor list of cell " << cell << ":\n";
+			BOOST_FOREACH(const uint64_t neighbor, *neighbors) {
+				std::cerr << neighbor << ", ";
+			}
+			std::cerr << "\nnot equal to default neighbor list:\n";
+			BOOST_FOREACH(const uint64_t neighbor, *default_neighbors) {
+				std::cerr << neighbor << ", ";
+			}
+			std::cerr << std::endl;
 			abort();
 		}
 	}
