@@ -1414,9 +1414,27 @@ public:
 		this->wait_neighbor_data_update();
 	}
 
+	/*!
+	Same as the version without id but uses the given neighborhood.
+
+	Must be called with the same id by all processes.
+	Can be used to transfer the cell data of less number of cells
+	between processes than the full neighborhood would.
+	add_remote_update_neighborhood must be used once prior to
+	calling this with the same id in order to create the reduced
+	neighborhood.
+	Does nothing in case a neighborhood with given id doesn't exist.
+	*/
+	void update_remote_neighbor_data(const int id)
+	{
+		this->start_remote_neighbor_data_update(id);
+		this->wait_neighbor_data_update(id);
+	}
+
 
 	/*!
-	Starts the update of neighbor data between processes and returns before (probably) it has completed
+	Starts the update of neighbor data between processes, returns immediately.
+
 	Must be called simultaneously on all processes
 	*/
 	void start_remote_neighbor_data_update()
@@ -1432,6 +1450,96 @@ public:
 		);
 	}
 
+	/*!
+	Same as the version without id but uses the given neighborhood.
+
+	add_remote_update_neighborhood must been used once with the
+	same id prior to calling this.
+	Does nothing in case a neighborhood with given id doesn't exist.
+	*/
+	void start_remote_neighbor_data_update(const int id)
+	{
+		if (this->user_hood_of.count(id) == 0) {
+
+			#ifdef DEBUG
+			if (this->user_hood_to.count(id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.count(id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_to.count(id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			return;
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_to.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_send.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_receive.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		this->start_user_data_transfers(
+		#ifdef DCCRG_SEND_SINGLE_CELLS
+		this->remote_neighbors,
+		this->user_neigh_cells_to_receive.at(id),
+		this->user_neigh_cells_to_send.at(id)
+		#elif defined (DCCRG_CELL_DATA_SIZE_FROM_USER)
+		this->remote_neighbors,
+		this->user_neigh_cells_to_receive.at(id),
+		this->user_neigh_cells_to_send.at(id)
+		#else
+		this->user_neigh_cells_to_receive.at(id),
+		this->user_neigh_cells_to_send.at(id)
+		#endif
+		);
+	}
+
 
 	/*!
 	Waits until all neighbor data update transfers between processes have completed and incorporates that data.
@@ -1440,6 +1548,17 @@ public:
 	void wait_neighbor_data_update()
 	{
 		this->wait_neighbor_data_update_receives();
+		this->wait_neighbor_data_update_sends();
+	}
+
+	/*!
+	Same as the version without id but uses the given neighborhood.
+
+	Does nothing if neighborhood with given id doesn't exist.
+	*/
+	void wait_neighbor_data_update(const int id)
+	{
+		this->wait_neighbor_data_update_receives(id);
 		this->wait_neighbor_data_update_sends();
 	}
 
@@ -1464,6 +1583,26 @@ public:
 		#ifndef DCCRG_SEND_SINGLE_CELLS
 		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 		this->remote_neighbors, this->cells_to_receive
+		#endif
+		#endif
+		);
+	}
+
+	/*!
+	Same as the version without id but uses the given neighborhood.
+
+	Does nothing if neighborhood with given id doesn't exist.
+	*/
+	void wait_neighbor_data_update_receives(const int id)
+	{
+		if (this->user_hood_of.count(id) == 0) {
+			return;
+		}
+
+		this->wait_user_data_transfer_receives(
+		#ifndef DCCRG_SEND_SINGLE_CELLS
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->remote_neighbors, this->user_neig_cells_to_receive.at(id)
 		#endif
 		#endif
 		);
