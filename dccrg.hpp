@@ -2670,6 +2670,12 @@ public:
 		}
 		#endif
 
+		/*
+		FIXME: neighbors should be unique only in within
+		each offset in user neighborhood?
+		Would allow users to have the same offset
+		multiple times in their neighborhoods.
+		*/
 		boost::unordered_set<uint64_t> unique_neighbors;
 
 		// neighbors_to larger than given cell
