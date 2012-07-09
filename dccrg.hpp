@@ -3929,10 +3929,20 @@ private:
 				continue;
 			}
 
+			// TODO: use this->update_neighbors(added_cell)
 			this->neighbors[added_cell]
 				= this->find_neighbors_of(added_cell, this->neighborhood_of);
 			this->neighbors_to[added_cell]
 				= this->find_neighbors_to(added_cell, this->neighborhood_to);
+
+			// also update user neighbor lists
+			for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+				item = this->user_hood_of.begin();
+				item != this->user_hood_of.end();
+				item++
+			) {
+				this->update_user_neighbors(added_cell, item->first);
+			}
 		}
 
 		this->wait_user_data_transfer_receives(
@@ -3951,6 +3961,16 @@ private:
 			this->cells.erase(removed_cell);
 			this->neighbors.erase(removed_cell);
 			this->neighbors_to.erase(removed_cell);
+
+			// also user neighbor lists
+			for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+				item = this->user_hood_of.begin();
+				item != this->user_hood_of.end();
+				item++
+			) {
+				this->user_neigh_of.at(item->first).erase(removed_cell);
+				this->user_neigh_to.at(item->first).erase(removed_cell);
+			}
 		}
 
 		this->update_remote_neighbor_info();
@@ -5750,6 +5770,14 @@ private:
 		// update neighbor lists of cells affected by refining / unrefining
 		BOOST_FOREACH(const uint64_t& cell, update_neighbors) {
 			this->update_neighbors(cell);
+			//update also neighbor lists of user neighborhoods
+			for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+				item = this->user_hood_of.begin();
+				item != this->user_hood_of.end();
+				item++
+			) {
+				this->update_user_neighbors(cell, item->first);
+			}
 		}
 
 		// remove neighbor lists of added cells' parents
@@ -5777,6 +5805,16 @@ private:
 
 				this->neighbors.erase(refined);
 				this->neighbors_to.erase(refined);
+
+				// remove also from user's neighborhood
+				for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+					item = this->user_hood_of.begin();
+					item != this->user_hood_of.end();
+					item++
+				) {
+					this->user_neigh_of.at(item->first).erase(refined);
+					this->user_neigh_to.at(item->first).erase(refined);
+				}
 			}
 		}
 
@@ -5784,6 +5822,15 @@ private:
 		BOOST_FOREACH(const uint64_t& unrefined, all_to_unrefine) {
 			this->neighbors.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
+			// also from user neighborhood
+			for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+				item = this->user_hood_of.begin();
+				item != this->user_hood_of.end();
+				item++
+			) {
+				this->user_neigh_of.at(item->first).erase(unrefined);
+				this->user_neigh_to.at(item->first).erase(unrefined);
+			}
 		}
 
 		this->update_remote_neighbor_info();
