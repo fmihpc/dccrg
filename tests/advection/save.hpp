@@ -46,30 +46,31 @@ public:
 		boost::mpi::communicator comm,
 		const dccrg::Dccrg<CellData>& grid
 	) {
-		std::string header;
-		header += "2d advection test file\n\n";
-		header += "Data after end of header and a line break:\n";
-		header += "1 uint64_t 0x1234567890abcdef for checking endiannes of data\n";
-		header += "1 double   grid start coordinate in x direction\n";
-		header += "1 double   grid start coordinate in y direction\n";
-		header += "1 double   grid start coordinate in z direction\n";
-		header += "1 double   x size of unrefined spatial cells\n";
-		header += "1 double   y size of unrefined spatial cells\n";
-		header += "1 double   z size of unrefined spatial cells\n";
-		header += "1 uint64_t length of the grid in unrefined cells in x direction\n";
-		header += "1 uint64_t length of the grid in unrefined cells in y direction\n";
-		header += "1 uint64_t length of the grid in unrefined cells in z direction\n";
-		header += "1 uint8_t  maximum refinement level of the grid\n";
-		header += "1 uint64_t cell id\n";
-		header += "1 uint32_t cell process number\n";
-		header += "1 double   density\n";
-		header += "1 double   max relative difference in density between this cell and its neighbors\n";
-		header += "1 double   vx\n";
-		header += "1 double   vy\n";
-		header += "1 double   vz\n";
-		header += "1 uint64_t cell id\n";
-		header += "...\n";
-		header += "end of header\n";
+		const std::string header(
+			"2d advection test file\n\n"
+			"Data after end of header and a line break:\n"
+			"1 uint64_t 0x1234567890abcdef for checking endiannes of data\n"
+			"1 double   grid start coordinate in x direction\n"
+			"1 double   grid start coordinate in y direction\n"
+			"1 double   grid start coordinate in z direction\n"
+			"1 double   x size of unrefined spatial cells\n"
+			"1 double   y size of unrefined spatial cells\n"
+			"1 double   z size of unrefined spatial cells\n"
+			"1 uint64_t length of the grid in unrefined cells in x direction\n"
+			"1 uint64_t length of the grid in unrefined cells in y direction\n"
+			"1 uint64_t length of the grid in unrefined cells in z direction\n"
+			"1 uint8_t  maximum refinement level of the grid\n"
+			"1 uint64_t cell id\n"
+			"1 uint32_t cell process number\n"
+			"1 double   density\n"
+			"1 double   max relative difference in density between this cell and its neighbors\n"
+			"1 double   vx\n"
+			"1 double   vy\n"
+			"1 double   vz\n"
+			"1 uint64_t cell id\n"
+			"...\n"
+			"end of header\n"
+		);
 
 		// set output filename
 		std::string output_name(filename);
