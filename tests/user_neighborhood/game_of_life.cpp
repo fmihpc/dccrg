@@ -51,6 +51,119 @@ using namespace boost::mpi;
 using namespace dccrg;
 using namespace std;
 
+
+/*!
+The x and y coordinates of moving patterns wander out
+of the grid, this puts them back to the proper location.
+*/
+void wrap_coordinates(
+	const int grid_size,
+	int& x,
+	int& y
+) {
+	x %= grid_size;
+	while (y < 0) {
+		y += grid_size;
+	}
+	y %= grid_size;
+}
+
+
+/*!
+Returns cells which are alive at time step = 0.
+
+Also used to check whether a cell should be alive
+on a later time step.
+time_step must be divisible by 4.
+*/
+boost::unordered_set<uint64_t> get_live_cells(
+	const uint64_t grid_size,
+	const int time_step
+) {
+	if (time_step % 4 > 0) {
+		cerr << "Time step must be divisible by 4" << endl;
+		abort();
+	}
+
+	boost::unordered_set<uint64_t> result;
+
+	/*
+	The game is interlaced so "neighboring" cells have one
+	cell between them, hence 2 * n * grid_size, where n = 1, 2, ...
+	*/
+
+	/*
+	Patterns at even x and even y cells starting from origin
+	*/
+	// create a Toad (http://www.conwaylife.com/wiki/Toad)
+	const uint64_t toad_start = 12 * grid_size + 6;
+	result.insert(toad_start);
+	result.insert(toad_start + 2);
+	result.insert(toad_start + 4);
+	result.insert(toad_start + 2 + 2 * grid_size);
+	result.insert(toad_start + 4 + 2 * grid_size);
+	result.insert(toad_start + 6 + 2 * grid_size);
+
+	/*
+	Patterns at even x and odd y cells
+	*/
+	// http://www.conwaylife.com/wiki/Blinker
+	const uint64_t blinker_start = 14 * grid_size + 1;
+	result.insert(blinker_start);
+	result.insert(blinker_start + 2);
+	result.insert(blinker_start + 4);
+
+	// http://www.conwaylife.com/wiki/Beehive
+	const uint64_t beehive_start = 10 * grid_size + 7;
+	result.insert(beehive_start + 2);
+	result.insert(beehive_start + 4);
+	result.insert(beehive_start - 2 * grid_size);
+	result.insert(beehive_start - 2 * grid_size + 6);
+	result.insert(beehive_start - 4 * grid_size + 2);
+	result.insert(beehive_start - 4 * grid_size + 4);
+
+	/*
+	Odd x, even y
+	*/
+	// http://www.conwaylife.com/wiki/Beacon
+	const uint64_t beacon_start = 15 * grid_size + 6;
+	result.insert(beacon_start);
+	result.insert(beacon_start + 2);
+	result.insert(beacon_start - 2 * grid_size);
+	result.insert(beacon_start + 6 - 4 * grid_size);
+	result.insert(beacon_start + 4 - 6 * grid_size);
+	result.insert(beacon_start + 6 - 6 * grid_size);
+
+	// http://www.conwaylife.com/wiki/Block
+	const uint64_t block_start = 5 * grid_size + 2;
+	result.insert(block_start);
+	result.insert(block_start + 2);
+	result.insert(block_start - 2 * grid_size);
+	result.insert(block_start + 2 - 2 * grid_size);
+
+	/*
+	Odd x, odd y
+	*/
+	// http://www.conwaylife.com/wiki/Glider
+	std::vector<std::pair<int, int> > glider_coordinates
+		= boost::assign::list_of<std::pair<int, int> >
+			(std::make_pair(3 + 2 * (time_step / 4), 15 - 2 * (time_step / 4)))
+			(std::make_pair(5 + 2 * (time_step / 4), 13 - 2 * (time_step / 4)))
+			(std::make_pair(1 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)))
+			(std::make_pair(3 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)))
+			(std::make_pair(5 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)));
+	for (size_t i = 0; i < glider_coordinates.size(); i++) {
+		int&
+			x = glider_coordinates[i].first,
+			y = glider_coordinates[i].second;
+		wrap_coordinates((const int) grid_size, x, y);
+		result.insert((uint64_t) y * grid_size + (uint64_t) x);
+	}
+
+	return result;
+}
+
+
 int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
@@ -109,120 +222,14 @@ int main(int argc, char* argv[])
 		abort();
 	}
 
-	/*
-	Patterns at even x and even y cells starting from origin
-	*/
-	// create a Toad (http://www.conwaylife.com/wiki/Toad)
-	const uint64_t toad_start = 12 * grid_size + 6;
-	const vector<uint64_t> toad_cells
-		= boost::assign::list_of
-			(toad_start)
-			(toad_start + 2)
-			(toad_start + 4)
-			(toad_start + 2 + 2 * grid_size)
-			(toad_start + 4 + 2 * grid_size)
-			(toad_start + 6 + 2 * grid_size);
-	BOOST_FOREACH(const uint64_t cell, toad_cells) {
+	// initial condition
+	const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_size, 0);
+	BOOST_FOREACH(const uint64_t cell, live_cells) {
 		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data == NULL) {
-			continue;
+		if (cell_data != NULL) {
+			cell_data->data[0] = 1;
 		}
-		cell_data->data[0] = 1;
 	}
-
-	/*
-	Patterns at even x and odd y cells
-	*/
-	// http://www.conwaylife.com/wiki/Blinker
-	const uint64_t blinker_start = 14 * grid_size + 1;
-	const vector<uint64_t> blinker_cells
-		= boost::assign::list_of
-			(blinker_start)
-			(blinker_start + 2)
-			(blinker_start + 4);
-	BOOST_FOREACH(const uint64_t cell, blinker_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		cell_data->data[0] = 1;
-	}
-
-	// http://www.conwaylife.com/wiki/Beehive
-	const uint64_t beehive_start = 10 * grid_size + 7;
-	const vector<uint64_t> beehive_cells
-		= boost::assign::list_of
-			(beehive_start + 2)
-			(beehive_start + 4)
-			(beehive_start - 2 * grid_size)
-			(beehive_start - 2 * grid_size + 6)
-			(beehive_start - 4 * grid_size + 2)
-			(beehive_start - 4 * grid_size + 4);
-	BOOST_FOREACH(const uint64_t cell, beehive_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		cell_data->data[0] = 1;
-	}
-
-	/*
-	Odd x, even y
-	*/
-	// http://www.conwaylife.com/wiki/Beacon
-	const uint64_t beacon_start = 15 * grid_size + 6;
-	const vector<uint64_t> beacon_cells
-		= boost::assign::list_of
-			(beacon_start)
-			(beacon_start + 2)
-			(beacon_start - 2 * grid_size)
-			(beacon_start + 6 - 4 * grid_size)
-			(beacon_start + 4 - 6 * grid_size)
-			(beacon_start + 6 - 6 * grid_size);
-	BOOST_FOREACH(const uint64_t cell, beacon_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		cell_data->data[0] = 1;
-	}
-
-	// http://www.conwaylife.com/wiki/Block
-	const uint64_t block_start = 5 * grid_size + 2;
-	const vector<uint64_t> block_cells
-		= boost::assign::list_of
-			(block_start)
-			(block_start + 2)
-			(block_start - 2 * grid_size)
-			(block_start + 2 - 2 * grid_size);
-	BOOST_FOREACH(const uint64_t cell, block_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		cell_data->data[0] = 1;
-	}
-
-	/*
-	Odd x, odd y
-	*/
-	// http://www.conwaylife.com/wiki/Glider
-	const uint64_t glider_start = 15 * grid_size + 1;
-	const vector<uint64_t> glider_cells
-		= boost::assign::list_of
-			(glider_start + 2)
-			(glider_start + 4 - 2 * grid_size)
-			(glider_start - 4 * grid_size)
-			(glider_start + 2 - 4 * grid_size)
-			(glider_start + 4 - 4 * grid_size);
-	BOOST_FOREACH(const uint64_t cell, glider_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data == NULL) {
-			continue;
-		}
-		cell_data->data[0] = 1;
-	}
-
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
@@ -235,21 +242,41 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm.size() << endl;
 	}
 
-	#define TIME_STEPS 50
-	if (comm.rank() == 0) {
-		cout << "step: ";
-	}
+	#define TIME_STEPS 36
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data(neighborhood_id);
 		vector<uint64_t> cells = game_grid.get_cells();
 
-		sort(cells.begin(), cells.end());
+		// check that the result is correct
+		if (step % 4 == 0) {
+			const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_size, step);
+			BOOST_FOREACH(const uint64_t cell, cells) {
+				game_of_life_cell* cell_data = game_grid[cell];
+				if (cell_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__ << endl;
+					abort();
+				}
 
-		if (comm.rank() == 0) {
-			cout << step << " ";
-			cout.flush();
+				if (cell_data->data[0] == 0) {
+					if (live_cells.count(cell) > 0) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Cell " << cell
+							<< " shouldn't be alive on step " << step
+							<< endl;
+						abort();
+					}
+				} else {
+					if (live_cells.count(cell) == 0) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Cell " << cell
+							<< " should be alive on step " << step
+							<< endl;
+						abort();
+					}
+				}
+			}
 		}
 
 		// write the game state into a file named according to the current time step
@@ -270,6 +297,7 @@ int main(int argc, char* argv[])
 		}
 
 		// write the grid into a file
+		sort(cells.begin(), cells.end());
 		game_grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file
 		outfile.open(current_output_name.c_str(), ofstream::app);
@@ -373,7 +401,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (comm.rank() == 0) {
-		cout << endl;
+		cout << "Passed" << endl;
 	}
 
 	return EXIT_SUCCESS;
