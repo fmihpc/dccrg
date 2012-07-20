@@ -169,6 +169,8 @@ public:
 
 		this->comm = comm;
 
+		this->max_ref_lvl_diff = 1;
+
 		/*
 		Setup Zoltan
 		*/
@@ -401,7 +403,7 @@ public:
 		// update neighbor lists of created cells
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 			this->neighbors[item.first]
-				= this->find_neighbors_of(item.first, this->neighborhood_of);
+				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
 			this->neighbors_to[item.first]
 				= this->find_neighbors_to(item.first, this->neighborhood_to);
 		}
@@ -2145,20 +2147,22 @@ public:
 		#endif
 
 		const std::vector<uint64_t> neighbors
-			= this->find_neighbors_of(parent, this->neighborhood_of, 2, true);
-
-		// TODO: same as in override_unrefines()
-		const int max_diff = 1;
+			= this->find_neighbors_of(
+				parent,
+				this->neighborhood_of,
+				2 * this->max_ref_lvl_diff,
+				true
+			);
 
 		BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 
 			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
 
-			if (neighbor_ref_lvl > refinement_level + max_diff) {
+			if (neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) {
 				return;
 			}
 
-			if (neighbor_ref_lvl == refinement_level + max_diff
+			if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
 			&& this->cells_to_refine.count(neighbor) > 0) {
 				return;
 			}
@@ -2446,7 +2450,7 @@ public:
 	std::vector<uint64_t> find_neighbors_of(
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood,
-		const int max_diff = 1,
+		const int max_diff,
 		const bool has_children = false
 	) const {
 		std::vector<uint64_t> return_neighbors;
@@ -3693,6 +3697,10 @@ private:
 
 	// size of the neighbor stencil of a cells in cells (of the same size as the cell itself)
 	unsigned int neighborhood_size;
+
+	// maximum difference in refinement level between neighbors
+	int max_ref_lvl_diff;
+
 	// the grid is distributed between these processes
 	boost::mpi::communicator comm;
 
@@ -3954,7 +3962,7 @@ private:
 
 			// TODO: use this->update_neighbors(added_cell)
 			this->neighbors[added_cell]
-				= this->find_neighbors_of(added_cell, this->neighborhood_of);
+				= this->find_neighbors_of(added_cell, this->neighborhood_of, this->max_ref_lvl_diff);
 			this->neighbors_to[added_cell]
 				= this->find_neighbors_to(added_cell, this->neighborhood_to);
 
@@ -4697,7 +4705,7 @@ private:
 			return;
 		}
 
-		this->neighbors.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of);
+		this->neighbors.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
 		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors.at(cell));
 
 		#ifdef DEBUG
@@ -5109,7 +5117,8 @@ private:
 		BOOST_FOREACH(const uint64_t& refined, this->cells_to_refine) {
 
 			// neighbors_of
-			std::vector<uint64_t> neighbors_of = this->find_neighbors_of(refined, this->neighborhood_of);
+			std::vector<uint64_t> neighbors_of
+				= this->find_neighbors_of(refined, this->neighborhood_of, this->max_ref_lvl_diff);
 
 			BOOST_FOREACH(const uint64_t& neighbor_of, neighbors_of) {
 
@@ -5187,12 +5196,6 @@ private:
 	*/
 	void override_unrefines()
 	{
-		/*
-		TODO: make this a function of maximum allowed difference in refinement levels
-			between neighbors. Set a grid initialization time?
-		*/
-		const int max_diff = 1;
-
 		// unrefines that were not overridden
 		boost::unordered_set<uint64_t> final_unrefines;
 
@@ -5233,13 +5236,18 @@ private:
 			#endif
 
 			const std::vector<uint64_t> neighbors
-				= this->find_neighbors_of(parent, this->neighborhood_of, 2, true);
+				= this->find_neighbors_of(
+					parent,
+					this->neighborhood_of,
+					2 * this->max_ref_lvl_diff,
+					true
+				);
 
 			BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 
 				const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
 
-				if (neighbor_ref_lvl == refinement_level + max_diff
+				if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
 				&& this->cells_to_refine.count(neighbor) > 0) {
 					can_unrefine = false;
 					break;
@@ -5297,7 +5305,7 @@ private:
 				= this->find_neighbors_of(
 					this->get_parent(unrefined),
 					this->neighborhood_of,
-					2,
+					2 * this->max_ref_lvl_diff,
 					true
 				);
 
@@ -5533,7 +5541,7 @@ private:
 					= this->find_neighbors_of(
 						refined,
 						this->neighborhood_of,
-						2,
+						2 * this->max_ref_lvl_diff,
 						true
 					);
 
@@ -5769,7 +5777,7 @@ private:
 			#endif
 
 			const std::vector<uint64_t> new_neighbors_of
-				= this->find_neighbors_of(parent, this->neighborhood_of);
+				= this->find_neighbors_of(parent, this->neighborhood_of, this->max_ref_lvl_diff);
 
 			BOOST_FOREACH(const uint64_t& neighbor, new_neighbors_of) {
 
@@ -7164,7 +7172,7 @@ private:
 
 		// neighbors
 		std::vector<uint64_t> compare_neighbors
-			= this->find_neighbors_of(cell, hood_of);
+			= this->find_neighbors_of(cell, hood_of, this->max_ref_lvl_diff);
 
 		if (
 			neighbor_of_lists.at(cell).size() != compare_neighbors.size()
@@ -7434,7 +7442,7 @@ private:
 
 				// search in neighbors_of
 				const std::vector<uint64_t> neighbors_of
-					= this->find_neighbors_of(item->first, this->neighborhood_of);
+					= this->find_neighbors_of(item->first, this->neighborhood_of, this->max_ref_lvl_diff);
 
 				BOOST_FOREACH(const uint64_t& neighbor, neighbors_of) {
 
