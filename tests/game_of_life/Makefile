@@ -1,6 +1,7 @@
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
+MPIRUN = mpirun -np 2
 
 PROGRAMS = \
 	game_of_life_test_all_cells_boost_mpi \
@@ -23,6 +24,20 @@ PROGRAMS = \
 	scalability1d \
 	hierarchical_test \
 	pinned_cells
+
+TEST_PROGRAMS = \
+	game_of_life_test_all_cells_boost_mpi \
+	game_of_life_test_all_cells_mpi \
+	game_of_life_test_all_cells_mpi_datatype \
+	game_of_life_test_boost_mpi \
+	game_of_life_test_mpi \
+	game_of_life_test_mpi_datatype \
+	unrefined2d_all_cells_boost_mpi \
+	unrefined2d_all_cells_mpi \
+	unrefined2d_all_cells_mpi_datatype \
+	unrefined2d_boost_mpi \
+	unrefined2d_mpi \
+	unrefined2d_mpi_datatype
 
 HEADERS = \
 	../../dccrg.hpp \
@@ -101,3 +116,7 @@ c: clean
 clean: data
 	rm -f $(PROGRAMS)
 
+t: test
+test: $(TEST_PROGRAMS)
+	@for i in $(TEST_PROGRAMS); do echo -n "RUN $$i... " && ./$$i; done
+	@for i in $(TEST_PROGRAMS); do echo -n "MPIRUN $$i... " && $(MPIRUN) $$i; done
