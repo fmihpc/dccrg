@@ -78,8 +78,8 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	// initialize grid
-	Dccrg<Cell, ArbitraryGeometry> game_grid;
+	// initialize grids, reference grid doesn't refine/unrefine
+	Dccrg<Cell, ArbitraryGeometry> game_grid, reference_grid;
 
 	const int grid_size = 15;	// in unrefined cells
 	const double cell_size = 1.0 / grid_size;
@@ -122,10 +122,18 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	if (!reference_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates)) {
+		cerr << "Couldn't set reference grid geometry" << endl;
+		exit(EXIT_FAILURE);
+	}
+
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(comm, "RANDOM", neighborhood_size);
+	// play complete reference game on each process
+	reference_grid.initialize(communicator(MPI_COMM_SELF, comm_attach), "RANDOM", neighborhood_size);
 
 	Initialize<ArbitraryGeometry>::initialize(game_grid, grid_size);
+	Initialize<ArbitraryGeometry>::initialize(reference_grid, grid_size);
 
 	// every process outputs the game state into its own file
 	string basename("unrefined2d_");
@@ -179,6 +187,44 @@ int main(int argc, char* argv[])
 		}
 
 		Solve<ArbitraryGeometry>::solve(game_grid);
+		Solve<ArbitraryGeometry>::solve(reference_grid);
+
+		// verify refined/unrefined game
+		const vector<uint64_t> cells = game_grid.get_cells();
+		BOOST_FOREACH(const uint64_t cell, cells) {
+
+			Cell* cell_data = game_grid[cell];
+			if (cell_data == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for cell " << cell
+					<< std::endl;
+				abort();
+			}
+
+			uint64_t reference_cell;
+
+			const int refinement_level = game_grid.get_refinement_level(cell);
+			if (refinement_level > 0) {
+				reference_cell = game_grid.get_parent_for_removed(cell);
+			} else {
+				reference_cell = cell;
+			}
+
+			Cell* reference_data = reference_grid[reference_cell];
+			if (reference_data == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for reference cell " << reference_cell
+					<< std::endl;
+				abort();
+			}
+
+			if (cell_data->data[0] != reference_data->data[0]) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell's " << cell << " life doesn't agree with reference."
+					<< std::endl;
+				abort();
+			}
+		}
 	}
 
 	if (comm.rank() == 0) {
@@ -189,6 +235,10 @@ int main(int argc, char* argv[])
 		if (verbose) {
 			cout << endl;
 		}
+	}
+
+	if (comm.rank() == 0) {
+		cout << "PASSED" << endl;
 	}
 
 	return EXIT_SUCCESS;

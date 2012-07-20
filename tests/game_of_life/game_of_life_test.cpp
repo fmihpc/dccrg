@@ -407,7 +407,7 @@ int main(int argc, char* argv[])
 			cout << endl;
 		}
 
-		cout << "Passed" << endl;
+		cout << "PASSED" << endl;
 
 		if (save) {
 			visit_file.close();
