@@ -5386,7 +5386,7 @@ private:
 		#ifdef DEBUG
 		// check that cells_to_refine is identical between processes
 		std::vector<uint64_t> ordered_cells_to_refine(this->cells_to_refine.begin(), this->cells_to_refine.end());
-		sort(ordered_cells_to_refine.begin(), ordered_cells_to_refine.end());
+		std::sort(ordered_cells_to_refine.begin(), ordered_cells_to_refine.end());
 
 		std::vector<std::vector<uint64_t> > all_ordered_cells_to_refine;
 		all_gather(this->comm, ordered_cells_to_refine, all_ordered_cells_to_refine);
@@ -5400,7 +5400,7 @@ private:
 
 		// check that cells_to_unrefine is identical between processes
 		std::vector<uint64_t> ordered_cells_to_unrefine(this->cells_to_unrefine.begin(), this->cells_to_unrefine.end());
-		sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
+		std::sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
 
 		std::vector<std::vector<uint64_t> > all_ordered_cells_to_unrefine;
 		all_gather(this->comm, ordered_cells_to_unrefine, all_ordered_cells_to_unrefine);
@@ -7062,7 +7062,7 @@ private:
 		) {
 			local_cells.push_back(cell->first);
 		}
-		sort(local_cells.begin(), local_cells.end());
+		std::sort(local_cells.begin(), local_cells.end());
 
 		// processes of existing cells from this process
 		std::vector<int> local_processes;
@@ -7205,12 +7205,12 @@ private:
 
 		// neighbors_to
 		if (neighbor_to_lists.at(cell).size() > 0) {
-			sort(neighbor_to_lists.at(cell).begin(), neighbor_to_lists.at(cell).end());
+			std::sort(neighbor_to_lists.at(cell).begin(), neighbor_to_lists.at(cell).end());
 		}
 		std::vector<uint64_t> compare_neighbors_to
 			= this->find_neighbors_to(cell, hood_to);
 		if (compare_neighbors_to.size() > 0) {
-			sort(compare_neighbors_to.begin(), compare_neighbors_to.end());
+			std::sort(compare_neighbors_to.begin(), compare_neighbors_to.end());
 		}
 
 		if (
