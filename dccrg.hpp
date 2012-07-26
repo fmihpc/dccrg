@@ -7570,7 +7570,5 @@ private:
 
 }	// namespace
 
-#undef MPI_UINT64_T
-
 #endif
 
