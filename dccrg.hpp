@@ -4509,7 +4509,7 @@ private:
 				);
 			}
 
-			sort(
+			std::sort(
 				this->cells_to_send[receiver->first].begin(),
 				this->cells_to_send[receiver->first].end()
 			);
@@ -4541,7 +4541,7 @@ private:
 				);
 			}
 
-			sort(
+			std::sort(
 				this->cells_to_receive[sender->first].begin(),
 				this->cells_to_receive[sender->first].end()
 			);
@@ -4636,7 +4636,7 @@ private:
 				);
 			}
 
-			sort(
+			std::sort(
 				this->user_neigh_cells_to_send.at(id)[receiver->first].begin(),
 				this->user_neigh_cells_to_send.at(id)[receiver->first].end()
 			);
@@ -4668,7 +4668,7 @@ private:
 				);
 			}
 
-			sort(
+			std::sort(
 				this->user_neigh_cells_to_receive.at(id)[sender->first].begin(),
 				this->user_neigh_cells_to_receive.at(id)[sender->first].end()
 			);
