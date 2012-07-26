@@ -91,7 +91,7 @@ unrefined2d_all_cells_mpi_datatype: unrefined2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi_datatype
 
 unrefined2d_boost_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_boost_mpi
 
 unrefined2d_mpi: unrefined2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
