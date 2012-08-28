@@ -3689,6 +3689,24 @@ public:
 	}
 
 
+	/*!
+	Returns dccrg's communicator.
+
+	Returns a duplicate of the MPI communicator of dccrg
+	which itself is a duplicate of the communicator that
+	was given to dccrg's initialize function.
+	*/
+	MPI_Comm get_communicator() const
+	{
+		MPI_Comm result;
+		if (MPI_Comm_dup(this->comm, &result) != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " MPI_Comm_dup failed." << std::endl;
+			abort();
+		}
+		return result;
+	}
+
+
 
 private:
 
