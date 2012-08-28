@@ -146,7 +146,7 @@ public:
 		direction cells on the opposite sides of the grid in that direction can be neighbors.
 	*/
 	void initialize(
-		boost::mpi::communicator comm,
+		const MPI_Comm& given_comm,
 		const char* load_balancing_method,
 		const unsigned int neighborhood_size,
 		const int maximum_refinement_level = -1,
@@ -154,8 +154,7 @@ public:
 		const bool periodic_in_y = false,
 		const bool periodic_in_z = false,
 		const uint64_t sfc_caching_batches = 1
-	)
-	{
+	) {
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
 			// TODO: throw an exception instead
@@ -167,7 +166,7 @@ public:
 			abort();
 		}
 
-		this->comm = comm;
+		this->comm = boost::mpi::communicator(given_comm, boost::mpi::comm_duplicate);
 
 		this->max_ref_lvl_diff = 1;
 
