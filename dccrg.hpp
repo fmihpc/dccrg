@@ -84,6 +84,7 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #endif
 
 #include "dccrg_index.hpp"
+#include "dccrg_mpi_support.hpp"
 #include "dccrg_types.hpp"
 #include "dccrg_constant_geometry.hpp"
 
@@ -590,8 +591,9 @@ public:
 		std::vector<uint64_t> number_of_cells;
 		all_gather(this->comm, uint64_t(this->cells.size()), number_of_cells);
 
+		MPI_Comm non_boost_comm = this->comm;
 		const uint64_t total_number_of_cells =
-			all_reduce(this->comm, this->cells.size(), std::plus<uint64_t>());
+			All_Reduce()(this->cells.size(), non_boost_comm);
 
 		// process 0 writes the total number of cells
 		if (this->comm.rank() == 0) {
@@ -5021,7 +5023,8 @@ private:
 	void induce_refines()
 	{
 		std::vector<uint64_t> new_refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
-		while (all_reduce(this->comm, new_refines.size(), std::plus<uint64_t>()) > 0) {
+		MPI_Comm non_boost_comm = this->comm;
+		while (All_Reduce()(new_refines.size(), non_boost_comm) > 0) {
 
 			std::vector<std::vector<uint64_t> > all_new_refines;
 			all_gather(this->comm, new_refines, all_new_refines);
