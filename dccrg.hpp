@@ -3845,6 +3845,8 @@ private:
 	// optional user-given weights of cells on this process
 	boost::unordered_map<uint64_t, double> cell_weights;
 
+	// processes which have cells close enough from cells of this process
+	boost::unordered_set<int> neighbor_processes;
 
 
 	/*!
