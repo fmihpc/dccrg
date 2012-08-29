@@ -279,7 +279,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grid
-	Dccrg<Cell, ConstantGeometry> game_grid;
+	Dccrg<Cell, ConstantGeometry> game_grid, reference_grid;
 
 	const int grid_size = 15;	// in unrefined cells
 	const double cell_size = 1.0 / grid_size;
@@ -289,14 +289,25 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	if (!reference_grid.set_geometry(grid_size, grid_size, 1, 0, 0, 0, cell_size, cell_size, cell_size)) {
+		cerr << "Couldn't set reference grid geometry" << endl;
+		exit(EXIT_FAILURE);
+	}
+
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(comm, "RANDOM", neighborhood_size);
 	game_grid.balance_load();
 
+	// play complete reference game on each process
+	reference_grid.initialize(communicator(MPI_COMM_SELF, comm_attach), "RANDOM", neighborhood_size);
+
 	const uint64_t time_steps = 25;
 	uint64_t step = 0;
 
-	// start a new game
+	// always start a new reference game
+	Initialize<ConstantGeometry>::initialize(reference_grid, grid_size);
+
+	// either start a new game...
 	if (restart_name == "") {
 
 		Initialize<ConstantGeometry>::initialize(game_grid, grid_size);
@@ -309,7 +320,7 @@ int main(int argc, char* argv[])
 			game_grid
 		);
 
-	// restart from saved game
+	// ...or restart from saved game
 	} else {
 
 		IO<ConstantGeometry>::load(
@@ -318,6 +329,11 @@ int main(int argc, char* argv[])
 			comm,
 			game_grid
 		);
+
+		// play the reference game to the same step
+		for (uint64_t i = 0; i <= step; i++) {
+			Solve<ConstantGeometry>::solve(reference_grid);
+		}
 
 		step++;
 	}
@@ -328,17 +344,10 @@ int main(int argc, char* argv[])
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();
-		vector<uint64_t> cells = game_grid.get_cells();
-
-		/*int result = check_game_of_life_state(step, game_grid);
-		if (grid_size != 15 || result != EXIT_SUCCESS) {
-			cout << "Process " << comm.rank()
-				<< ": Game of Life test failed on time step: " << step
-				<< endl;
-			abort();
-		}*/
+		const vector<uint64_t> cells = game_grid.get_cells();
 
 		Solve<ConstantGeometry>::solve(game_grid);
+		Solve<ConstantGeometry>::solve(reference_grid);
 
 		IO<ConstantGeometry>::save(
 			"gol_" + boost::lexical_cast<std::string>(step) + ".dc",
@@ -346,6 +355,43 @@ int main(int argc, char* argv[])
 			comm,
 			game_grid
 		);
+
+		// verify refined/unrefined game
+		BOOST_FOREACH(const uint64_t cell, cells) {
+
+			Cell* cell_data = game_grid[cell];
+			if (cell_data == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for cell " << cell
+					<< std::endl;
+				abort();
+			}
+
+			uint64_t reference_cell;
+
+			const int refinement_level = game_grid.get_refinement_level(cell);
+			if (refinement_level > 0) {
+				reference_cell = game_grid.get_parent_for_removed(cell);
+			} else {
+				reference_cell = cell;
+			}
+
+			Cell* reference_data = reference_grid[reference_cell];
+			if (reference_data == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for reference cell " << reference_cell
+					<< std::endl;
+				abort();
+			}
+
+			if (cell_data->data[0] != reference_data->data[0]) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell's " << cell
+					<< " life doesn't agree with reference in step " << step
+					<< std::endl;
+				abort();
+			}
+		}
 	}
 
 	if (comm.rank() == 0) {
