@@ -322,7 +322,6 @@ int main(int argc, char* argv[])
 
 	// ...or restart from saved game
 	} else {
-
 		IO<ConstantGeometry>::load(
 			restart_name,
 			step,
@@ -331,14 +330,12 @@ int main(int argc, char* argv[])
 		);
 
 		// play the reference game to the same step
-		for (uint64_t i = 0; i <= step; i++) {
+		for (uint64_t i = 0; i < step; i++) {
 			Solve<ConstantGeometry>::solve(reference_grid);
 		}
-
-		step++;
 	}
 
-	for ( ; step < time_steps; step++) {
+	while (step < time_steps) {
 
 		Refine<ConstantGeometry>::refine(game_grid, grid_size, step, comm.size());
 
@@ -348,6 +345,8 @@ int main(int argc, char* argv[])
 
 		Solve<ConstantGeometry>::solve(game_grid);
 		Solve<ConstantGeometry>::solve(reference_grid);
+
+		step++;
 
 		IO<ConstantGeometry>::save(
 			"gol_" + boost::lexical_cast<std::string>(step) + ".dc",
@@ -387,7 +386,7 @@ int main(int argc, char* argv[])
 			if (cell_data->data[0] != reference_data->data[0]) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Cell's " << cell
-					<< " life doesn't agree with reference in step " << step
+					<< " life doesn't agree with reference at step " << step
 					<< std::endl;
 				abort();
 			}

@@ -201,12 +201,8 @@ public:
 		delete [] name_c_string;
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << "Couldn't open file " << name_c_string
-				<< ": " << mpi_error_string
+				<< ": " << dccrg::Error_String()(result)
 				<< std::endl;
 			abort();
 		}
@@ -222,12 +218,8 @@ public:
 		);
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << "Couldn't read time step: "
-				<< mpi_error_string
+				<< dccrg::Error_String()(result)
 				<< std::endl;
 			abort();
 		}

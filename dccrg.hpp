@@ -884,6 +884,16 @@ public:
 		}
 		local_cells.clear();
 
+		#ifdef DEBUG
+		if (this->cells.size() != data_offsets.size()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of cell data offsets: " << data_offsets.size()
+				<< ", should be " << this->cells.size()
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// create a file view representing local cell data
 		MPI_Datatype file_type;
 
