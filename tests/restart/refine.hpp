@@ -28,7 +28,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "cell.hpp"
 
 /*!
-Initializes given grid with given size in the first game coordinate with some game of life patterns.
+Refines and unrefines given grid randomly.
 */
 template<class UserGeometry> class Refine
 {
