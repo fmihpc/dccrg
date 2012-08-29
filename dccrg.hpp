@@ -538,12 +538,8 @@ public:
 		delete [] name_c_string;
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << "Couldn't open file " << name_c_string
-				<< ": " << mpi_error_string
+				<< ": " << Error_String()(result)
 				<< std::endl;
 			return false;
 		}
@@ -607,13 +603,9 @@ public:
 			);
 
 			if (result != MPI_SUCCESS) {
-				char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-				int string_length;
-				MPI_Error_string(result, mpi_error_string, &string_length);
-				mpi_error_string[string_length + 1] = '\0';
 				std::cerr << "Process " << this->comm.rank()
 					<< " Couldn't write cell list to file " << name
-					<< ": " << mpi_error_string
+					<< ": " << Error_String()(result)
 					<< std::endl;
 				return false;
 			}
@@ -665,13 +657,9 @@ public:
 			);
 
 			if (result != MPI_SUCCESS) {
-				char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-				int string_length;
-				MPI_Error_string(result, mpi_error_string, &string_length);
-				mpi_error_string[string_length + 1] = '\0';
 				std::cerr << "Process " << this->comm.rank()
 					<< " Couldn't write cell list to file " << name
-					<< ": " << mpi_error_string
+					<< ": " << Error_String()(result)
 					<< std::endl;
 				return false;
 			}
@@ -830,12 +818,8 @@ public:
 		delete [] name_c_string;
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << "Couldn't open file " << name_c_string
-				<< ": " << mpi_error_string
+				<< ": " << Error_String()(result)
 				<< std::endl;
 			return false;
 		}
@@ -920,22 +904,25 @@ public:
 				file_displacements[i] = data_offsets[i].second;
 			}
 
-			if (MPI_Type_create_struct(
-				datatypes.size(),
-				&block_lengths[0],
-				&file_displacements[0],
-				&datatypes[0],
-				&file_type) != MPI_SUCCESS
-			) {
+			int result
+				= MPI_Type_create_struct(
+					datatypes.size(),
+					&block_lengths[0],
+					&file_displacements[0],
+					&datatypes[0],
+					&file_type
+				);
+			if (result != MPI_SUCCESS) {
 				std::cerr << "Process " << this->comm.rank()
-					<< " Couldn't create datatype for file view"
+					<< " Couldn't create datatype for file view: " << Error_String()(result)
 					<< std::endl;
 				abort();
 			}
 
-			if (MPI_Type_commit(&file_type) != MPI_SUCCESS) {
+			result = MPI_Type_commit(&file_type);
+			if (result != MPI_SUCCESS) {
 				std::cerr << "Process " << this->comm.rank()
-					<< " Couldn't commit datatype for file view"
+					<< " Couldn't commit datatype for file view: " << Error_String()(result)
 					<< std::endl;
 				abort();
 			}
@@ -962,12 +949,8 @@ public:
 		);
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << "Couldn't set file view: "
-				<< mpi_error_string
+				<< Error_String()(result)
 				<< std::endl;
 			abort();
 		}
@@ -1058,13 +1041,10 @@ public:
 		}
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Process " << this->comm.rank()
-				<< " couldn't read local cell data"
+				<< " couldn't read local cell data: "
+				<< Error_String()(result)
 				<< std::endl;
 			abort();
 		}

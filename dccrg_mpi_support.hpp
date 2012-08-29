@@ -27,9 +27,30 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "mpi.h"
 #include "stdint.h"
+#include "string"
 #include "vector"
 
 namespace dccrg {
+
+
+/*!
+Returns the error string of given MPI error.
+*/
+class Error_String
+{
+public:
+
+	std::string operator()(int mpi_return_value)
+	{
+		char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
+		int string_length;
+		MPI_Error_string(mpi_return_value, mpi_error_string, &string_length);
+		mpi_error_string[string_length + 1] = '\0';
+
+		const std::string result(mpi_error_string);
+		return result;
+	}
+};
 
 
 /*!
