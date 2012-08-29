@@ -1260,7 +1260,7 @@ public:
 	Refines the current grid so that the given cells exist.
 
 	Must be called by all processes and only cells of
-	refinement level 0 must exist in the grid.
+	refinement level 0 must exist in the grid at that time.
 	Ignores cells in given list that aren't a (grand...)
 	child of a local cell.
 	Returns true on success and false otherwise.
