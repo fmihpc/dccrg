@@ -12,6 +12,7 @@ HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
 	../../dccrg_constant_geometry.hpp \
+	../../dccrg_mpi_support.hpp \
 	initialize.hpp \
 	refine.hpp \
 	solve.hpp \

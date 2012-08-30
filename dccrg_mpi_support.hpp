@@ -78,7 +78,7 @@ public:
 		MPI_Comm& comm
 	) {
 		uint64_t result;
-		MPI_Allreduce(&value, &result, sizeof(uint64_t), MPI_BYTE, MPI_SUM, comm);
+		MPI_Allreduce(&value, &result, 1, MPI_UINT64_T, MPI_SUM, comm);
 		return result;
 	}
 
