@@ -4,7 +4,6 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 
 #include "algorithm"
 #include "boost/lexical_cast.hpp"
-#include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
@@ -24,13 +23,20 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 
 using namespace std;
 using namespace boost;
-using namespace boost::mpi;
 using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	/*
 	Options
@@ -53,10 +59,10 @@ int main(int argc, char* argv[])
 
 	// print a help message if asked
 	if (option_variables.count("help") > 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << options << endl;
 		}
-		comm.barrier();
+		MPI_Barrier(comm);
 		return EXIT_SUCCESS;
 	}
 
@@ -74,7 +80,7 @@ int main(int argc, char* argv[])
 		cerr << "Zoltan_Initialize failed" << endl;
 		exit(EXIT_FAILURE);
 	}
-	if (verbose && comm.rank() == 0) {
+	if (verbose && rank == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
@@ -130,26 +136,26 @@ int main(int argc, char* argv[])
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(comm, "RANDOM", neighborhood_size);
 	// play complete reference game on each process
-	reference_grid.initialize(communicator(MPI_COMM_SELF, comm_attach), "RANDOM", neighborhood_size);
+	reference_grid.initialize(MPI_COMM_SELF, "RANDOM", neighborhood_size);
 
 	Initialize<ArbitraryGeometry>::initialize(game_grid, grid_size);
 	Initialize<ArbitraryGeometry>::initialize(reference_grid, grid_size);
 
 	// every process outputs the game state into its own file
 	string basename("unrefined2d_");
-	basename.append(1, direction).append("_").append(lexical_cast<string>(comm.rank())).append("_");
+	basename.append(1, direction).append("_").append(lexical_cast<string>(rank)).append("_");
 
 	// visualize the game with visit -o game_of_life_test.visit
 	ofstream visit_file;
-	if (save && comm.rank() == 0) {
+	if (save && rank == 0) {
 		string visit_file_name("unrefined2d_");
 		visit_file_name += direction;
 		visit_file_name += ".visit";
 		visit_file.open(visit_file_name.c_str());
-		visit_file << "!NBLOCKS " << comm.size() << endl;
+		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 
-	if (verbose && comm.rank() == 0) {
+	if (verbose && rank == 0) {
 		cout << "step: ";
 		cout.flush();
 	}
@@ -157,12 +163,12 @@ int main(int argc, char* argv[])
 	const int time_steps = 25;
 	for (int step = 0; step < time_steps; step++) {
 
-		Refine<ArbitraryGeometry>::refine(game_grid, grid_size, step, comm.size());
+		Refine<ArbitraryGeometry>::refine(game_grid, grid_size, step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();
 
-		if (verbose && comm.rank() == 0) {
+		if (verbose && rank == 0) {
 			cout << step << " ";
 			cout.flush();
 		}
@@ -171,11 +177,11 @@ int main(int argc, char* argv[])
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
 			output_name.append(lexical_cast<string>(step)).append(".vtk");
-			Save<ArbitraryGeometry>::save(output_name, comm.rank(), game_grid);
+			Save<ArbitraryGeometry>::save(output_name, rank, game_grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
-			if (comm.rank() == 0) {
-				for (int process = 0; process < comm.size(); process++) {
+			if (rank == 0) {
+				for (int process = 0; process < comm_size; process++) {
 					visit_file << "unrefined2d_"
 						<< direction << "_"
 						<< process << "_"
@@ -227,7 +233,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		if (save) {
 			visit_file.close();
 		}
@@ -237,9 +243,11 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "PASSED" << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

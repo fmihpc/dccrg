@@ -23,6 +23,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "boost/foreach.hpp"
 #include "cstdio"
 #include "iostream"
+#include "mpi.h"
 #include "stdint.h"
 #include "vector"
 
@@ -53,13 +54,17 @@ public:
 	static void save(
 		const std::string& name,
 		const uint64_t step,
-		const boost::mpi::communicator& comm,
+		MPI_Comm& comm,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
+		int rank = 0, comm_size = 0;
+		MPI_Comm_rank(comm, &rank);
+		MPI_Comm_size(comm, &comm_size);
+
 		Cell::transfer_only_life = true;
 		std::remove(name.c_str());
 
-		comm.barrier();
+		MPI_Barrier(comm);
 
 		// MPI_File_open wants a non-constant string
 		char* name_c_string = new char [name.size() + 1];
@@ -90,7 +95,7 @@ public:
 
 		// process 0 writes the header
 		const size_t header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			uint8_t* buffer = new uint8_t [header_size];
 			assert(buffer != NULL);
 
@@ -151,7 +156,7 @@ public:
 				int string_length;
 				MPI_Error_string(result, mpi_error_string, &string_length);
 				mpi_error_string[string_length + 1] = '\0';
-				std::cerr << "Process " << comm.rank()
+				std::cerr << "Process " << rank
 					<< " Couldn't write cell list to file " << name
 					<< ": " << mpi_error_string
 					<< std::endl;
@@ -179,7 +184,7 @@ public:
 	static void load(
 		const std::string& name,
 		uint64_t& step,
-		const boost::mpi::communicator& comm,
+		MPI_Comm& comm,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
 		Cell::transfer_only_life = true;

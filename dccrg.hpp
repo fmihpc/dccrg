@@ -167,7 +167,36 @@ public:
 			abort();
 		}
 
-		this->comm = boost::mpi::communicator(given_comm, boost::mpi::comm_duplicate);
+		if (MPI_Comm_dup(given_comm, &this->comm) != MPI_SUCCESS) {
+			std::cerr << "Couldn't duplicate given communicator" << std::endl;
+			abort();
+		}
+
+		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		this->boost_comm = boost::mpi::communicator(this->comm, boost::mpi::comm_attach);
+		#endif
+
+		int temp_size = 0;
+		if (MPI_Comm_size(this->comm, &temp_size) != MPI_SUCCESS) {
+			std::cerr << "Couldn't get size of communicator" << std::endl;
+			abort();
+		}
+		if (temp_size < 0) {
+			std::cerr << "Negative MPI comm size not supported" << std::endl;
+			abort();
+		}
+		this->comm_size = (uint64_t) temp_size;
+
+		int temp_rank = 0;
+		if (MPI_Comm_rank(this->comm, &temp_rank) != MPI_SUCCESS) {
+			std::cerr << "Couldn't get rank for communicator" << std::endl;
+			abort();
+		}
+		if (temp_rank < 0) {
+			std::cerr << "Negative MPI rank not supported" << std::endl;
+			abort();
+		}
+		this->rank = (uint64_t) temp_rank;
 
 		this->max_ref_lvl_diff = 1;
 
@@ -299,24 +328,24 @@ public:
 
 		// create unrefined cells
 		uint64_t cells_per_process = 0;
-		if (this->grid_length < uint64_t(comm.size())) {
+		if (this->grid_length < this->comm_size) {
 			cells_per_process = 1;
-		} else if (this->grid_length % uint64_t(comm.size()) > 0) {
-			cells_per_process = this->grid_length / uint64_t(comm.size()) + 1;
+		} else if (this->grid_length % this->comm_size > 0) {
+			cells_per_process = this->grid_length / this->comm_size + 1;
 		} else {
-			cells_per_process = this->grid_length / uint64_t(comm.size());
+			cells_per_process = this->grid_length / this->comm_size;
 		}
 
-		// some processes get fewer cells if grid size not divisible by comm.size()
-		uint64_t procs_with_fewer = cells_per_process * uint64_t(comm.size()) - this->grid_length;
+		// some processes get fewer cells if grid size not divisible by this->comm_size
+		uint64_t procs_with_fewer = cells_per_process * this->comm_size - this->grid_length;
 
 		#ifndef USE_SFC
 
 		uint64_t cell_to_create = 1;
-		for (int process = 0; process < comm.size(); process++) {
+		for (unsigned int process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
-			if ((unsigned int)process < procs_with_fewer) {
+			if (process < procs_with_fewer) {
 				cells_to_create = cells_per_process - 1;
 			} else {
 				cells_to_create = cells_per_process;
@@ -324,7 +353,7 @@ public:
 
 			for (uint64_t i = 0; i < cells_to_create; i++) {
 				this->cell_process[cell_to_create] = process;
-				if (process == comm.rank()) {
+				if (process == this->rank) {
 					this->cells[cell_to_create];
 				}
 				cell_to_create++;
@@ -356,10 +385,10 @@ public:
 		mapping.cache_sfc_index_range(cache_start, cache_end);
 
 		uint64_t sfc_index = 0;
-		for (int process = 0; process < comm.size(); process++) {
+		for (unsigned int process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
-			if ((unsigned int)process < procs_with_fewer) {
+			if (process < procs_with_fewer) {
 				cells_to_create = cells_per_process - 1;
 			} else {
 				cells_to_create = cells_per_process;
@@ -388,7 +417,7 @@ public:
 				const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
 
 				this->cell_process[cell_to_create] = process;
-				if (process == this->comm.rank()) {
+				if (process == this->rank) {
 					this->cells[cell_to_create];
 				}
 
@@ -450,9 +479,9 @@ public:
 				abort();
 			}
 
-			if (this->cell_process.at(item.first) != this->comm.rank()) {
+			if (this->cell_process.at(item.first) != this->rank) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->comm.rank()
+					<< " Process " << this->rank
 					<< ": Cell " << item.first
 					<< " should be on process " << this->cell_process.at(item.first)
 					<< std::endl;
@@ -462,7 +491,7 @@ public:
 			const uint64_t child = this->get_child(item.first);
 			if (child == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->comm.rank()
+					<< " Process " << this->rank
 					<< ": Child == 0 for cell " << item.first
 					<< std::endl;
 				abort();
@@ -470,7 +499,7 @@ public:
 
 			if (child != item.first) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->comm.rank()
+					<< " Process " << this->rank
 					<< ": Cell " << item.first
 					<< " has a child"
 					<< std::endl;
@@ -566,7 +595,7 @@ public:
 		}
 
 		// gather datatypes, etc. of local cells
-		size_t local_number_of_bytes = 0;
+		uint64_t local_number_of_bytes = 0;
 		for (size_t i = 0; i < local_cell_offsets.size(); i++) {
 			const uint64_t cell = local_cell_offsets[i].first;
 			datatypes.push_back(this->cells.at(cell).mpi_datatype());
@@ -580,19 +609,33 @@ public:
 			local_cell_offsets[i].second += local_number_of_bytes;
 			int current_bytes;
 			MPI_Type_size(datatypes[i], &current_bytes);
-			local_number_of_bytes += (size_t) current_bytes;
+			local_number_of_bytes += (uint64_t) current_bytes;
 		}
 
 		// get number of cells each process will write
-		std::vector<uint64_t> number_of_cells;
-		all_gather(this->comm, uint64_t(this->cells.size()), number_of_cells);
+		std::vector<uint64_t> number_of_cells(this->comm_size, 0);
+		uint64_t local_cells = this->cells.size();
+		if (
+			MPI_Allgather(
+				&local_cells,
+				1,
+				MPI_UINT64_T,
+				&(number_of_cells[0]),
+				1,
+				MPI_UINT64_T,
+				comm
+			) != MPI_SUCCESS
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << "MPI_Allgather failed." << std::endl;
+			abort();
+		}
 
 		MPI_Comm non_boost_comm = this->comm;
 		const uint64_t total_number_of_cells =
 			All_Reduce()(this->cells.size(), non_boost_comm);
 
 		// process 0 writes the total number of cells
-		if (this->comm.rank() == 0) {
+		if (this->rank == 0) {
 			result = MPI_File_write_at_all(
 				outfile,
 				start_offset,
@@ -603,7 +646,7 @@ public:
 			);
 
 			if (result != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't write cell list to file " << name
 					<< ": " << Error_String()(result)
 					<< std::endl;
@@ -622,13 +665,26 @@ public:
 
 		// get offset of local cell list in output file
 		size_t cell_list_offset = (size_t) start_offset + sizeof(uint64_t);
-		for (size_t i = 0; i < (size_t) this->comm.rank(); i++) {
+		for (size_t i = 0; i < (size_t) this->rank; i++) {
 			cell_list_offset += number_of_cells[i] * sizeof(std::pair<uint64_t, uint64_t>);
 		}
 
 		// get number of bytes each process will write
-		std::vector<size_t> number_of_bytes;
-		all_gather(this->comm, local_number_of_bytes, number_of_bytes);
+		std::vector<uint64_t> number_of_bytes(this->comm_size, 0);
+		if (
+			MPI_Allgather(
+				&local_number_of_bytes,
+				1,
+				MPI_UINT64_T,
+				&(number_of_bytes[0]),
+				1,
+				MPI_UINT64_T,
+				comm
+			) != MPI_SUCCESS
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
 
 		// get offset of local cell data in output file
 		size_t cell_data_offset =
@@ -636,7 +692,7 @@ public:
 			+ sizeof(uint64_t)
 			+ total_number_of_cells * sizeof(std::pair<uint64_t, uint64_t>);
 
-		for (size_t i = 0; i < (size_t) this->comm.rank(); i++) {
+		for (size_t i = 0; i < (size_t) this->rank; i++) {
 			cell_data_offset += number_of_bytes[i];
 		}
 
@@ -657,7 +713,7 @@ public:
 			);
 
 			if (result != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't write cell list to file " << name
 					<< ": " << Error_String()(result)
 					<< std::endl;
@@ -674,14 +730,14 @@ public:
 				&datatypes[0],
 				&final_type) != MPI_SUCCESS
 			) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't create final datatype"
 					<< std::endl;
 				abort();
 			}
 
 			if (MPI_Type_commit(&final_type) != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't commit final datatype"
 					<< std::endl;
 				abort();
@@ -923,7 +979,7 @@ public:
 					&file_type
 				);
 			if (result != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't create datatype for file view: " << Error_String()(result)
 					<< std::endl;
 				abort();
@@ -931,7 +987,7 @@ public:
 
 			result = MPI_Type_commit(&file_type);
 			if (result != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't commit datatype for file view: " << Error_String()(result)
 					<< std::endl;
 				abort();
@@ -941,7 +997,7 @@ public:
 		} else {
 			MPI_Type_contiguous(0, MPI_BYTE, &file_type);
 			if (MPI_Type_commit(&file_type) != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't commit datatype for file view"
 					<< std::endl;
 				abort();
@@ -1000,14 +1056,14 @@ public:
 				&datatypes[0],
 				&local_type) != MPI_SUCCESS
 			) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't create datatype for local cells"
 					<< std::endl;
 				abort();
 			}
 
 			if (MPI_Type_commit(&local_type) != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't commit datatype for file view"
 					<< std::endl;
 				abort();
@@ -1021,7 +1077,7 @@ public:
 		} else {
 			MPI_Type_contiguous(0, MPI_BYTE, &local_type);
 			if (MPI_Type_commit(&local_type) != MPI_SUCCESS) {
-				std::cerr << "Process " << this->comm.rank()
+				std::cerr << "Process " << this->rank
 					<< " Couldn't commit datatype for file view"
 					<< std::endl;
 				abort();
@@ -1052,7 +1108,7 @@ public:
 
 		if (result != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->comm.rank()
+				<< " Process " << this->rank
 				<< " couldn't read local cell data: "
 				<< Error_String()(result)
 				<< std::endl;
@@ -1123,7 +1179,7 @@ public:
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) != this->comm.rank()) {
+				if (this->cell_process.at(neighbor) != this->rank) {
 					has_remote_neighbor = true;
 					break;
 				}
@@ -1165,7 +1221,7 @@ public:
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) != this->comm.rank()) {
+				if (this->cell_process.at(neighbor) != this->rank) {
 					has_remote_neighbor = true;
 					break;
 				}
@@ -1188,7 +1244,7 @@ public:
 		std::vector<uint64_t> all_cells;
 		all_cells.reserve(this->cell_process.size());
 
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			item = this->cell_process.begin();
 			item != this->cell_process.end();
 			item++
@@ -1238,7 +1294,7 @@ public:
 		const uint64_t parent = this->get_level_0_parent(cell);
 
 		if (this->cell_process.count(parent) > 0
-		&& this->cell_process.at(parent) == this->comm.rank()) {
+		&& this->cell_process.at(parent) == this->rank) {
 			return true;
 		} else {
 			return false;
@@ -1676,7 +1732,7 @@ public:
 			#ifdef DEBUG
 			if (this->neighbors.count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->comm.rank()
+					<< " Process " << this->rank
 					<< ": Neighbor list for cell " << cell
 					<< " doesn't exist"
 					<< std::endl;
@@ -1700,7 +1756,7 @@ public:
 			#ifdef DEBUG
 			if (this->user_neigh_of.at(id).count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->comm.rank()
+					<< " Process " << this->rank
 					<< ": Neighbor list for cell " << cell
 					<< " doesn't exist for neighborhood id " << id
 					<< std::endl;
@@ -1784,7 +1840,7 @@ public:
 	{
 		std::vector<uint64_t> return_neighbors;
 		if (this->cell_process.count(cell) == 0
-		|| this->cell_process.at(cell) != this->comm.rank()
+		|| this->cell_process.at(cell) != this->rank
 		|| (i == 0 && j == 0 && k == 0)) {
 			return return_neighbors;
 		}
@@ -1878,7 +1934,7 @@ public:
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->comm.rank()) {
+			if (this->cell_process.at(neighbor) != this->rank) {
 				result.push_back(neighbor);
 			}
 		}
@@ -1907,7 +1963,7 @@ public:
 	bool is_local(const uint64_t cell) const
 	{
 		if (this->cell_process.count(cell) > 0
-		&& this->cell_process.at(cell) == this->comm.rank()) {
+		&& this->cell_process.at(cell) == this->rank) {
 			return true;
 		} else {
 			return false;
@@ -3155,7 +3211,7 @@ public:
 	*/
 	void pin(const uint64_t cell)
 	{
-		this->pin(cell, this->comm.rank());
+		this->pin(cell, this->rank);
 	}
 
 	/*!
@@ -3173,7 +3229,7 @@ public:
 			return;
 		}
 
-		if (this->cell_process.at(cell) != this->comm.rank()) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -3181,17 +3237,17 @@ public:
 			return;
 		}
 
-		if (process < 0 || process >= this->comm.size()) {
+		if (process < 0 || process >= (int) this->comm_size) {
 			return;
 		}
 
 		// do nothing if the request already exists
 		if (this->pin_requests.count(cell) > 0
-		&& this->pin_requests.at(cell) == process) {
+		&& (int) this->pin_requests.at(cell) == process) {
 			return;
 		}
 
-		this->new_pin_requests[cell] = process;
+		this->new_pin_requests[cell] = (uint64_t) process;
 	}
 
 	/*!
@@ -3208,7 +3264,7 @@ public:
 			return;
 		}
 
-		if (this->cell_process.at(cell) != this->comm.rank()) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -3217,7 +3273,8 @@ public:
 		}
 
 		if (this->pin_requests.count(cell) > 0) {
-			this->new_pin_requests[cell] = -1;
+			// non-existing process means unpin
+			this->new_pin_requests[cell] = this->comm_size;
 		} else {
 			this->new_pin_requests.erase(cell);
 		}
@@ -3230,25 +3287,25 @@ public:
 	{
 		#ifdef DEBUG
 		// check that all child cells on this process are also in this->cells.
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			i = this->cell_process.begin();
 			i != this->cell_process.end();
 			i++
 		) {
 			const uint64_t cell = i->first;
 
-			if (this->cell_process.at(cell) != this->comm.rank()) {
+			if (this->cell_process.at(cell) != this->rank) {
 				return;
 			}
 
 			if (cell == this->get_child(cell)) {
 				if (this->cells.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " should be in this->cells of process " << this->comm.rank() << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " should be in this->cells of process " << this->rank << std::endl;
 					abort();
 				}
 			} else {
 				if (this->cells.count(cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't be in this->cells of process " << this->comm.rank() << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't be in this->cells of process " << this->rank << std::endl;
 					abort();
 				}
 			}
@@ -3261,7 +3318,7 @@ public:
 	}
 
 	/*!
-	Allows all cells of all processes to be moved to another process during subsequent load balancing.
+	All cells in the grid are free to move between processes.
 
 	Must be called simultaneously on all processes.
 	*/
@@ -3364,7 +3421,7 @@ public:
 			return;
 		}
 
-		if (this->cell_process.at(cell) != this->comm.rank()) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -3387,7 +3444,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (this->cell_process.at(cell) != this->comm.rank()) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -3711,7 +3768,11 @@ private:
 	int max_ref_lvl_diff;
 
 	// the grid is distributed between these processes
-	boost::mpi::communicator comm;
+	MPI_Comm comm;
+	uint64_t rank, comm_size;
+	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	boost::mpi::communicator boost_comm;
+	#endif
 
 	// cells and their data on this process
 	boost::unordered_map<uint64_t, UserData> cells;
@@ -3757,7 +3818,7 @@ private:
 	> user_neigh_of, user_neigh_to;
 
 	// on which process every cell in the grid is
-	boost::unordered_map<uint64_t, int> cell_process;
+	boost::unordered_map<uint64_t, uint64_t> cell_process;
 
 	// cells on this process that have a neighbor on another process or are considered as a neighbor of a cell on another process
 	boost::unordered_set<uint64_t> cells_with_remote_neighbors;
@@ -3819,9 +3880,9 @@ private:
 	boost::unordered_map<uint64_t, UserData> unrefined_cell_data;
 
 	// cell that should be kept on a particular process
-	boost::unordered_map<uint64_t, int> pin_requests;
+	boost::unordered_map<uint64_t, uint64_t> pin_requests;
 	// pin requests given since that last time load was balanced
-	boost::unordered_map<uint64_t, int> new_pin_requests;
+	boost::unordered_map<uint64_t, uint64_t> new_pin_requests;
 
 	// variables for load balancing using Zoltan
 	Zoltan_Struct* zoltan;
@@ -3874,7 +3935,7 @@ private:
 		std::sort(temp_removed_cells.begin(), temp_removed_cells.end());
 
 		std::vector<std::vector<uint64_t> > all_removed_cells;
-		all_gather(this->comm, temp_removed_cells, all_removed_cells);
+		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
 
 		// created cells on all processes
 		std::vector<uint64_t> temp_added_cells(
@@ -3884,7 +3945,7 @@ private:
 		std::sort(temp_added_cells.begin(), temp_added_cells.end());
 
 		std::vector<std::vector<uint64_t> > all_added_cells;
-		all_gather(this->comm, temp_added_cells, all_added_cells);
+		All_Gather()(temp_added_cells, all_added_cells, this->comm);
 
 		this->start_user_data_transfers(
 		#ifdef DCCRG_SEND_SINGLE_CELLS
@@ -3929,7 +3990,7 @@ private:
 		}
 
 		// check that cells were removed by their process
-		for (int cell_remover = 0; cell_remover < int(all_removed_cells.size()); cell_remover++) {
+		for (uint64_t cell_remover = 0; cell_remover < all_removed_cells.size(); cell_remover++) {
 
 			BOOST_FOREACH(const uint64_t& removed_cell, all_removed_cells.at(cell_remover)) {
 
@@ -3945,7 +4006,7 @@ private:
 		#endif
 
 		// update cell to process mappings
-		for (int cell_creator = 0; cell_creator < int(all_added_cells.size()); cell_creator++) {
+		for (uint64_t cell_creator = 0; cell_creator < all_added_cells.size(); cell_creator++) {
 
 			BOOST_FOREACH(const uint64_t& created_cell, all_added_cells.at(cell_creator)) {
 				this->cell_process.at(created_cell) = cell_creator;
@@ -4093,7 +4154,7 @@ private:
 		std::sort(temp_removed_cells.begin(), temp_removed_cells.end());
 
 		std::vector<std::vector<uint64_t> > all_removed_cells;
-		all_gather(this->comm, temp_removed_cells, all_removed_cells);
+		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
 
 		// created cells on all processes
 		std::vector<uint64_t> temp_added_cells(
@@ -4103,7 +4164,7 @@ private:
 		std::sort(temp_added_cells.begin(), temp_added_cells.end());
 
 		std::vector<std::vector<uint64_t> > all_added_cells;
-		all_gather(this->comm, temp_added_cells, all_added_cells);
+		All_Gather()(temp_added_cells, all_added_cells, this->comm);
 
 		boost::unordered_set<uint64_t> all_adds, all_removes;
 
@@ -4173,7 +4234,7 @@ private:
 
 		new_pinned_cells.reserve(this->new_pin_requests.size());
 		new_pinned_processes.reserve(this->new_pin_requests.size());
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			item = this->new_pin_requests.begin();
 			item != this->new_pin_requests.end();
 			item++
@@ -4183,15 +4244,15 @@ private:
 		}
 
 		std::vector<std::vector<uint64_t> > all_new_pinned_cells, all_new_pinned_processes;
-		all_gather(this->comm, new_pinned_cells, all_new_pinned_cells);
-		all_gather(this->comm, new_pinned_processes, all_new_pinned_processes);
+		All_Gather()(new_pinned_cells, all_new_pinned_cells, this->comm);
+		All_Gather()(new_pinned_processes, all_new_pinned_processes, this->comm);
 
-		for (int process = 0; process < int(all_new_pinned_cells.size()); process++) {
-			for (unsigned int i = 0; i < all_new_pinned_cells.at(process).size(); i++) {
+		for (uint64_t process = 0; process < all_new_pinned_cells.size(); process++) {
+			for (uint64_t i = 0; i < all_new_pinned_cells.at(process).size(); i++) {
 
-				const int requested_process = all_new_pinned_processes[process][i];
+				const uint64_t requested_process = all_new_pinned_processes[process][i];
 
-				if (requested_process == -1) {
+				if (requested_process >= this->comm_size) {
 					this->pin_requests.erase(all_new_pinned_cells[process][i]);
 				} else {
 					this->pin_requests[all_new_pinned_cells[process][i]] = requested_process;
@@ -4240,7 +4301,7 @@ private:
 			) != ZOLTAN_OK
 		) {
 			if (!this->no_load_balancing) {
-				if (this->comm.rank() == 0) {
+				if (this->rank == 0) {
 					std::cerr << "Zoltan_LB_Partition failed" << std::endl;
 				}
 				Zoltan_Destroy(&this->zoltan);
@@ -4259,8 +4320,11 @@ private:
 
 			// check that cells to be received are on the sending process
 			for (int i = 0; i < number_to_receive; i++) {
-				if (this->cell_process.at(global_ids_to_receive[i]) != sender_processes[i]) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cannot receive cell " << global_ids_to_receive[i] << " from process " << sender_processes[i] << std::endl;
+				if (this->cell_process.at(global_ids_to_receive[i]) != (uint64_t)sender_processes[i]) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cannot receive cell " << global_ids_to_receive[i]
+						<< " from process " << sender_processes[i]
+						<< std::endl;
 					abort();
 				}
 			}
@@ -4275,15 +4339,15 @@ private:
 		*/
 
 		// migration from user
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			pin_request = this->pin_requests.begin();
 			pin_request != this->pin_requests.end();
 			pin_request++
 		) {
-			const int current_process_of_cell = this->cell_process.at(pin_request->first);
+			const uint64_t current_process_of_cell = this->cell_process.at(pin_request->first);
 
-			if (pin_request->second == this->comm.rank()
-			&& current_process_of_cell != this->comm.rank()) {
+			if (pin_request->second == this->rank
+			&& current_process_of_cell != this->rank) {
 				this->cells_to_receive[current_process_of_cell].push_back(
 					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(pin_request->first, -1)
@@ -4300,7 +4364,7 @@ private:
 			for (int i = 0; i < number_to_receive; i++) {
 
 				// don't send / receive from self
-				if (sender_processes[i] == this->comm.rank()) {
+				if ((uint64_t)sender_processes[i] == this->rank) {
 					continue;
 				}
 
@@ -4321,7 +4385,7 @@ private:
 				if (added_cells.count(global_ids_to_receive[i]) > 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << global_ids_to_receive[i]
-						<< " has already been received from process " << this->comm.rank()
+						<< " has already been received from process " << this->rank
 						<< std::endl;
 					abort();
 				}
@@ -4357,16 +4421,16 @@ private:
 		*/
 
 		// migration from user
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			pin_request = this->pin_requests.begin();
 			pin_request != this->pin_requests.end();
 			pin_request++
 		) {
-			const int current_process_of_cell = this->cell_process.at(pin_request->first);
-			const int destination_process = pin_request->second;
+			const uint64_t current_process_of_cell = this->cell_process.at(pin_request->first);
+			const uint64_t destination_process = pin_request->second;
 
-			if (destination_process != this->comm.rank()
-			&& current_process_of_cell == this->comm.rank()) {
+			if (destination_process != this->rank
+			&& current_process_of_cell == this->rank) {
 				this->cells_to_send[destination_process].push_back(
 					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(pin_request->first, -1)
@@ -4383,7 +4447,7 @@ private:
 			for (int i = 0; i < number_to_send; i++) {
 
 				// don't send / receive from self
-				if (receiver_processes[i] == this->comm.rank()) {
+				if ((uint64_t) receiver_processes[i] == this->rank) {
 					continue;
 				}
 
@@ -4404,7 +4468,7 @@ private:
 				if (removed_cells.count(global_ids_to_send[i]) > 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << global_ids_to_send[i]
-						<< " has already been sent from process " << this->comm.rank()
+						<< " has already been sent from process " << this->rank
 						<< std::endl;
 					abort();
 				}
@@ -4475,7 +4539,7 @@ private:
 			}
 			#endif
 
-			int current_process = this->comm.rank();
+			uint64_t current_process = this->rank;
 
 			// data must be received from neighbors_of
 			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
@@ -4602,8 +4666,6 @@ private:
 			}
 			#endif
 
-			int current_process = this->comm.rank();
-
 			// data must be received from neighbors_of
 			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(id).at(cell)) {
 
@@ -4611,7 +4673,7 @@ private:
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) != current_process) {
+				if (this->cell_process.at(neighbor) != this->rank) {
 					user_neigh_unique_receives[this->cell_process.at(neighbor)].insert(neighbor);
 				}
 			}
@@ -4623,7 +4685,7 @@ private:
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) != current_process) {
+				if (this->cell_process.at(neighbor) != this->rank) {
 					user_neigh_unique_sends[this->cell_process.at(neighbor)].insert(cell);
 				}
 			}
@@ -4708,7 +4770,7 @@ private:
 			return;
 		}
 
-		if (this->cell_process.at(cell) != this->comm.rank()) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -4821,7 +4883,7 @@ private:
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->comm.rank()) {
+			if (this->cell_process.at(neighbor) != this->rank) {
 				this->cells_with_remote_neighbors.insert(cell);
 				this->remote_cells_with_local_neighbors.insert(neighbor);
 			}
@@ -4829,7 +4891,7 @@ private:
 		// cells with given cell as neighbor
 		BOOST_FOREACH(const uint64_t& neighbor_to, this->neighbors_to.at(cell)) {
 
-			if (this->cell_process.at(neighbor_to) != this->comm.rank()) {
+			if (this->cell_process.at(neighbor_to) != this->rank) {
 				this->cells_with_remote_neighbors.insert(cell);
 				this->remote_cells_with_local_neighbors.insert(neighbor_to);
 			}
@@ -5017,13 +5079,13 @@ private:
 		while (All_Reduce()(new_refines.size(), non_boost_comm) > 0) {
 
 			std::vector<std::vector<uint64_t> > all_new_refines;
-			all_gather(this->comm, new_refines, all_new_refines);
+			All_Gather()(new_refines, all_new_refines, this->comm);
 			new_refines.clear();
 
 			boost::unordered_set<uint64_t> unique_induced_refines;
 
 			// induced refines on this process
-			BOOST_FOREACH(const uint64_t& refined, all_new_refines.at(this->comm.rank())) {
+			BOOST_FOREACH(const uint64_t& refined, all_new_refines.at(this->rank)) {
 
 				// refine local neighbors that are too large
 				BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(refined)) {
@@ -5034,14 +5096,14 @@ private:
 
 					#ifdef DEBUG
 					if (this->cell_process.count(neighbor) == 0) {
-						std::cerr << "Process " << this->comm.rank()
+						std::cerr << "Process " << this->rank
 							<< ": Cell " << refined
 							<< " had a non-existing neighbor in neighbor list: " << neighbor
 							<< std::endl;
 					}
 					#endif
 
-					if (this->cell_process.at(neighbor) != this->comm.rank()) {
+					if (this->cell_process.at(neighbor) != this->rank) {
 						continue;
 					}
 
@@ -5060,14 +5122,14 @@ private:
 
 					#ifdef DEBUG
 					if (this->cell_process.count(neighbor_to) == 0) {
-						std::cerr << "Process " << this->comm.rank()
+						std::cerr << "Process " << this->rank
 							<< ": Cell " << refined
 							<< " had a non-existing neighbor in neighbor list: " << neighbor_to
 							<< std::endl;
 					}
 					#endif
 
-					if (this->cell_process.at(neighbor_to) != this->comm.rank()) {
+					if (this->cell_process.at(neighbor_to) != this->rank) {
 						continue;
 					}
 
@@ -5080,9 +5142,9 @@ private:
 			}
 
 			// refines induced here by other processes
-			for (int process = 0; process < this->comm.size(); process++) {
+			for (unsigned int process = 0; process < this->comm_size; process++) {
 
-				if (process == this->comm.rank()) {
+				if (process == this->rank) {
 					continue;
 				}
 
@@ -5118,9 +5180,9 @@ private:
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		std::vector<std::vector<uint64_t> > all_refines;
-		all_gather(this->comm, refines, all_refines);
+		All_Gather()(refines, all_refines, this->comm);
 
-		for (int process = 0; process < this->comm.size(); process++) {
+		for (unsigned int process = 0; process < this->comm_size; process++) {
 			this->cells_to_refine.insert(all_refines[process].begin(), all_refines[process].end());
 		}
 
@@ -5188,7 +5250,7 @@ private:
 		std::vector<uint64_t> local_s(s.begin(), s.end());
 
 		std::vector<std::vector<uint64_t> > all_s;
-		all_gather(this->comm, local_s, all_s);
+		All_Gather()(local_s, all_s, this->comm);
 
 		BOOST_FOREACH(const std::vector<uint64_t>& i, all_s) {
 			BOOST_FOREACH(const uint64_t& cell, i) {
@@ -5275,9 +5337,9 @@ private:
 		// add unrefines from all processes to cells_to_unrefine
 		std::vector<uint64_t> unrefines(final_unrefines.begin(), final_unrefines.end());
 		std::vector<std::vector<uint64_t> > all_unrefines;
-		all_gather(this->comm, unrefines, all_unrefines);
+		All_Gather()(unrefines, all_unrefines, this->comm);
 
-		for (int process = 0; process < this->comm.size(); process++) {
+		for (unsigned int process = 0; process < this->comm_size; process++) {
 			this->cells_to_unrefine.insert(all_unrefines[process].begin(), all_unrefines[process].end());
 		}
 
@@ -5301,7 +5363,7 @@ private:
 				abort();
 			}
 
-			if (this->cell_process.at(unrefined) == this->comm.rank()
+			if (this->cell_process.at(unrefined) == this->rank
 			&& this->cells.count(unrefined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Cell " << unrefined
@@ -5401,9 +5463,9 @@ private:
 		std::sort(ordered_cells_to_refine.begin(), ordered_cells_to_refine.end());
 
 		std::vector<std::vector<uint64_t> > all_ordered_cells_to_refine;
-		all_gather(this->comm, ordered_cells_to_refine, all_ordered_cells_to_refine);
+		All_Gather()(ordered_cells_to_refine, all_ordered_cells_to_refine, this->comm);
 
-		for (int process = 0; process < this->comm.size(); process++) {
+		for (unsigned int process = 0; process < this->comm_size; process++) {
 			if (!std::equal(all_ordered_cells_to_refine[process].begin(), all_ordered_cells_to_refine[process].end(), all_ordered_cells_to_refine[0].begin())) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " cells_to_refine differ between processes 0 and " << process << std::endl;
 				exit(EXIT_FAILURE);
@@ -5415,9 +5477,9 @@ private:
 		std::sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
 
 		std::vector<std::vector<uint64_t> > all_ordered_cells_to_unrefine;
-		all_gather(this->comm, ordered_cells_to_unrefine, all_ordered_cells_to_unrefine);
+		All_Gather()(ordered_cells_to_unrefine, all_ordered_cells_to_unrefine, this->comm);
 
-		for (int process = 0; process < this->comm.size(); process++) {
+		for (unsigned int process = 0; process < this->comm_size; process++) {
 			if (!std::equal(all_ordered_cells_to_unrefine[process].begin(), all_ordered_cells_to_unrefine[process].end(), all_ordered_cells_to_unrefine[0].begin())) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " cells_to_unrefine differ between processes 0 and " << process << std::endl;
 				exit(EXIT_FAILURE);
@@ -5443,7 +5505,7 @@ private:
 				abort();
 			}
 
-			if (this->comm.rank() == this->cell_process.at(refined)
+			if (this->rank == this->cell_process.at(refined)
 			&& this->cells.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Data for cell " << refined
@@ -5453,7 +5515,7 @@ private:
 			}
 
 
-			if (this->cell_process.at(refined) == this->comm.rank()
+			if (this->cell_process.at(refined) == this->rank
 			&& this->neighbors.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor list for cell " << refined
@@ -5462,7 +5524,7 @@ private:
 				abort();
 			}
 
-			if (this->cell_process.at(refined) == this->comm.rank()
+			if (this->cell_process.at(refined) == this->rank
 			&& this->neighbors_to.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor_to list for cell " << refined
@@ -5472,10 +5534,10 @@ private:
 			}
 			#endif
 
-			const int process_of_refined = this->cell_process.at(refined);
+			const uint64_t process_of_refined = this->cell_process.at(refined);
 
 			// move user data of refined cells into refined_cell_data
-			if (this->comm.rank() == process_of_refined) {
+			if (this->rank == process_of_refined) {
 				// TODO: move data instead of copying, using boost::move or c++0x move?
 				this->refined_cell_data[refined] = this->cells.at(refined);
 				this->cells.erase(refined);
@@ -5486,7 +5548,7 @@ private:
 			BOOST_FOREACH(const uint64_t& child, children) {
 				this->cell_process[child] = process_of_refined;
 
-				if (this->comm.rank() == process_of_refined) {
+				if (this->rank == process_of_refined) {
 					this->cells[child];
 					this->neighbors[child];
 					this->neighbors_to[child];
@@ -5509,7 +5571,7 @@ private:
 			}
 
 			// children of refined cells inherit their weight
-			if (this->comm.rank() == process_of_refined
+			if (this->rank == process_of_refined
 			&& this->cell_weights.count(refined) > 0) {
 				BOOST_FOREACH(const uint64_t& child, children) {
 					this->cell_weights[child] = this->cell_weights.at(refined);
@@ -5518,7 +5580,7 @@ private:
 			}
 
 			// use local neighbor lists to find cells whose neighbor lists have to updated
-			if (this->comm.rank() == process_of_refined) {
+			if (this->rank == process_of_refined) {
 				// update the neighbor lists of created local cells
 				BOOST_FOREACH(const uint64_t& child, children) {
 					update_neighbors.insert(child);
@@ -5530,13 +5592,13 @@ private:
 						continue;
 					}
 
-					if (this->cell_process.at(neighbor) == this->comm.rank()) {
+					if (this->cell_process.at(neighbor) == this->rank) {
 						update_neighbors.insert(neighbor);
 					}
 				}
 
 				BOOST_FOREACH(const uint64_t& neighbor_to, this->neighbors_to.at(refined)) {
-					if (this->cell_process.at(neighbor_to) == this->comm.rank()) {
+					if (this->cell_process.at(neighbor_to) == this->rank) {
 						update_neighbors.insert(neighbor_to);
 					}
 				}
@@ -5624,7 +5686,7 @@ private:
 					abort();
 				}
 
-				if (this->cell_process.at(sibling) == this->comm.rank()
+				if (this->cell_process.at(sibling) == this->rank
 				&& this->cells.count(sibling) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << sibling
@@ -5661,8 +5723,8 @@ private:
 			}
 			#endif
 
-			const int process_of_parent = this->cell_process.at(parent_of_unrefined);
-			const int process_of_unrefined = this->cell_process.at(unrefined);
+			const uint64_t process_of_parent = this->cell_process.at(parent_of_unrefined);
+			const uint64_t process_of_unrefined = this->cell_process.at(unrefined);
 
 			// remove unrefined cells and their siblings from the grid, but don't remove user data yet
 			this->cell_process.erase(unrefined);
@@ -5672,8 +5734,8 @@ private:
 			this->cell_weights.erase(unrefined);
 
 			// don't send unrefined cells' user data to self
-			if (this->comm.rank() == process_of_unrefined
-			&& this->comm.rank() == process_of_parent) {
+			if (this->rank == process_of_unrefined
+			&& this->rank == process_of_parent) {
 
 				#ifdef DEBUG
 				if (this->cells.count(unrefined) == 0) {
@@ -5690,7 +5752,7 @@ private:
 				this->cells.erase(unrefined);
 
 			// send user data of removed cell to the parent's process
-			} else if (this->comm.rank() == process_of_unrefined) {
+			} else if (this->rank == process_of_unrefined) {
 
 				this->cells_to_send[process_of_parent].push_back(
 					#ifdef DCCRG_SEND_SINGLE_CELLS
@@ -5701,7 +5763,7 @@ private:
 				);
 
 			// receive user data of removed cell from its process
-			} else if (this->comm.rank() == process_of_parent) {
+			} else if (this->rank == process_of_parent) {
 				this->cells_to_receive[process_of_unrefined].push_back(
 					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(unrefined, -1)
@@ -5797,7 +5859,7 @@ private:
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) == this->comm.rank()) {
+				if (this->cell_process.at(neighbor) == this->rank) {
 					update_neighbors.insert(neighbor);
 				}
 			}
@@ -5805,13 +5867,13 @@ private:
 			const std::vector<uint64_t> new_neighbors_to
 				= this->find_neighbors_to(parent, this->neighborhood_to);
 			BOOST_FOREACH(const uint64_t& neighbor, new_neighbors_to) {
-				if (this->cell_process.at(neighbor) == this->comm.rank()) {
+				if (this->cell_process.at(neighbor) == this->rank) {
 					update_neighbors.insert(neighbor);
 				}
 			}
 
 			// add user data and neighbor lists of local parents of unrefined cells
-			if (this->cell_process.at(parent) == this->comm.rank()) {
+			if (this->cell_process.at(parent) == this->rank) {
 				this->cells[parent];
 				this->neighbors[parent] = new_neighbors_of;
 				this->neighbors_to[parent] = new_neighbors_to;
@@ -5843,7 +5905,7 @@ private:
 		// remove neighbor lists of added cells' parents
 		BOOST_FOREACH(const uint64_t& refined, this->cells_to_refine) {
 
-			if (this->cell_process.at(refined) == this->comm.rank()) {
+			if (this->cell_process.at(refined) == this->rank) {
 
 				#ifdef DEBUG
 				if (this->neighbors.count(refined) == 0) {
@@ -6008,10 +6070,10 @@ private:
 			sender++
 		) {
 			#ifdef DEBUG
-			if (sender->first == this->comm.rank()
+			if (sender->first == (int) this->rank
 			&& sender->second.size() > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->comm.rank()
+					<< " Process " << this->rank
 					<< " trying to transfer to self"
 					<< std::endl;
 				abort();
@@ -6054,7 +6116,7 @@ private:
 				#else // ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 				this->receive_requests[sender->first].push_back(
-					this->comm.irecv(
+					this->boost_comm.irecv(
 						sender->first,
 						item->second,
 						destination[item->first]
@@ -6073,7 +6135,7 @@ private:
 			receiver++
 		) {
 			#ifdef DEBUG
-			if (receiver->first == this->comm.rank()
+			if (receiver->first == (int) this->rank
 			&& receiver->second.size() > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
 				abort();
@@ -6116,7 +6178,7 @@ private:
 				#else
 
 				this->send_requests[receiver->first].push_back(
-					this->comm.isend(
+					this->boost_comm.isend(
 						receiver->first,
 						item->second,
 						this->cells.at(item->first)
@@ -6184,7 +6246,7 @@ private:
 
 			MPI_Type_commit(&receive_datatype);
 
-			int receive_tag = sender->first * this->comm.size() + this->comm.rank();
+			int receive_tag = sender->first * this->comm_size + this->rank;
 
 			this->receive_requests[sender->first].push_back(MPI_Request());
 
@@ -6259,7 +6321,7 @@ private:
 
 			MPI_Type_commit(&send_datatype);
 
-			int send_tag = this->comm.rank() * this->comm.size() + receiver->first;
+			int send_tag = this->rank * this->comm_size + receiver->first;
 
 			this->send_requests[receiver->first].push_back(MPI_Request());
 
@@ -6289,9 +6351,9 @@ private:
 		#else	// ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 		// post all receives
-		for (int sender = 0; sender < this->comm.size(); sender++) {
+		for (int sender = 0; sender < (int) this->comm_size; sender++) {
 
-			if (sender == this->comm.rank()) {
+			if ((uint64_t) sender == this->rank) {
 				continue;
 			}
 
@@ -6300,10 +6362,10 @@ private:
 				continue;
 			}
 
-			int receive_tag = sender * this->comm.size() + this->comm.rank();
+			int receive_tag = sender * this->comm_size + this->rank;
 
 			this->receive_requests[sender].push_back(
-				this->comm.irecv(
+				this->boost_comm.irecv(
 					sender,
 					receive_tag,
 					this->incoming_data[sender]
@@ -6312,9 +6374,9 @@ private:
 		}
 
 		// gather all data to send
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
+		for (int receiver = 0; receiver < (int) this->comm_size; receiver++) {
 
-			if (receiver == this->comm.rank()) {
+			if ((uint64_t) receiver == this->rank) {
 				// don't send to self
 				continue;
 			}
@@ -6334,9 +6396,9 @@ private:
 		}
 
 		// post all sends
-		for (int receiver = 0; receiver < this->comm.size(); receiver++) {
+		for (int receiver = 0; receiver < (int) this->comm_size; receiver++) {
 
-			if (receiver == this->comm.rank()) {
+			if ((uint64_t) receiver == this->rank) {
 				continue;
 			}
 
@@ -6345,10 +6407,10 @@ private:
 				continue;
 			}
 
-			int send_tag = this->comm.rank() * this->comm.size() + receiver;
+			int send_tag = this->rank * this->comm_size + receiver;
 
 			this->send_requests[receiver].push_back(
-				this->comm.isend(
+				this->boost_comm.isend(
 					receiver,
 					send_tag,
 					this->outgoing_data[receiver]
@@ -6724,7 +6786,9 @@ private:
 			uint64_t cell = uint64_t(global_ids[i]);
 			if (dccrg_instance->cells.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
-				std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted the coordinates of a non-existing cell " << cell << std::endl;
+				std::cerr << "Process " << dccrg_instance->rank
+					<< ": Zoltan wanted the coordinates of a non-existing cell " << cell
+					<< std::endl;
 				return;
 			}
 
@@ -6791,7 +6855,7 @@ private:
 			uint64_t cell = uint64_t(global_ids[i]);
 			if (dccrg_instance->cells.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
-				std::cerr << "Process " << dccrg_instance->comm.rank()
+				std::cerr << "Process " << dccrg_instance->rank
 					<< ": Zoltan wanted the number of neighbors of a non-existing cell " << cell
 					<< std::endl;
 				return;
@@ -6823,7 +6887,7 @@ private:
 			uint64_t cell = uint64_t(global_ids[i]);
 			if (dccrg_instance->cells.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
-				std::cerr << "Process " << dccrg_instance->comm.rank() << ": Zoltan wanted neighbor list of a non-existing cell " << cell << std::endl;
+				std::cerr << "Process " << dccrg_instance->rank << ": Zoltan wanted neighbor list of a non-existing cell " << cell << std::endl;
 				return;
 			}
 
@@ -7014,7 +7078,7 @@ private:
 			*error = ZOLTAN_OK;
 		}
 
-		int process = dccrg_instance->comm.rank();
+		int process = dccrg_instance->rank;
 		int part;
 
 		for (int i = 0; i <= level; i++) {
@@ -7067,7 +7131,7 @@ private:
 		// sort existing cells from this process
 		std::vector<uint64_t> local_cells;
 		local_cells.reserve(this->cell_process.size());
-		for (typename boost::unordered_map<uint64_t, int>::const_iterator
+		for (typename boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			cell = this->cell_process.begin();
 			cell != this->cell_process.end();
 			cell++
@@ -7077,23 +7141,23 @@ private:
 		std::sort(local_cells.begin(), local_cells.end());
 
 		// processes of existing cells from this process
-		std::vector<int> local_processes;
+		std::vector<uint64_t> local_processes;
 		local_processes.reserve(this->cell_process.size());
 		for (std::vector<uint64_t>::const_iterator
 			cell = local_cells.begin();
 			cell != local_cells.end();
 			cell++
 		) {
-			local_processes.push_back(this->cell_process[*cell]);
+			local_processes.push_back((uint64_t)this->cell_process[*cell]);
 		}
 
 		// compare the above between processes
 		std::vector<std::vector<uint64_t> > all_cells;
-		all_gather(this->comm, local_cells, all_cells);
-		std::vector<std::vector<int> > all_processes;
-		all_gather(this->comm, local_processes, all_processes);
+		All_Gather()(local_cells, all_cells, this->comm);
+		std::vector<std::vector<uint64_t> > all_processes;
+		All_Gather()(local_processes, all_processes, this->comm);
 
-		for (int process = 0; process < this->comm.size(); process++) {
+		for (uint64_t process = 0; process < this->comm_size; process++) {
 			if (!std::equal(all_cells[process].begin(), all_cells[process].end(), all_cells[0].begin())) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Grid has different cells between processes 0 and " << process
@@ -7198,7 +7262,7 @@ private:
 			)
 		)
 		) {
-			std::cerr << "Process " << this->comm.rank()
+			std::cerr << "Process " << this->rank
 				<< " neighbor counts for cell " << cell
 				<< " (child of " << this->get_parent(cell)
 				<< ") don't match "
@@ -7232,7 +7296,7 @@ private:
 				compare_neighbors_to.begin()
 			)
 		) {
-			std::cerr << "Process " << this->comm.rank()
+			std::cerr << "Process " << this->rank
 				<< " neighbor_to counts for cell " << cell
 				<< " (child of " << this->get_parent(cell)
 				<< ") don't match: " << neighbor_to_lists.at(cell).size()
@@ -7263,12 +7327,12 @@ private:
 	*/
 	bool verify_neighbors()
 	{
-		for (typename boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			cell = this->cell_process.begin();
 			cell != this->cell_process.end();
 			cell++
 		) {
-			if (cell->second != this->comm.rank()) {
+			if (cell->second != this->rank) {
 				continue;
 			}
 
@@ -7349,7 +7413,7 @@ private:
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->comm.rank()) {
+			if (this->cell_process.at(neighbor) != this->rank) {
 
 				if (this->cells_with_remote_neighbors.count(cell) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
@@ -7380,7 +7444,7 @@ private:
 	*/
 	bool verify_remote_neighbor_info()
 	{
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			item = this->cell_process.begin();
 			item != this->cell_process.end();
 			item++
@@ -7391,7 +7455,7 @@ private:
 			}
 
 			// check whether this cell should be in remote_cells_with_local_neighbors
-			if (item->second != this->comm.rank()) {
+			if (item->second != this->rank) {
 
 				bool should_be_in_remote_cells = false;
 
@@ -7462,7 +7526,7 @@ private:
 						continue;
 					}
 
-					if (this->cell_process.at(neighbor) != this->comm.rank()) {
+					if (this->cell_process.at(neighbor) != this->rank) {
 						no_remote_neighbor = false;
 					}
 
@@ -7484,7 +7548,7 @@ private:
 						continue;
 					}
 
-					if (this->cell_process.at(neighbor) != this->comm.rank()) {
+					if (this->cell_process.at(neighbor) != this->rank) {
 						no_remote_neighbor = false;
 					}
 
@@ -7526,12 +7590,12 @@ private:
 	*/
 	bool verify_user_data()
 	{
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			item = this->cell_process.begin();
 			item != this->cell_process.end();
 			item++
 		) {
-			if (item->second == this->comm.rank()
+			if (item->second == this->rank
 			&& item->first == this->get_child(item->first)
 			&& this->cells.count(item->first) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
@@ -7540,7 +7604,7 @@ private:
 					<< std::endl;
 				return false;
 			}
-			if (item->second != this->comm.rank()
+			if (item->second != this->rank
 			&& this->cells.count(item->first) > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " User data for local cell " << item->first
@@ -7559,7 +7623,7 @@ private:
 	*/
 	bool pin_requests_succeeded()
 	{
-		for (boost::unordered_map<uint64_t, int>::const_iterator
+		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			pin_request = this->pin_requests.begin();
 			pin_request != this->pin_requests.end();
 			pin_request++

@@ -27,12 +27,12 @@ but the used solver is probably the simplest possible.
 #include "boost/array.hpp"
 #include "boost/foreach.hpp"
 #include "boost/lexical_cast.hpp"
-#include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "iomanip"
 #include "iostream"
+#include "mpi.h"
 #include "string"
 #include "zoltan.h"
 
@@ -857,7 +857,7 @@ Assumes that cells of same refinement level have the same size
 per dimension.
 */
 template<class CellData> double get_max_time_step(
-	communicator comm,
+	MPI_Comm& comm,
 	const Dccrg<CellData>& grid
 ) {
 	const vector<uint64_t> cells = grid.get_cells();
@@ -884,14 +884,37 @@ template<class CellData> double get_max_time_step(
 		}
 	}
 
-	return all_reduce(comm, min_step, minimum<double>());
+	double result = 0;
+	if (
+		MPI_Allreduce(
+			&min_step,
+			&result,
+			1,
+			MPI_DOUBLE,
+			MPI_MIN,
+			comm
+		) != MPI_SUCCESS
+	) {
+		std::cerr << __FILE__ << ":" << __LINE__ << "MPI_Allreduce failed." << std::endl;
+		abort();
+	}
+
+	return result;
 }
 
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	/*
 	Options
@@ -952,10 +975,10 @@ int main(int argc, char* argv[])
 
 	// print a help message if asked
 	if (option_variables.count("help") > 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << options << endl;
 		}
-		comm.barrier();
+		MPI_Barrier(comm);
 		return EXIT_SUCCESS;
 	}
 
@@ -985,7 +1008,7 @@ int main(int argc, char* argv[])
 		cerr << "Zoltan_Initialize failed" << endl;
 		abort();
 	}
-	if (verbose && comm.rank() == 0) {
+	if (verbose && rank == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
@@ -1096,7 +1119,7 @@ int main(int argc, char* argv[])
 	}
 
 	double dt = get_max_time_step(comm, grid);
-	if (verbose && comm.rank() == 0) {
+	if (verbose && rank == 0) {
 		cout << "Initial timestep: " << dt << endl;
 	}
 
@@ -1108,14 +1131,14 @@ int main(int argc, char* argv[])
 	#endif
 	unsigned int files_saved = 0;
 	if (save_n > -1) {
-		if (verbose && comm.rank() == 0) {
+		if (verbose && rank == 0) {
 			cout << "Saving initial state of simulation" << endl;
 		}
 		Save<Cell>::save(get_output_file_name(0, base_output_name), comm, grid);
 		files_saved++;
 	}
 
-	if (verbose && comm.rank() == 0) {
+	if (verbose && rank == 0) {
 		cout << "Starting simulation" << endl;
 	}
 
@@ -1129,7 +1152,7 @@ int main(int argc, char* argv[])
 	unsigned int step = 0;
 	while (time < tmax) {
 
-		if (verbose && comm.rank() == 0) {
+		if (verbose && rank == 0) {
 			cout << "Simulation time: " << time << endl;
 		}
 
@@ -1163,7 +1186,7 @@ int main(int argc, char* argv[])
 		// check where to adapt the grid
 		if (adapt_n > 0 && step % adapt_n == 0) {
 
-			if (verbose && comm.rank() == 0) {
+			if (verbose && rank == 0) {
 				cout << "Checking which cells to adapt in the grid" << endl;
 			}
 
@@ -1180,7 +1203,7 @@ int main(int argc, char* argv[])
 
 		// save simulation state
 		if (save_n > 0 && step % save_n == 0) {
-			if (verbose && comm.rank() == 0) {
+			if (verbose && rank == 0) {
 				cout << "Saving simulation at " << time << endl;
 			}
 			Save<Cell>::save(get_output_file_name(time, base_output_name), comm, grid);
@@ -1198,7 +1221,7 @@ int main(int argc, char* argv[])
 		// adapt the grid
 		if (adapt_n > 0 && step % adapt_n == 0) {
 
-			if (verbose && comm.rank() == 0) {
+			if (verbose && rank == 0) {
 				cout << "Adapting grid" << endl;
 			}
 
@@ -1213,7 +1236,7 @@ int main(int argc, char* argv[])
 
 			// update maximum allowed time step
 			dt = get_max_time_step(comm, grid);
-			if (verbose && comm.rank() == 0) {
+			if (verbose && rank == 0) {
 				cout << "New timestep: " << dt << endl;
 			}
 		}
@@ -1221,7 +1244,7 @@ int main(int argc, char* argv[])
 		// balance load
 		if (balance_n > 0 && step % balance_n == 0) {
 
-			if (verbose && comm.rank() == 0) {
+			if (verbose && rank == 0) {
 				cout << "Balancing load" << endl;
 			}
 
@@ -1236,7 +1259,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (save_n > -1) {
-		if (verbose && comm.rank() == 0) {
+		if (verbose && rank == 0) {
 			cout << "Saving final state of simulation" << endl;
 		}
 
@@ -1251,57 +1274,45 @@ int main(int argc, char* argv[])
 		// fractions of the above
 		min_fraction = 0, max_fraction = 0, total_fraction = 0;
 
-	if (comm.rank() == 0) {
-		reduce(comm, inner_solve_time, min_inner_solve_time, boost::mpi::minimum<double>(), 0);
-		reduce(comm, inner_solve_time, max_inner_solve_time, boost::mpi::maximum<double>(), 0);
-		reduce(comm, inner_solve_time, total_inner_solve_time, std::plus<double>(), 0);
-		reduce(comm, outer_solve_time, min_outer_solve_time, boost::mpi::minimum<double>(), 0);
-		reduce(comm, outer_solve_time, max_outer_solve_time, boost::mpi::maximum<double>(), 0);
-		reduce(comm, outer_solve_time, total_outer_solve_time, std::plus<double>(), 0);
-		reduce(comm, neighbor_receive_size, min_receive_size, boost::mpi::minimum<double>(), 0);
-		reduce(comm, neighbor_receive_size, max_receive_size, boost::mpi::maximum<double>(), 0);
-		reduce(comm, neighbor_receive_size, total_receive_size, std::plus<double>(), 0);
-		reduce(comm, neighbor_receive_size / inner_solve_time, min_fraction, boost::mpi::minimum<double>(), 0);
-		reduce(comm, neighbor_receive_size / inner_solve_time, max_fraction, boost::mpi::maximum<double>(), 0);
-		reduce(comm, neighbor_receive_size / inner_solve_time, total_fraction, std::plus<double>(), 0);
-	} else {
-		reduce(comm, inner_solve_time, boost::mpi::minimum<double>(), 0);
-		reduce(comm, inner_solve_time, boost::mpi::maximum<double>(), 0);
-		reduce(comm, inner_solve_time, std::plus<double>(), 0);
-		reduce(comm, outer_solve_time, boost::mpi::minimum<double>(), 0);
-		reduce(comm, outer_solve_time, boost::mpi::maximum<double>(), 0);
-		reduce(comm, outer_solve_time, std::plus<double>(), 0);
-		reduce(comm, neighbor_receive_size, boost::mpi::minimum<double>(), 0);
-		reduce(comm, neighbor_receive_size, boost::mpi::maximum<double>(), 0);
-		reduce(comm, neighbor_receive_size, std::plus<double>(), 0);
-		reduce(comm, neighbor_receive_size / inner_solve_time, boost::mpi::minimum<double>(), 0);
-		reduce(comm, neighbor_receive_size / inner_solve_time, boost::mpi::maximum<double>(), 0);
-		reduce(comm, neighbor_receive_size / inner_solve_time, std::plus<double>(), 0);
-	}
+	MPI_Reduce(&inner_solve_time, &min_inner_solve_time, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+	MPI_Reduce(&inner_solve_time, &max_inner_solve_time, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+	MPI_Reduce(&inner_solve_time, &total_inner_solve_time, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+	MPI_Reduce(&outer_solve_time, &min_outer_solve_time, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+	MPI_Reduce(&outer_solve_time, &max_outer_solve_time, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+	MPI_Reduce(&outer_solve_time, &total_outer_solve_time, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+	MPI_Reduce(&neighbor_receive_size, &min_receive_size, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+	MPI_Reduce(&neighbor_receive_size, &max_receive_size, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+	MPI_Reduce(&neighbor_receive_size, &total_receive_size, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+	double fraction = neighbor_receive_size / inner_solve_time;
+	MPI_Reduce(&fraction, &min_fraction, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
+	MPI_Reduce(&fraction, &max_fraction, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
+	MPI_Reduce(&fraction, &total_fraction, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << endl;
-		cout << "Processes used: " << comm.size() << endl;
+		cout << "Processes used: " << comm_size << endl;
 		cout << "Initial grid size: " << cells * cells << endl;
 		cout << "Total timesteps calculated: " << tmax << endl;
 		cout << "Total files saved: " << files_saved << endl;
 		cout << "Inner cell solution time / step (s, avg, max, min):          "
-			<< total_inner_solve_time / comm.size() / tmax << "\t"
+			<< total_inner_solve_time / comm_size / tmax << "\t"
 			<< max_inner_solve_time / tmax << "\t"
 			<< min_inner_solve_time / tmax << endl;
 		cout << "Outer cell solution time / step (s, avg, max, min):          "
-			<< total_outer_solve_time / comm.size() / tmax << "\t"
+			<< total_outer_solve_time / comm_size / tmax << "\t"
 			<< max_outer_solve_time / tmax << "\t"
 			<< min_outer_solve_time / tmax << endl;
 		cout << "Remote neighbor data receive size / step (B, avg, max, min): "
-			<< total_receive_size / comm.size() / tmax << "\t"
+			<< total_receive_size / comm_size / tmax << "\t"
 			<< max_receive_size / tmax << "\t"
 			<< min_receive_size / tmax << endl;
 		cout << "Per process fractions of the above (B / s, avg, max, min):   "
-			<< total_fraction / comm.size() << "\t"
+			<< total_fraction / comm_size << "\t"
 			<< max_fraction << "\t"
 			<< min_fraction << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

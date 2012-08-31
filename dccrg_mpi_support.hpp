@@ -24,6 +24,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "boost/foreach.hpp"
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
+#include "cstdlib"
 #include "iostream"
 #include "mpi.h"
 #include "stdint.h"
@@ -55,13 +56,88 @@ public:
 
 /*!
 Wrapper for MPI_Allgatherv(..., uint64_t, ...).
+
+Result is cleared before use.
 */
 class All_Gather
 {
 public:
 
+	// TODO: make this const correct once MPI is.
 	void operator()(
+		std::vector<uint64_t>& values,
+		std::vector<std::vector<uint64_t> >& result,
+		MPI_Comm& comm
 	) {
+		// get send counts from everyone
+		int comm_size;
+		if (MPI_Comm_size(comm, &comm_size) != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+
+		std::vector<int> send_counts(comm_size, -1);
+		uint64_t send_count = values.size();
+		if (
+			MPI_Allgather(
+				&send_count,
+				1,
+				MPI_INT,
+				&(send_counts[0]),
+				1,
+				MPI_INT,
+				comm
+			) != MPI_SUCCESS
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+
+		// calculate displacements for MPI_Allgatherv
+		std::vector<int> displacements(comm_size, 0);
+		for (size_t i = 1; i < send_counts.size(); i++) {
+			displacements[i] += send_counts[i - 1] + displacements[i - 1];
+		}
+
+		// transfer to contiguous array and then fill result
+		uint64_t total_send_count = 0;
+		BOOST_FOREACH(const int send_count, send_counts) {
+			total_send_count += (uint64_t) send_count;
+		}
+
+		std::vector<uint64_t> temp_result(total_send_count, -1);
+
+		// gather
+		if (
+			MPI_Allgatherv(
+				&(values[0]),
+				values.size(),
+				MPI_UINT64_T,
+				&(temp_result[0]),
+				&(send_counts[0]),
+				&(displacements[0]),
+				MPI_UINT64_T,
+				comm
+			) != MPI_SUCCESS
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+
+		// fill result
+		result.clear();
+		result.resize(comm_size);
+		for (size_t i = 0; i < (size_t) comm_size; i++) {
+			result[i].resize(send_counts[i]);
+		}
+
+		size_t index_in_temp = 0;
+		for (size_t proc = 0; proc < (size_t) comm_size; proc++) {
+			for (int i = 0; i < send_counts[proc]; i++) {
+				result[proc][i] = temp_result[index_in_temp];
+				index_in_temp++;
+			}
+		}
 	}
 };
 

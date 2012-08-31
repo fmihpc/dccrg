@@ -2,7 +2,7 @@
 PROCS := 2
 
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 MPICXX = mpic++ $(FLAGS)
 CXX = g++ $(FLAGS)
 
@@ -60,3 +60,4 @@ v: vtk
 vtk: dc2vtk
 	@./dc2vtk gol*.dc
 	@$(foreach dir, $(DIRS), cd $(dir) && ../dc2vtk gol*.dc && cd ..;)
+

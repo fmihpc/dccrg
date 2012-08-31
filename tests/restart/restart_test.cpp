@@ -240,8 +240,16 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, ConstantGeometry>& 
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	/*
 	Options
@@ -264,10 +272,10 @@ int main(int argc, char* argv[])
 
 	// print a help message if asked
 	if (option_variables.count("help") > 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << options << endl;
 		}
-		comm.barrier();
+		MPI_Barrier(comm);
 		return EXIT_SUCCESS;
 	}
 
@@ -299,7 +307,7 @@ int main(int argc, char* argv[])
 	game_grid.balance_load();
 
 	// play complete reference game on each process
-	reference_grid.initialize(communicator(MPI_COMM_SELF, comm_attach), "RANDOM", neighborhood_size);
+	reference_grid.initialize(MPI_COMM_SELF, "RANDOM", neighborhood_size);
 
 	const uint64_t time_steps = 25;
 	uint64_t step = 0;
@@ -337,7 +345,7 @@ int main(int argc, char* argv[])
 
 	while (step < time_steps) {
 
-		Refine<ConstantGeometry>::refine(game_grid, grid_size, step, comm.size());
+		Refine<ConstantGeometry>::refine(game_grid, grid_size, step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();
@@ -393,9 +401,11 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "Passed" << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

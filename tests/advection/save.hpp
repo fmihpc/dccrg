@@ -43,9 +43,13 @@ public:
 	*/
 	static size_t save(
 		const std::string& filename,
-		boost::mpi::communicator comm,
+		MPI_Comm& comm,
 		const dccrg::Dccrg<CellData>& grid
 	) {
+		int rank = 0, comm_size = 0;
+		MPI_Comm_rank(comm, &rank);
+		MPI_Comm_size(comm, &comm_size);
+
 		const std::string header(
 			"2d advection test file\n\n"
 			"Data after end of header and a line break:\n"
@@ -88,12 +92,12 @@ public:
 		MPI_File_open doesn't truncate the file with OpenMPI 1.4.1 on Ubuntu, so use a
 		fopen call first (http://www.opengroup.org/onlinepubs/009695399/functions/fopen.html)
 		*/
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			FILE* i = fopen(output_name_c_string, "w");
 			fflush(i);
 			fclose(i);
 		}
-		comm.barrier();
+		MPI_Barrier(comm);
 
 		int result = MPI_File_open(
 			comm,
@@ -118,7 +122,7 @@ public:
 		delete [] output_name_c_string;
 
 		// figure out how many bytes each process will write and where
-		size_t bytes = 0, offset = 0;
+		uint64_t bytes = 0, offset = 0;
 
 		// collect data from this process into one buffer for writing
 		uint8_t* buffer = NULL;
@@ -126,7 +130,7 @@ public:
 		const std::vector<uint64_t> cells = grid.get_cells();
 
 		// header
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			bytes += header.size() * sizeof(char)
 				+ 6 * sizeof(double)
 				+ 4 * sizeof(uint64_t)
@@ -139,7 +143,7 @@ public:
 		buffer = new uint8_t [bytes];
 
 		// header
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			{
 			memcpy(buffer + offset, header.c_str(), header.size() * sizeof(char));
 			offset += header.size() * sizeof(char);
@@ -231,12 +235,25 @@ public:
 			offset += sizeof(double);
 		}
 
-		std::vector<size_t> all_bytes;
-		all_gather(comm, bytes, all_bytes);
+		std::vector<uint64_t> all_bytes(comm_size, 0);
+		if (
+			MPI_Allgather(
+				&bytes,
+				1,
+				MPI_UINT64_T,
+				&(all_bytes[0]),
+				1,
+				MPI_UINT64_T,
+				comm
+			) != MPI_SUCCESS
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << "MPI_Allgather failed." << std::endl;
+			abort();
+		}
 
 		// calculate offset of this process in the file
 		MPI_Offset mpi_offset = 0;
-		for (int i = 0; i < comm.rank(); i++) {
+		for (int i = 0; i < rank; i++) {
 			mpi_offset += all_bytes[i];
 		}
 

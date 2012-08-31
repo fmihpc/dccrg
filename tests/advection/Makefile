@@ -1,6 +1,6 @@
 # use -fno-builtin-sprintf to avoid warning about gnu specific formatting in sprintf by boost lexical_cast
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -fno-builtin-sprintf
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 
 PROGRAMS = 2d_mpi 2d_mpi_datatype dc2vtk 2d_debug
@@ -9,7 +9,8 @@ HEADERS = \
 	cell.hpp \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_constant_geometry.hpp
+	../../dccrg_constant_geometry.hpp \
+	../../dccrg_mpi_support.hpp
 
 all: $(PROGRAMS)
 
