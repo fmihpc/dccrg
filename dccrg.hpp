@@ -385,7 +385,7 @@ public:
 		mapping.cache_sfc_index_range(cache_start, cache_end);
 
 		uint64_t sfc_index = 0;
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (uint64_t process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
 			if (process < procs_with_fewer) {
@@ -425,7 +425,14 @@ public:
 			}
 		}
 		mapping.clear();
-		assert(sfc_index == this->grid_length);
+
+		if (sfc_index != this->grid_length) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->rank
+				<< ": Incorrect number of cells created: " << sfc_index
+				<< ", should be " << this->grid_length
+				<< std::endl;
+			abort();
+		}
 
 		#endif
 
@@ -439,8 +446,7 @@ public:
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are inconsistent" << std::endl;
-			// TODO: throw an exception instead when debugging?
-			exit(EXIT_FAILURE);
+			abort();
 		}
 		#endif
 
@@ -449,8 +455,10 @@ public:
 		}
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info is not consistent" << std::endl;
-			exit(EXIT_FAILURE);
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
+			abort();
 		}
 		#endif
 
@@ -4866,12 +4874,18 @@ private:
 
 		#ifdef DEBUG
 		if (this->neighbors.count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor list for cell " << cell << " doesn't exist" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbor list for cell " << cell
+				<< " doesn't exist"
+				<< std::endl;
 			abort();
 		}
 
 		if (this->neighbors_to.count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbors_to list for cell " << cell << " doesn't exist" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbors_to list for cell " << cell
+				<< " doesn't exist"
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -4883,6 +4897,16 @@ private:
 				continue;
 			}
 
+			#ifdef DEBUG
+			if (this->cell_process.count(neighbor) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor " << neighbor
+					<< " doesn't exist in cell_process"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
 			if (this->cell_process.at(neighbor) != this->rank) {
 				this->cells_with_remote_neighbors.insert(cell);
 				this->remote_cells_with_local_neighbors.insert(neighbor);
@@ -4890,6 +4914,16 @@ private:
 		}
 		// cells with given cell as neighbor
 		BOOST_FOREACH(const uint64_t& neighbor_to, this->neighbors_to.at(cell)) {
+
+			#ifdef DEBUG
+			if (this->cell_process.count(neighbor_to) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor_to " << neighbor_to
+					<< " doesn't exist in cell_process"
+					<< std::endl;
+				abort();
+			}
+			#endif
 
 			if (this->cell_process.at(neighbor_to) != this->rank) {
 				this->cells_with_remote_neighbors.insert(cell);
