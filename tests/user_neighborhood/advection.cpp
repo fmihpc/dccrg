@@ -969,7 +969,7 @@ int main(int argc, char* argv[])
 		if (rank == 0) {
 			cout << options << endl;
 		}
-		MPI_Barrier(comm);
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
@@ -1317,6 +1317,8 @@ int main(int argc, char* argv[])
 			<< max_fraction << "\t"
 			<< min_fraction << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }
