@@ -45,8 +45,8 @@ public:
 
 	/*!
 	Creates and sets the geometry of the grid to the following:
-		-starting corner at (0, 0, 0)
-		-size of unrefined cells in each direction: 1
+		- starting corner at (0, 0, 0)
+		- size of unrefined cells in each direction: 1
 	*/
 	ArbitraryGeometry()
 	{
@@ -71,8 +71,8 @@ public:
 
 	/*!
 	Sets the geometry of the grid to the following:
-		-starting corner at (0, 0, 0)
-		-size of unrefined cells in each direction: 1
+		- starting corner at (0, 0, 0)
+		- size of unrefined cells in each direction: 1
 	*/
 	~ArbitraryGeometry()
 	{
@@ -97,9 +97,13 @@ public:
 
 	/*!
 	Sets the coordinates of unrefined cells in the grid.
-	First coordinate is the starting point of the grid and the following ith value is the endpoint of the ith unrefined cell
-	At least two values must be given for each direction and all values must be strictly increasing.
-	Returns true if successful, probably invalidating all previous cell geometries, e.g. their location, size, etc.
+
+	First coordinate is the starting point of the grid and the following
+	ith value is the endpoint of the ith unrefined cell
+	At least two values must be given for each direction and all values
+	must be strictly increasing.
+	Returns true if successful, probably invalidating all previous cell
+	geometries, e.g. their location, size, etc.
 	Returns false if unsuccessful and in that case has no effect.
 	Automatically maximizes max_refinement_level.
 	*/
@@ -109,46 +113,66 @@ public:
 		const std::vector<double> z_coordinates
 	) {
 		if (x_coordinates.size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the x direction" << std::endl;
+			std::cerr << "At least two coordinates are required for grid cells in the x direction"
+				<< std::endl;
 			return false;
 		}
 		if (y_coordinates.size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the y direction" << std::endl;
+			std::cerr << "At least two coordinates are required for grid cells in the y direction"
+				<< std::endl;
 			return false;
 		}
 		if (z_coordinates.size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the z direction" << std::endl;
+			std::cerr << "At least two coordinates are required for grid cells in the z direction"
+				<< std::endl;
 			return false;
 		}
 
 		for (uint64_t i = 0; i < x_coordinates.size() - 1; i++) {
 			if (x_coordinates[i] >= x_coordinates[i + 1]) {
-				std::cerr << "Coordinates in the x direction must be strictly increasing" << std::endl;
+				std::cerr << "Coordinates in the x direction must be strictly increasing"
+					<< std::endl;
 				return false;
 			}
 		}
 		for (uint64_t i = 0; i < y_coordinates.size() - 1; i++) {
 			if (y_coordinates[i] >= y_coordinates[i + 1]) {
-				std::cerr << "Coordinates in the y direction must be strictly increasing" << std::endl;
+				std::cerr << "Coordinates in the y direction must be strictly increasing"
+					<< std::endl;
 				return false;
 			}
 		}
 		for (uint64_t i = 0; i < z_coordinates.size() - 1; i++) {
 			if (z_coordinates[i] >= z_coordinates[i + 1]) {
-				std::cerr << "Coordinates in the z direction must be strictly increasing" << std::endl;
+				std::cerr << "Coordinates in the z direction must be strictly increasing"
+					<< std::endl;
 				return false;
 			}
 		}
 
 		this->x_coordinates.clear();
 		this->x_coordinates.reserve(x_coordinates.size());
-		this->x_coordinates.insert(this->x_coordinates.begin(), x_coordinates.begin(), x_coordinates.end());
+		this->x_coordinates.insert(
+			this->x_coordinates.begin(),
+			x_coordinates.begin(),
+			x_coordinates.end()
+		);
+
 		this->y_coordinates.clear();
 		this->y_coordinates.reserve(y_coordinates.size());
-		this->y_coordinates.insert(this->y_coordinates.begin(), y_coordinates.begin(), y_coordinates.end());
+		this->y_coordinates.insert(
+			this->y_coordinates.begin(),
+			y_coordinates.begin(),
+			y_coordinates.end()
+		);
+
 		this->z_coordinates.clear();
 		this->z_coordinates.reserve(z_coordinates.size());
-		this->z_coordinates.insert(this->z_coordinates.begin(), z_coordinates.begin(), z_coordinates.end());
+		this->z_coordinates.insert(
+			this->z_coordinates.begin(),
+			z_coordinates.begin(),
+			z_coordinates.end()
+		);
 
 		if (!this->set_length(
 			this->x_coordinates.size() - 1,
@@ -223,7 +247,10 @@ public:
 
 		int refinement_level = this->get_refinement_level(cell);
 		uint64_t unref_cell_x_index = this->get_unref_cell_x_coord_start_index(cell);
-		return (this->x_coordinates[unref_cell_x_index + 1] - this->x_coordinates[unref_cell_x_index]) / (uint64_t(1) << refinement_level);
+
+		return
+			  (this->x_coordinates[unref_cell_x_index + 1] - this->x_coordinates[unref_cell_x_index])
+			/ (uint64_t(1) << refinement_level);
 	}
 
 	/*!
@@ -237,7 +264,10 @@ public:
 
 		int refinement_level = this->get_refinement_level(cell);
 		uint64_t unref_cell_y_index = this->get_unref_cell_y_coord_start_index(cell);
-		return (this->y_coordinates[unref_cell_y_index + 1] - this->y_coordinates[unref_cell_y_index]) / (uint64_t(1) << refinement_level);
+
+		return
+			  (this->y_coordinates[unref_cell_y_index + 1] - this->y_coordinates[unref_cell_y_index])
+			  / (uint64_t(1) << refinement_level);
 	}
 
 	/*!
@@ -251,7 +281,9 @@ public:
 
 		int refinement_level = this->get_refinement_level(cell);
 		uint64_t unref_cell_z_index = this->get_unref_cell_z_coord_start_index(cell);
-		return (this->z_coordinates[unref_cell_z_index + 1] - this->z_coordinates[unref_cell_z_index]) / (uint64_t(1) << refinement_level);
+		return
+			  (this->z_coordinates[unref_cell_z_index + 1] - this->z_coordinates[unref_cell_z_index])
+			  / (uint64_t(1) << refinement_level);
 	}
 
 
@@ -264,19 +296,30 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
+		if (
+			   this->get_refinement_level(cell) < 0
+			|| this->get_refinement_level(cell) > this->max_refinement_level
+		) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
 		uint64_t unref_cell_x_coord_start_index = this->get_unref_cell_x_coord_start_index(cell);
-		uint64_t unref_cell_x_index = unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level);
+		uint64_t unref_cell_x_index
+			= unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
-		double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
-		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
+		double
+			unref_cell_x_size
+				= this->x_coordinates[unref_cell_x_coord_start_index + 1]
+				- this->x_coordinates[unref_cell_x_coord_start_index],
+			size_of_local_index
+				= unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->x_coordinates[unref_cell_x_coord_start_index] + size_of_local_index * (indices[0] - unref_cell_x_index) + this->get_cell_x_size(cell) / 2;
+		return
+			  this->x_coordinates[unref_cell_x_coord_start_index]
+			+ size_of_local_index * (indices[0] - unref_cell_x_index)
+			+ this->get_cell_x_size(cell) / 2;
 	}
 
 	/*!
@@ -295,12 +338,20 @@ public:
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
 		uint64_t unref_cell_y_coord_start_index = this->get_unref_cell_y_coord_start_index(cell);
-		uint64_t unref_cell_y_index = unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level);
+		uint64_t unref_cell_y_index
+			= unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
-		double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
-		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
+		double
+			unref_cell_y_size
+				= this->y_coordinates[unref_cell_y_coord_start_index + 1]
+				- this->y_coordinates[unref_cell_y_coord_start_index],
+			size_of_local_index
+				= unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->y_coordinates[unref_cell_y_coord_start_index] + size_of_local_index * (indices[1] - unref_cell_y_index) + this->get_cell_y_size(cell) / 2;
+		return
+			  this->y_coordinates[unref_cell_y_coord_start_index]
+			+ size_of_local_index * (indices[1] - unref_cell_y_index)
+			+ this->get_cell_y_size(cell) / 2;
 	}
 
 	/*!
@@ -319,12 +370,20 @@ public:
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
 		uint64_t unref_cell_z_coord_start_index = this->get_unref_cell_z_coord_start_index(cell);
-		uint64_t unref_cell_z_index = unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level);
+		uint64_t unref_cell_z_index
+			= unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
-		double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
-		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
+		double
+			unref_cell_z_size
+				= this->z_coordinates[unref_cell_z_coord_start_index + 1]
+				- this->z_coordinates[unref_cell_z_coord_start_index],
+			size_of_local_index
+				= unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
 
-		return this->z_coordinates[unref_cell_z_coord_start_index] + size_of_local_index * (indices[2] - unref_cell_z_index) + this->get_cell_z_size(cell) / 2;
+		return
+			  this->z_coordinates[unref_cell_z_coord_start_index]
+			+ size_of_local_index * (indices[2] - unref_cell_z_index)
+			+ this->get_cell_z_size(cell) / 2;
 	}
 
 	/*!
@@ -390,7 +449,8 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		uint64_t unref_cell_x_coord_start_index = x_index / (uint64_t(1) << this->max_refinement_level);
+		uint64_t unref_cell_x_coord_start_index
+			= x_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
 		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
@@ -413,7 +473,8 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		uint64_t unref_cell_y_coord_start_index = y_index / (uint64_t(1) << this->max_refinement_level);
+		uint64_t unref_cell_y_coord_start_index
+			= y_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
 		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
@@ -436,7 +497,8 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		uint64_t unref_cell_z_coord_start_index = z_index / (uint64_t(1) << this->max_refinement_level);
+		uint64_t unref_cell_z_coord_start_index
+			= z_index / (uint64_t(1) << this->max_refinement_level);
 
 		double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
 		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
@@ -450,8 +512,12 @@ public:
 	/*!
 	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location or refinement level
 	*/
-	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z) const
-	{
+	uint64_t get_cell(
+		const int refinement_level,
+		const double x,
+		const double y,
+		const double z
+	) const {
 		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
 			return error_cell;
 		}
@@ -598,7 +664,8 @@ public:
 		}
 		x_coord_start_index--;
 
-		double x_size_of_index = (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index])
+		double x_size_of_index
+			= (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index])
 			/ this->get_cell_size_in_indices(1);
 
 		uint64_t index_offset = 0;
@@ -634,7 +701,8 @@ public:
 		}
 		y_coord_start_index--;
 
-		double y_size_of_index = (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index])
+		double y_size_of_index
+			= (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index])
 			/ this->get_cell_size_in_indices(1);
 
 		uint64_t index_offset = 0;
@@ -670,7 +738,8 @@ public:
 		}
 		z_coord_start_index--;
 
-		double z_size_of_index = (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index])
+		double z_size_of_index
+			= (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index])
 			/ this->get_cell_size_in_indices(1);
 
 		uint64_t index_offset = 0;
@@ -732,13 +801,15 @@ private:
 
 	/*!
 	The coordinates of unrefined cells in respective directions
-	First value is the starting point of the grid, the following ith value is the end point of the ith unrefined cell
+	First value is the starting point of the grid, the following
+	ith value is the end point of the ith unrefined cell
 	*/
 	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
 
 
 	/*!
-	Returns the x index in the coordinates vector of the starting coordinate of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
+	Returns the x index in the coordinates vector of the starting coordinate
+	of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
 	*/
 	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell) const
 	{
@@ -752,7 +823,8 @@ private:
 	}
 
 	/*!
-	Returns the y index in the coordinates vector of the starting coordinate of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
+	Returns the y index in the coordinates vector of the starting coordinate
+	of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
 	*/
 	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell) const
 	{
@@ -766,7 +838,8 @@ private:
 	}
 
 	/*!
-	Returns the z index in the coordinates vector of the starting coordinate of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
+	Returns the z index in the coordinates vector of the starting coordinate
+	of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
 	*/
 	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell) const
 	{

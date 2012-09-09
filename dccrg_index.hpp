@@ -60,9 +60,10 @@ public:
 	}
 
 	/*!
-	\brief Sets the size of the grid in unrefined cells.
+	Sets the size of the grid in unrefined cells.
 
-	Returns true if successful, probably invalidating all previous cell information (cell numbers, indices, etc.)
+	Returns true if successful, probably invalidating all previous cell
+	information (cell numbers, indices, etc.)
 	Returns false if unsuccessful and in that case has no effect.
 	Automatically maximizes the maximum refinement level of the grid.
 	*/
@@ -152,7 +153,10 @@ public:
 	}
 
 	/*!
-	Sets the maximum refinement level of the grid (0 means unrefined), probably invalidating all previous cell indices.
+	Sets the maximum refinement level of the grid.
+
+	0 means unrefined.
+	Probably invalidating all previous cell indices.
 	Returns true if successful, otherwise does nothing and returns false.
 	*/
 	bool set_maximum_refinement_level(const int given_refinement_level)
@@ -213,7 +217,10 @@ public:
 		const uint64_t this_level_x_length = this->x_length * (uint64_t(1) << refinement_level);
 		const uint64_t this_level_y_length = this->y_length * (uint64_t(1) << refinement_level);
 
-		cell += this_level_indices[0] + this_level_indices[1] * this_level_x_length + this_level_indices[2] * this_level_x_length * this_level_y_length;
+		cell
+			+= this_level_indices[0]
+			+ this_level_indices[1] * this_level_x_length
+			+ this_level_indices[2] * this_level_x_length * this_level_y_length;
 
 		return cell;
 	}
@@ -254,9 +261,16 @@ public:
 
 		cell -= 1;	// cell numbering starts from 1
 		const Types<3>::indices_t indices = {{
-			(cell % (this->x_length * (uint64_t(1) << refinement_level))) * (uint64_t(1) << (max_refinement_level - refinement_level)),
-			((cell / (this->x_length * (uint64_t(1) << refinement_level))) % (this->y_length * (uint64_t(1) << refinement_level))) * (uint64_t(1) << (max_refinement_level - refinement_level)),
-			(cell / (this->x_length * this->y_length * (uint64_t(1) << (2 * refinement_level)))) * (uint64_t(1) << (max_refinement_level - refinement_level))
+
+			  (cell % (this->x_length * (uint64_t(1) << refinement_level)))
+			* (uint64_t(1) << (max_refinement_level - refinement_level)),
+
+			((cell / (this->x_length * (uint64_t(1) << refinement_level)))
+				% (this->y_length * (uint64_t(1) << refinement_level)))
+			* (uint64_t(1) << (max_refinement_level - refinement_level)),
+
+			  (cell / (this->x_length * this->y_length * (uint64_t(1) << (2 * refinement_level))))
+			* (uint64_t(1) << (max_refinement_level - refinement_level))
 		}};
 
 		return indices;

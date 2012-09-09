@@ -402,7 +402,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (rank == 0) {
-		cout << "Passed" << endl;
+		cout << "PASSED" << endl;
 	}
 
 	MPI_Finalize();

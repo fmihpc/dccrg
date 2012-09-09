@@ -1,3 +1,24 @@
 Tests the speed of different geometry classes of dccrg.
 See the ../README file for information common to all tests.
 
+Example output for AMD Phenom II X6 1075T Processor (3 GHz):
+
+Arbitrarily streched grid:
+        Maximum refinement level: 13
+        Average cell x size: 0.415, time for 1e+08 cells: 3.66 s
+        Average cell y size: 0.4565, time for 1e+08 cells: 4.1 s
+        Average cell z size: 0.498, time for 1e+08 cells: 3.6 s
+        Average cell x position: 50, time for 1e+08 cells: 7.99 s
+        Average cell y position: 109.934, time for 1e+08 cells: 11.36 s
+        Average cell z position: 107.119, time for 1e+08 cells: 8.44 s
+
+Constant grid:
+        Maximum refinement level: 13
+        Average cell x size: 0.415, time for 1e+08 cells: 1.39 s
+        Average cell y size: 0.4565, time for 1e+08 cells: 1.24 s
+        Average cell z size: 0.498, time for 1e+08 cells: 1.3 s
+        Average cell x position: 50, time for 1e+08 cells: 3.97 s
+        Average cell y position: 109.934, time for 1e+08 cells: 4.79 s
+        Average cell z position: 107.119, time for 1e+08 cells: 3.7 s
+
+Cell sizes and positions should be identical.

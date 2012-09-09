@@ -169,8 +169,10 @@ Any pair of processes in the given communicator either must or must not have eac
 other in neighbors.
 Does not modify the given value or communicator (will be const correct once MPI is).
 Example:
+\verbatim
 MPI_Comm w = MPI_COMM_WORLD;
 result = dccrg::Some_Reduce()(3, n, w);
+\endverbatim
 */
 class Some_Reduce
 {

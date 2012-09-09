@@ -114,7 +114,7 @@ public:
 
 
 	/*!
-	\brief Initializes the instance of the grid with given parameters.
+	Initializes the instance of the grid with given parameters.
 
 	The geometry of the grid instance must have been set using set_geometry
 	before calling this function.
@@ -124,27 +124,27 @@ public:
 	comm: the grid will span all the processes in the communicator comm
 
 	load_balancing_method:
-		The method that Zoltan will use for load balancing, given as a string.
-		All methods except REFTREE are supported, see this page for a list of available methods:
-		http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
+		- The method that Zoltan will use for load balancing, given as a string.
+		- All methods except REFTREE are supported, see this page for a list of available methods:
+		- http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
 
 	neighborhood_size:
-		Determines which cells are considered neighbors.
-		When calculating the neighbors of a given cell a cube of length
-		2 * neighborhood_size + 1 in every direction is considered, centered
-		at the cell for which neighbors are being calculated.
-		The unit lenght of the cube is the cell for which neighbors are being calculated.
-		If neighborhood_size == 0, only cells (or children within the volume of
-		cells of the same size as the current cell) that share a face are considered.
+		- Determines which cells are considered neighbors.
+		- When calculating the neighbors of a given cell a cube of length
+		  2 * neighborhood_size + 1 in every direction is considered, centered
+		  at the cell for which neighbors are being calculated.
+		- The unit lenght of the cube is the cell for which neighbors are being calculated.
+		- If neighborhood_size == 0, only cells (or children within the volume of
+		  cells of the same size as the current cell) that share a face are considered.
 
 	maximum_refinement_level:
-		The maximum number of times an unrefined cell can be refined
-		(replacingit with 8 smaller cells).
-		If not given the maximum refinement level is maximized based on the grids initial size.
+		- The maximum number of times an unrefined cell can be refined
+		  (replacingit with 8 smaller cells).
+		- If not given the maximum refinement level is maximized based on the grids initial size.
 
 	periodic_in_x, y and z:
-		The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
-		direction cells on the opposite sides of the grid in that direction can be neighbors.
+		- The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
+		  direction cells on the opposite sides of the grid in that direction can be neighbors.
 	*/
 	void initialize(
 		const MPI_Comm& given_comm,
@@ -1161,7 +1161,10 @@ public:
 
 
 	/*!
-	Returns all cells on this process that don't have children (e.g. leaf cells) and don't have neighbors on other processes
+	Returns local cells without remote neighbors.
+
+	Returns cell in this process that don't have children (e.g. leaf cells)
+	and don't have neighbors on other processes.
 	*/
 	std::vector<uint64_t> get_cells_with_local_neighbors() const
 	{
@@ -1203,7 +1206,10 @@ public:
 
 
 	/*!
-	Returns all cells on this process that don't have children (e.g. leaf cells) and have at least one neighbor on another processes
+	Returns local cells with at least one remote neighbor.
+
+	Returns all cells on this process that don't have children (e.g. leaf cells)
+	and have at least one neighbor on another processes.
 	*/
 	std::vector<uint64_t> get_cells_with_remote_neighbor() const
 	{
@@ -1270,8 +1276,13 @@ public:
 
 
 	/*!
-	Returns a pointer to the user supplied data of given cell
-	Return NULL if the given cell isn't on this process and if the given cell isn't a neighbor of any cell on this process
+	Returns a pointer to the user supplied data of given cell.
+
+	The data of local cells is always available, including refined cells
+	before the next call to stop_refining.
+	The data of cells which are on other processes can also be available if:
+		- the cells are neighbors to a local cell and remote neighbor data has been updated
+		- the cells were unrefined and their parent is now a local cell
 	*/
 	UserData* operator [] (const uint64_t cell) const
 	{
@@ -1380,10 +1391,11 @@ public:
 
 
 	/*!
-	\brief Load balances the grid's cells among processes.
+	Load balances the grid's cells among processes.
 
 	Must be called simultaneously on all processes.
-	Cells which haven't been pinned are moved as suggested by Zoltan, pinned cells are moved as requested by the user.
+	Cells which haven't been pinned are moved as suggested by Zoltan,
+	pinned cells are moved as requested by the user.
 	Does not update remote neighbor data between processes afterward.
 	Discards refines / unrefines.
 
@@ -1456,7 +1468,7 @@ public:
 
 
 	/*!
-	\brief Updates the user data of neighboring cells between processes.
+	Updates the user data of neighboring cells between processes.
 
 	User data of any local cell which is considered as a neighbor
 	to a cell on another process is sent to that process.
@@ -1599,7 +1611,8 @@ public:
 
 
 	/*!
-	Waits until all neighbor data update transfers between processes have completed and incorporates that data.
+	Waits for remote neighbor data transfers to/from this process to complete.
+
 	Must be called simultaneously on all processes.
 	*/
 	void wait_neighbor_data_update()
@@ -1621,8 +1634,12 @@ public:
 
 
 	/*!
-	Waits until all sends associated with neighbor data update transfers between processes have completed.
-	Must be called simultaneously on all processes and probably must be called after wait...update_receives().
+	Waits for remote neighbor data transfers to other processes to complete.
+
+	Waits until all sends associated with neighbor data update transfers
+	between processes have completed.
+	Must be called simultaneously on all processes and probably must be
+	called after wait...update_receives().
 	*/
 	void wait_neighbor_data_update_sends()
 	{
@@ -1631,8 +1648,12 @@ public:
 
 
 	/*!
-	Waits until all receives associated with neighbor data update transfers between processes have completed and incorporates that data.
-	Must be called simultaneously on all processes and probably must be called before wait...update_sends().
+	Waits for remote neighbor data transfers from other processes to complete.
+
+	Waits until all receives associated with neighbor data update transfers
+	between processes have completed and incorporates that data.
+	Must be called simultaneously on all processes and probably must be
+	called before wait...update_sends().
 	*/
 	void wait_neighbor_data_update_receives()
 	{
@@ -1716,19 +1737,19 @@ public:
 	Returns a pointer to the neighbors of given cell.
 
 	In case the grid is not periodic in one or more directions,
-	neighbors that would be outside of the grid are 0.
+	neighbors that would be outside of the grid are error_cell.
 	Some neighbors might be on another process, but have a copy of their data on this process.
 	The local copy of remote neighbors' data is updated, for example, by calling
 	update_remote_neighbor_data().
 	Returns NULL if given cell doesn't exist or is on another process.
 
 	The neighbors are always in the following order:
-	1) if all neighbors are of the same size then they are in z order, e.g.
-	with a neighborhood size of 2 the first neighbor is at offset (-2, -2, -2)
-	from the given cell, the second one is at (-1, -2, -2), etc, in size units
-	of the given cell.
-	2) if one or more of the cells in 1) is refined then instead of one cell
-	there are 8 which are again in z order.
+		- if all neighbors are of the same size then they are in z order, e.g.
+		  with a neighborhood size of 2 the first neighbor is at offset (-2, -2, -2)
+		  from the given cell, the second one is at (-1, -2, -2), etc, in size units
+		  of the given cell.
+		- if one or more of the cells in 1) is refined then instead of one cell
+		  there are 8 which are again in z order.
 	For example with maximum refinement level 1 and neighborhood size of 1
 	the neighbors of a cell of refinement level 0 at indices (2, 2, 2) could
 	be in the following order: (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0),
@@ -1838,10 +1859,10 @@ public:
 	Returns all neighbors of given cell that are at given offsets from it.
 
 	Returns nothing in the following cases:
-		-given cell doesn't exist
-		-given cell is on another process
-		-any of given offsets is larger in absolute value than the neighborhood
-			size or larger than 1 if neihgborhood size == 0
+		- given cell doesn't exist
+		- given cell is on another process
+		- any of given offsets is larger in absolute value than the neighborhood
+		  size or larger than 1 if neihgborhood size == 0
 		- i == 0 && j == 0 && k == 0
 	*/
 	std::vector<uint64_t> get_neighbors_of(const uint64_t cell, const int i, const int j, const int k) const
@@ -1980,9 +2001,10 @@ public:
 
 
 	/*!
-	Writes the cells on this process into a vtk file with given name in ASCII format
-	The cells are written in ascending order
-	Must be called simultaneously on all processes
+	Writes the cells on this process into a vtk file with given name in ASCII format.
+
+	The cells are written in ascending order.
+	Must be called simultaneously on all processes.
 	*/
 	void write_vtk_file(const char* file_name) const
 	{
@@ -2058,10 +2080,14 @@ public:
 	/*!
 	Creates all children of given cell (and possibly of other cells due to induced refinement).
 
-	Takes priority over unrefining. Refines / unrefines take effect only after a call to stop_refining() and are lost after a call to balance_load(). Does nothing in any of the following cases:
-		-given cell has already been refined (including induced refinement) and stop_refining() has not been called afterwards
-		-given cell doesn't exist on this process
-		-given cell's children already exist
+	Takes priority over unrefining.
+	Refines / unrefines take effect only after a call to stop_refining() and are lost
+	after a call to balance_load().
+	Does nothing in any of the following cases:
+		- given cell has already been refined (including induced refinement)
+		  and stop_refining() has not been called afterwards
+		- given cell doesn't exist on this process
+		- given cell's children already exist
 	Children are created on their parent's process.
 
 	If given cell is at maximum refinement level dont_unrefine will be invoked instead.
@@ -2125,7 +2151,9 @@ public:
 
 	/*!
 	As refine_completely, but uses the smallest existing cell at given coordinates.
-	Does nothing in the same cases as refine_completely and additionally if the coordinate is outside of the grid.
+
+	Does nothing in the same cases as refine_completely and additionally
+	if the coordinate is outside of the grid.
 	*/
 	void refine_completely_at(const double x, const double y, const double z)
 	{
@@ -2141,14 +2169,20 @@ public:
 	/*!
 	Removes the given cell and its siblings from the grid.
 
-	Refining (including induced refining) takes priority over unrefining. Refines / unrefines take effect only after a call to stop_refining() and are lost after a call to balance_load(). Does nothing in any of the following cases:
-		-dont_unrefine was called previously for given cell or its siblings
-		-given cell or one of its siblings has already been unrefined and stop_refining() has not been called
-		-given cell doesn't exist on this process
-		-given cell has children
-		-given cells refinement level is 0
+	Refining (including induced refining) takes priority over unrefining.
+	Refines / unrefines take effect only after a call to stop_refining()
+	and are lost after a call to balance_load().
+	Does nothing in any of the following cases:
+		- dont_unrefine was called previously for given cell or its siblings
+		- given cell or one of its siblings has already been unrefined
+		  and stop_refining() has not been called
+		- given cell doesn't exist on this process
+		- given cell has children
+		- given cells refinement level is 0
 
-	After a cell and its siblings have been unrefined, their data has been moved to their parent's process. When no longer needed that data can be freed using ?.
+	After a cell and its siblings have been unrefined, their data has been moved
+	to their parent's process.
+	When no longer needed that data can be freed using clear_refined_unrefined_data.
 	*/
 	void unrefine_completely(const uint64_t cell)
 	{
@@ -2236,7 +2270,9 @@ public:
 
 	/*!
 	As unrefine_completely, but uses the smallest existing cell at given coordinates.
-	Does nothing in the same cases as unrefine_completely and additionally if the coordinate is outside of the grid.
+
+	Does nothing in the same cases as unrefine_completely and additionally
+	if the coordinate is outside of the grid.
 	*/
 	void unrefine_completely_at(const double x, const double y, const double z)
 	{
@@ -2255,9 +2291,9 @@ public:
 	Has an effect only during the next call to stop_refining().
 	Has no effect if balance_load() is called before stop_refining().
 	Does nothing in any of the following cases:
-		-given cell doesn't exist on this process
-		-given cell has children
-		-given cell's refinement level is 0
+		- given cell doesn't exist on this process
+		- given cell has children
+		- given cell's refinement level is 0
 	*/
 	void dont_unrefine(const uint64_t cell)
 	{
@@ -2383,9 +2419,11 @@ public:
 
 
 	/*!
-	Returns the indices corresponding to the given neighborhood (with given neighbor size in indices) at given indices.
+	Returns the indices corresponding to the given neighborhood at given indices.
 
-	If grid is not periodic those indices will be error_indices that would fall outside of the grid.
+	Neighborhood is returned in units of size_in_indices.
+	If grid is not periodic in some direction then indices which would fall outside
+	of the grid in that direction are returned as error_index.
 	*/
 	std::vector<Types<3>::indices_t> indices_from_neighborhood(
 		const Types<3>::indices_t indices,
@@ -2498,10 +2536,10 @@ public:
 	Uses given neighborhood when searching for neighbors.
 	max_diff is the distance to search in refinement level from given cell inclusive.
 	Returns nothing if the following cases:
-		-given cell has children
-		-given doesn't exist
-	TODO: make private?
+		- given cell has children
+		- given doesn't exist
 	*/
+	// TODO: make private?
 	std::vector<uint64_t> find_neighbors_of(
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood,
@@ -2695,12 +2733,11 @@ public:
 	Returns cells (which don't have children) that consider given cell as a neighbor.
 
 	Returns nothing if the following cases:
-		-given cell has children
-		-given cell doesn't exist on any process
-	Doesn't use existing neighbor lists and hence is slow but works if for example given cell was moved to another process by load balancing.
-	Returned cells might not be in any particular order.
-	Assumes a maximum refinement level difference of one between neighbors (both cases: neighbors_of, neighbors_to).
-	Find cells from given neighborhood.
+		- given cell has children
+		- given cell doesn't exist on any process
+	Returned cells are not in any particular order.
+	Assumes a maximum refinement level difference of one between neighbors
+	(both cases: neighbors_of, neighbors_to).
 	*/
 	std::vector<uint64_t> find_neighbors_to(
 		const uint64_t cell,
@@ -2834,14 +2871,15 @@ public:
 
 
 	/*!
-	As find_neighbors_to(cell) but uses the given neighbors_of list of given cell for finding small
-	enough neighbors_to of that cell.
+	As find_neighbors_to(cell) but uses the given neighbors_of list.
+
+	Given list is assumed to have all neighbors_to of given cell that are
+	as large or smaller than given cell.
 	*/
 	std::vector<uint64_t> find_neighbors_to(
 		const uint64_t cell,
 		const std::vector<uint64_t>& found_neighbors_of
-	) const
-	{
+	) const {
 		std::vector<uint64_t> return_neighbors;
 
 		if (cell == 0
@@ -3049,8 +3087,13 @@ public:
 	/*!
 	Sets the given option for non-hierarchial partitioning.
 
-	Does nothing if option name is one of: RETURN_LISTS, EDGE_WEIGHT_DIM, NUM_GID_ENTRIES, OBJ_WEIGHT_DIM
-	Call this with name = LB_METHOD and value = HIER to use hierarchial partitioning and set those options using the other function with this name.
+	Does nothing if option name is one of:
+		- RETURN_LISTS
+		- EDGE_WEIGHT_DIM
+		- NUM_GID_ENTRIES
+		- OBJ_WEIGHT_DIM
+	Call this with name = LB_METHOD and value = HIER to use hierarchial
+	partitioning and set those options using the other function with this name.
 	*/
 	void set_partitioning_option(const std::string name, const std::string value)
 	{
@@ -3066,7 +3109,7 @@ public:
 
 
 	/*!
-	Adds a new level for hierarchial partitioning, with each part of that level having given number of processes.
+	Adds a new level for hierarchial partitioning with each part having given number of processes.
 
 	Assigns default partitioning options for the added level.
 	Does nothing if processes_per_part < 1.
@@ -3113,8 +3156,8 @@ public:
 
 	Level numbering starts from 0.
 	Does nothing in the following cases:
-		option name is one of: RETURN_LISTS, ...;
-		given level doesn't exist
+		- option name is one of: RETURN_LISTS, ...
+		- given level doesn't exist
 	*/
 	void add_partitioning_option(const int hierarchial_partitioning_level, const std::string name, const std::string value)
 	{
@@ -3226,10 +3269,10 @@ public:
 	Given cell is sent to the given process and kept there during subsequent load balancing.
 
 	Does nothing in the following cases:
-		-given cell doesn't exist
-		-given cell exists on another process
-		-given cell has children
-		-given process doesn't exist
+		- given cell doesn't exist
+		- given cell exists on another process
+		- given cell has children
+		- given process doesn't exist
 	*/
 	void pin(const uint64_t cell, const int process)
 	{
@@ -3262,9 +3305,9 @@ public:
 	Allows the given cell to be moved to another process during subsequent load balancing.
 
 	Does nothing in the following cases:
-		-given cell has children
-		-given cell doesn't exist
-		-given cell exists on another process
+		- given cell has children
+		- given cell doesn't exist
+		- given cell exists on another process
 	*/
 	void unpin(const uint64_t cell)
 	{
@@ -3590,14 +3633,13 @@ public:
 
 
 	/*!
-	Not implemented yet.
 	Adds a new neighborhood for remote neighbor updates.
 
 	Must be called with identical parameters on all processes.
 	No neighborhood_item_t should have all offsets equal to 0.
 	Returns true on success and false in any of the following cases:
-	-given id already exists, use remove_remote_... before calling this
-	-(part of) given neighborhood is outside of initial neighborhood size
+		- given id already exists, use remove_remote_... before calling this
+		- (part of) given neighborhood is outside of initial neighborhood size
 
 	Use this to reduce data transfers between processes when the full
 	neighborhood doesn't have to be used.
@@ -4768,8 +4810,8 @@ private:
 	Updates neighbor and neighbor_to lists around given cell's neighborhood.
 
 	Does nothing in the following cases:
-		-given cell doesn't exist in the grid
-		-given cell has children
+		- given cell doesn't exist in the grid
+		- given cell has children
 	Assumes that the refinement level difference between given cell and its neighborhood is no larger than 1.
 	*/
 	void update_neighbors(const uint64_t cell)
@@ -4813,8 +4855,8 @@ private:
 	Updates the neighbors and _to of given cell based on given neighborhood.
 
 	Does nothing in the following cases:
-		-given cell doesn't exist in the grid
-		-given cell has children
+		- given cell doesn't exist in the grid
+		- given cell has children
 	Assumes that update_neighbors(cell) has been called prior to this.
 	*/
 	void update_user_neighbors(const uint64_t cell, const int id)
@@ -5102,8 +5144,10 @@ private:
 
 
 	/*!
-	Adds new cells to cells_to_refine in order to enforce maximum refinement level difference of one between neighbors (also across processes).
+	Enforces maximum refinement level difference between neighbors.
 
+	Adds new cells to cells_to_refine in order to enforce maximum refinement
+	level difference of max_ref_lvl_diff between neighbors (also across processes).
 	After this function cells_to_refine will contain the refines of all processes.
 	*/
 	void induce_refines()
@@ -6806,8 +6850,6 @@ private:
 	}
 
 
-	// TODO: Zoltan assumes global ids are integers, which works as long as there are less than 2^32 cells in the grid
-
 	/*!
 	Fills geom_vec with the coordinates of cells given in global_id
 	*/
@@ -6878,11 +6920,20 @@ private:
 
 
 	/*!
-	Writes the number of neighbors into number_of_neighbors for all cells given in global_ids with length number_of_cells
+	Writes the number of neighbors into number_of_neighbors for all cells given in global_ids.
 	*/
-	static void fill_number_of_neighbors_for_cells(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbors, int* error)
-	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+	static void fill_number_of_neighbors_for_cells(
+		void* data,
+		int /*global_id_size*/,
+		int /*local_id_size*/,
+		int number_of_cells,
+		ZOLTAN_ID_PTR global_ids,
+		ZOLTAN_ID_PTR /*local_ids*/,
+		int* number_of_neighbors,
+		int* error
+	) {
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -6911,9 +6962,21 @@ private:
 	/*!
 	Writes neighbor lists of given cells into neighbors, etc.
 	*/
-	static void fill_neighbor_lists(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int* number_of_neighbors, ZOLTAN_ID_PTR neighbors, int* processes_of_neighbors, int number_of_weights_per_edge, float* edge_weights, int* error)
-	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+	static void fill_neighbor_lists(
+		void* data,
+		int /*global_id_size*/,
+		int /*local_id_size*/,
+		int number_of_cells,
+		ZOLTAN_ID_PTR global_ids,
+		ZOLTAN_ID_PTR /*local_ids*/,
+		int* number_of_neighbors,
+		ZOLTAN_ID_PTR neighbors,
+		int* processes_of_neighbors,
+		int number_of_weights_per_edge,
+		float* edge_weights, int* error
+	) {
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbor_number = 0;
@@ -6921,7 +6984,9 @@ private:
 			uint64_t cell = uint64_t(global_ids[i]);
 			if (dccrg_instance->cells.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
-				std::cerr << "Process " << dccrg_instance->rank << ": Zoltan wanted neighbor list of a non-existing cell " << cell << std::endl;
+				std::cerr << "Process " << dccrg_instance->rank
+					<< ": Zoltan wanted neighbor list of a non-existing cell " << cell
+					<< std::endl;
 				return;
 			}
 
@@ -6939,7 +7004,8 @@ private:
 				number_of_neighbors[i]++;
 
 				neighbors[current_neighbor_number] = neighbor;
-				processes_of_neighbors[current_neighbor_number] = dccrg_instance->cell_process.at(neighbor);
+				processes_of_neighbors[current_neighbor_number]
+					= dccrg_instance->cell_process.at(neighbor);
 
 				// weight of edge from cell to *neighbor
 				if (number_of_weights_per_edge > 0) {
@@ -6955,9 +7021,14 @@ private:
 	/*!
 	Writes the number of hyperedges (self + one per neighbor cell) in the grid for all cells on this process.
 	*/
-	static void fill_number_of_hyperedges(void* data, int* number_of_hyperedges, int* number_of_connections, int* format, int* error)
-	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+	static void fill_number_of_hyperedges(
+		void* data,
+		int* number_of_hyperedges,
+		int* number_of_connections,
+		int* format, int* error
+	) {
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = dccrg_instance->cells.size();
@@ -6983,19 +7054,32 @@ private:
 	/*!
 	Writes the hypergraph in compressed edge format
 	*/
-	static void fill_hyperedge_lists(void* data, int /*global_id_size*/, int number_of_hyperedges, int number_of_connections, int format, ZOLTAN_ID_PTR hyperedges, int* hyperedge_connection_offsets, ZOLTAN_ID_PTR connections, int* error)
-	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+	static void fill_hyperedge_lists(
+		void* data,
+		int /*global_id_size*/,
+		int number_of_hyperedges,
+		int number_of_connections,
+		int format,
+		ZOLTAN_ID_PTR hyperedges,
+		int* hyperedge_connection_offsets,
+		ZOLTAN_ID_PTR connections,
+		int* error
+	) {
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
-			std::cerr << "Only compressed edge format supported for hypergraph partitioning" << std::endl;
+			std::cerr << "Only compressed edge format supported for hypergraph partitioning"
+				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
 		}
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
-			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges << " instead of " << dccrg_instance->cells.size() << std::endl;
+			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
+				<< " instead of " << dccrg_instance->cells.size()
+				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
 		}
@@ -7025,7 +7109,8 @@ private:
 		}
 
 		if (connection_number != number_of_connections) {
-			std::cerr << "Zoltan is expecting wrong number of connections from hyperedges: " << number_of_connections
+			std::cerr << "Zoltan is expecting wrong number of connections from hyperedges: "
+				<< number_of_connections
 				<< " instead of " << connection_number
 				<< std::endl;
 			*error = ZOLTAN_FATAL;
@@ -7039,7 +7124,8 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = dccrg_instance->cells.size();
@@ -7050,13 +7136,25 @@ private:
 	/*!
 	Writes hyperedge weights (one per hyperedge) on this process
 	*/
-	static void fill_edge_weights(void* data, int /*global_id_size*/, int /*local_id_size*/, int number_of_hyperedges, int number_of_weights_per_hyperedge, ZOLTAN_ID_PTR hyperedges, ZOLTAN_ID_PTR /*hyperedges_local_ids*/, float* hyperedge_weights, int* error)
-	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+	static void fill_edge_weights(
+		void* data,
+		int /*global_id_size*/,
+		int /*local_id_size*/,
+		int number_of_hyperedges,
+		int number_of_weights_per_hyperedge,
+		ZOLTAN_ID_PTR hyperedges,
+		ZOLTAN_ID_PTR /*hyperedges_local_ids*/,
+		float* hyperedge_weights,
+		int* error
+	) {
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
-			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges << " instead of " << dccrg_instance->cells.size() << std::endl;
+			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
+				<< " instead of " << dccrg_instance->cells.size()
+				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
 		}
@@ -7072,7 +7170,7 @@ private:
 				BOOST_FOREACH(const uint64_t& neighbor, dccrg_instance->neighbors.at(item.first)) {
 					if (neighbor != 0
 					/* Zoltan 3.501 crashes in hierarchial
-					if a cell is a neighbor to itself */
+					if a cell is a neighbor to itself (periodic grid) */
 					&& neighbor != item.first) {
 						number_of_hyperedges++;
 					}
@@ -7091,7 +7189,8 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 		return dccrg_instance->processes_per_part.size();
 	}
@@ -7102,10 +7201,14 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
-			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (should be [0, " << dccrg_instance->processes_per_part.size() - 1 << "]): " << level << std::endl;
+			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (should be [0, "
+				<< dccrg_instance->processes_per_part.size() - 1
+				<< "]): " << level
+				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return -1;
 		} else {
@@ -7135,10 +7238,15 @@ private:
 			return;
 		}
 
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
-			std::cerr << "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and " << dccrg_instance->processes_per_part.size() - 1 << " inclusive): " << level << std::endl;
+			std::cerr
+				<< "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and "
+				<< dccrg_instance->processes_per_part.size() - 1
+				<< " inclusive): " << level
+				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
 		} else {
@@ -7192,14 +7300,22 @@ private:
 		All_Gather()(local_processes, all_processes, this->comm);
 
 		for (uint64_t process = 0; process < this->comm_size; process++) {
-			if (!std::equal(all_cells[process].begin(), all_cells[process].end(), all_cells[0].begin())) {
+			if (!std::equal(
+				all_cells[process].begin(),
+				all_cells[process].end(),
+				all_cells[0].begin()
+			)) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Grid has different cells between processes 0 and " << process
 					<< std::endl;
 				return false;
 			}
 
-			if (!std::equal(all_processes[process].begin(), all_processes[process].end(), all_processes[0].begin())) {
+			if (!std::equal(
+				all_processes[process].begin(),
+				all_processes[process].end(),
+				all_processes[0].begin()
+			)) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Grid's cells have different processes between processes 0 and " << process
 					<< std::endl;
@@ -7438,8 +7554,15 @@ private:
 			return true;
 		}
 
-		std::vector<uint64_t> all_neighbors(this->neighbors.at(cell).begin(), this->neighbors.at(cell).end());
-		all_neighbors.insert(all_neighbors.end(), this->neighbors_to.at(cell).begin(), this->neighbors_to.at(cell).end());
+		std::vector<uint64_t> all_neighbors(
+			this->neighbors.at(cell).begin(),
+			this->neighbors.at(cell).end()
+		);
+		all_neighbors.insert(
+			all_neighbors.end(),
+			this->neighbors_to.at(cell).begin(),
+			this->neighbors_to.at(cell).end()
+		);
 
 		BOOST_FOREACH(const uint64_t& neighbor, all_neighbors) {
 
@@ -7474,7 +7597,8 @@ private:
 	/*!
 	Returns false if remote neighbor info on this process is inconsistent.
 
-	Remote neighbor info consists of cells_with_remote_neighbors and remote_cells_with_local_neighbors.
+	Remote neighbor info consists of cells_with_remote_neighbors
+	and remote_cells_with_local_neighbors.
 	*/
 	bool verify_remote_neighbor_info()
 	{

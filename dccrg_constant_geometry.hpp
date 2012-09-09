@@ -45,8 +45,8 @@ public:
 
 	/*!
 	Creates and sets the geometry of the grid to the following:
-		-starting corner at (0, 0, 0)
-		-size of unrefined cells in each direction: 1
+		- starting corner at (0, 0, 0)
+		- size of unrefined cells in each direction: 1
 	*/
 	ConstantGeometry()
 	{
@@ -61,8 +61,8 @@ public:
 
 	/*!
 	Sets the geometry of the grid to the following:
-		-starting corner at (0, 0, 0)
-		-size of unrefined cells in each direction: 1
+		- starting corner at (0, 0, 0)
+		- size of unrefined cells in each direction: 1
 	*/
 	~ConstantGeometry()
 	{
@@ -79,12 +79,10 @@ public:
 	/*!
 	Sets the grid's geometry to given values.
 
-	x, y and z_length set the number of unrefined cells in the grid in x, y and z direction.
-
-	x, y and z_start set the starting corner of the grid, e.g. the first face
-	of the first unrefined cell(s) in x, y  and z direction.
-
-	x, y and z_size set the size of unrefined cell in x, y and z direction.
+	- x, y and z_length set the number of unrefined cells in the grid in x, y and z direction.
+	- x, y and z_start set the starting corner of the grid, e.g. the first face
+	  of the first unrefined cell(s) in x, y  and z direction.
+	- x, y and z_size set the size of unrefined cell in x, y and z direction.
 
 	Returns true on success and false otherwise.
 	*/
@@ -103,19 +101,22 @@ public:
 		this->z_start = given_z_start;
 
 		if (given_cell_x_size <= 0) {
-			std::cerr << "Cell size in x direction must be > 0, but is " << given_cell_x_size << std::endl;
+			std::cerr << "Cell size in x direction must be > 0, but is " << given_cell_x_size
+				<< std::endl;
 			return false;
 		}
 		this->cell_x_size = given_cell_x_size;
 
 		if (given_cell_y_size <= 0) {
-			std::cerr << "Cell size in y direction must be > 0, but is " << given_cell_y_size << std::endl;
+			std::cerr << "Cell size in y direction must be > 0, but is " << given_cell_y_size
+				<< std::endl;
 			return false;
 		}
 		this->cell_y_size = given_cell_y_size;
 
 		if (given_cell_z_size <= 0) {
-			std::cerr << "Cell size in z direction must be > 0, but is " << given_cell_z_size << std::endl;
+			std::cerr << "Cell size in z direction must be > 0, but is " << given_cell_z_size
+				<< std::endl;
 			return false;
 		}
 		this->cell_z_size = given_cell_z_size;
