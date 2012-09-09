@@ -1204,6 +1204,73 @@ public:
 		return return_cells;
 	}
 
+	/*!
+	Returns local cells without remote neighbors for given cell neighborhood.
+
+	Returns nothing if given neighborhood doesn't exist.
+	*/
+	std::vector<uint64_t> get_cells_with_local_neighbors(const int neighborhood_id) const
+	{
+		std::vector<uint64_t> return_cells;
+
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
+			return return_cells;
+		}
+
+		return_cells.reserve(this->cells.size());
+
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+
+			const uint64_t
+				cell = item.first,
+				child = this->get_child(cell);
+
+			if (child != cell) {
+				continue;
+			}
+
+			#ifdef DEBUG
+			if (child == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid child for cell " << cell
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No neighbors for cell " << cell
+					<< " in neighborhood " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			bool has_remote_neighbor = false;
+
+			BOOST_FOREACH(
+				const uint64_t neighbor,
+				this->user_neigh_of.at(neighborhood_id).at(cell)
+			) {
+
+				if (neighbor == error_cell) {
+					continue;
+				}
+
+				if (this->cell_process.at(neighbor) != this->rank) {
+					has_remote_neighbor = true;
+					break;
+				}
+			}
+
+			if (!has_remote_neighbor) {
+				return_cells.push_back(cell);
+			}
+		}
+
+		return return_cells;
+	}
+
 
 	/*!
 	Returns local cells with at least one remote neighbor.
@@ -1243,6 +1310,72 @@ public:
 
 			if (has_remote_neighbor) {
 				return_cells.push_back(item.first);
+			}
+		}
+
+		return return_cells;
+	}
+
+	/*!
+	Returns local cells with at least one remote neighbor in given cell neighborhood
+
+	Returns nothing if given neighborhood doesn't exist.
+	*/
+	std::vector<uint64_t> get_cells_with_remote_neighbor(const int neighborhood_id) const
+	{
+		std::vector<uint64_t> return_cells;
+
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
+			return return_cells;
+		}
+
+		return_cells.reserve(this->cells.size());
+
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+
+			const uint64_t
+				cell = item.first,
+				child = this->get_child(cell);
+
+			if (child != cell) {
+				continue;
+			}
+
+			#ifdef DEBUG
+			if (child == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid child for cell " << cell
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No neighbors for cell " << cell
+					<< " in neighborhood " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			bool has_remote_neighbor = false;
+
+			BOOST_FOREACH(
+				const uint64_t& neighbor,
+				this->user_neigh_of.at(neighborhood_id).at(cell)
+			) {
+				if (neighbor == error_cell) {
+					continue;
+				}
+
+				if (this->cell_process.at(neighbor) != this->rank) {
+					has_remote_neighbor = true;
+					break;
+				}
+			}
+
+			if (has_remote_neighbor) {
+				return_cells.push_back(cell);
 			}
 		}
 
