@@ -64,7 +64,9 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #include "algorithm"
 #include "boost/array.hpp"
 #include "boost/foreach.hpp"
+#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 #include "boost/mpi.hpp"
+#endif
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
 #include "cassert"
