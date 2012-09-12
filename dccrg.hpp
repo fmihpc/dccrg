@@ -6210,32 +6210,18 @@ private:
 
 
 	/*!
-	Allocates incoming cell data
+	Default constructs local copy of the data of remote neighbor cells.
 
-	Use this function before functions receiving data of remote cells
-	(like start_user_data_transfers or balance_load) in order
-	to modify the default constructed incoming cells before they start
-	receiving data from other processes.
+	Use this function to modify the default constructed incoming cells
+	before they start receiving data from other processes.
 
 	For example if the default constructed version of cell data class
 	doesn't return a correct MPI_Datatype when updating remote neighbor
 	data then call this beforehand and use get_remote_neighbors() to
 	get a list of cells which you should change.
-
-	If remote neighbor data should be allocated use true, otherwise
-	false...
 	*/
-	/*void allocate_incoming_cells(const bool allocate_remote_neighbors)
+	void create_copies_of_remote_neighbors()
 	{
-		boost::unordered_map<uint64_t, UserData>& destination;
-
-		if (allocate_remote_neighbors) {
-			destination = this->remote_neighbors;
-		} else {
-			destination = this->cells;
-		}
-
-		#ifdef DCCRG_SEND_SINGLE_CELLS
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender = this->cells_to_receive.begin();
 			sender != this->cells_to_receive.end();
@@ -6246,11 +6232,11 @@ private:
 				item != sender->second.end();
 				item++
 			) {
-				destination[item->first];
+				const uint64_t cell = item->first;
+				this->remote_neighbors[cell];
 			}
 		}
-		...
-	}*/
+	}
 
 
 	/*!
@@ -6276,14 +6262,14 @@ private:
 
 		// post all receives, messages are unique between different senders so just iterate over processes in random order
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			//sender = this->cells_to_receive.begin();
-			//sender != this->cells_to_receive.end();
 			sender = receive_item.begin();
 			sender != receive_item.end();
 			sender++
 		) {
+			const int process = sender->first;
+
 			#ifdef DEBUG
-			if (sender->first == (int) this->rank
+			if (process == (int) this->rank
 			&& sender->second.size() > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
@@ -6298,17 +6284,23 @@ private:
 				item != sender->second.end();
 				item++
 			) {
+				const uint64_t cell = item->first;
+
+				if (destination.count(cell) == 0) {
+					destination[cell];
+				}
+
 				// TODO: preallocate MPI_Requests?
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-				this->receive_requests[sender->first].push_back(MPI_Request());
+				this->receive_requests[process].push_back(MPI_Request());
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Datatype user_datatype = destination[item->first].mpi_datatype();
+				MPI_Datatype user_datatype = destination.at(cell).mpi_datatype();
 				MPI_Type_commit(&user_datatype);
 				#endif
 
 				MPI_Irecv(
-					destination[item->first].at(),
+					destination.at(cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
 					user_datatype,
@@ -6316,10 +6308,10 @@ private:
 					UserData::size(),
 					MPI_BYTE,
 					#endif
-					sender->first,
+					process,
 					item->second,
 					this->comm,
-					&(this->receive_requests[sender->first].back())
+					&(this->receive_requests[process].back())
 				);
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
@@ -6328,11 +6320,11 @@ private:
 
 				#else // ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
-				this->receive_requests[sender->first].push_back(
+				this->receive_requests[process].push_back(
 					this->boost_comm.irecv(
-						sender->first,
+						process,
 						item->second,
-						destination[item->first]
+						destination.at(cell)
 					)
 				);
 				#endif
@@ -6341,14 +6333,14 @@ private:
 
 		// post all sends
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			//receiver = this->cells_to_send.begin();
-			//receiver != this->cells_to_send.end();
 			receiver = send_item.begin();
 			receiver != send_item.end();
 			receiver++
 		) {
+			const int process = receiver->first;
+
 			#ifdef DEBUG
-			if (receiver->first == (int) this->rank
+			if (process == (int) this->rank
 			&& receiver->second.size() > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
 				abort();
@@ -6360,17 +6352,19 @@ private:
 				item != receiver->second.end();
 				item++
 			) {
+				const uint64_t cell = item->first;
+
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
-				this->send_requests[receiver->first].push_back(MPI_Request());
+				this->send_requests[process].push_back(MPI_Request());
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Datatype user_datatype = this->cells.at(item->first).mpi_datatype();
+				MPI_Datatype user_datatype = this->cells.at(cell).mpi_datatype();
 				MPI_Type_commit(&user_datatype);
 				#endif
 
 				// FIXME: check the return value
 				MPI_Isend(
-					this->cells.at(item->first).at(),
+					this->cells.at(cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
 					user_datatype,
@@ -6378,10 +6372,10 @@ private:
 					UserData::size(),
 					MPI_BYTE,
 					#endif
-					receiver->first,
+					process,
 					item->second,
 					this->comm,
-					&(this->send_requests[receiver->first].back())
+					&(this->send_requests[process].back())
 				);
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
@@ -6390,11 +6384,11 @@ private:
 
 				#else
 
-				this->send_requests[receiver->first].push_back(
+				this->send_requests[process].push_back(
 					this->boost_comm.isend(
-						receiver->first,
+						process,
 						item->second,
-						this->cells.at(item->first)
+						this->cells.at(cell)
 					)
 				);
 				#endif
@@ -6418,7 +6412,9 @@ private:
 
 			// reserve space for incoming user data at our end
 			for (uint64_t i = 0; i < sender->second.size(); i++) {
-				destination[sender->second[i]];
+				if (destination.count(sender->second[i]) == 0) {
+					destination[sender->second[i]];
+				}
 			}
 
 			// get displacements in bytes for incoming user data
