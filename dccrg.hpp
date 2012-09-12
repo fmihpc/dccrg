@@ -6401,8 +6401,6 @@ private:
 		#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 		// receive one MPI datatype per process
 		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			//sender = this->cells_to_receive.begin();
-			//sender != this->cells_to_receive.end();
 			sender = receive_item.begin();
 			sender != receive_item.end();
 			sender++
@@ -6420,7 +6418,9 @@ private:
 			// get displacements in bytes for incoming user data
 			std::vector<MPI_Aint> displacements(sender->second.size(), 0);
 			for (uint64_t i = 0; i < sender->second.size(); i++) {
-				displacements[i] = (uint8_t*) destination.at(sender->second[i]).at() - (uint8_t*) destination.at(sender->second[0]).at();
+				displacements[i]
+					= (uint8_t*) destination.at(sender->second[i]).at()
+					- (uint8_t*) destination.at(sender->second[0]).at();
 			}
 
 			MPI_Datatype receive_datatype;
@@ -6484,8 +6484,6 @@ private:
 
 		// send one MPI datatype per process
 		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			//receiver = this->cells_to_send.begin();
-			//receiver != this->cells_to_send.end();
 			receiver = send_item.begin();
 			receiver != send_item.end();
 			receiver++
@@ -6495,7 +6493,9 @@ private:
 			// get displacements in bytes for outgoing user data
 			std::vector<MPI_Aint> displacements(receiver->second.size(), 0);
 			for (uint64_t i = 0; i < receiver->second.size(); i++) {
-				displacements[i] = (uint8_t*) this->cells.at(receiver->second[i]).at() - (uint8_t*) this->cells.at(receiver->second[0]).at();
+				displacements[i]
+					= (uint8_t*) this->cells.at(receiver->second[i]).at()
+					- (uint8_t*) this->cells.at(receiver->second[0]).at();
 			}
 
 			MPI_Datatype send_datatype;
