@@ -1889,6 +1889,9 @@ public:
 	the neighbors of a cell of refinement level 0 at indices (2, 2, 2) could
 	be in the following order: (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0),
 	rest of refined cells..., (2, 0, 0), (3, 0, 0), (0, 2, 0), (2, 2, 0), ...
+
+	Offset (0, 0, 0) is skipped in all neighbor lists, so with a neighborhood
+	size of 2 the minimum length of neighbors lists is 124 and not 5^3 = 125.
 	*/
 	const std::vector<uint64_t>* get_neighbors(const uint64_t cell) const
 	{
