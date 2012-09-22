@@ -1487,14 +1487,32 @@ public:
 	*/
 	bool load(const std::vector<uint64_t>& given_cells)
 	{
+		// get the global maximum refinement level of cells to be loaded
 		boost::unordered_set<uint64_t> overlapping
 			= this->get_cells_overlapping_local(given_cells);
 
-		int max_ref_lvl_of_overlapping = 0;
+		int local_max_ref_lvl_of_overlapping = 0;
 		BOOST_FOREACH(const uint64_t cell, overlapping) {
 			const int refinement_level = this->get_refinement_level(cell);
-			max_ref_lvl_of_overlapping
-				= std::max(refinement_level, max_ref_lvl_of_overlapping);
+			local_max_ref_lvl_of_overlapping
+				= std::max(refinement_level, local_max_ref_lvl_of_overlapping);
+		}
+
+		int max_ref_lvl_of_overlapping = 0, result;
+		result = MPI_Allreduce(
+			&local_max_ref_lvl_of_overlapping,
+			&max_ref_lvl_of_overlapping,
+			1,
+			MPI_INT,
+			MPI_MAX,
+			this->comm
+		);
+
+		if (result != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "MPI_Allreduce failed: " << Error_String()(result)
+				<< std::endl;
+			abort();
 		}
 
 		/*
@@ -1503,6 +1521,7 @@ public:
 		*/
 		std::vector<boost::unordered_set<uint64_t> > cells_and_parents(max_ref_lvl_of_overlapping);
 
+		// refine local cells recursively until all given_cells are created
 		BOOST_FOREACH(const uint64_t cell, overlapping) {
 			uint64_t current_child = cell;
 			const int refinement_level = this->get_refinement_level(current_child);
