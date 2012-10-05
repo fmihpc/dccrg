@@ -6475,12 +6475,8 @@ private:
 			MPI_Type_free(&receive_datatype);
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
 			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-				if (MPI_Type_free(&type) != MPI_SUCCESS) {
-					std::cout << __FILE__ << ":" << __LINE__
-						<< "Couldn't free MPI_Datatype"
-						<< std::endl;
-						abort();
-				}
+				// don't check the return value, can fail if given MPI_INT, etc.
+				MPI_Type_free(&type);
 			}
 			#endif
 		}
@@ -6550,12 +6546,8 @@ private:
 			MPI_Type_free(&send_datatype);
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
 			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-				if (MPI_Type_free(&type) != MPI_SUCCESS) {
-					std::cout << __FILE__ << ":" << __LINE__
-						<< "Couldn't free MPI_Datatype"
-						<< std::endl;
-						abort();
-				}
+				// don't check the return value, can fail if given MPI_INT, etc.
+				MPI_Type_free(&type);
 			}
 			#endif
 		}
