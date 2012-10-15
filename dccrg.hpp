@@ -3580,14 +3580,47 @@ public:
 	}
 
 	/*!
+	Returns a pointer to the set of local cells which have at least one neighbor
+	on another process with given neighborhood id.
+
+	Returns NULL if neighborhood with given id hasn't been set.
+	*/
+	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbors(const int id) const
+	{
+		if (this->user_cells_with_remote_neighbors.count(id) == 0) {
+			return NULL;
+		} else {
+			return &(this->user_cells_with_remote_neighbors.at(id));
+		}
+	}
+
+	/*!
 	Returns a vector of local cells which have at least one neighbor on another process.
 	*/
 	std::vector<uint64_t> get_list_of_cells_with_remote_neighbors() const
 	{
-		std::vector<uint64_t> result(
+		const std::vector<uint64_t> result(
 			this->cells_with_remote_neighbors.begin(),
 			this->cells_with_remote_neighbors.end()
 		);
+		return result;
+	}
+
+	/*!
+	Returns a vector of local cells which have at least one neighbor on another process
+	with given neighborhood.
+
+	Returns nothing if neighborhood with given id hasn't been set.
+	*/
+	std::vector<uint64_t> get_list_of_cells_with_remote_neighbors(const int id) const
+	{
+		std::vector<uint64_t> result;
+		if (this->user_cells_with_remote_neighbors.count(id) > 0) {
+			result.insert(result.end(),
+				this->user_cells_with_remote_neighbors.at(id).begin(),
+				this->user_cells_with_remote_neighbors.at(id).end()
+			);
+		}
 		return result;
 	}
 
@@ -3600,14 +3633,45 @@ public:
 	}
 
 	/*!
-	See get_remote_neighbors().
+	Returns a pointer to the set of remote cells which have at least one local neighbor
+	with given neighborhood id.
+
+	Returns NULL if neighborhood with given id hasn't been set.
+	*/
+	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbors(const int id) const
+	{
+		if (this->user_remote_cells_with_local_neighbors.count(id) == 0) {
+			return NULL;
+		} else {
+			return &(this->user_remote_cells_with_local_neighbors.at(id));
+		}
+	}
+
+	/*!
+	See get_remote_cells_with_local_neighbors().
 	*/
 	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors() const
 	{
-		std::vector<uint64_t> result(
+		const std::vector<uint64_t> result(
 			this->remote_cells_with_local_neighbors.begin(),
 			this->remote_cells_with_local_neighbors.end()
 		);
+		return result;
+	}
+
+	/*!
+	See get_remote_cells_with_local_neighbors(const int id).
+	*/
+	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors(const int id) const
+	{
+		std::vector<uint64_t> result;
+		if (this->user_remote_cells_with_local_neighbors.count(id) > 0) {
+			result.insert(
+				result.end(),
+				this->user_remote_cells_with_local_neighbors.at(id).begin(),
+				this->user_remote_cells_with_local_neighbors.at(id).end()
+			);
+		}
 		return result;
 	}
 
@@ -4033,6 +4097,14 @@ private:
 	// cells on other processes that have a neighbor on this process or are considered as a neighbor of a cell on this process
 	boost::unordered_set<uint64_t> remote_cells_with_local_neighbors;
 
+	/*
+	User defined versions of cells_with_remote_neighbors and remote_cells_with_local_neighbors
+	*/
+	boost::unordered_map<
+		int, // user defined id of neighbor lists
+		boost::unordered_set<uint64_t>
+	> user_cells_with_remote_neighbors, user_remote_cells_with_local_neighbors;
+
 	// remote neighbors and their data, of cells on this process
 	boost::unordered_map<uint64_t, UserData> remote_neighbors;
 
@@ -4284,6 +4356,14 @@ private:
 		}
 
 		this->update_remote_neighbor_info();
+		// also remote neighbor info of user neighborhoods
+		for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+			item = this->user_hood_of.begin();
+			item != this->user_hood_of.end();
+			item++
+		) {
+			this->update_user_remote_neighbor_info(item->first);
+		}
 
 		this->recalculate_neighbor_update_send_receive_lists();
 
@@ -5138,6 +5218,121 @@ private:
 		#endif
 	}
 
+	/*!
+	Updates the remote neighbor info of given cell on this process without children.
+
+	Uses current neighbor lists of neighborhood with given id.
+	Does nothing if given cell doesn't exist on this process or has children.
+	*/
+	void update_user_remote_neighbor_info(const uint64_t cell, const int id)
+	{
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_of.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No user neighborhood with id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_hood_to.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No user neighborhood to with id " << id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << id
+				<< " in neighbor lists"
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.at(id).count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighbor list with neighborhood id " << id
+				<< " for cell " << cell
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << id
+				<< " in neighbor_to lists"
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.at(id).count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighbor_to list with neighborhood id " << id
+				<< " for cell " << cell
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		this->user_cells_with_remote_neighbors.at(id).erase(cell);
+
+		// neighbors of given cell
+		BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(id).at(cell)) {
+
+			if (neighbor == 0) {
+				continue;
+			}
+
+			#ifdef DEBUG
+			if (this->cell_process.count(neighbor) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor " << neighbor
+					<< " doesn't exist in cell_process"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			if (this->cell_process.at(neighbor) != this->rank) {
+				this->user_cells_with_remote_neighbors.at(id).insert(cell);
+				this->user_remote_cells_with_local_neighbors.at(id).insert(neighbor);
+			}
+		}
+		// cells with given cell as neighbor
+		BOOST_FOREACH(const uint64_t& neighbor_to, this->user_neigh_to.at(id).at(cell)) {
+
+			#ifdef DEBUG
+			if (this->cell_process.count(neighbor_to) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Neighbor_to " << neighbor_to
+					<< " doesn't exist in cell_process"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			if (this->cell_process.at(neighbor_to) != this->rank) {
+				this->user_cells_with_remote_neighbors.at(id).insert(cell);
+				this->user_remote_cells_with_local_neighbors.at(id).insert(neighbor_to);
+			}
+		}
+
+		#ifdef DEBUG
+		if (!this->verify_remote_neighbor_info(cell)) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info for cell " << cell << " is not consistent" << std::endl;
+			abort();
+		}
+		#endif
+	}
+
 
 	/*!
 	Updates the remote neighbor info of all cells on this process without children.
@@ -5157,6 +5352,45 @@ private:
 			}
 
 			this->update_remote_neighbor_info(item.first);
+
+			#ifdef DEBUG
+			if (!this->verify_remote_neighbor_info(item.first)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Remote neighbor info for cell " << item.first
+					<< " is not consistent"
+					<< std::endl;
+				abort();
+			}
+			#endif
+		}
+
+		#ifdef DEBUG
+		if (!this->verify_remote_neighbor_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
+			abort();
+		}
+		#endif
+	}
+
+	/*!
+	Updates the remote neighbor info of all cells on this process without children.
+
+	Uses current neighbor lists of neighborhood with given id.
+	*/
+	void update_user_remote_neighbor_info(const int id)
+	{
+		this->user_cells_with_remote_neighbors[id].clear();
+		this->user_remote_cells_with_local_neighbors[id].clear();
+
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+
+			if (item.first != this->get_child(item.first)) {
+				continue;
+			}
+
+			this->update_user_remote_neighbor_info(item.first, id);
 
 			#ifdef DEBUG
 			if (!this->verify_remote_neighbor_info(item.first)) {
@@ -6191,6 +6425,14 @@ private:
 		}
 
 		this->update_remote_neighbor_info();
+		// also remote neighbor info of user neighborhoods
+		for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
+			item = this->user_hood_of.begin();
+			item != this->user_hood_of.end();
+			item++
+		) {
+			this->update_user_remote_neighbor_info(item->first);
+		}
 
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
