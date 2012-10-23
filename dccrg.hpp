@@ -3971,14 +3971,14 @@ public:
 
 		// set user_hood_of and _to
 		this->user_hood_of[id] = given_neigh;
-		this->user_hood_to[id];
+		this->user_hood_to[id].clear();
 		BOOST_FOREACH(const Types<3>::neighborhood_item_t& neigh_item, given_neigh) {
 			const Types<3>::neighborhood_item_t neigh_item_to = {{
 				-neigh_item[0],
 				-neigh_item[1],
 				-neigh_item[2]
 			}};
-			this->user_hood_to[id].push_back(neigh_item_to);
+			this->user_hood_to.at(id).push_back(neigh_item_to);
 		}
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
@@ -5310,6 +5310,13 @@ private:
 		BOOST_FOREACH(const uint64_t& neighbor_to, this->user_neigh_to.at(id).at(cell)) {
 
 			#ifdef DEBUG
+			if (neighbor_to == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid cell in neighbor_to list of cell " << cell
+					<< std::endl;
+				abort();
+			}
+
 			if (this->cell_process.count(neighbor_to) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor_to " << neighbor_to
