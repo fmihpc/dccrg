@@ -24,6 +24,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "boost/foreach.hpp"
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
+#include "climits"
 #include "cstdlib"
 #include "iostream"
 #include "mpi.h"
@@ -77,7 +78,18 @@ public:
 		}
 
 		std::vector<int> send_counts(comm_size, -1);
-		uint64_t send_count = values.size();
+
+		// TODO: make send_count uint64_t when they can be given to MPI_Allgatherv
+		int send_count = 0;
+		if (values.size() > INT_MAX) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Tried to send more values than INT_MAX."
+				<< std::endl;
+			abort();
+		} else {
+			send_count = values.size();
+		}
+
 		if (
 			MPI_Allgather(
 				&send_count,
@@ -93,6 +105,24 @@ public:
 			abort();
 		}
 
+		#ifdef DEBUG
+		// check that own value is correct
+		int rank;
+		if (MPI_Comm_rank(comm, &rank) != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+
+		if (send_counts[rank] != send_count) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " incorrect send count returned for self from "
+				<< "MPI_Allgather: " << send_counts[rank]
+				<< ", should be " << send_count
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// calculate displacements for MPI_Allgatherv
 		std::vector<int> displacements(comm_size, 0);
 		for (size_t i = 1; i < send_counts.size(); i++) {
@@ -107,10 +137,19 @@ public:
 
 		std::vector<uint64_t> temp_result(total_send_count, -1);
 
+		// give a sane address to gatherv also when nothing to send
+		// TODO: Use the data member of vector class, requires C++11
+		// TODO: make address const when MPI is const correct
+		uint64_t variable_that_exists = 0;
+		uint64_t* sane_address = &variable_that_exists;
+		if (values.size() > 0) {
+			sane_address = &(values[0]);
+		}
+
 		// gather
 		if (
 			MPI_Allgatherv(
-				&(values[0]),
+				sane_address,
 				values.size(),
 				MPI_UINT64_T,
 				&(temp_result[0]),

@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 	for (size_t i = 0; i < result.size(); i++) {
 		for (size_t j = 0; j < result[i].size(); j++) {
 			if (result[i][j] != i + j) {
-				cout << "FAILED: invalid value received from process " << i
+				cerr << "FAILED: invalid value received from process " << i
 					<< " at index " << j
 					<< ": " << result[i][j]
 					<< ", should be " << i + j
@@ -46,6 +46,41 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
+
+	cout.flush();
+	MPI_Barrier(world);
+
+	/*
+	First process doesn't send any value
+	*/
+	if (rank == 0) {
+		values.clear();
+	}
+
+	result.clear();
+	dccrg::All_Gather()(values, result, world);
+
+	if (result[0].size() > 0) {
+		cout << "FAILED: rank 0 should have no values" << endl;
+		abort();
+	}
+
+	// chech the result
+	for (size_t i = 0; i < result.size(); i++) {
+		for (size_t j = 0; j < result[i].size(); j++) {
+			if (result[i][j] != i + j) {
+				cerr << "FAILED: invalid value received from process " << i
+					<< " at index " << j
+					<< ": " << result[i][j]
+					<< ", should be " << i + j
+					<< endl;
+				abort();
+			}
+		}
+	}
+
+	cout.flush();
+	MPI_Barrier(world);
 
 	if (rank == 0) {
 		cout << "PASSED" << endl;
