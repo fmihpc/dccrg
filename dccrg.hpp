@@ -1866,6 +1866,44 @@ public:
 	}
 
 	/*!
+	Same as get_number_of_update_send_cells() but for given neighborhood id.
+
+	Returns maximum uint64_t if given a neighborhood id which doesn't exist.
+	*/
+	uint64_t get_number_of_update_send_cells(const int neighborhood_id) const
+	{
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
+			return std::numeric_limits<uint64_t>::max();
+		}
+
+		#ifdef DEBUG
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		uint64_t result = 0;
+		for (
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			#else
+			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
+			#endif
+			receiver_item = this->user_neigh_cells_to_send.at(neighborhood_id).begin();
+			receiver_item != this->user_neigh_cells_to_send.at(neighborhood_id).end();
+			receiver_item++
+		) {
+			result += receiver_item->second.size();
+		}
+
+		return result;
+	}
+
+
+	/*!
 	Returns the number of cells whose data this process has to receive during a neighbor data update.
 	*/
 	uint64_t get_number_of_update_receive_cells() const
@@ -1877,11 +1915,49 @@ public:
 			#else
 			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
 			#endif
-			sender = cells_to_receive.begin();
-			sender != cells_to_receive.end();
+			sender = this->cells_to_receive.begin();
+			sender != this->cells_to_receive.end();
 			sender++
 		) {
 			result += sender->second.size();
+		}
+		return result;
+	}
+
+	/*!
+	Same as get_number_of_update_receive_cells() but for given neighborhood id.
+
+	Returns maximum uint64_t if given a neighborhood id which doesn't exist.
+	*/
+	uint64_t get_number_of_update_receive_cells(const int neighborhood_id) const
+	{
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			return std::numeric_limits<uint64_t>::max();
+		}
+
+		#ifdef DEBUG
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		uint64_t result = 0;
+		for (
+			boost::unordered_map<int, std::vector<
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			std::pair<uint64_t, int>
+			#else
+			uint64_t
+			#endif
+			> >::const_iterator
+			sender_item = this->user_neigh_cells_to_receive.at(neighborhood_id).begin();
+			sender_item != this->user_neigh_cells_to_receive.at(neighborhood_id).end();
+			sender_item++
+		) {
+			result += sender_item->second.size();
 		}
 		return result;
 	}
