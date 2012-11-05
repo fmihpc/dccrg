@@ -184,7 +184,7 @@ public:
 			abort();
 		}
 		if (temp_size < 0) {
-			std::cerr << "Negative MPI comm size not supported" << std::endl;
+			std::cerr << "Negative MPI comm size not supported: " << temp_size << std::endl;
 			abort();
 		}
 		this->comm_size = (uint64_t) temp_size;
@@ -195,7 +195,7 @@ public:
 			abort();
 		}
 		if (temp_rank < 0) {
-			std::cerr << "Negative MPI rank not supported" << std::endl;
+			std::cerr << "Negative MPI rank not supported: " << temp_rank << std::endl;
 			abort();
 		}
 		this->rank = (uint64_t) temp_rank;
@@ -344,7 +344,7 @@ public:
 		#ifndef USE_SFC
 
 		uint64_t cell_to_create = 1;
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (uint64_t process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
 			if (process < procs_with_fewer) {
@@ -361,7 +361,16 @@ public:
 				cell_to_create++;
 			}
 		}
-		assert(cell_to_create == this->grid_length + 1);
+
+		#ifdef DEBUG
+		if (cell_to_create != this->grid_length + 1) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of cells created: " << cell_to_create - 1
+				<< ", should be " << this->grid_length
+				<< std::endl;
+			abort();
+		}
+		#endif
 
 		#else
 
@@ -4900,31 +4909,49 @@ private:
 					<< std::endl;
 				abort();
 			}
+
+			if (this->neighbors.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No neighbor_of list for cell " << cell
+					<< std::endl;
+				abort();
+			}
+
+			if (this->neighbors_to.count(cell) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No neighbor_to list for cell " << cell
+					<< std::endl;
+				abort();
+			}
 			#endif
 
-			uint64_t current_process = this->rank;
+			const int current_process = int(this->rank);
 
 			// data must be received from neighbors_of
 			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
 
-				if (neighbor == 0) {
+				if (neighbor == error_cell) {
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) != current_process) {
-					unique_cells_to_receive[this->cell_process.at(neighbor)].insert(neighbor);
+				const int other_process = int(this->cell_process.at(neighbor));
+
+				if (other_process != current_process) {
+					unique_cells_to_receive[other_process].insert(neighbor);
 				}
 			}
 
 			// data must be sent to neighbors_to
 			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors_to.at(cell)) {
 
-				if (neighbor == 0) {
+				if (neighbor == error_cell) {
 					continue;
 				}
 
-				if (this->cell_process.at(neighbor) != current_process) {
-					unique_cells_to_send[this->cell_process.at(neighbor)].insert(cell);
+				const int other_process = int(this->cell_process.at(neighbor));
+
+				if (other_process != current_process) {
+					unique_cells_to_send[other_process].insert(cell);
 				}
 			}
 		}
@@ -4935,10 +4962,21 @@ private:
 			receiver != unique_cells_to_send.end();
 			receiver++
 		) {
-			this->cells_to_send[receiver->first].reserve(receiver->second.size());
+			const int process = receiver->first;
+
+			#ifdef DEBUG
+			if ((uint64_t) process == this->rank) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << process << " would send to self"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			this->cells_to_send[process].reserve(receiver->second.size());
 
 			BOOST_FOREACH(const uint64_t& cell, receiver->second) {
-				this->cells_to_send[receiver->first].push_back(
+				this->cells_to_send.at(process).push_back(
 					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(cell, -1)
 					#else
@@ -4947,15 +4985,17 @@ private:
 				);
 			}
 
-			std::sort(
-				this->cells_to_send[receiver->first].begin(),
-				this->cells_to_send[receiver->first].end()
-			);
+			if (this->cells_to_send.at(process).size() > 0) {
+				std::sort(
+					this->cells_to_send.at(process).begin(),
+					this->cells_to_send.at(process).end()
+				);
+			}
 
 			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// sequential tags for messages: 1, 2, ...
-			for (unsigned int i = 0; i < this->cells_to_send[receiver->first].size(); i++) {
-				this->cells_to_send[receiver->first][i].second = i + 1;
+			for (size_t i = 0; i < this->cells_to_send.at(process).size(); i++) {
+				this->cells_to_send.at(process)[i].second = i + 1;
 			}
 			#endif
 		}
@@ -4966,11 +5006,21 @@ private:
 			sender != unique_cells_to_receive.end();
 			sender++
 		) {
-			this->cells_to_receive[sender->first].reserve(sender->second.size());
+			const int process = sender->first;
+
+			#ifdef DEBUG
+			if ((uint64_t) process == this->rank) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << process << " would receive from self"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			this->cells_to_receive[process].reserve(sender->second.size());
 
 			BOOST_FOREACH(const uint64_t& cell, sender->second) {
-
-				this->cells_to_receive[sender->first].push_back(
+				this->cells_to_receive.at(process).push_back(
 					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(cell, -1)
 					#else
@@ -4979,15 +5029,17 @@ private:
 				);
 			}
 
-			std::sort(
-				this->cells_to_receive[sender->first].begin(),
-				this->cells_to_receive[sender->first].end()
-			);
+			if (this->cells_to_receive.at(process).size() > 0) {
+				std::sort(
+					this->cells_to_receive.at(process).begin(),
+					this->cells_to_receive.at(process).end()
+				);
+			}
 
 			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// sequential tags for messages: 1, 2, ...
-			for (unsigned int i = 0; i < this->cells_to_receive[sender->first].size(); i++) {
-				this->cells_to_receive[sender->first][i].second = i + 1;
+			for (size_t i = 0; i < this->cells_to_receive.at(process).size(); i++) {
+				this->cells_to_receive.at(process)[i].second = i + 1;
 			}
 			#endif
 		}
@@ -6646,7 +6698,7 @@ private:
 				MPI_Type_commit(&user_datatype);
 				#endif
 
-				MPI_Irecv(
+				const int ret_val = MPI_Irecv(
 					destination.at(cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
@@ -6660,6 +6712,16 @@ private:
 					this->comm,
 					&(this->receive_requests[process].back())
 				);
+
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Irecv failed on process " << this->rank
+						<< ", for cell " << cell
+						<< ", from process " << process
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
 				MPI_Type_free(&user_datatype);
@@ -6709,8 +6771,7 @@ private:
 				MPI_Type_commit(&user_datatype);
 				#endif
 
-				// FIXME: check the return value
-				MPI_Isend(
+				const int ret_val = MPI_Isend(
 					this->cells.at(cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
@@ -6724,6 +6785,16 @@ private:
 					this->comm,
 					&(this->send_requests[process].back())
 				);
+
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Isend failed on process " << this->rank
+						<< ", for cell " << cell
+						<< ", to process " << process
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
 				MPI_Type_free(&user_datatype);
@@ -6806,7 +6877,7 @@ private:
 
 			this->receive_requests[sender->first].push_back(MPI_Request());
 
-			MPI_Irecv(
+			const int ret_val = MPI_Irecv(
 				destination.at(sender->second[0]).at(),
 				1,
 				receive_datatype,
@@ -6815,6 +6886,15 @@ private:
 				this->comm,
 				&(this->receive_requests[sender->first].back())
 			);
+
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " MPI_Irecv failed for process " << this->rank
+					<< ", source process " << sender->first
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				abort();
+			}
 
 			MPI_Type_free(&receive_datatype);
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
@@ -6877,7 +6957,7 @@ private:
 
 			this->send_requests[receiver->first].push_back(MPI_Request());
 
-			MPI_Isend(
+			const int ret_val = MPI_Isend(
 				this->cells.at(receiver->second[0]).at(),
 				1,
 				send_datatype,
@@ -6886,6 +6966,15 @@ private:
 				this->comm,
 				&(this->send_requests[receiver->first].back())
 			);
+
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " MPI_Isend failed from process " << this->rank
+					<< ", target process " << receiver->first
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				abort();
+			}
 
 			MPI_Type_free(&send_datatype);
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
