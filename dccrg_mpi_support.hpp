@@ -135,7 +135,7 @@ public:
 			total_send_count += (uint64_t) send_count;
 		}
 
-		std::vector<uint64_t> temp_result(total_send_count, -1);
+		std::vector<uint64_t> temp_result(total_send_count, std::numeric_limits<uint64_t>::max());
 
 		// give a sane address to gatherv also when nothing to send
 		// TODO: Use the data member of vector class, requires C++11
