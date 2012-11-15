@@ -6873,8 +6873,6 @@ private:
 
 			MPI_Type_commit(&receive_datatype);
 
-			int receive_tag = sender->first * this->comm_size + this->rank;
-
 			this->receive_requests[sender->first].push_back(MPI_Request());
 
 			const int ret_val = MPI_Irecv(
@@ -6882,7 +6880,7 @@ private:
 				1,
 				receive_datatype,
 				sender->first,
-				receive_tag,
+				0,
 				this->comm,
 				&(this->receive_requests[sender->first].back())
 			);
@@ -6953,8 +6951,6 @@ private:
 
 			MPI_Type_commit(&send_datatype);
 
-			int send_tag = this->rank * this->comm_size + receiver->first;
-
 			this->send_requests[receiver->first].push_back(MPI_Request());
 
 			const int ret_val = MPI_Isend(
@@ -6962,7 +6958,7 @@ private:
 				1,
 				send_datatype,
 				receiver->first,
-				send_tag,
+				0,
 				this->comm,
 				&(this->send_requests[receiver->first].back())
 			);
@@ -6999,12 +6995,10 @@ private:
 				continue;
 			}
 
-			int receive_tag = sender * this->comm_size + this->rank;
-
 			this->receive_requests[sender].push_back(
 				this->boost_comm.irecv(
 					sender,
-					receive_tag,
+					0,
 					this->incoming_data[sender]
 				)
 			);
@@ -7044,12 +7038,10 @@ private:
 				continue;
 			}
 
-			int send_tag = this->rank * this->comm_size + receiver;
-
 			this->send_requests[receiver].push_back(
 				this->boost_comm.isend(
 					receiver,
-					send_tag,
+					0,
 					this->outgoing_data[receiver]
 				)
 			);
