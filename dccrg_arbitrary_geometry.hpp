@@ -650,7 +650,7 @@ public:
 	{
 		x = this->get_real_x(x);
 
-		if (isnan(x)
+		if (::isnan(x)
 		|| x < this->get_x_start()
 		|| x > this->get_x_end()) {
 
@@ -687,7 +687,7 @@ public:
 	{
 		y = this->get_real_y(y);
 
-		if (isnan(y)
+		if (::isnan(y)
 		|| y < this->get_y_start()
 		|| y > this->get_y_end()) {
 
@@ -724,7 +724,7 @@ public:
 	{
 		z = this->get_real_z(z);
 
-		if (isnan(z)
+		if (::isnan(z)
 		|| z < this->get_z_start()
 		|| z > this->get_z_end()) {
 
