@@ -1625,7 +1625,7 @@ public:
 	*/
 	void prepare_to_migrate_cells()
 	{
-		this->make_new_partition(true);
+		this->make_new_partition(false);
 		this->prepare_to_move_cells();
 	}
 
