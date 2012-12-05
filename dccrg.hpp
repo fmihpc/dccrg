@@ -4072,6 +4072,8 @@ public:
 
 		this->recalculate_neighbor_update_send_receive_lists(id);
 
+		this->update_user_remote_neighbor_info(id);
+
 		return true;
 	}
 
@@ -4091,6 +4093,8 @@ public:
 		this->user_neigh_to.erase(id);
 		this->user_neigh_cells_to_send.erase(id);
 		this->user_neigh_cells_to_receive.erase(id);
+		this->user_cells_with_remote_neighbors.erase(id);
+		this->user_remote_cells_with_local_neighbors.erase(id);
 	}
 
 
