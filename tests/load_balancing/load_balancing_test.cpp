@@ -187,7 +187,7 @@ int main(int argc, char* argv[])
 		) {
 			grid.pin(*cell, rand() % comm.size());
 		}
-		grid.migrate_cells();
+		grid.balance_load(false);
 		grid.unpin_all_cells();
 
 		// balance the load using given options

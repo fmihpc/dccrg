@@ -1,12 +1,22 @@
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
-all: load_balancing_test
+PROGRAMS = load_balancing_test multi_stage_load_balancing
+
+all: $(PROGRAMS)
 
 load_balancing_test: load_balancing_test.cpp ../../dccrg.hpp ../../dccrg_constant_geometry.hpp Makefile
-	$(CXX) load_balancing_test.cpp $(INCLUDES) -o load_balancing_test
+	$(CXX) $< $(INCLUDES) -o $@
+
+multi_stage_load_balancing: multi_stage_load_balancing.cpp ../../dccrg.hpp ../../dccrg_constant_geometry.hpp Makefile
+	$(CXX) $< $(INCLUDES) -o $@
+
+d: data
+data:
+	rm -f *vtk *visit
 
 c: clean
-clean:
-	rm -f load_balancing_test *vtk *visit
+clean: data
+	rm -f $(PROGRAMS)
+
