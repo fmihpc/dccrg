@@ -117,6 +117,76 @@ public:
 
 
 	/*!
+	Creates an instance of the grid based on another instance of the grid.
+
+	Call this with all processes unless you know what you are doing.
+	Must not be used while the instance being copied is updating remote
+	neighbor data or balancing the load.
+	The UserData class can differ between the two grids but the geometry
+	must be the same.
+	The following data is not included in the new dccrg instance:
+		- refined/unrefined cells and their UserData
+		- cell weights
+		- user data of remote neighbors
+		- everything related to load balancing or remote neighbor updates
+	*/
+	template<class OtherUserData> Dccrg(const Dccrg<OtherUserData>& other) :
+		initialized(other.get_initialized()),
+		neighborhood_size(other.get_neighborhood_size()),
+		max_ref_lvl_diff(other.get_max_ref_lvl_diff()),
+		comm(other.get_comm()),
+		rank(other.get_rank()),
+		comm_size(other.get_comm_size()),
+        #ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+        boost_comm(other.get_boost_comm()),
+        #endif
+		neighbors(other.get_cell_neighbor()),
+		neighborhood_of(other.get_neighborhood_of()),
+		neighborhood_to(other.get_neighborhood_to()),
+		user_hood_of(other.get_user_hood_of()),
+		user_hood_to(other.get_user_hood_to()),
+		neighbors_to(other.get_neighbors_to()),
+		user_neigh_of(other.get_user_neigh_of()),
+		user_neigh_to(other.get_user_neigh_to()),
+		cell_process(other.get_cell_process()),
+		cells_with_remote_neighbors(other.get_cells_with_remote_neighbors()),
+		remote_cells_with_local_neighbors(other.get_remote_cells_with_local_neighbors()),
+		user_cells_with_remote_neighbors(other.get_user_cells_with_remote_neighbors()),
+		user_remote_cells_with_local_neighbors(other.get_user_remote_cells_with_local_neighbors()),
+		cells_to_send(other.get_cells_to_send()),
+		cells_to_receive(other.get_cells_to_receive()),
+		user_neigh_cells_to_send(other.get_user_neigh_cells_to_send()),
+		user_neigh_cells_to_receive(other.get_user_neigh_cells_to_receive()),
+		pin_requests(other.get_pin_requests()),
+		new_pin_requests(other.get_new_pin_requests()),
+		processes_per_part(other.get_processes_per_part()),
+		partitioning_options(other.get_partitioning_options()),
+		no_load_balancing(other.get_no_load_balancing()),
+		reserved_options(other.get_reserved_options()),
+		neighbor_processes(other.get_neighbor_processes()),
+		balancing_load(other.get_balancing_load())
+	{
+		if (other.get_balancing_load()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Copy constructor called while the instance being copied is balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		// default construct OtherUserData of local cells
+		for (typename boost::unordered_map<uint64_t, OtherUserData>::const_iterator
+			cell_item = other.get_cell_data().begin();
+			cell_item != other.get_cell_data().end();
+			cell_item++
+		) {
+			this->cells[cell_item->first];
+		}
+
+		this->zoltan = Zoltan_Copy(other.get_zoltan());
+	}
+
+
+	/*!
 	Initializes the instance of the grid with given parameters.
 
 	The geometry of the grid instance must have been set using set_geometry
@@ -4097,15 +4167,6 @@ public:
 
 	/*!
 	Returns a pointer to the set of local cells which have at least one neighbor
-	on another process.
-	*/
-	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbors() const
-	{
-		return &(this->cells_with_remote_neighbors);
-	}
-
-	/*!
-	Returns a pointer to the set of local cells which have at least one neighbor
 	on another process with given neighborhood id.
 
 	Returns NULL if neighborhood with given id hasn't been set.
@@ -4147,14 +4208,6 @@ public:
 			);
 		}
 		return result;
-	}
-
-	/*!
-	Returns a pointer to the set of remote cells which have at least one local neighbor.
-	*/
-	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbors() const
-	{
-		return &(this->remote_cells_with_local_neighbors);
 	}
 
 	/*!
@@ -4554,6 +4607,349 @@ public:
 	}
 
 
+	bool get_initialized() const
+	{
+		return this->initialized;
+	}
+
+	/*!
+	Returns the maximum allowed difference in refinement level between neighboring cells.
+
+	This difference in enforced both between a cell and its neighbors_of and its neighbors_to.
+	*/
+	int get_max_ref_lvl_diff() const
+	{
+		return this->max_ref_lvl_diff;
+	}
+
+	/*!
+	Returns a duplicate of this dccrg instance's communicator.
+	*/
+	MPI_Comm get_comm() const
+	{
+		MPI_Comm ret_val;
+		int result = MPI_Comm_dup(this->comm, &ret_val);
+		if (result != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't duplicate communicator: " << Error_String()(result)
+				<< std::endl;
+		}
+		return ret_val;
+	}
+
+	/*!
+	Returns the MPI process number, i.e. rank, of this process.
+	*/
+	uint64_t get_rank() const
+	{
+		return this->rank;
+	}
+
+	/*!
+	Returns the number of MPI processes participating in this dccrg instance.
+	*/
+	uint64_t get_comm_size() const
+	{
+		return this->comm_size;
+	}
+
+	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	/*!
+	Returns the boost communicator of this dccrg instance.
+	*/
+	boost::mpi::communicator get_boost_comm() const
+	{
+		return this->boost_comm;
+	}
+	#endif
+
+	/*!
+	Returns the storage of mostly local cell ids and their data.
+	*/
+	const boost::unordered_map<uint64_t, UserData>& get_cell_data() const
+	{
+		return this->cells;
+	}
+
+	/*!
+	Returns neighbor lists of local cells.
+	At some point also neighbor lists of some other processes' cells might be included.
+	*/
+	const boost::unordered_map<uint64_t, std::vector<uint64_t> >& get_cell_neighbor() const
+	{
+		return this->neighbors;
+	}
+
+	/*!
+	Returns the neighborhood of cells.
+
+	Returns offsets in which cells are considered as neighbors of a cell.
+	*/
+	const std::vector<Types<3>::neighborhood_item_t>& get_neighborhood_of() const
+	{
+		return this->neighborhood_of;
+	}
+
+	/*!
+	Returns the opposite of neighborhood of cells.
+
+	Returns offsets in which cells consider a cell as neighbor.
+	*/
+	const std::vector<Types<3>::neighborhood_item_t>& get_neighborhood_to() const
+	{
+		return this->neighborhood_to;
+	}
+
+	/*!
+	Returns the offsets of user defined neighborhoods.
+	*/
+	const boost::unordered_map<
+		int,
+		std::vector<Types<3>::neighborhood_item_t>
+	>& get_user_hood_of() const
+	{
+		return this->user_hood_of;
+	}
+
+	/*!
+	Returns the opposite of offsets of user defined neighborhoods
+	*/
+	const boost::unordered_map<
+		int,
+		std::vector<Types<3>::neighborhood_item_t>
+	>& get_user_hood_to() const
+	{
+		return this->user_hood_to;
+	}
+
+	/*!
+	Returns cells (2nd value) which consider a cell (1st value) as neighbor
+	*/
+	const boost::unordered_map<uint64_t, std::vector<uint64_t> >& get_neighbors_to() const
+	{
+		return this->neighbors_to;
+	}
+
+	/*!
+	User defined neighborhood version of get_cell_neighbor.
+	*/
+	const boost::unordered_map<
+		int,
+		boost::unordered_map<uint64_t, std::vector<uint64_t> >
+	>& get_user_neigh_of() const
+	{
+		return this->user_neigh_of;
+	}
+
+	/*!
+	User defined neighborhood version of get_neighbors_to().
+	*/
+	const boost::unordered_map<
+		int,
+		boost::unordered_map<uint64_t, std::vector<uint64_t> >
+	>& get_user_neigh_to() const
+	{
+		return this->user_neigh_to;
+	}
+
+	/*!
+	Returns the process (2nd value) of each cell (1st value).
+	*/
+	const boost::unordered_map<uint64_t, uint64_t>& get_cell_process() const
+	{
+		return this->cell_process;
+	}
+
+	/*!
+	Returns cells which have a remote neighbor.
+	*/
+	const boost::unordered_set<uint64_t>& get_cells_with_remote_neighbors() const
+	{
+		return this->cells_with_remote_neighbors;
+	}
+
+	/*!
+	Returns remote cells which have a local neighbor.
+	*/
+	const boost::unordered_set<uint64_t>& get_remote_cells_with_local_neighbors() const
+	{
+		return this->remote_cells_with_local_neighbors;
+	}
+
+	/*!
+	Returns cells which have a remote neighbor for each used defined neighborhood.
+	*/
+	const boost::unordered_map<
+		int,
+		boost::unordered_set<uint64_t>
+	>& get_user_cells_with_remote_neighbors() const
+	{
+		return this->user_cells_with_remote_neighbors;
+	}
+
+	/*!
+	Returns remote cells which have a local neighbor for each used defined neighborhood.
+	*/
+	const boost::unordered_map<
+		int,
+		boost::unordered_set<uint64_t>
+	>& get_user_remote_cells_with_local_neighbors() const
+	{
+		return this->user_remote_cells_with_local_neighbors;
+	}
+
+	/*!
+	Returns cells that will be sent to other processes.
+	*/
+	const boost::unordered_map<
+		int,
+		std::vector<
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			std::pair<uint64_t, int>
+			#else
+			uint64_t
+			#endif
+		>
+	>& get_cells_to_send() const
+	{
+		return this->cells_to_send;
+	}
+
+	/*!
+	Returns cells that will be received from other processes.
+	*/
+	const boost::unordered_map<
+		int,
+		std::vector<
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			std::pair<uint64_t, int>
+			#else
+			uint64_t
+			#endif
+		>
+	>& get_cells_to_receive() const
+	{
+		return this->cells_to_receive;
+	}
+
+	/*!
+	Returns cells which will be sent for each user defined neighborhood.
+	*/
+	const boost::unordered_map<
+		int,
+		boost::unordered_map<
+			int,
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			std::vector<std::pair<uint64_t, int> >
+			#else
+			std::vector<uint64_t>
+			#endif
+		>
+	>& get_user_neigh_cells_to_send() const
+	{
+		return this->user_neigh_cells_to_send;
+	}
+
+	/*!
+	Returns cells which will be received for each user defined neighborhood.
+	*/
+	const boost::unordered_map<
+		int,
+		boost::unordered_map<
+			int,
+			#ifdef DCCRG_SEND_SINGLE_CELLS
+			std::vector<std::pair<uint64_t, int> >
+			#else
+			std::vector<uint64_t>
+			#endif
+		>
+	>& get_user_neigh_cells_to_receive() const
+	{
+		return this->user_neigh_cells_to_receive;
+	}
+
+	/*!
+	Returns pin requests currently in force.
+	*/
+	const boost::unordered_map<uint64_t, uint64_t>& get_pin_requests() const
+	{
+		return this->pin_requests;
+	}
+
+	/*!
+	Returns pin requests of this process.
+
+	These have not been told to other processes yet.
+	*/
+	const boost::unordered_map<uint64_t, uint64_t>& get_new_pin_requests() const
+	{
+		return this->new_pin_requests;
+	}
+
+	/*!
+	Returns the pointer to this instances Zoltan data structure.
+	*/
+	const Zoltan_Struct* get_zoltan() const
+	{
+		return this->zoltan;
+	}
+
+	/*!
+	Returns the number of processes per Zoltan partition.
+
+	First partition has vec[0] number of processes, second vec[1], etc.
+	*/
+	const std::vector<unsigned int>& get_processes_per_part() const
+	{
+		return this->processes_per_part;
+	}
+
+	/*!
+	Returns the options that are given to Zoltan when partitioning.
+	*/
+	const std::vector<
+		boost::unordered_map<std::string, std::string>
+	> get_partitioning_options() const
+	{
+		return this->partitioning_options;
+	}
+
+	/*!
+	Returns whether load balancing by Zoltan is supposed to fail.
+	*/
+	bool get_no_load_balancing() const
+	{
+		return this->no_load_balancing;
+	}
+
+	/*!
+	Returns options to Zoltan which cannot be set by the user.
+	*/
+	const boost::unordered_set<std::string>& get_reserved_options() const
+	{
+		return this->reserved_options;
+	}
+
+	/*!
+	Returns processes which have cells close enough to any cell of this process.
+
+	Close enough is number of refinement level 0 cells * size of default neighborhood.
+	FIXME not implemented yet so doesn't return anything at the moment.
+	*/
+	const boost::unordered_set<uint64_t>& get_neighbor_processes() const
+	{
+		return this->neighbor_processes;
+	}
+
+	/*!
+	Returns whether this instance is currently balancing the load.
+	*/
+	bool get_balancing_load() const
+	{
+		return this->balancing_load;
+	}
+
+
 
 private:
 
@@ -4705,7 +5101,7 @@ private:
 	boost::unordered_map<uint64_t, double> cell_weights;
 
 	// processes which have cells close enough from cells of this process
-	boost::unordered_set<int> neighbor_processes;
+	boost::unordered_set<uint64_t> neighbor_processes;
 
 	bool balancing_load;
 
