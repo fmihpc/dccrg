@@ -121,6 +121,17 @@ public:
 				<< std::endl;
 			abort();
 		}
+
+		// check that no send cound is negative
+		for (size_t i = 0; i < send_counts.size(); i++) {
+			if (send_counts[i] < 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Negative send count at index " << i
+					<< ": " << send_counts[i]
+					<< std::endl;
+				abort();
+			}
+		}
 		#endif
 
 		// calculate displacements for MPI_Allgatherv
