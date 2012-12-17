@@ -1,0 +1,15 @@
+Tests user defined neighborhoods of dccrg. See the ../README
+file for information common to all tests.
+
+The test programs game_of_life and neighbor_list_length are
+automatic and print Passed to stdout if successful. They
+must be run manually using for example mpirun and any
+number of processes.
+
+The advection test is otherwise similar to the one in
+the ../advection directory but uses a default neighborhood
+size that is much larger than necessary. A user defined
+neighborhood is used to make a neighborhood that is
+identical to the one used in ../advection. See the README
+file in that directory for additional information and
+a program to convert the results to vtk.
