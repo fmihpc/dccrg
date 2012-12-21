@@ -56,6 +56,38 @@ public:
 
 
 /*!
+Returns whether the given type is a named predefined datatype.
+*/
+class Is_Named_Datatype
+{
+public:
+
+	bool operator()(MPI_Datatype& type) const
+	{
+		int num_integers = -1, num_addresses = -1, num_datatypes = -1, combiner = -1;
+		const int ret_val = MPI_Type_get_envelope(
+			type,
+			&num_integers,
+			&num_addresses,
+			&num_datatypes,
+			&combiner
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " MPI_Type_get_envelope failed: " << Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+		if (combiner == MPI_COMBINER_NAMED) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+};
+
+
+/*!
 Wrapper for MPI_Allgatherv(..., uint64_t, ...).
 
 Result is cleared before use.

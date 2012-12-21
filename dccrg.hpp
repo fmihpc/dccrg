@@ -7219,14 +7219,25 @@ private:
 
 				// TODO: preallocate MPI_Requests?
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+				int ret_val = -1;
+
 				this->receive_requests[process].push_back(MPI_Request());
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
 				MPI_Datatype user_datatype = destination.at(cell).mpi_datatype();
-				MPI_Type_commit(&user_datatype);
+
+				ret_val = MPI_Type_commit(&user_datatype);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Type_commit failed on process " << this->rank
+						<< ", for datatype of cell " << cell
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
 				#endif
 
-				const int ret_val = MPI_Irecv(
+				ret_val = MPI_Irecv(
 					destination.at(cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
@@ -7252,7 +7263,17 @@ private:
 				}
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Type_free(&user_datatype);
+				if (!Is_Named_Datatype()(user_datatype)) {
+					ret_val = MPI_Type_free(&user_datatype);
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI_Type_free failed on process " << this->rank
+							<< ", for a derived datatype of cell " << cell
+							<< ": " << Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+				}
 				#endif
 
 				#else // ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -7292,14 +7313,25 @@ private:
 				const uint64_t cell = item->first;
 
 				#ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
+				int ret_val = -1;
+
 				this->send_requests[process].push_back(MPI_Request());
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
 				MPI_Datatype user_datatype = this->cells.at(cell).mpi_datatype();
-				MPI_Type_commit(&user_datatype);
+
+				ret_val = MPI_Type_commit(&user_datatype);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Type_commit failed on process " << this->rank
+						<< ", for datatype of cell " << cell
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
 				#endif
 
-				const int ret_val = MPI_Isend(
+				ret_val = MPI_Isend(
 					this->cells.at(cell).at(),
 					#ifdef DCCRG_USER_MPI_DATA_TYPE
 					1,
@@ -7325,10 +7357,20 @@ private:
 				}
 
 				#ifdef DCCRG_USER_MPI_DATA_TYPE
-				MPI_Type_free(&user_datatype);
+				if (!Is_Named_Datatype()(user_datatype)) {
+					ret_val = MPI_Type_free(&user_datatype);
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI_Type_free failed on process " << this->rank
+							<< ", for a derived datatype of cell " << cell
+							<< ": " << Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+				}
 				#endif
 
-				#else
+				#else // ifdef DCCRG_CELL_DATA_SIZE_FROM_USER
 
 				this->send_requests[process].push_back(
 					this->boost_comm.isend(
@@ -7403,7 +7445,7 @@ private:
 
 			this->receive_requests[sender->first].push_back(MPI_Request());
 
-			const int ret_val = MPI_Irecv(
+			int ret_val = MPI_Irecv(
 				destination.at(sender->second[0]).at(),
 				1,
 				receive_datatype,
@@ -7425,8 +7467,17 @@ private:
 			MPI_Type_free(&receive_datatype);
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
 			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-				// don't check the return value, can fail if given MPI_INT, etc.
-				MPI_Type_free(&type);
+				if (!Is_Named_Datatype()(type)) {
+					ret_val = MPI_Type_free(&type);
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI_Type_free failed on process " << this->rank
+							<< ", for a derived datatype of user data: "
+							<< Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+				}
 			}
 			#endif
 		}
@@ -7481,7 +7532,7 @@ private:
 
 			this->send_requests[receiver->first].push_back(MPI_Request());
 
-			const int ret_val = MPI_Isend(
+			int ret_val = MPI_Isend(
 				this->cells.at(receiver->second[0]).at(),
 				1,
 				send_datatype,
@@ -7503,8 +7554,17 @@ private:
 			MPI_Type_free(&send_datatype);
 			#ifdef DCCRG_USER_MPI_DATA_TYPE
 			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-				// don't check the return value, can fail if given MPI_INT, etc.
-				MPI_Type_free(&type);
+				if (!Is_Named_Datatype()(type)) {
+					ret_val = MPI_Type_free(&type);
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI_Type_free failed on process " << this->rank
+							<< ", for a derived datatype of user data: "
+							<< Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+				}
 			}
 			#endif
 		}
