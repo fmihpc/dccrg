@@ -236,7 +236,20 @@ public:
 		MPI_Comm& comm
 	) {
 		uint64_t result;
-		MPI_Allreduce(&value, &result, 1, MPI_UINT64_T, MPI_SUM, comm);
+		const int ret_val = MPI_Allreduce(
+			&value,
+			&result,
+			1,
+			MPI_UINT64_T,
+			MPI_SUM,
+			comm
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " MPI_Allreduce failed: " << Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
 		return result;
 	}
 
