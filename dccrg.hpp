@@ -54,7 +54,6 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #endif
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
-#include "cassert"
 #include "cstdio"
 #include "cstdlib"
 #include "cstring"
@@ -1416,7 +1415,10 @@ public:
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
 			uint64_t child = this->get_child(item.first);
-			assert(child > 0);
+			if (child == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				abort();
+			}
 
 			if (child != item.first) {
 				continue;
@@ -1424,7 +1426,10 @@ public:
 
 			bool has_remote_neighbor = false;
 
-			assert(this->neighbors.count(item.first) > 0);
+			if (this->neighbors.count(item.first) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				abort();
+			}
 
 			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(item.first)) {
 
@@ -1528,7 +1533,10 @@ public:
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
 			uint64_t child = this->get_child(item.first);
-			assert(child > 0);
+			if (child == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				abort();
+			}
 
 			if (child != item.first) {
 				continue;
@@ -1536,7 +1544,10 @@ public:
 
 			bool has_remote_neighbor = false;
 
-			assert(this->neighbors.count(item.first) > 0);
+			if (this->neighbors.count(item.first) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				abort();
+			}
 
 			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(item.first)) {
 
@@ -7578,7 +7589,12 @@ private:
 			// construct the outgoing data vector
 			BOOST_FOREACH(const uint64_t& cell, send_item.at(receiver)) {
 				UserData* user_data = (*this)[cell];
-				assert(user_data != NULL);
+				if (user_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for cell " << cell
+						<< std::endl;
+					abort();
+				}
 				this->outgoing_data[receiver].push_back(*user_data);
 			}
 		}
@@ -7990,10 +8006,22 @@ private:
 	*/
 	bool x_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
-		assert(cell1 > 0);
-		assert(cell1 <= this->last_cell);
-		assert(cell2 > 0);
-		assert(cell2 <= this->last_cell);
+		if (cell1 == error_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell1 > this->last_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell2 == error_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell2 > this->last_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
 
 		const uint64_t index1 = this->get_x_index(cell1);
 		const uint64_t index2 = this->get_x_index(cell2);
@@ -8008,10 +8036,22 @@ private:
 	*/
 	bool y_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
-		assert(cell1 > 0);
-		assert(cell1 <= this->last_cell);
-		assert(cell2 > 0);
-		assert(cell2 <= this->last_cell);
+		if (cell1 == error_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell1 > this->last_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell2 == error_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell2 > this->last_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
 
 		const uint64_t index1 = this->get_y_index(cell1);
 		const uint64_t index2 = this->get_y_index(cell2);
@@ -8026,10 +8066,22 @@ private:
 	*/
 	bool z_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
 	{
-		assert(cell1 > 0);
-		assert(cell1 <= this->last_cell);
-		assert(cell2 > 0);
-		assert(cell2 <= this->last_cell);
+		if (cell1 == error_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell1 > this->last_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell2 == error_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
+		if (cell2 > this->last_cell) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
+		}
 
 		const uint64_t index1 = this->get_z_index(cell1);
 		const uint64_t index2 = this->get_z_index(cell2);
