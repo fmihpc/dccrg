@@ -666,6 +666,9 @@ public:
 			return false;
 		}
 
+		// TODO: write an endianness check here
+		// ...0x0123456789101213...
+
 		uint64_t number_of_cells = this->cells.size();
 
 		// write the total number of cells that will be written
@@ -1083,6 +1086,9 @@ public:
 				<< std::endl;
 			return false;
 		}
+
+		// TODO: put an endianness check here
+		// ...0x0123456789101213...
 
 		// read the total number of cells in the file
 		uint64_t total_number_of_cells = 0;
