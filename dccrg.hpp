@@ -2031,7 +2031,6 @@ public:
 			this->removed_cells.begin(),
 			this->removed_cells.end()
 		);
-		std::sort(temp_removed_cells.begin(), temp_removed_cells.end());
 
 		std::vector<std::vector<uint64_t> > all_removed_cells;
 		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
@@ -2041,7 +2040,6 @@ public:
 			this->added_cells.begin(),
 			this->added_cells.end()
 		);
-		std::sort(temp_added_cells.begin(), temp_added_cells.end());
 
 		std::vector<std::vector<uint64_t> > all_added_cells;
 		All_Gather()(temp_added_cells, all_added_cells, this->comm);
@@ -7577,7 +7575,6 @@ private:
 				continue;
 			}
 
-			std::sort(send_item.at(receiver).begin(), send_item.at(receiver).end());
 			// construct the outgoing data vector
 			BOOST_FOREACH(const uint64_t& cell, send_item.at(receiver)) {
 				UserData* user_data = (*this)[cell];
@@ -7618,9 +7615,6 @@ private:
 			const int sender_process = sender->first;
 			const size_t number_of_receives = sender->second.size();
 			int ret_val = -1;
-
-			// TODO: still needed?
-			std::sort(sender->second.begin(), sender->second.end());
 
 			// reserve space for incoming user data in this end
 			// TODO: move into a separate function callable by user
@@ -7725,8 +7719,6 @@ private:
 			const int receiver_process = receiver->first;
 			const size_t number_of_sends = receiver->second.size();
 			int ret_val = -1;
-
-			std::sort(receiver->second.begin(), receiver->second.end());
 
 			// get mpi transfer info from cells
 			std::vector<void*> addresses(number_of_sends, NULL);
@@ -7848,8 +7840,6 @@ private:
 			sender != this->incoming_data.end();
 			sender++
 		) {
-			std::sort(receive_item.at(sender->first).begin(), receive_item.at(sender->first).end());
-
 			int i = 0;
 			BOOST_FOREACH(const uint64_t& cell, receive_item.at(sender->first)) {
 				// TODO move data instead of copying
