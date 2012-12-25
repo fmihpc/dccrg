@@ -21,16 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_HPP
 
 
-/*
-If compilation fails with a complaint about
-MPI_UNSIGNED_LONG_LONG try replacing it with
-MPI_UNSIGNED_LONG in the following:
-*/
-#ifndef MPI_UINT64_T
-#define MPI_UINT64_T MPI_UNSIGNED_LONG_LONG
-#endif
-
-
 /*!
 \mainpage Distributed Cartesian Cell-Refinable Grid.
 
@@ -60,6 +50,7 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #include "fstream"
 #include "functional"
 #include "limits"
+#include "mpi.h"
 #include "stdint.h"
 #include "utility"
 #include "vector"
@@ -68,6 +59,17 @@ If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
 #ifdef USE_SFC
 #include "sfc++.hpp"
 #endif
+
+
+/*
+If compilation fails with a complaint about
+MPI_UNSIGNED_LONG_LONG try replacing it with
+MPI_UNSIGNED_LONG in the following:
+*/
+#ifndef MPI_UINT64_T
+#define MPI_UINT64_T MPI_UNSIGNED_LONG_LONG
+#endif
+
 
 #include "dccrg_index.hpp"
 #include "dccrg_mpi_support.hpp"
