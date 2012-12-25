@@ -1,5 +1,5 @@
 # use this many mpi processes in parallel tests
-PROCS := 2
+PROCS := 6
 
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
@@ -22,7 +22,7 @@ HEADERS = \
 all: $(PROGRAMS)
 
 restart_test: restart_test.cpp $(HEADERS) Makefile
-	@echo "MPICXX restart_test " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE restart_test.cpp $(INCLUDES) -o restart_test
+	@echo "MPICXX restart_test " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS restart_test.cpp $(INCLUDES) -o restart_test
 
 dc2vtk: dc2vtk.cpp ../../dccrg_constant_geometry.hpp Makefile
 	@echo "CXX dc2vtk " && $(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk

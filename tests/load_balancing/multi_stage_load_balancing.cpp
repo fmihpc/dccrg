@@ -11,11 +11,11 @@ known in advance.
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "mpi.h"
 #include "vector"
+#include "stdint.h"
 #include "zoltan.h"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
-#define DCCRG_USER_MPI_DATA_TYPE
 #include "../../dccrg.hpp"
 
 using namespace std;
@@ -34,21 +34,18 @@ public:
 	// load balancing stage currently in progress
 	static size_t stage;
 
-	// tell dccrg to send data corresponding to current stage
-	void* at()
-	{
-		return &(this->data[Cell::stage]);
-	}
-	const void* at() const
-	{
-		return &(this->data[Cell::stage]);
-	}
-	// always send only one item per load balancing stage
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(sizeof(int), MPI_BYTE, &type);
-		return type;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data[Cell::stage]);
+		count = 1;
+		datatype = MPI_INT;
 	}
 };
 

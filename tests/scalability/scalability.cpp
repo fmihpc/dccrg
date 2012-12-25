@@ -49,8 +49,7 @@ public:
 		this->data.resize(Cell::data_size);
 	}
 
-	// use boost::mpi for data transfers over MPI
-	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 	template<typename Archiver> void serialize(
 		Archiver& ar,
@@ -59,30 +58,23 @@ public:
 		ar & data;
 	}
 
-	// use MPI directly for data transfers
-	#else
+	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	void* at(void)
-	{
-		return this;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data[0]);
+		count = this->data.size();
+		datatype = MPI_UINT8_T;
 	}
 
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	MPI_Datatype mpi_datatype(void) const
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(sizeof(uint8_t) * this->data.size(), MPI_BYTE, &type);
-		return type;
-	}
-	#else
-	static size_t size(void)
-	{
-		// processes don't need other processes' live neighbor info
-		return sizeof(uint8_t) * Cell::data_size;
-	}
-	#endif
-
-	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 size_t Cell::data_size = 0;

@@ -3,20 +3,17 @@ BOOST_MPI_LIBS = -lboost_serialization -lboost_mpi
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 MPIRUN = mpirun -np 2
+RUN =
 
 PROGRAMS = \
 	game_of_life_test_all_cells_boost_mpi \
 	game_of_life_test_all_cells_mpi \
-	game_of_life_test_all_cells_mpi_datatype \
 	game_of_life_test_boost_mpi \
 	game_of_life_test_mpi \
-	game_of_life_test_mpi_datatype \
 	unrefined2d_all_cells_boost_mpi \
 	unrefined2d_all_cells_mpi \
-	unrefined2d_all_cells_mpi_datatype \
 	unrefined2d_boost_mpi \
 	unrefined2d_mpi \
-	unrefined2d_mpi_datatype \
 	scalability \
 	scalability3d \
 	refined \
@@ -29,16 +26,12 @@ PROGRAMS = \
 TEST_PROGRAMS = \
 	game_of_life_test_all_cells_boost_mpi \
 	game_of_life_test_all_cells_mpi \
-	game_of_life_test_all_cells_mpi_datatype \
 	game_of_life_test_boost_mpi \
 	game_of_life_test_mpi \
-	game_of_life_test_mpi_datatype \
 	unrefined2d_all_cells_boost_mpi \
 	unrefined2d_all_cells_mpi \
-	unrefined2d_all_cells_mpi_datatype \
 	unrefined2d_boost_mpi \
-	unrefined2d_mpi \
-	unrefined2d_mpi_datatype
+	unrefined2d_mpi
 
 HEADERS = \
 	../../dccrg.hpp \
@@ -50,64 +43,52 @@ HEADERS = \
 all: $(PROGRAMS)
 
 game_of_life_test_all_cells_boost_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o game_of_life_test_all_cells_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI game_of_life_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o game_of_life_test_all_cells_boost_mpi
 
 game_of_life_test_all_cells_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi
-
-game_of_life_test_all_cells_mpi_datatype: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi_datatype
+	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi
 
 game_of_life_test_boost_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o game_of_life_test_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o game_of_life_test_boost_mpi
 
 game_of_life_test_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi
-
-game_of_life_test_mpi_datatype: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi_datatype
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi
 
 scalability: scalability.cpp $(HEADERS) Makefile
 	$(CXX) scalability.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o scalability
 
 scalability3d: scalability3d.cpp $(HEADERS) Makefile
-	$(CXX) scalability3d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o scalability3d
+	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI scalability3d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o scalability3d
 
 scalability1d: scalability1d.cpp $(HEADERS) Makefile
-	$(CXX) scalability1d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o scalability1d
+	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI scalability1d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o scalability1d
 
 refined: refined.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG refined.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI refined.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined
 
 refined2d: refined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG refined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined2d
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI refined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined2d
 
 unrefined2d_all_cells_boost_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o unrefined2d_all_cells_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI unrefined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o unrefined2d_all_cells_boost_mpi
 
 unrefined2d_all_cells_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi
-
-unrefined2d_all_cells_mpi_datatype: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi_datatype
+	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi
 
 unrefined2d_boost_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o unrefined2d_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o unrefined2d_boost_mpi
 
 unrefined2d_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
-
-unrefined2d_mpi_datatype: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS -DDCCRG_CELL_DATA_SIZE_FROM_USER -DDCCRG_USER_MPI_DATA_TYPE unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi_datatype
+	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
 
 refined_scalability3d: refined_scalability3d.cpp $(HEADERS) Makefile
-	$(CXX) refined_scalability3d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined_scalability3d
+	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI refined_scalability3d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined_scalability3d
 
 hierarchical_test: hierarchical_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG hierarchical_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o hierarchical_test
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI hierarchical_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o hierarchical_test
 
 pinned_cells: pinned_cells.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG pinned_cells.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o pinned_cells
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI pinned_cells.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o pinned_cells
 
 d: data
 data:
@@ -119,5 +100,5 @@ clean: data
 
 t: test
 test: $(TEST_PROGRAMS)
-	@for i in $(TEST_PROGRAMS); do echo -n "RUN $$i... " && ./$$i; done
+	@for i in $(TEST_PROGRAMS); do echo -n "RUN $$i... " && $(RUN) ./$$i; done
 	@for i in $(TEST_PROGRAMS); do echo -n "MPIRUN $$i... " && $(MPIRUN) $$i; done

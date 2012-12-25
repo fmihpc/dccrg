@@ -20,6 +20,8 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define CELL_HPP
 
 #include "boost/array.hpp"
+#include "mpi.h"
+#include "stdint.h"
 
 class Cell
 {
@@ -35,30 +37,34 @@ public:
 	*/
 	boost::array<double, 6> data;
 
-	// returns the start of this class, e.g. data for dccrg
-	void* at()
-	{
-		return &(this->data[0]);
-	}
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-
-	// returns MPI_Datatype corresponding to cell data to transfer
-	MPI_Datatype mpi_datatype() const
-	{
+	template<typename Archiver> void serialize(
+		Archiver& ar,
+		const unsigned int /*version*/
+	) {
 		// transfer cell density and velocities to other processes
 		// TODO: only transfer velocities after they have changed
-		MPI_Datatype type;
-		MPI_Type_contiguous(4 * sizeof(double), MPI_BYTE, &type);
-		return type;
+		ar & data[0] & data[1] & data[2] & data[3];
 	}
 
 	#else
 
-	// returns the length in bytes to transfer between processes for dccrg
-	static size_t size()
-	{
-		return 4 * sizeof(double);
+	// returns MPI_Datatype corresponding to cell data to transfer
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data[0]);
+		// transfer cell density and velocities to other processes
+		// TODO: only transfer velocities after they have changed
+		count = 4;
+		datatype = MPI_DOUBLE;
 	}
 
 	#endif

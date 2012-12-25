@@ -7,11 +7,10 @@ Tests copy construction of dccrg.
 #include "cstdlib"
 #include "ctime"
 #include "iostream"
+#include "mpi.h"
 #include "vector"
 #include "zoltan.h"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
-#define DCCRG_USER_MPI_DATA_TYPE
 #include "../../dccrg.hpp"
 
 using namespace std;
@@ -24,16 +23,19 @@ struct Cell1 {
 
 	Cell1() { data = -1; }
 
-	void* at() { return this; }
-	const void* at() const { return this; }
-
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
-		return type;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
+		count = 1;
+		datatype = MPI_INT;
 	}
-
 };
 
 /*!
@@ -44,16 +46,19 @@ struct Cell2 {
 
 	Cell2() { data = -2; }
 
-	void* at() { return this; }
-	const void* at() const { return this; }
-
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
-		return type;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
+		count = 1;
+		datatype = MPI_DOUBLE;
 	}
-
 };
 
 int main(int argc, char* argv[])

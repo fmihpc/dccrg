@@ -20,10 +20,11 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define CELL_HPP
 
 #include "boost/array.hpp"
+#include "mpi.h"
 #include "stdint.h"
 
 /*!
-Game of life cell with 8 * (13 + EXTRA_DATA) bytes of data.
+Game of life cell with 8 * 13 bytes of data.
 */
 class Cell
 {
@@ -39,8 +40,7 @@ public:
 	*/
 	boost::array<uint64_t, 13> data;
 
-	// use boost::mpi for data transfers over MPI
-	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 	template<typename Archiver> void serialize(
 		Archiver& ar,
@@ -49,35 +49,23 @@ public:
 		ar & data;
 	}
 
-	// use MPI directly for data transfers
-	#else
+	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	void* at()
-	{
-		return this;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
+		count = 13;
+		datatype = MPI_UINT64_T;
 	}
 
-	const void* at() const
-	{
-		return this;
-	}
-
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
-		return type;
-	}
-	#else
-	static size_t size(void)
-	{
-		// processes don't need other processes' live neighbor info
-		return 13 * sizeof(uint64_t);
-	}
-	#endif
-
-	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 #endif

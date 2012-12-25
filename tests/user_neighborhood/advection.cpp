@@ -30,7 +30,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "string"
 #include "zoltan.h"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
 #include "../../dccrg.hpp"
 
 #include "../advection/cell.hpp"

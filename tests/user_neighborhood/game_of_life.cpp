@@ -16,34 +16,30 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 
 struct game_of_life_cell {
 	unsigned int data[2];
-	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	template<typename Archiver> void serialize(Archiver& ar, const unsigned int)
 	{
 		ar & data;
 	}
+
 	#else
-	void* at()
-	{
-		return this;
+
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data[0]);
+		count = 1;
+		datatype = MPI_UNSIGNED;
 	}
-	const void* at() const
-	{
-		return this;
-	}
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	static MPI_Datatype mpi_datatype()
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(1, MPI_UNSIGNED, &type);
-		return type;
-	}
-	#else
-	static size_t size()
-	{
-		return sizeof(unsigned int);
-	}
+
 	#endif
-	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 };
 
 
@@ -70,11 +66,9 @@ void wrap_coordinates(
 
 
 /*!
-Returns cells which are alive at time step = 0.
+Returns cells which are alive at given time step.
 
-Also used to check whether a cell should be alive
-on a later time step.
-time_step must be divisible by 4.
+Given time step must be divisible by 4.
 */
 boost::unordered_set<uint64_t> get_live_cells(
 	const uint64_t grid_size,
@@ -401,7 +395,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (comm.rank() == 0) {
-		cout << "Passed" << endl;
+		cout << "PASSED" << endl;
 	}
 
 	return EXIT_SUCCESS;

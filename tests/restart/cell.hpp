@@ -20,14 +20,11 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define RESTART_CELL_HPP
 
 #include "boost/array.hpp"
+#include "mpi.h"
 #include "stdint.h"
 
-#ifndef DCCRG_USER_MPI_DATA_TYPE
-#error DCCRG_USER_MPI_DATA_TYPE must be defined when compiling
-#endif
-
 /*!
-Game of life cell with 8 * (13 + EXTRA_DATA) bytes of data.
+Game of life cell with 8 * 13 bytes of data.
 */
 class Cell
 {
@@ -43,34 +40,38 @@ public:
 	*/
 	boost::array<uint64_t, 13> data;
 
-	void* at()
-	{
-		return this;
-	}
-
-	const void* at() const
-	{
-		return this;
-	}
-
+	// == true when saving and restarting
 	static bool transfer_only_life;
 
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype type;
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+	#error DCCRG_TRANSFER_USING_BOOST_MPI cannot be defined when compiling this program
+
+	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
 
 		if (Cell::transfer_only_life) {
-			// this is used when saving and restarting the game
-			MPI_Type_contiguous(sizeof(uint64_t), MPI_BYTE, &type);
+			count = 1;
 		} else {
-			MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
+			count = 13;
 		}
 
-		return type;
+		datatype = MPI_UINT64_T;
 	}
+
+	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
-// == true when saving and restarting
 bool Cell::transfer_only_life = false;
 
 #endif

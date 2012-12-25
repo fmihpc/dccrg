@@ -18,8 +18,7 @@ Tests the scalability of the grid in 2 D
 // TODO: move this to a separate file
 struct game_of_life_cell {
 
-	// use boost::mpi for data transfers over MPI
-	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	bool is_alive;
 	unsigned int live_neighbor_count;
 
@@ -28,34 +27,26 @@ struct game_of_life_cell {
 		ar & is_alive;
 	}
 
-	// use MPI directly for data transfers
 	#else
 
 	// data[0] == 1 if cell is alive, data[1] holds the number of live neighbors
 	unsigned int data[2];
 
-	void* at(void)
-	{
-		return this;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
+		count = 1;
+		datatype = MPI_INT;
 	}
 
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	MPI_Datatype mpi_datatype(void)
-	{
-		MPI_Datatype type;
-		// processes don't need other processes' live neighbor info
-		MPI_Type_contiguous(1, MPI_UNSIGNED, &type);
-		return type;
-	}
-	#else
-	static size_t size(void)
-	{
-		// processes don't need other processes' live neighbor info
-		return sizeof(unsigned int);
-	}
-	#endif
-
-	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 
@@ -117,7 +108,7 @@ int main(int argc, char* argv[])
 		cell++
 	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		cell_data->live_neighbor_count = 0;
 		#else
 		cell_data->data[1] = 0;
@@ -125,13 +116,13 @@ int main(int argc, char* argv[])
 
 		double y = game_grid.get_cell_y(*cell);
 		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else
 			cell_data->data[0] = 1;
 			#endif
 		} else {
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = false;
 			#else
 			cell_data->data[0] = 0;
@@ -144,7 +135,7 @@ int main(int argc, char* argv[])
 		cell++
 	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
-		#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		cell_data->live_neighbor_count = 0;
 		#else
 		cell_data->data[1] = 0;
@@ -152,13 +143,13 @@ int main(int argc, char* argv[])
 
 		double y = game_grid.get_cell_y(*cell);
 		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else
 			cell_data->data[0] = 1;
 			#endif
 		} else {
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = false;
 			#else
 			cell_data->data[0] = 0;
@@ -190,7 +181,7 @@ int main(int argc, char* argv[])
 			cell++
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->live_neighbor_count = 0;
 			#else
 			cell_data->data[1] = 0;
@@ -207,7 +198,7 @@ int main(int argc, char* argv[])
 				}
 
 				game_of_life_cell* neighbor_data = game_grid[*neighbor];
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 				if (neighbor_data->is_alive) {
 					cell_data->live_neighbor_count++;
 				}
@@ -227,7 +218,7 @@ int main(int argc, char* argv[])
 			cell++
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->live_neighbor_count = 0;
 			#else
 			cell_data->data[1] = 0;
@@ -244,7 +235,7 @@ int main(int argc, char* argv[])
 				}
 
 				game_of_life_cell* neighbor_data = game_grid[*neighbor];
-				#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 				if (neighbor_data->is_alive) {
 					cell_data->live_neighbor_count++;
 				}
@@ -269,7 +260,7 @@ int main(int argc, char* argv[])
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = true;
 			} else if (cell_data->live_neighbor_count != 2) {
@@ -290,7 +281,7 @@ int main(int argc, char* argv[])
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
 
-			#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = true;
 			} else if (cell_data->live_neighbor_count != 2) {

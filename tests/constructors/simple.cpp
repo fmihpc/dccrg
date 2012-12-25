@@ -10,7 +10,6 @@ Tests how well dccrg avoids unnecessary construction / destruction of cell data.
 #include "vector"
 #include "zoltan.h"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
 #include "../../dccrg.hpp"
 
 using namespace std;
@@ -45,16 +44,19 @@ struct CellData {
 		return *this;
 	}
 
-	void* at(void)
-	{
-		return this;
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
+		count = 1;
+		datatype = MPI_DOUBLE;
 	}
-
-	static size_t size(void)
-	{
-		return sizeof(double);
-	}
-
 };
 
 int main(int argc, char* argv[])

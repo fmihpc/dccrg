@@ -94,7 +94,7 @@ public:
 		}
 
 		// process 0 writes the header
-		const size_t header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
+		MPI_Offset header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
 		if (rank == 0) {
 			uint8_t* buffer = new uint8_t [header_size];
 			assert(buffer != NULL);
@@ -176,7 +176,12 @@ public:
 
 		MPI_File_close(&outfile);
 
-		game_grid.write_grid(name, header_size);
+		if (!game_grid.write_grid(name, header_size)) {
+			std::cerr << "Process " << rank
+				<< " Writing grid to file " << name << " failed"
+				<< std::endl;
+			abort();
+		}
 		Cell::transfer_only_life = false;
 	}
 
@@ -231,7 +236,7 @@ public:
 
 		MPI_File_close(&infile);
 
-		const size_t header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
+		MPI_Offset header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
 		game_grid.read_grid(name, header_size);
 
 		Cell::transfer_only_life = false;

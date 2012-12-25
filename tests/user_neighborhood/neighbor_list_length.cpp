@@ -31,35 +31,31 @@ using namespace std;
 struct Cell
 {
 	int data;
-	#ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
+
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	template<typename Archiver> void serialize(
 		Archiver& ar,
 		const unsigned int
 	) {
 		ar & data;
 	}
+
 	#else
-	void* at()
-	{
-		return this;
+
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
+		address = &(this->data);
+		count = 1;
+		datatype = MPI_INT;
 	}
-	const void* at() const
-	{
-		return this;
-	}
-	#ifdef DCCRG_USER_MPI_DATA_TYPE
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype type;
-		MPI_Type_contiguous(sizeof(this->data), MPI_BYTE, &type);
-		return type;
-	}
-	#else
-	static size_t size(void)
-	{
-		return sizeof(int);
-	}
-	#endif
+
 	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 };
 
@@ -357,7 +353,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (comm.rank() == 0) {
-		cout << "Passed" << endl;
+		cout << "PASSED" << endl;
 	}
 
 	return EXIT_SUCCESS;

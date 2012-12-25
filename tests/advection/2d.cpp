@@ -979,6 +979,7 @@ int main(int argc, char* argv[])
 			cout << options << endl;
 		}
 		MPI_Barrier(comm);
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
@@ -989,16 +990,19 @@ int main(int argc, char* argv[])
 	// check simulation parameters
 	if (save_n < -1) {
 		cerr << "save_n must be >= -1" << endl;
+		MPI_Finalize();
 		return EXIT_FAILURE;
 	}
 
 	if (balance_n < -1) {
 		cerr << "balance_n must be >= -1" << endl;
+		MPI_Finalize();
 		return EXIT_FAILURE;
 	}
 
 	if (cfl < 0 || cfl > 1) {
 		cerr << "cfl must be >= 0 and <= 1" << endl;
+		MPI_Finalize();
 		return EXIT_FAILURE;
 	}
 

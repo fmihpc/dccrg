@@ -56,38 +56,34 @@ public:
 	}
 
 
-	// returns the starting address of data to send
-	void* at()
-	{
+	void mpi_datatype(
+		void*& address,
+		int& count,
+		MPI_Datatype& datatype,
+		const uint64_t /*cell_id*/,
+		const int /*sender*/,
+		const int /*receiver*/,
+		const bool /*receiving*/
+	) {
 		if (Cell::transfer_particles) {
+
 			if (this->particles.size() > 0) {
-				return &(this->particles[0]);
+				address = &(this->particles[0]);
 			} else {
 				// return a sane address just in case
-				return &(this->number_of_particles);
+				address = &(this->number_of_particles);
 			}
+
+			count = this->particles.size() * 3;
+			datatype = MPI_DOUBLE;
+
 		} else {
-			return &(this->number_of_particles);
+
+			address = &(this->number_of_particles);
+			count = 1;
+			datatype = MPI_UNSIGNED;
+
 		}
-	}
-
-
-	// returns the length in bytes to transfer between processes for dccrg
-	MPI_Datatype mpi_datatype() const
-	{
-		MPI_Datatype datatype;
-
-		if (Cell::transfer_particles) {
-			MPI_Type_contiguous(
-				this->particles.size() * sizeof(boost::array<double, 3>),
-				MPI_BYTE,
-				&datatype
-			);
-		} else {
-			MPI_Type_contiguous(1, MPI_UNSIGNED, &datatype);
-		}
-
-		return datatype;
 	}
 
 
