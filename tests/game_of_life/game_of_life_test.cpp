@@ -340,9 +340,16 @@ int main(int argc, char* argv[])
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(comm, "RANDOM", neighborhood_size);
 
+	#ifdef SEND_SINGLE_CELLS
+	game_grid.set_send_single_cells(true);
+	#endif
+
 	if (verbose && rank == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
-		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
+		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level()
+			<< "\nNumber of cells: "
+			<< (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1)
+			<< "\nSending single cells: " << boolalpha << game_grid.get_send_single_cells()
+			<< endl << endl;
 	}
 
 	Initialize<ArbitraryGeometry>::initialize(game_grid, grid_size);

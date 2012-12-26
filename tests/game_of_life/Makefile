@@ -49,10 +49,10 @@ game_of_life_test_all_cells_mpi: game_of_life_test.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi
 
 game_of_life_test_boost_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o game_of_life_test_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI -DSEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o game_of_life_test_boost_mpi
 
 game_of_life_test_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi
+	$(CXX) -DDEBUG -DSEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi
 
 scalability: scalability.cpp $(HEADERS) Makefile
 	$(CXX) scalability.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o scalability
@@ -76,10 +76,10 @@ unrefined2d_all_cells_mpi: unrefined2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi
 
 unrefined2d_boost_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o unrefined2d_boost_mpi
+	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI -DSEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o unrefined2d_boost_mpi
 
 unrefined2d_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
+	$(CXX) -DDEBUG -DSEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
 
 refined_scalability3d: refined_scalability3d.cpp $(HEADERS) Makefile
 	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI refined_scalability3d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o refined_scalability3d

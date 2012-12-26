@@ -31,11 +31,6 @@ for more advanced usage of dccrg.
 */
 
 
-
-/*
-If DCCRG_SEND_SINGLE_CELLS is defined then cell data is sent one cell at a time.
-*/
-
 #include "algorithm"
 #include "boost/array.hpp"
 #include "boost/foreach.hpp"
@@ -98,7 +93,6 @@ public:
 	Dccrg()
 	{
 		this->initialized = false;
-		this->balancing_load = false;
 	}
 
 
@@ -119,7 +113,9 @@ public:
 	template<class OtherUserData> Dccrg(const Dccrg<OtherUserData>& other) :
 		initialized(other.get_initialized()),
 		neighborhood_size(other.get_neighborhood_size()),
+		max_tag(other.get_max_tag()),
 		max_ref_lvl_diff(other.get_max_ref_lvl_diff()),
+		send_single_cells(other.get_send_single_cells()),
 		comm(other.get_comm()),
 		rank(other.get_rank()),
 		comm_size(other.get_comm_size()),
@@ -217,14 +213,19 @@ public:
 	) {
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
-			// TODO: throw an exception instead
+			// TODO: throw an exception instead?
 			abort();
 		}
+
+		this->balancing_load = false;
+		this->send_single_cells = false;
 
 		if (sfc_caching_batches == 0) {
 			std::cerr << "sfc_caching_batches must be > 0" << std::endl;
 			abort();
 		}
+
+		int ret_val = -1;
 
 		if (MPI_Comm_dup(given_comm, &this->comm) != MPI_SUCCESS) {
 			std::cerr << "Couldn't duplicate given communicator" << std::endl;
@@ -256,6 +257,22 @@ public:
 			abort();
 		}
 		this->rank = (uint64_t) temp_rank;
+
+		// get maximum tag value
+		int attr_flag = -1, *attr = NULL;
+		ret_val = MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &attr, &attr_flag);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't get MPI_TAG_UB: " << Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+		if (attr == NULL) {
+			// guaranteed by MPI
+			this->max_tag = 32767;
+		} else {
+			this->max_tag = (unsigned int) *attr;
+		}
 
 		this->max_ref_lvl_diff = 1;
 
@@ -1866,31 +1883,17 @@ public:
 		this->make_new_partition(use_zoltan);
 
 		// default construct user data of arriving cells
-		for (boost::unordered_map<int, std::vector<
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			std::pair<uint64_t, int>
-			#else
-			uint64_t
-			#endif
-			> >::const_iterator sender_item = this->cells_to_receive.begin();
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			sender_item = this->cells_to_receive.begin();
 			sender_item != this->cells_to_receive.end();
 			sender_item++
 		) {
-			for (std::vector<
-				#ifdef DCCRG_SEND_SINGLE_CELLS
-				std::pair<uint64_t, int>
-				#else
-				uint64_t
-				#endif
-				>::const_iterator cell_item = sender_item->second.begin();
+			for (std::vector<std::pair<uint64_t, int> >::const_iterator
+				cell_item = sender_item->second.begin();
 				cell_item != sender_item->second.end();
 				cell_item++
 			) {
-				#ifdef DCCRG_SEND_SINGLE_CELLS
 				this->cells[cell_item->first];
-				#else
-				this->cells[*cell_item];
-				#endif
 			}
 		}
 
@@ -1999,15 +2002,13 @@ public:
 		}
 
 		this->start_user_data_transfers(
-		#if defined(DCCRG_SEND_SINGLE_CELLS) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
-		this->cells, this->cells_to_receive, this->cells_to_send
-		#else
-		this->cells_to_receive, this->cells_to_send
-		#endif
+			this->cells,
+			this->cells_to_receive,
+			this->cells_to_send
 		);
 
 		this->wait_user_data_transfer_receives(
-		#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		this->cells, this->cells_to_receive
 		#endif
 		);
@@ -2301,11 +2302,9 @@ public:
 		}
 
 		this->start_user_data_transfers(
-		#if defined(DCCRG_SEND_SINGLE_CELLS) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
-		this->remote_neighbors, this->cells_to_receive, this->cells_to_send
-		#else
-		this->cells_to_receive, this->cells_to_send
-		#endif
+			this->remote_neighbors,
+			this->cells_to_receive,
+			this->cells_to_send
 		);
 	}
 
@@ -2391,14 +2390,9 @@ public:
 		#endif
 
 		this->start_user_data_transfers(
-		#if defined(DCCRG_SEND_SINGLE_CELLS) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
-		this->remote_neighbors,
-		this->user_neigh_cells_to_receive.at(id),
-		this->user_neigh_cells_to_send.at(id)
-		#else
-		this->user_neigh_cells_to_receive.at(id),
-		this->user_neigh_cells_to_send.at(id)
-		#endif
+			this->remote_neighbors,
+			this->user_neigh_cells_to_receive.at(id),
+			this->user_neigh_cells_to_send.at(id)
 		);
 	}
 
@@ -2479,7 +2473,7 @@ public:
 		}
 
 		this->wait_user_data_transfer_receives(
-		#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		this->remote_neighbors, this->cells_to_receive
 		#endif
 		);
@@ -2504,7 +2498,7 @@ public:
 		}
 
 		this->wait_user_data_transfer_receives(
-		#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		this->remote_neighbors, this->user_neigh_cells_to_receive.at(id)
 		#endif
 		);
@@ -2520,12 +2514,7 @@ public:
 	uint64_t get_number_of_update_send_cells() const
 	{
 		uint64_t result = 0;
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			receiver = cells_to_send.begin();
 			receiver != cells_to_send.end();
 			receiver++
@@ -2556,12 +2545,7 @@ public:
 		#endif
 
 		uint64_t result = 0;
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			receiver_item = this->user_neigh_cells_to_send.at(neighborhood_id).begin();
 			receiver_item != this->user_neigh_cells_to_send.at(neighborhood_id).end();
 			receiver_item++
@@ -2579,12 +2563,7 @@ public:
 	uint64_t get_number_of_update_receive_cells() const
 	{
 		uint64_t result = 0;
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender = this->cells_to_receive.begin();
 			sender != this->cells_to_receive.end();
 			sender++
@@ -2615,14 +2594,7 @@ public:
 		#endif
 
 		uint64_t result = 0;
-		for (
-			boost::unordered_map<int, std::vector<
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			std::pair<uint64_t, int>
-			#else
-			uint64_t
-			#endif
-			> >::const_iterator
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender_item = this->user_neigh_cells_to_receive.at(neighborhood_id).begin();
 			sender_item != this->user_neigh_cells_to_receive.at(neighborhood_id).end();
 			sender_item++
@@ -4289,12 +4261,7 @@ public:
 	These lists record which cells' user data this process will send during neighbor data updates.
 	The key is the target process.
 	*/
-	#ifdef DCCRG_SEND_SINGLE_CELLS
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >*
-	#else
-	const boost::unordered_map<int, std::vector<uint64_t> >*
-	#endif
-	get_send_lists()
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >* get_send_lists()
 	{
 		return &(this->cells_to_send);
 	}
@@ -4305,12 +4272,7 @@ public:
 	These lists record which cells' user data this process will receive during neighbor data updates.
 	The key is the source process.
 	*/
-	#ifdef DCCRG_SEND_SINGLE_CELLS
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >*
-	#else
-	const boost::unordered_map<int, std::vector<uint64_t> >*
-	#endif
-	get_receive_lists()
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >* get_receive_lists()
 	{
 		return &(this->cells_to_receive);
 	}
@@ -4764,6 +4726,14 @@ public:
 	}
 
 	/*!
+	Returns the maximum value an MPI tag can have.
+	*/
+	unsigned int get_max_tag() const
+	{
+		return this->max_tag;
+	}
+
+	/*!
 	Returns the maximum allowed difference in refinement level between neighboring cells.
 
 	This difference in enforced both between a cell and its neighbors_of and its neighbors_to.
@@ -4771,6 +4741,29 @@ public:
 	int get_max_ref_lvl_diff() const
 	{
 		return this->max_ref_lvl_diff;
+	}
+
+	/*!
+	Returns whether cell data is transferred using one message or more.
+
+	If true then one MPI message per cell is used, otherwise all cells
+	are transferred in one message.
+	*/
+	bool get_send_single_cells() const
+	{
+		return this->send_single_cells;
+	}
+
+	/*!
+	Sets whether cell data is transferred using one message or more.
+
+	Do not switch sending type while data transfers are going on,
+	for example with start_remote_neighbor_data_update(...).
+	See get_send_single_cells() for more info.
+	*/
+	void set_send_single_cells(const bool given)
+	{
+		this->send_single_cells = given;
 	}
 
 	/*!
@@ -4954,13 +4947,7 @@ public:
 	*/
 	const boost::unordered_map<
 		int,
-		std::vector<
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			std::pair<uint64_t, int>
-			#else
-			uint64_t
-			#endif
-		>
+		std::vector<std::pair<uint64_t, int> >
 	>& get_cells_to_send() const
 	{
 		return this->cells_to_send;
@@ -4971,13 +4958,7 @@ public:
 	*/
 	const boost::unordered_map<
 		int,
-		std::vector<
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			std::pair<uint64_t, int>
-			#else
-			uint64_t
-			#endif
-		>
+		std::vector<std::pair<uint64_t, int> >
 	>& get_cells_to_receive() const
 	{
 		return this->cells_to_receive;
@@ -4988,14 +4969,7 @@ public:
 	*/
 	const boost::unordered_map<
 		int,
-		boost::unordered_map<
-			int,
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			std::vector<std::pair<uint64_t, int> >
-			#else
-			std::vector<uint64_t>
-			#endif
-		>
+		boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
 	>& get_user_neigh_cells_to_send() const
 	{
 		return this->user_neigh_cells_to_send;
@@ -5006,14 +4980,7 @@ public:
 	*/
 	const boost::unordered_map<
 		int,
-		boost::unordered_map<
-			int,
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			std::vector<std::pair<uint64_t, int> >
-			#else
-			std::vector<uint64_t>
-			#endif
-		>
+		boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
 	>& get_user_neigh_cells_to_receive() const
 	{
 		return this->user_neigh_cells_to_receive;
@@ -5109,8 +5076,15 @@ private:
 	// size of the neighbor stencil of a cells in cells (of the same size as the cell itself)
 	unsigned int neighborhood_size;
 
+	// maximum value an MPI tag can have
+	unsigned int max_tag;
+
 	// maximum difference in refinement level between neighbors
 	int max_ref_lvl_diff;
+
+	// whether to send user's cell data between processes
+	// with only one message or one message / cell
+	bool send_single_cells;
 
 	// the grid is distributed between these processes
 	MPI_Comm comm;
@@ -5184,20 +5158,18 @@ private:
 
 	boost::unordered_map<
 		int,
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		std::vector<boost::mpi::request>
-		#else
-		std::vector<MPI_Request>
-		#endif
+		std::vector<
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+			boost::mpi::request
+			#else
+			MPI_Request
+			#endif
+		>
 	> send_requests, receive_requests;
 
 	// cells whose data has to be received / sent by this process from the process as the key
-	#ifdef DCCRG_SEND_SINGLE_CELLS
-	// store cell, tag pairs so users can also send the data themselves easily
-	boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > > cells_to_send, cells_to_receive;
-	#else
-	boost::unordered_map<int, std::vector<uint64_t> > cells_to_send, cells_to_receive;
-	#endif
+	boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
+		cells_to_send, cells_to_receive;
 
 	/*
 	User defined neighborhood versions of cells_to_send and _receive.
@@ -5206,18 +5178,14 @@ private:
 		int, // user defined id of neighbor lists
 		boost::unordered_map<
 			int, // process to send to / receive from
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			std::vector<std::pair<uint64_t, int> >
-			#else
-			std::vector<uint64_t>
-			#endif
 		>
 	> user_neigh_cells_to_send, user_neigh_cells_to_receive;
 
 	// cells added to / removed from this process by load balancing
 	boost::unordered_set<uint64_t> added_cells, removed_cells;
 
-	#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	// storage for cells' user data that awaits transfer to or from this process
 	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
 	#endif
@@ -5401,11 +5369,7 @@ private:
 			if (pin_request->second == this->rank
 			&& current_process_of_cell != this->rank) {
 				this->cells_to_receive[current_process_of_cell].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(pin_request->first, -1)
-					#else
-					pin_request->first
-					#endif
 				);
 				this->added_cells.insert(pin_request->first);
 			}
@@ -5426,11 +5390,7 @@ private:
 				}
 
 				this->cells_to_receive[sender_processes[i]].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(global_ids_to_receive[i], -1)
-					#else
-					global_ids_to_receive[i]
-					#endif
 				);
 
 				#ifdef DEBUG
@@ -5448,23 +5408,25 @@ private:
 		}
 
 		// receive cells in known order and add message tags
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
 			sender = this->cells_to_receive.begin();
 			sender != this->cells_to_receive.end();
 			sender++
 		) {
 			std::sort(sender->second.begin(), sender->second.end());
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			// TODO: check that message tags don't overflow
+
 			for (unsigned int i = 0; i < sender->second.size(); i++) {
-				sender->second[i].second = i + 1;
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for receiving cell " << sender->second[i].first
+						<< " from process " << sender->first
+						<< std::endl;
+					abort();
+				}
+				sender->second[i].second = tag;
 			}
-			#endif
 		}
 
 
@@ -5484,11 +5446,7 @@ private:
 			if (destination_process != this->rank
 			&& current_process_of_cell == this->rank) {
 				this->cells_to_send[destination_process].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(pin_request->first, -1)
-					#else
-					pin_request->first
-					#endif
 				);
 				this->removed_cells.insert(pin_request->first);
 			}
@@ -5509,11 +5467,7 @@ private:
 				}
 
 				this->cells_to_send[receiver_processes[i]].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(global_ids_to_send[i], -1)
-					#else
-					global_ids_to_send[i]
-					#endif
 				);
 
 				#ifdef DEBUG
@@ -5540,23 +5494,24 @@ private:
 		}
 
 		// send cells in known order and add message tags
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
 			receiver = this->cells_to_send.begin();
 			receiver != this->cells_to_send.end();
 			receiver++
 		) {
 			std::sort(receiver->second.begin(), receiver->second.end());
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			// TODO: check that message tags don't overflow
 			for (unsigned int i = 0; i < receiver->second.size(); i++) {
-				receiver->second[i].second = i + 1;
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for sending cell " << receiver->second[i].first
+						<< " to process " << receiver->first
+						<< std::endl;
+					abort();
+				}
+				receiver->second[i].second = tag;
 			}
-			#endif
 		}
 	}
 
@@ -5657,11 +5612,7 @@ private:
 
 			BOOST_FOREACH(const uint64_t& cell, receiver->second) {
 				this->cells_to_send.at(process).push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(cell, -1)
-					#else
-					cell
-					#endif
 				);
 			}
 
@@ -5672,12 +5623,20 @@ private:
 				);
 			}
 
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// sequential tags for messages: 1, 2, ...
 			for (size_t i = 0; i < this->cells_to_send.at(process).size(); i++) {
-				this->cells_to_send.at(process)[i].second = i + 1;
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					const uint64_t cell = this->cells_to_send.at(process)[i].first;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for sending cell " << cell
+						<< " to process " << process
+						<< std::endl;
+					abort();
+				}
+				this->cells_to_send.at(process)[i].second = tag;
 			}
-			#endif
 		}
 
 		// populate final receive list data structures and sort them
@@ -5701,11 +5660,7 @@ private:
 
 			BOOST_FOREACH(const uint64_t& cell, sender->second) {
 				this->cells_to_receive.at(process).push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(cell, -1)
-					#else
-					cell
-					#endif
 				);
 			}
 
@@ -5716,12 +5671,21 @@ private:
 				);
 			}
 
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// sequential tags for messages: 1, 2, ...
 			for (size_t i = 0; i < this->cells_to_receive.at(process).size(); i++) {
-				this->cells_to_receive.at(process)[i].second = i + 1;
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					const uint64_t cell = this->cells_to_receive.at(process)[i].first;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for receiving cell " << cell
+						<< " from process " << process
+						<< std::endl;
+					abort();
+				}
+
+				this->cells_to_receive.at(process)[i].second = tag;
 			}
-			#endif
 		}
 
 		for (boost::unordered_map<int, std::vector<Types<3>::neighborhood_item_t> >::const_iterator
@@ -5792,29 +5756,34 @@ private:
 			receiver != user_neigh_unique_sends.end();
 			receiver++
 		) {
-			this->user_neigh_cells_to_send[id][receiver->first].reserve(receiver->second.size());
+			const int receiving_process = receiver->first;
+
+			std::vector<std::pair<uint64_t, int> >& current_cells_to_send
+				= this->user_neigh_cells_to_send.at(id)[receiving_process];
+
+			current_cells_to_send.reserve(receiver->second.size());
 
 			BOOST_FOREACH(const uint64_t& cell, receiver->second) {
-				this->user_neigh_cells_to_send.at(id)[receiver->first].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
-					std::make_pair(cell, -1)
-					#else
-					cell
-					#endif
-				);
+				current_cells_to_send.push_back(std::make_pair(cell, -1));
 			}
 
-			std::sort(
-				this->user_neigh_cells_to_send.at(id)[receiver->first].begin(),
-				this->user_neigh_cells_to_send.at(id)[receiver->first].end()
-			);
+			std::sort(current_cells_to_send.begin(), current_cells_to_send.end());
 
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// sequential tags for messages: 1, 2, ...
-			for (unsigned int i = 0; i < this->cells_to_send[receiver->first].size(); i++) {
-				this->user_neigh_cells_to_send.at(id)[receiver->first][i].second = i + 1;
+			for (unsigned int i = 0; i < current_cells_to_send.size(); i++) {
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					const uint64_t cell = current_cells_to_send[i].first;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for sending cell " << cell
+						<< " to process " << receiving_process
+						<< std::endl;
+					abort();
+				}
+
+				current_cells_to_send[i].second = tag;
 			}
-			#endif
 		}
 
 		// populate final receive list data structures and sort them
@@ -5823,30 +5792,34 @@ private:
 			sender != user_neigh_unique_receives.end();
 			sender++
 		) {
-			this->user_neigh_cells_to_receive[id][sender->first].reserve(sender->second.size());
+			const int sending_process = sender->first;
+
+			std::vector<std::pair<uint64_t, int> >& current_cells_to_receive
+				= this->user_neigh_cells_to_receive[id][sending_process];
+
+			current_cells_to_receive.reserve(sender->second.size());
 
 			BOOST_FOREACH(const uint64_t& cell, sender->second) {
-
-				this->user_neigh_cells_to_receive.at(id)[sender->first].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
-					std::make_pair(cell, -1)
-					#else
-					cell
-					#endif
-				);
+				current_cells_to_receive.push_back(std::make_pair(cell, -1));
 			}
 
-			std::sort(
-				this->user_neigh_cells_to_receive.at(id)[sender->first].begin(),
-				this->user_neigh_cells_to_receive.at(id)[sender->first].end()
-			);
+			std::sort(current_cells_to_receive.begin(), current_cells_to_receive.end());
 
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// sequential tags for messages: 1, 2, ...
-			for (unsigned int i = 0; i < this->cells_to_receive[sender->first].size(); i++) {
-				this->user_neigh_cells_to_receive.at(id)[sender->first][i].second = i + 1;
+			for (unsigned int i = 0; i < current_cells_to_receive.size(); i++) {
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					const uint64_t cell = current_cells_to_receive[i].first;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for receiving cell " << cell
+						<< " from process " << sending_process
+						<< std::endl;
+					abort();
+				}
+
+				current_cells_to_receive[i].second = tag;
 			}
-			#endif
 		}
 	}
 
@@ -6734,7 +6707,7 @@ private:
 		this->cells_to_receive.clear();
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
-		#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		this->incoming_data.clear();
 		this->outgoing_data.clear();
 		#endif
@@ -7037,72 +7010,70 @@ private:
 			} else if (this->rank == process_of_unrefined) {
 
 				this->cells_to_send[process_of_parent].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(unrefined, -1)
-					#else
-					unrefined
-					#endif
 				);
 
 			// receive user data of removed cell from its process
 			} else if (this->rank == process_of_parent) {
 				this->cells_to_receive[process_of_unrefined].push_back(
-					#ifdef DCCRG_SEND_SINGLE_CELLS
 					std::make_pair(unrefined, -1)
-					#else
-					unrefined
-					#endif
 				);
 			}
 		}
 
 		// receive cells in known order and add message tags
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
 			sender = this->cells_to_receive.begin();
 			sender != this->cells_to_receive.end();
 			sender++
 		) {
 			std::sort(sender->second.begin(), sender->second.end());
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// TODO: merge with identical code in make_new_partition
 			for (unsigned int i = 0; i < sender->second.size(); i++) {
-				 sender->second[i].second = i + 1;
+
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for receiving cell " << sender->second[i].first
+						<< " from process " << sender->first
+						<< std::endl;
+					abort();
+				}
+
+				sender->second[i].second = tag;
 			}
-			#endif
 		}
 
 		// send cells in known order and add message tags
-		for (
-			#ifdef DCCRG_SEND_SINGLE_CELLS
-			boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
-			#else
-			boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			#endif
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::iterator
 			receiver = this->cells_to_send.begin();
 			receiver != this->cells_to_send.end();
 			receiver++
 		) {
 			std::sort(receiver->second.begin(), receiver->second.end());
-			#ifdef DCCRG_SEND_SINGLE_CELLS
 			// TODO: check that message tags don't overflow
 			for (unsigned int i = 0; i < receiver->second.size(); i++) {
-				receiver->second[i].second = i + 1;
+
+				const int tag = (int) i + 1;
+				if (tag > (int) this->max_tag) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Message tag would overflow for sending cell " << receiver->second[i].first
+						<< " to process " << receiver->first
+						<< std::endl;
+					abort();
+				}
+
+				receiver->second[i].second = tag;
 			}
-			#endif
 		}
 
 
 		this->start_user_data_transfers(
-		#if defined(DCCRG_SEND_SINGLE_CELLS) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
-		this->unrefined_cell_data, this->cells_to_receive, this->cells_to_send
-		#else
-		this->cells_to_receive, this->cells_to_send
-		#endif
+			this->unrefined_cell_data,
+			this->cells_to_receive,
+			this->cells_to_send
 		);
 
 		// update data for parents (and their neighborhood) of unrefined cells
@@ -7253,7 +7224,7 @@ private:
 		#endif
 
 		this->wait_user_data_transfer_receives(
-		#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		this->unrefined_cell_data, this->cells_to_receive
 		#endif
 		);
@@ -7315,35 +7286,35 @@ private:
 	/*!
 	Starts user data transfers between processes based on cells_to_send and cells_to_receive.
 
-	User data arriving to this process is saved in given destination.
+	User data arriving to this process is saved in given destination except when using boost
+	and sending all cells in one message in which case the destination is actually used by
+	wait_user_data_transfer_receives(...).
 	*/
 	void start_user_data_transfers(
-	#ifdef DCCRG_SEND_SINGLE_CELLS
-	boost::unordered_map<uint64_t, UserData>& destination,
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
-	#elif !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
-	boost::unordered_map<uint64_t, UserData>& destination,
-	boost::unordered_map<int, std::vector<uint64_t> >& receive_item,
-	boost::unordered_map<int, std::vector<uint64_t> >& send_item
-	#else
-	boost::unordered_map<int, std::vector<uint64_t> >& receive_item,
-	boost::unordered_map<int, std::vector<uint64_t> >& send_item
-	#endif
+		boost::unordered_map<uint64_t, UserData>& destination,
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
 	) {
-		#ifdef DCCRG_SEND_SINGLE_CELLS
 
-		// post all receives, messages are unique between different senders so just iterate over processes in random order
+		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
+		int ret_val = -1;
+		#endif
+
+		// post receives
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender = receive_item.begin();
 			sender != receive_item.end();
 			sender++
 		) {
-			const int process = sender->first;
+			const int sending_process = sender->first;
+
+			#if defined(DEBUG) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+			const size_t number_of_receives = sender->second.size();
+			#endif
 
 			#ifdef DEBUG
-			if (process == (int) this->rank
-			&& sender->second.size() > 0) {
+			if (sending_process == (int) this->rank
+			&& number_of_receives > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
 					<< " trying to transfer to self"
@@ -7352,480 +7323,436 @@ private:
 			}
 			#endif
 
-			for (std::vector<std::pair<uint64_t, int> >::const_iterator
-				item = sender->second.begin();
-				item != sender->second.end();
-				item++
-			) {
-				const uint64_t cell = item->first;
+			if (this->send_single_cells) {
 
-				if (destination.count(cell) == 0) {
-					destination[cell];
+				for (std::vector<std::pair<uint64_t, int> >::const_iterator
+					item = sender->second.begin();
+					item != sender->second.end();
+					item++
+				) {
+					const uint64_t cell = item->first;
+
+					if (destination.count(cell) == 0) {
+						destination[cell];
+					}
+
+					#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+					this->receive_requests[sending_process].push_back(
+						this->boost_comm.irecv(
+							sending_process,
+							item->second,
+							destination.at(cell)
+						)
+					);
+
+					#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+					this->receive_requests[sending_process].push_back(MPI_Request());
+
+					void* address = NULL;
+					int count = -1;
+					MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
+					destination.at(cell).mpi_datatype(
+						address,
+						count,
+						user_datatype,
+						cell,
+						sending_process,
+						(int) this->rank,
+						true
+					);
+
+					const bool is_named_datatype = Is_Named_Datatype()(user_datatype);
+
+					if (!is_named_datatype) {
+						ret_val = MPI_Type_commit(&user_datatype);
+						if (ret_val != MPI_SUCCESS) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " MPI_Type_commit failed on process " << this->rank
+								<< ", for datatype of cell " << cell
+								<< " with returned buffer address " << address
+								<< " and returned count " << count
+								<< ": " << Error_String()(ret_val)
+								<< std::endl;
+							abort();
+						}
+					}
+
+					ret_val = MPI_Irecv(
+						address,
+						count,
+						user_datatype,
+						sending_process,
+						item->second,
+						this->comm,
+						&(this->receive_requests[sending_process].back())
+					);
+
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI_Irecv failed on process " << this->rank
+							<< ", for cell " << cell
+							<< ", from process " << sending_process
+							<< ": " << Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+
+					if (!is_named_datatype) {
+						ret_val = MPI_Type_free(&user_datatype);
+						if (ret_val != MPI_SUCCESS) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " MPI_Type_free failed on process " << this->rank
+								<< ", for a derived datatype of cell " << cell
+								<< ": " << Error_String()(ret_val)
+								<< std::endl;
+							abort();
+						}
+					}
+
+					#endif
 				}
+
+			} else { // if this->send_single_cells
 
 				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-				this->receive_requests[process].push_back(
+				this->receive_requests[sending_process].push_back(
 					this->boost_comm.irecv(
-						process,
-						item->second,
-						destination.at(cell)
+						sending_process,
+						0,
+						this->incoming_data[sending_process]
 					)
 				);
 
 				#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-				int ret_val = -1;
-
-				this->receive_requests[process].push_back(MPI_Request());
-
-				void* address = NULL;
-				int count = -1;
-				MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
-				destination.at(cell).mpi_datatype(
-					address,
-					count,
-					user_datatype,
-					cell,
-					process,
-					(int) this->rank,
-					true
-				);
-
-				const bool is_named_datatype = Is_Named_Datatype()(user_datatype);
-
-				if (!is_named_datatype) {
-					ret_val = MPI_Type_commit(&user_datatype);
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " MPI_Type_commit failed on process " << this->rank
-							<< ", for datatype of cell " << cell
-							<< " with returned buffer address " << address
-							<< " and returned count " << count
-							<< ": " << Error_String()(ret_val)
-							<< std::endl;
-						abort();
+				// reserve space for incoming user data in this end
+				// TODO: move into a separate function callable by user
+				for (size_t i = 0; i < number_of_receives; i++) {
+					const uint64_t cell = sender->second[i].first;
+					if (destination.count(cell) == 0) {
+						destination[cell];
 					}
 				}
 
-				ret_val = MPI_Irecv(
-					address,
-					count,
-					user_datatype,
-					process,
-					item->second,
-					this->comm,
-					&(this->receive_requests[process].back())
-				);
+				// get mpi transfer info from cells
+				std::vector<void*> addresses(number_of_receives, NULL);
+				std::vector<int> counts(number_of_receives, -1);
+				std::vector<MPI_Datatype> datatypes(number_of_receives, MPI_DATATYPE_NULL);
 
+				for (size_t i = 0; i < number_of_receives; i++) {
+					const uint64_t cell = sender->second[i].first;
+					destination.at(cell).mpi_datatype(
+						addresses[i],
+						counts[i],
+						datatypes[i],
+						cell,
+						sending_process,
+						(int) this->rank,
+						true
+					);
+				}
+
+				// get displacements in bytes for incoming user data
+				std::vector<MPI_Aint> displacements(number_of_receives, 0);
+				for (size_t i = 0; i < number_of_receives; i++) {
+					displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
+				}
+
+				MPI_Datatype receive_datatype;
+				ret_val = MPI_Type_create_struct(
+					(int) number_of_receives,
+					&counts[0],
+					&displacements[0],
+					&datatypes[0],
+					&receive_datatype
+				);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< " MPI_Irecv failed on process " << this->rank
-						<< ", for cell " << cell
-						<< ", from process " << process
+						<< " MPI_Type_create_struct failed for process " << this->rank
 						<< ": " << Error_String()(ret_val)
 						<< std::endl;
 					abort();
 				}
 
-				if (!is_named_datatype) {
-					ret_val = MPI_Type_free(&user_datatype);
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " MPI_Type_free failed on process " << this->rank
-							<< ", for a derived datatype of cell " << cell
-							<< ": " << Error_String()(ret_val)
-							<< std::endl;
-						abort();
-					}
+				ret_val = MPI_Type_commit(&receive_datatype);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Type_commit failed for process " << this->rank
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
 				}
 
-				#endif
+				this->receive_requests[sender->first].push_back(MPI_Request());
+
+				ret_val = MPI_Irecv(
+					addresses[0],
+					1,
+					receive_datatype,
+					sender->first,
+					0,
+					this->comm,
+					&(this->receive_requests[sender->first].back())
+				);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Irecv failed for process " << this->rank
+						<< ", source process " << sender->first
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
+
+				MPI_Type_free(&receive_datatype);
+				BOOST_FOREACH(MPI_Datatype& type, datatypes) {
+					if (!Is_Named_Datatype()(type)) {
+						ret_val = MPI_Type_free(&type);
+						if (ret_val != MPI_SUCCESS) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " MPI_Type_free failed on process " << this->rank
+								<< ", for a derived datatype of user data: "
+								<< Error_String()(ret_val)
+								<< std::endl;
+							abort();
+						}
+					}
+				}
+				#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			}
 		}
 
-		// post all sends
+		// post sends
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			receiver = send_item.begin();
 			receiver != send_item.end();
 			receiver++
 		) {
-			const int process = receiver->first;
+			const int receiving_process = receiver->first;
+
+			#if defined(DEBUG) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+			const size_t number_of_sends = receiver->second.size();
+			#endif
 
 			#ifdef DEBUG
-			if (process == (int) this->rank
-			&& receiver->second.size() > 0) {
+			if (receiving_process == (int) this->rank
+			&& number_of_sends > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
 				abort();
 			}
 			#endif
 
-			for (std::vector<std::pair<uint64_t, int> >::const_iterator
-				item = receiver->second.begin();
-				item != receiver->second.end();
-				item++
-			) {
-				const uint64_t cell = item->first;
+			if (this->send_single_cells) {
 
-				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+				for (std::vector<std::pair<uint64_t, int> >::const_iterator
+					item = receiver->second.begin();
+					item != receiver->second.end();
+					item++
+				) {
+					const uint64_t cell = item->first;
 
-				this->send_requests[process].push_back(
-					this->boost_comm.isend(
-						process,
+					#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+					this->send_requests[receiving_process].push_back(
+						this->boost_comm.isend(
+							receiving_process,
+							item->second,
+							this->cells.at(cell)
+						)
+					);
+
+					#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+					this->send_requests[receiving_process].push_back(MPI_Request());
+
+					void* address = NULL;
+					int count = -1;
+					MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
+
+					this->cells.at(cell).mpi_datatype(
+						address,
+						count,
+						user_datatype,
+						cell,
+						(int) this->rank,
+						receiving_process,
+						false
+					);
+
+					const bool is_named_datatype = Is_Named_Datatype()(user_datatype);
+
+					if (!is_named_datatype) {
+						ret_val = MPI_Type_commit(&user_datatype);
+						if (ret_val != MPI_SUCCESS) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " MPI_Type_commit failed on process " << this->rank
+								<< ", for datatype of cell " << cell
+								<< " with returned buffer address " << address
+								<< " and returned count " << count
+								<< ": " << Error_String()(ret_val)
+								<< std::endl;
+							abort();
+						}
+					}
+
+					ret_val = MPI_Isend(
+						address,
+						count,
+						user_datatype,
+						receiving_process,
 						item->second,
-						this->cells.at(cell)
-					)
-				);
+						this->comm,
+						&(this->send_requests[receiving_process].back())
+					);
 
-				#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-				int ret_val = -1;
-
-				this->send_requests[process].push_back(MPI_Request());
-
-				void* address = NULL;
-				int count = -1;
-				MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
-
-				this->cells.at(cell).mpi_datatype(
-					address,
-					count,
-					user_datatype,
-					cell,
-					(int) this->rank,
-					process,
-					false
-				);
-
-				const bool is_named_datatype = Is_Named_Datatype()(user_datatype);
-
-				if (!is_named_datatype) {
-					ret_val = MPI_Type_commit(&user_datatype);
 					if (ret_val != MPI_SUCCESS) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " MPI_Type_commit failed on process " << this->rank
-							<< ", for datatype of cell " << cell
-							<< " with returned buffer address " << address
-							<< " and returned count " << count
+							<< " MPI_Isend failed on process " << this->rank
+							<< ", for cell " << cell
+							<< ", to process " << receiving_process
 							<< ": " << Error_String()(ret_val)
 							<< std::endl;
 						abort();
 					}
+
+					if (!is_named_datatype) {
+						ret_val = MPI_Type_free(&user_datatype);
+						if (ret_val != MPI_SUCCESS) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " MPI_Type_free failed on process " << this->rank
+								<< ", for a derived datatype of cell " << cell
+								<< ": " << Error_String()(ret_val)
+								<< std::endl;
+							abort();
+						}
+					}
+
+					#endif
 				}
 
-				ret_val = MPI_Isend(
-					address,
-					count,
-					user_datatype,
-					process,
-					item->second,
-					this->comm,
-					&(this->send_requests[process].back())
+			} else { // if this->send_single_cells
+
+
+				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+				// construct the outgoing data vector
+				for (std::vector<std::pair<uint64_t, int> >::const_iterator
+					item = receiver->second.begin();
+					item != receiver->second.end();
+					item++
+				) {
+					const uint64_t cell = item->first;
+					UserData* user_data = &(this->cells.at(cell));
+					if (user_data == NULL) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " No data for cell " << cell
+							<< std::endl;
+						abort();
+					}
+					this->outgoing_data[receiving_process].push_back(*user_data);
+				}
+
+				// send all cells
+				this->send_requests[receiving_process].push_back(
+					this->boost_comm.isend(
+						receiving_process,
+						0,
+						this->outgoing_data[receiving_process]
+					)
 				);
 
+				#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+				// get mpi transfer info from cells
+				std::vector<void*> addresses(number_of_sends, NULL);
+				std::vector<int> counts(number_of_sends, -1);
+				std::vector<MPI_Datatype> datatypes(number_of_sends, MPI_DATATYPE_NULL);
+
+				for (size_t i = 0; i < number_of_sends; i++) {
+					const uint64_t cell = receiver->second[i].first;
+					this->cells.at(cell).mpi_datatype(
+						addresses[i],
+						counts[i],
+						datatypes[i],
+						cell,
+						(int) this->rank,
+						receiving_process,
+						false
+					);
+				}
+
+				// get displacements in bytes for outgoing user data
+				std::vector<MPI_Aint> displacements(number_of_sends, 0);
+				for (size_t i = 0; i < number_of_sends; i++) {
+					displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
+				}
+
+				MPI_Datatype send_datatype;
+
+				ret_val = MPI_Type_create_struct(
+					(int) number_of_sends,
+					&counts[0],
+					&displacements[0],
+					&datatypes[0],
+					&send_datatype
+				);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< " MPI_Isend failed on process " << this->rank
-						<< ", for cell " << cell
-						<< ", to process " << process
+						<< " MPI_Type_create_struct failed for process " << this->rank
 						<< ": " << Error_String()(ret_val)
 						<< std::endl;
 					abort();
 				}
 
-				if (!is_named_datatype) {
-					ret_val = MPI_Type_free(&user_datatype);
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " MPI_Type_free failed on process " << this->rank
-							<< ", for a derived datatype of cell " << cell
-							<< ": " << Error_String()(ret_val)
-							<< std::endl;
-						abort();
-					}
-				}
-
-				#endif
-			}
-		}
-
-		// all user data is sent using one MPI message / process
-		#else	// ifdef DCCRG_SEND_SINGLE_CELLS
-
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		// post all receives
-		for (int sender = 0; sender < (int) this->comm_size; sender++) {
-
-			if ((uint64_t) sender == this->rank) {
-				continue;
-			}
-
-			if (receive_item.count(sender) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			this->receive_requests[sender].push_back(
-				this->boost_comm.irecv(
-					sender,
-					0,
-					this->incoming_data[sender]
-				)
-			);
-		}
-
-		// gather all data to send
-		for (int receiver = 0; receiver < (int) this->comm_size; receiver++) {
-
-			if ((uint64_t) receiver == this->rank) {
-				// don't send to self
-				continue;
-			}
-
-			if (send_item.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			// construct the outgoing data vector
-			BOOST_FOREACH(const uint64_t& cell, send_item.at(receiver)) {
-				UserData* user_data = (*this)[cell];
-				if (user_data == NULL) {
+				MPI_Type_commit(&send_datatype);
+				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< " No data for cell " << cell
+						<< " MPI_Type_commit failed for process " << this->rank
+						<< ": " << Error_String()(ret_val)
 						<< std::endl;
 					abort();
 				}
-				this->outgoing_data[receiver].push_back(*user_data);
-			}
-		}
 
-		// post all sends
-		for (int receiver = 0; receiver < (int) this->comm_size; receiver++) {
+				this->send_requests[receiver->first].push_back(MPI_Request());
 
-			if ((uint64_t) receiver == this->rank) {
-				continue;
-			}
-
-			if (send_item.count(receiver) == 0) {
-				// no data to send / receive
-				continue;
-			}
-
-			this->send_requests[receiver].push_back(
-				this->boost_comm.isend(
-					receiver,
+				ret_val = MPI_Isend(
+					addresses[0],
+					1,
+					send_datatype,
+					receiver->first,
 					0,
-					this->outgoing_data[receiver]
-				)
-			);
-		}
-
-		#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		// receive one MPI datatype per process
-		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			sender = receive_item.begin();
-			sender != receive_item.end();
-			sender++
-		) {
-			const int sender_process = sender->first;
-			const size_t number_of_receives = sender->second.size();
-			int ret_val = -1;
-
-			// reserve space for incoming user data in this end
-			// TODO: move into a separate function callable by user
-			for (size_t i = 0; i < number_of_receives; i++) {
-				const uint64_t cell = sender->second[i];
-				if (destination.count(cell) == 0) {
-					destination[cell];
-				}
-			}
-
-			// get mpi transfer info from cells
-			std::vector<void*> addresses(number_of_receives, NULL);
-			std::vector<int> counts(number_of_receives, -1);
-			std::vector<MPI_Datatype> datatypes(number_of_receives, MPI_DATATYPE_NULL);
-
-			for (size_t i = 0; i < number_of_receives; i++) {
-				const uint64_t cell = sender->second[i];
-				destination.at(cell).mpi_datatype(
-					addresses[i],
-					counts[i],
-					datatypes[i],
-					cell,
-					sender_process,
-					(int) this->rank,
-					true
+					this->comm,
+					&(this->send_requests[receiver->first].back())
 				);
-			}
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " MPI_Isend failed from process " << this->rank
+						<< ", target process " << receiver->first
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
 
-			// get displacements in bytes for incoming user data
-			std::vector<MPI_Aint> displacements(number_of_receives, 0);
-			for (size_t i = 0; i < number_of_receives; i++) {
-				displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
-			}
-
-			MPI_Datatype receive_datatype;
-			ret_val = MPI_Type_create_struct(
-				(int) number_of_receives,
-				&counts[0],
-				&displacements[0],
-				&datatypes[0],
-				&receive_datatype
-			);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " MPI_Type_create_struct failed for process " << this->rank
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			ret_val = MPI_Type_commit(&receive_datatype);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " MPI_Type_commit failed for process " << this->rank
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			this->receive_requests[sender->first].push_back(MPI_Request());
-
-			ret_val = MPI_Irecv(
-				addresses[0],
-				1,
-				receive_datatype,
-				sender->first,
-				0,
-				this->comm,
-				&(this->receive_requests[sender->first].back())
-			);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " MPI_Irecv failed for process " << this->rank
-					<< ", source process " << sender->first
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			MPI_Type_free(&receive_datatype);
-			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-				if (!Is_Named_Datatype()(type)) {
-					ret_val = MPI_Type_free(&type);
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " MPI_Type_free failed on process " << this->rank
-							<< ", for a derived datatype of user data: "
-							<< Error_String()(ret_val)
-							<< std::endl;
-						abort();
+				MPI_Type_free(&send_datatype);
+				BOOST_FOREACH(MPI_Datatype& type, datatypes) {
+					if (!Is_Named_Datatype()(type)) {
+						ret_val = MPI_Type_free(&type);
+						if (ret_val != MPI_SUCCESS) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " MPI_Type_free failed on process " << this->rank
+								<< ", for a derived datatype of user data: "
+								<< Error_String()(ret_val)
+								<< std::endl;
+							abort();
+						}
 					}
 				}
+
+				#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			}
 		}
-
-		// send one MPI datatype per process
-		for (boost::unordered_map<int, std::vector<uint64_t> >::iterator
-			receiver = send_item.begin();
-			receiver != send_item.end();
-			receiver++
-		) {
-			const int receiver_process = receiver->first;
-			const size_t number_of_sends = receiver->second.size();
-			int ret_val = -1;
-
-			// get mpi transfer info from cells
-			std::vector<void*> addresses(number_of_sends, NULL);
-			std::vector<int> counts(number_of_sends, -1);
-			std::vector<MPI_Datatype> datatypes(number_of_sends, MPI_DATATYPE_NULL);
-
-			for (size_t i = 0; i < number_of_sends; i++) {
-				const uint64_t cell = receiver->second[i];
-				this->cells.at(cell).mpi_datatype(
-					addresses[i],
-					counts[i],
-					datatypes[i],
-					cell,
-					(int) this->rank,
-					receiver_process,
-					false
-				);
-			}
-
-			// get displacements in bytes for outgoing user data
-			std::vector<MPI_Aint> displacements(number_of_sends, 0);
-			for (size_t i = 0; i < number_of_sends; i++) {
-				displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
-			}
-
-			MPI_Datatype send_datatype;
-
-			ret_val = MPI_Type_create_struct(
-				(int) number_of_sends,
-				&counts[0],
-				&displacements[0],
-				&datatypes[0],
-				&send_datatype
-			);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " MPI_Type_create_struct failed for process " << this->rank
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			MPI_Type_commit(&send_datatype);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " MPI_Type_commit failed for process " << this->rank
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			this->send_requests[receiver->first].push_back(MPI_Request());
-
-			ret_val = MPI_Isend(
-				addresses[0],
-				1,
-				send_datatype,
-				receiver->first,
-				0,
-				this->comm,
-				&(this->send_requests[receiver->first].back())
-			);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " MPI_Isend failed from process " << this->rank
-					<< ", target process " << receiver->first
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			MPI_Type_free(&send_datatype);
-			BOOST_FOREACH(MPI_Datatype& type, datatypes) {
-				if (!Is_Named_Datatype()(type)) {
-					ret_val = MPI_Type_free(&type);
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " MPI_Type_free failed on process " << this->rank
-							<< ", for a derived datatype of user data: "
-							<< Error_String()(ret_val)
-							<< std::endl;
-						abort();
-					}
-				}
-			}
-		}
-
-		#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		#endif	// ifdef DCCRG_SEND_SINGLE_CELLS
 	}
 
 
@@ -7835,13 +7762,14 @@ private:
 	User data arriving to this process is saved in given destination.
 	*/
 	void wait_user_data_transfer_receives(
-	#if !defined(DCCRG_SEND_SINGLE_CELLS) && defined(DCCRG_TRANSFER_USING_BOOST_MPI)
+	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	boost::unordered_map<uint64_t, UserData>& destination,
-	boost::unordered_map<int, std::vector<uint64_t> >& receive_item
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item
 	#endif
 	) {
 		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
+		// wait for data to arrive
 		for (boost::unordered_map<int, std::vector<boost::mpi::request> >::iterator
 			process = this->receive_requests.begin();
 			process != this->receive_requests.end();
@@ -7850,26 +7778,35 @@ private:
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
 
-		#ifndef DCCRG_SEND_SINGLE_CELLS
-
 		// incorporate received data
-		for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator
-			sender = this->incoming_data.begin();
-			sender != this->incoming_data.end();
-			sender++
-		) {
-			int i = 0;
-			BOOST_FOREACH(const uint64_t& cell, receive_item.at(sender->first)) {
-				// TODO move data instead of copying
-				destination[cell] = this->incoming_data.at(sender->first)[i];
-				i++;
-			}
-		}
-		this->incoming_data.clear();
+		if (!this->send_single_cells) {
 
-		#endif	// ifndef DCCRG_SEND_SINGLE_CELLS
+			for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator
+				sender = this->incoming_data.begin();
+				sender != this->incoming_data.end();
+				sender++
+			) {
+				const int sending_process = sender->first;
+
+				size_t i = 0;
+				// cells were received in the following order
+				for (std::vector<std::pair<uint64_t, int> >::const_iterator
+					cell_item = receive_item.at(sending_process).begin();
+					cell_item != receive_item.at(sending_process).end();
+					cell_item++
+				) {
+					const uint64_t cell = cell_item->first;
+					// TODO move data instead of copying
+					destination[cell] = this->incoming_data.at(sending_process)[i];
+					i++;
+				}
+			}
+			this->incoming_data.clear();
+		}
 
 		#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+		int ret_val = -1;
 
 		for (boost::unordered_map<int, std::vector<MPI_Request> >::iterator
 			process = this->receive_requests.begin();
@@ -7879,15 +7816,15 @@ private:
 			std::vector<MPI_Status> statuses;
 			statuses.resize(process->second.size());
 
-			if (
-				MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0]))
-				!= MPI_SUCCESS
-			) {
+			ret_val = MPI_Waitall(process->second.size(), &(process->second[0]), &(statuses[0]));
+			if (ret_val != MPI_SUCCESS) {
 				BOOST_FOREACH(const MPI_Status& status, statuses) {
 					if (status.MPI_ERROR != MPI_SUCCESS) {
-						std::cerr << "MPI receive failed from process " << status.MPI_SOURCE
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI receive failed from process " << status.MPI_SOURCE
 							<< " with tag " << status.MPI_TAG
 							<< std::endl;
+						abort();
 					}
 				}
 			}
@@ -7914,11 +7851,9 @@ private:
 			boost::mpi::wait_all(process->second.begin(), process->second.end());
 		}
 
-		#ifndef DCCRG_SEND_SINGLE_CELLS
-
-		this->outgoing_data.clear();
-
-		#endif	// ifndef DCCRG_SEND_SINGLE_CELLS
+		if (!this->send_single_cells) {
+			this->outgoing_data.clear();
+		}
 
 		#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
@@ -7936,9 +7871,11 @@ private:
 			) {
 				BOOST_FOREACH(const MPI_Status& status, statuses) {
 					if (status.MPI_ERROR != MPI_SUCCESS) {
-						std::cerr << "MPI receive failed from process " << status.MPI_SOURCE
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " MPI receive failed from process " << status.MPI_SOURCE
 							<< " with tag " << status.MPI_TAG
 							<< std::endl;
+						abort();
 					}
 				}
 			}
