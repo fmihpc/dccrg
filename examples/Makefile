@@ -9,13 +9,13 @@ HEADERS = ../dccrg.hpp ../dccrg_constant_geometry.hpp
 all: simple_game_of_life game_of_life game_of_life_with_output dc2vtk
 
 game_of_life: game_of_life.cpp $(HEADERS) Makefile
-	$(MPICXX) game_of_life.cpp $(INCLUDES) -o game_of_life
+	$(MPICXX) -DDCCRG_TRANSFER_USING_BOOST_MPI game_of_life.cpp $(INCLUDES) -o game_of_life
 
 simple_game_of_life: simple_game_of_life.cpp $(HEADERS) Makefile
-	$(MPICXX) simple_game_of_life.cpp $(INCLUDES) -o simple_game_of_life
+	$(MPICXX) -DDCCRG_TRANSFER_USING_BOOST_MPI simple_game_of_life.cpp $(INCLUDES) -o simple_game_of_life
 
 game_of_life_with_output: game_of_life_with_output.cpp $(HEADERS) Makefile
-	$(MPICXX) game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
+	$(MPICXX) -DDCCRG_TRANSFER_USING_BOOST_MPI game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
 
 dc2vtk: dc2vtk.cpp ../dccrg_constant_geometry.hpp Makefile
 	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
