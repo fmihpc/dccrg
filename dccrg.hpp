@@ -1657,6 +1657,9 @@ public:
 
 	/*!
 	Returns all cells in the grid that don't have children (e.g. leaf cells)
+
+	Only those cells are returned which this process knows about, this
+	might not include the cells of all processes.
 	*/
 	std::vector<uint64_t> get_all_cells() const
 	{
