@@ -2210,39 +2210,6 @@ public:
 
 
 	/*!
-	Same as balance_load but only prepares to move cells with balance_load.
-
-	Must be used when cells contain variable mpi_datatypes so that when
-	cells are moved receiving processes can construct the receiving
-	datatypes in balance_load based on cells data transferred by this function.
-	The next dccrg function to be called after this one must be balance_load.
-
-	When calling balance_load after this function has_been_prepared must be true.
-	*/
-	void prepare_to_balance_load()
-	{
-		this->make_new_partition(true);
-		this->prepare_to_move_cells();
-	}
-
-	/*!
-	Same as migrate_cells but only prepares to move cells with migrate_cells.
-
-	Must be used when cells contain variable mpi_datatypes so that when
-	cells are moved receiving processes can construct the receiving
-	datatypes in migrate_cells based on cells data transferred by this function.
-	The next dccrg function to be called after this one must be migrate_cells.
-
-	When calling migrate_cells after this function has_been_prepared must be true.
-	*/
-	void prepare_to_migrate_cells()
-	{
-		this->make_new_partition(false);
-		this->prepare_to_move_cells();
-	}
-
-
-	/*!
 	Updates the user data of neighboring cells between processes.
 
 	User data of any local cell which is considered as a neighbor
