@@ -110,7 +110,7 @@ public:
 		- user data of remote neighbors
 		- everything related to load balancing or remote neighbor updates
 	*/
-	template<class OtherUserData> Dccrg(const Dccrg<OtherUserData>& other) :
+	template<class OtherUserData> Dccrg(const Dccrg<OtherUserData, UserGeometry>& other) :
 		initialized(other.get_initialized()),
 		neighborhood_size(other.get_neighborhood_size()),
 		max_tag(other.get_max_tag()),
