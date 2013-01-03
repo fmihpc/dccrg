@@ -155,6 +155,41 @@ public:
 			abort();
 		}
 
+		// copy grid geometry
+		// FIXME: support geometries other than constant
+		if (!this->set_geometry(
+			other.get_x_length(),
+			other.get_y_length(),
+			other.get_z_length(),
+			other.get_x_start(),
+			other.get_y_start(),
+			other.get_z_start(),
+			other.get_unrefined_cell_x_size(),
+			other.get_unrefined_cell_y_size(),
+			other.get_unrefined_cell_z_size()
+		)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't copy geometry when copy constructing"
+				<< std::endl;
+			abort();
+		}
+
+		// maximum refinement level
+		if (!this->set_maximum_refinement_level(other.get_maximum_refinement_level())) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set maximum refinement level when copy constructing"
+				<< std::endl;
+			abort();
+		}
+
+		// periodicity
+		for (size_t i = 0; i < 3; i++) {
+			this->set_periodicity(i, other.is_periodic(i));
+		}
+
+		// zoltan
+		this->zoltan = Zoltan_Copy(other.get_zoltan());
+
 		// default construct OtherUserData of local cells
 		for (typename boost::unordered_map<uint64_t, OtherUserData>::const_iterator
 			cell_item = other.get_cell_data().begin();
@@ -163,8 +198,6 @@ public:
 		) {
 			this->cells[cell_item->first];
 		}
-
-		this->zoltan = Zoltan_Copy(other.get_zoltan());
 	}
 
 
