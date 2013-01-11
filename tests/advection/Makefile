@@ -11,7 +11,8 @@ HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
 	../../dccrg_constant_geometry.hpp \
-	../../dccrg_mpi_support.hpp
+	../../dccrg_mpi_support.hpp \
+	grid_support.hpp
 
 all: $(PROGRAMS)
 

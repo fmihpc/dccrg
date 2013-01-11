@@ -40,6 +40,7 @@ but the used solver is probably the simplest possible.
 #include "../../dccrg.hpp"
 
 #include "cell.hpp"
+#include "grid_support.hpp"
 #include "save.hpp"
 
 using namespace std;
@@ -134,276 +135,6 @@ template<class CellData> void initial_condition(Dccrg<CellData>& grid)
 
 
 /*!
-Directions used in the advection solver.
-*/
-enum direction_t {
-	POS_X,
-	NEG_X,
-	POS_Y,
-	NEG_Y,
-	POS_Z,
-	NEG_Z
-};
-
-
-/*!
-Finds all neighbors of given cell into which stuff might advect.
-
-Also fills neighbors' direction from given cell.
-Given vectors are cleared before filling.
-
-Assumes flux is solved only in positive directions between local
-cells and that negative direction is solved only if neg. dir. cell
-isn't local, e.g. fluxes on process boundaries are solved by
-both processes.
-*/
-template<class CellData> void get_neighbor_directions(
-	vector<uint64_t>& face_neighbors,
-	vector<direction_t>& directions,
-	const uint64_t cell,
-	const Dccrg<CellData>& grid
-) {
-	face_neighbors.clear();
-	directions.clear();
-
-	face_neighbors.reserve(24);
-	directions.reserve(24);
-
-	const int refinement_level = grid.get_refinement_level(cell);
-
-	const vector<uint64_t>* neighbors = grid.get_neighbors(cell);
-	if (neighbors == NULL) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " No neighbors for cell " << cell
-			<< std::endl;
-		abort();
-	}
-
-	unsigned int neighbor_index = 0;
-
-	// -z direction
-	if ((*neighbors)[neighbor_index] != 0) {
-
-		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
-
-			// flux between local cells is calculated in positive direction
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Z);
-			}
-
-		// only face neighbors
-		} else {
-			neighbor_index += 4;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Z);
-			}
-			neighbor_index++;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Z);
-			}
-			neighbor_index++;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Z);
-			}
-			neighbor_index++;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Z);
-			}
-		}
-	}
-	neighbor_index++;
-
-	// -y direction
-	if ((*neighbors)[neighbor_index] != 0) {
-
-		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Y);
-			}
-
-		// solve only face neighbors
-		} else {
-			neighbor_index += 2;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Y);
-			}
-			neighbor_index++;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Y);
-			}
-			neighbor_index += 3;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Y);
-			}
-			neighbor_index++;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_Y);
-			}
-		}
-	}
-	neighbor_index++;
-
-	// -x direction
-	if ((*neighbors)[neighbor_index] != 0) {
-
-		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_X);
-			}
-
-		// solve only face neighbors
-		} else {
-			neighbor_index++;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_X);
-			}
-			neighbor_index += 2;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_X);
-			}
-			neighbor_index += 2;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_X);
-			}
-			neighbor_index += 2;
-
-			if (!grid.is_local((*neighbors)[neighbor_index])) {
-				face_neighbors.push_back((*neighbors)[neighbor_index]);
-				directions.push_back(NEG_X);
-			}
-		}
-	}
-	neighbor_index++;
-
-	// +x direction
-	if ((*neighbors)[neighbor_index] != 0) {
-
-		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_X);
-
-		// solve only face neighbors
-		} else {
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_X);
-
-			neighbor_index += 2;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_X);
-
-			neighbor_index += 2;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_X);
-
-			neighbor_index += 2;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_X);
-
-			neighbor_index++;
-		}
-	}
-	neighbor_index++;
-
-	// +y direction
-	if ((*neighbors)[neighbor_index] != 0) {
-
-		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Y);
-
-		// solve only face neighbors
-		} else {
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Y);
-
-			neighbor_index++;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Y);
-
-			neighbor_index += 3;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Y);
-
-			neighbor_index++;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Y);
-
-			neighbor_index += 2;
-		}
-	}
-	neighbor_index++;
-
-	// +z direction
-	if ((*neighbors)[neighbor_index] != 0) {
-
-		if (grid.get_refinement_level((*neighbors)[neighbor_index]) <= refinement_level) {
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Z);
-
-		// solve only face neighbors
-		} else {
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Z);
-
-			neighbor_index++;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Z);
-
-			neighbor_index++;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Z);
-
-			neighbor_index++;
-
-			face_neighbors.push_back((*neighbors)[neighbor_index]);
-			directions.push_back(POS_Z);
-		}
-	}
-
-	if (neighbor_index > neighbors->size()) {
-		cerr << __FILE__ << ":" << __LINE__
-			<< " Added more neighbors (" << neighbor_index
-			<< ") than exist: " << neighbors->size()
-			<< endl;
-		abort();
-	}
-}
-
-
-/*!
 Calculates fluxes into and out of given local cells.
 
 The total flux to copies of remote neihghbors will be incorrect.
@@ -438,7 +169,9 @@ template<class CellData> void solve(
 		vector<uint64_t> neighbors_to_solve;
 		vector<direction_t> directions;
 
-		get_neighbor_directions<CellData>(neighbors_to_solve, directions, cell, grid);
+		get_face_neighbors<CellData>(cell, grid, neighbors_to_solve, directions);
+		// flux between two local cells is solved only in positive direction
+		remove_local_negative_neighbors(grid, neighbors_to_solve, directions);
 
 		for (uint64_t i = 0; i < neighbors_to_solve.size(); i++) {
 
@@ -633,7 +366,7 @@ template<class CellData> void check_for_adaptation(
 		// get neighbors with which to compare
 		vector<uint64_t> neighbors_to_compare;
 		vector<direction_t> directions;
-		get_neighbor_directions<CellData>(neighbors_to_compare, directions, cell, grid);
+		get_face_neighbors<CellData>(cell, grid, neighbors_to_compare, directions);
 
 		BOOST_FOREACH(const uint64_t& neighbor, neighbors_to_compare) {
 
