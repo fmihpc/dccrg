@@ -1882,8 +1882,8 @@ public:
 	or if cell data doesn't have to be transferred in several steps use
 	balance_load() instead of this function.
 
-	After calling this the functions get_balance_added_cells() and
-	get_balance_removed_cells() can be used to query changes to the
+	After calling this the functions get_cells_to_send() and
+	get_cells_to_receive() can be used to query changes to the
 	current partition.
 
 	The next function to be called after this one (from those that
@@ -4947,6 +4947,9 @@ public:
 
 	/*!
 	Returns cells that will be sent to other processes.
+
+	First int is the target process, uint64_t is the cell id and
+	the last int is the message tag when dccrg sends one cell / MPI_Isend.
 	*/
 	const boost::unordered_map<
 		int,
@@ -4958,6 +4961,9 @@ public:
 
 	/*!
 	Returns cells that will be received from other processes.
+
+	First int is the process from which to receive, uint64_t is cell id
+	last it is the message tag when dccrg receives one cell / MPI_Irecv.
 	*/
 	const boost::unordered_map<
 		int,
