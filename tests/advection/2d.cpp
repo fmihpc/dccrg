@@ -830,6 +830,8 @@ int main(int argc, char* argv[])
 
 	boost::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 
+	uint64_t created_cells = 0, removed_cells = 0;
+
 	// prerefine up to maximum refinement level
 	for (int ref_lvl = 0; ref_lvl < max_ref_lvl; ref_lvl++) {
 		check_for_adaptation<Cell>(
@@ -848,6 +850,8 @@ int main(int argc, char* argv[])
 			cells_to_unrefine,
 			grid
 		);
+		created_cells += adapted_cells.first;
+		removed_cells += adapted_cells.second;
 
 		// apply initial condition on a finer grid
 		initial_condition<Cell>(grid);
@@ -968,6 +972,9 @@ int main(int argc, char* argv[])
 				cells_to_unrefine,
 				grid
 			);
+			created_cells += adapted_cells.first;
+			removed_cells += adapted_cells.second;
+
 			inner_cells = grid.get_cells_with_local_neighbors();
 			outer_cells = grid.get_cells_with_remote_neighbor();
 
@@ -1005,11 +1012,13 @@ int main(int argc, char* argv[])
 	}
 
 	// gather statistics about solving time and tranferred data
-	double min_inner_solve_time = 0, max_inner_solve_time = 0, total_inner_solve_time = 0,
+	double
+		min_inner_solve_time = 0, max_inner_solve_time = 0, total_inner_solve_time = 0,
 		min_outer_solve_time = 0, max_outer_solve_time = 0, total_outer_solve_time = 0,
 		min_receive_size = 0, max_receive_size = 0, total_receive_size = 0,
 		// fractions of the above
 		min_fraction = 0, max_fraction = 0, total_fraction = 0;
+	uint64_t total_created_cells = 0, total_removed_cells = 0;
 
 	MPI_Reduce(&inner_solve_time, &min_inner_solve_time, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
 	MPI_Reduce(&inner_solve_time, &max_inner_solve_time, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
@@ -1020,6 +1029,8 @@ int main(int argc, char* argv[])
 	MPI_Reduce(&neighbor_receive_size, &min_receive_size, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
 	MPI_Reduce(&neighbor_receive_size, &max_receive_size, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
 	MPI_Reduce(&neighbor_receive_size, &total_receive_size, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+	MPI_Reduce(&created_cells, &total_created_cells, 1, MPI_UINT64_T, MPI_SUM, 0, comm);
+	MPI_Reduce(&removed_cells, &total_removed_cells, 1, MPI_UINT64_T, MPI_SUM, 0, comm);
 	double fraction = neighbor_receive_size / inner_solve_time;
 	MPI_Reduce(&fraction, &min_fraction, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
 	MPI_Reduce(&fraction, &max_fraction, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
@@ -1031,6 +1042,9 @@ int main(int argc, char* argv[])
 		cout << "Initial grid size: " << cells * cells << endl;
 		cout << "Total timesteps calculated: " << tmax << endl;
 		cout << "Total files saved: " << files_saved << endl;
+		cout << "Total created and removed cells: "
+			<< total_created_cells << ", "
+			<< total_removed_cells << endl;
 		cout << "Inner cell solution time / step (s, avg, max, min):          "
 			<< total_inner_solve_time / comm_size / tmax << "\t"
 			<< max_inner_solve_time / tmax << "\t"
