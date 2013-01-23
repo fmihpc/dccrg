@@ -17,6 +17,7 @@ HEADERS = \
 	../../dccrg_arbitrary_geometry.hpp \
 	../../dccrg_constant_geometry.hpp \
 	../advection/grid_support.hpp \
+	poisson_solve.hpp \
 	reference_poisson_solve.hpp
 
 all: $(PROGRAMS)
@@ -24,7 +25,7 @@ all: $(PROGRAMS)
 poisson1d: poisson1d.cpp $(SOURCES) $(HEADERS) Makefile
 	@echo "MPICXX  $@" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
 
-reference_poisson_example: reference_poisson_example.cpp $(HEADERS) Makefile
+reference_poisson_example: reference_poisson_example.cpp reference_poisson_solve.hpp Makefile
 	@echo "CXX $@" && $(CXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 c: clean

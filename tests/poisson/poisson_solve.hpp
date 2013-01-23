@@ -20,6 +20,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_POISSON_SOLVE_HPP
 
 #include "boost/foreach.hpp"
+#include "boost/format.hpp"
 #include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "boost/static_assert.hpp"
@@ -129,47 +130,51 @@ public:
 int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 
 
-/*!
-Solves the Poisson's equation.
-
-The right hand side (rhs) of the equation must have been initialized
-before calling this function.
-The solution (x) of the equation also must have been initialized
-(with a guess) before calling this function.
-
-Given grid must have a default neighborhood of size 0? or ...
-
-If grid non-periodic missing neighbors are assumed to be of
-equal size and have equal value (of whatever comes after the dot in A . i)
-
-WARNING: doesn't work yet
+/*
+Data structures for caching pointers to cells data, etc.
 */
-void Poisson_Solve(
+
+/*
+Data of cell's neighbor, neighbor's direction from cell
+and neighbor's relative refinement level (if > 0 neighbor is smaller)
+*/
+typedef typename boost::tuple<Poisson_Cell*, direction_t, int> neighbor_info_t;
+
+// data of a local cell and info of its neighbors
+typedef typename std::pair<Poisson_Cell*, std::vector<neighbor_info_t> > cell_info_t;
+
+
+/*!
+Returns global residual of the solution.
+*/
+double get_residual(
+	const std::vector<cell_info_t>& cell_info,
+	MPI_Comm& comm
+) {
+	double local = 0, global = 0;
+	BOOST_FOREACH(const cell_info_t& info, cell_info) {
+		Poisson_Cell* data = info.first;
+		local += fabs(data->r0);
+	}
+	MPI_Reduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+	return global;
+}
+
+
+/*!
+Prepares geometry factors, scales the initial solution, etc.
+*/
+std::vector<cell_info_t> get_cell_info_cache(
 	/* TODO: overlap computation with communication
 	const std::vector<uint64_t>& inner_cells,
 	const std::vector<uint64_t>& outer_cells,*/
 	const std::vector<uint64_t>& cells,
 	dccrg::Dccrg<Poisson_Cell>& grid
 ) {
-	MPI_Comm comm = grid.get_comm();
-
 	// make sure copies of remote neighbors exist before caching and
 	// transfer user's guess for the solution to calculate residual
 	Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 	grid.update_remote_neighbor_data();
-
-	/*
-	Cache pointers to local cell data, their neighborhood and sizes
-	*/
-
-	/*
-	Data of cell's neighbor, neighbor's direction from cell
-	and neighbor's relative refinement level (if > 0 neighbor is smaller)
-	*/
-	typedef typename boost::tuple<Poisson_Cell*, direction_t, int> neighbor_info_t;
-
-	// data of a local cell and info of its neighbors
-	typedef typename std::pair<Poisson_Cell*, std::vector<neighbor_info_t> > cell_info_t;
 
 	std::vector<cell_info_t> cell_info;
 	cell_info.reserve(cells.size());
@@ -259,7 +264,7 @@ void Poisson_Solve(
 			total_offset_y = neigh_pos_y_offset - neigh_neg_y_offset,
 			total_offset_z = neigh_pos_z_offset - neigh_neg_z_offset;
 
-		// geometry factorsare 0 in directions without neighbors
+		// geometry factors are 0 in directions without neighbors
 		cell_data->f_x_pos =
 		cell_data->f_x_neg =
 		cell_data->f_y_pos =
@@ -299,13 +304,42 @@ void Poisson_Solve(
 			}
 		}
 		cell_data->scaling_factor
-			= 0
+			=
 			- cell_data->f_x_pos
 			- cell_data->f_x_neg
 			- cell_data->f_y_pos
 			- cell_data->f_y_neg
 			- cell_data->f_z_pos
 			- cell_data->f_z_neg;
+
+		// check that factors identical when cells are cubes
+		if (grid.get_x_length() > 1) {
+			if (cell_data->f_x_pos != cell_data->f_x_neg) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Geometry factors not identical in x: "
+					<< cell_data->f_x_pos << " " << cell_data->f_x_neg
+					<< std::endl;
+				abort();
+			}
+		}
+		if (grid.get_y_length() > 1) {
+			if (cell_data->f_y_pos != cell_data->f_y_neg) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Geometry factors not identical in y: "
+					<< cell_data->f_y_pos << " " << cell_data->f_y_neg
+					<< std::endl;
+				abort();
+			}
+		}
+		if (grid.get_z_length() > 1) {
+			if (cell_data->f_z_pos != cell_data->f_z_neg) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Geometry factors not identical in z: "
+					<< cell_data->f_z_pos << " " << cell_data->f_z_neg
+					<< std::endl;
+				abort();
+			}
+		}
 
 		// cache neighbor info
 		for (size_t i = 0; i < face_neighbors.size(); i++) {
@@ -342,19 +376,23 @@ void Poisson_Solve(
 		cell_info.push_back(temp_cell_info);
 	}
 
+
 	/*
-	Scale values of A in A . i and due to that also neighbor factors
+	Scale diagonal values of A in A . i and due to that also neighbor factors
 	*/
 
-	// at this point only correct scaling_factor is needed from remote copies
+	// update scaling_factor between neighbors
 	Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
 	grid.update_remote_neighbor_data();
 
-	BOOST_FOREACH(cell_info_t& info, cell_info) {
+	BOOST_FOREACH(const cell_info_t& info, cell_info) {
 		Poisson_Cell* data = info.first;
 		data->solution *= data->scaling_factor;
 
-		// neighbors' values are scaled using their own factor
+		/*
+		Take into account in local factor for a neighbor
+		that their values are scaled using their own factor
+		*/
 		bool
 			pos_x_done = false,
 			neg_x_done = false,
@@ -363,7 +401,7 @@ void Poisson_Solve(
 			pos_z_done = false,
 			neg_z_done = false;
 
-		BOOST_FOREACH(neighbor_info_t neigh_info, info.second) {
+		BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
 			Poisson_Cell* neighbor_data = neigh_info.get<0>();
 			const direction_t direction = neigh_info.get<1>();
 
@@ -421,19 +459,45 @@ void Poisson_Solve(
 	Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 	grid.update_remote_neighbor_data();
 
+	return cell_info;
+}
+
+
+/*!
+Solves the Poisson's equation.
+
+The right hand side (rhs) of the equation must have been initialized
+before calling this function.
+The solution (x) of the equation also must have been initialized
+(with a guess) before calling this function.
+
+Given grid must have a default neighborhood of size 0? or ...
+
+If given grid is non-periodic missing neighbors are assumed to be of
+equal size and have equal value (of whatever comes after the dot in A . i)
+
+WARNING: doesn't work yet
+*/
+void Poisson_Solve(
+	const std::vector<uint64_t>& cells,
+	dccrg::Dccrg<Poisson_Cell>& grid
+) {
+	MPI_Comm comm = grid.get_comm();
+	const int rank = grid.get_rank();
+
+	const std::vector<cell_info_t> cell_info = get_cell_info_cache(cells, grid);
 
 	/*
-	Initialize solver
+	Initialize solver, assume initial solution already updated between neighbors
 	*/
 
 	// residual == r0 = rhs - A . solution
-	BOOST_FOREACH(cell_info_t& info, cell_info) {
+	BOOST_FOREACH(const cell_info_t& info, cell_info) {
 		Poisson_Cell* data = info.first;
 
 		data->r0 = data->rhs - data->solution;
-		std::cout << "r0: " << data->r0 << " ";
 
-		BOOST_FOREACH(neighbor_info_t neigh_info, info.second) {
+		BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
 			Poisson_Cell* neighbor_data = neigh_info.get<0>();
 
 			// final multiplier to use for current neighbor's data
@@ -474,24 +538,12 @@ void Poisson_Solve(
 			}*/
 
 			data->r0 -= multiplier * neighbor_data->solution;
-			std::cout << data->r0 << " ";
 		}
-		std::cout << std::endl;
 
 		// initially all variables equal to residual
-		data->r1 = data->p0 = data->p1 = data->r0;
-	}
-
-	// print total residual
-	double res_l = 0, res_g = 0;
-	BOOST_FOREACH(cell_info_t& info, cell_info) {
-		Poisson_Cell* data = info.first;
-		res_l += fabs(data->r0);
-	}
-	MPI_Reduce(&res_l, &res_g, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
-	const int rank = grid.get_rank();
-	if (rank == 0) {
-		std::cout << "Global residual after init: " << res_g << std::endl;
+		data->r1 = data->r0;
+		// p0 and p1 are used scaled
+		data->p0 = data->p1 = data->scaling_factor * data->r0;
 	}
 
 
@@ -499,26 +551,17 @@ void Poisson_Solve(
 	Solve
 	*/
 
-	// local and global versions of scalars used by solver
-	double
-		alpha = 0, beta = 0,
-		// r0 . r1
-		dot_r_l = 0, dot_r_g = 0,
-		// old r0 . r1, new is needed in the middle of each iteration
-		old_dot_r_g = 0;
-
 	// for debugging
-	std::vector<double> alphas, betas, p_dots, r_dots, old_r_dots;
-
+	std::vector<double> alphas, betas, p_dots, r_dots, old_r_dots, residuals;
 
 	// calculate initial value of r0 . r1
-	BOOST_FOREACH(cell_info_t& info, cell_info) {
+	double dot_r_l = 0, dot_r_g = 0;
+	BOOST_FOREACH(const cell_info_t& info, cell_info) {
 		Poisson_Cell* data = info.first;
 		dot_r_l += data->r0 * data->r1;
 	}
 	MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, comm);
 	//std::cout << "r0 . r1: " << dot_r_g << std::endl;
-
 
 	size_t step = 0;
 	const size_t steps = 10;
@@ -534,12 +577,12 @@ void Poisson_Solve(
 		*/
 
 		// A . p0, cache the result
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
 
 			data->A_dot_p = data->p0;
 
-			BOOST_FOREACH(neighbor_info_t neigh_info, info.second) {
+			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
 				Poisson_Cell* neighbor_data = neigh_info.get<0>();
 
 				double multiplier = 0;
@@ -582,7 +625,7 @@ void Poisson_Solve(
 
 		// p1 . (A . p0)
 		double dot_p_l = 0, dot_p_g = 0;
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
 			// only values used in A . i are scaled
 			dot_p_l += data->p1 / data->scaling_factor * data->A_dot_p;
@@ -591,30 +634,38 @@ void Poisson_Solve(
 		//std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
 		p_dots.push_back(dot_p_g);
 
-		alpha = dot_r_g / dot_p_g;
+		const double alpha = dot_r_g / dot_p_g;
 		//std::cout << "alpha: " << alpha << std::endl;
 		alphas.push_back(alpha);
 
 
 		// update solution
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
 			data->solution += alpha * data->p0;
 		}
 
+		const double residual = get_residual(cell_info, comm);
+		if (residual < 1e-15) {
+			break;
+		}
+		if (rank == 0) {
+			residuals.push_back(residual);
+		}
+
 		// update r0
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
 			data->r0 -= alpha * data->A_dot_p;
 		}
 
 		// update r1
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
 
 			data->r1 -= alpha * data->p1;
 
-			BOOST_FOREACH(neighbor_info_t neigh_info, info.second) {
+			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
 				Poisson_Cell* neighbor_data = neigh_info.get<0>();
 
 				/*
@@ -661,9 +712,9 @@ void Poisson_Solve(
 		}
 
 		// calculate beta
-		old_dot_r_g = dot_r_g;
+		const double old_dot_r_g = dot_r_g;
 		dot_r_l = dot_r_g = 0;
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
 			dot_r_l += data->r0 * data->r1;
 		}
@@ -672,23 +723,23 @@ void Poisson_Solve(
 		r_dots.push_back(dot_r_g);
 		old_r_dots.push_back(old_dot_r_g);
 
-		beta = dot_r_g / old_dot_r_g;
+		const double beta = dot_r_g / old_dot_r_g;
 		//std::cout << "beta: " << beta << std::endl;
 		betas.push_back(beta);
 
 
 		// update p0, p1
-		BOOST_FOREACH(cell_info_t& info, cell_info) {
+		BOOST_FOREACH(const cell_info_t& info, cell_info) {
 			Poisson_Cell* data = info.first;
-			data->p0 = data->r0 + beta * data->p0;
-			data->p1 = data->r1 + beta * data->p1;
+			data->p0 = data->r0 * data->scaling_factor + beta * data->p0;
+			data->p1 = data->r1 * data->scaling_factor + beta * data->p1;
 		}
 
 	} while (step < steps);
 
-	std::cout << "    alpha        beta  old_r_dot  r_dot  p1_dot_A_dot_p0\n";
-	for (size_t i = 0; i < alphas.size(); i++) {
-		std::cout << alphas[i] << "\t" << betas[i] << "\t" <<  old_r_dots[i] << "\t" << r_dots[i] << "\t" << p_dots[i] << "\n";
+	BOOST_FOREACH(const cell_info_t& info, cell_info) {
+		Poisson_Cell* data = info.first;
+		data->solution /= data->scaling_factor;
 	}
 }
 
