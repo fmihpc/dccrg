@@ -12,7 +12,7 @@ Tests the scalability of the grid in 2 D
 #include "unistd.h"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 // TODO: move this to a separate file
@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
+	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
 	#define GRID_SIZE 1000	// in unrefined cells
 	#define CELL_SIZE (1.0 / GRID_SIZE)

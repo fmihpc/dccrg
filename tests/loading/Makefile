@@ -4,7 +4,7 @@ CXX = mpic++ $(FLAGS)
 
 all: load
 
-load: load.cpp ../../dccrg.hpp ../../dccrg_index.hpp ../../dccrg_constant_geometry.hpp Makefile
+load: load.cpp ../../dccrg.hpp ../../dccrg_index.hpp ../../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI load.cpp $(INCLUDES) -o load
 
 d: data

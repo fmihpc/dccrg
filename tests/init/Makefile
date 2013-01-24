@@ -4,7 +4,7 @@ CXX = mpic++ $(FLAGS)
 
 all: init
 
-init: init.cpp ../../dccrg.hpp ../../dccrg_arbitrary_geometry.hpp Makefile
+init: init.cpp ../../dccrg.hpp ../../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI init.cpp $(INCLUDES) -o init
 
 c: clean

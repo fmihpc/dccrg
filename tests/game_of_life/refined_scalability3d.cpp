@@ -13,7 +13,7 @@ Tests the scalability of the grid in 3 D with refined grid
 #include "iostream"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
+	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
 	#define GRID_SIZE 21
 	#define CELL_SIZE (1.0 / GRID_SIZE)

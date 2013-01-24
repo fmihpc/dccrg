@@ -10,7 +10,7 @@ Turns the files saved from game_of_life_with_output.cpp into .vtk files, visuali
 #include "iostream"
 #include "stdint.h"
 
-#include "../dccrg_constant_geometry.hpp"
+#include "../dccrg_cartesian_geometry.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
 			game_data[cell] = is_alive;
 		} while (result == 1);
 
-		ConstantGeometry geometry;
+		Cartesian_Geometry geometry;
 		geometry.set_geometry(
 			x_length, y_length, z_length,
 			x_start, y_start, z_start,

@@ -9,10 +9,10 @@ TEST_PROGRAMS = copy
 
 all: $(PROGRAMS)
 
-simple: simple.cpp ../../dccrg.hpp ../../dccrg_constant_geometry.hpp Makefile
+simple: simple.cpp ../../dccrg.hpp ../../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) $< $(INCLUDES) -o $@
 
-copy: copy.cpp ../../dccrg.hpp ../../dccrg_constant_geometry.hpp Makefile
+copy: copy.cpp ../../dccrg.hpp ../../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) $< $(INCLUDES) -o $@
 
 c: clean

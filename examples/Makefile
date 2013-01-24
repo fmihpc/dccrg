@@ -4,7 +4,7 @@ INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzol
 MPICXX = mpic++ $(FLAGS)
 CXX = g++ $(FLAGS)
 
-HEADERS = ../dccrg.hpp ../dccrg_constant_geometry.hpp
+HEADERS = ../dccrg.hpp ../dccrg_cartesian_geometry.hpp
 
 all: simple_game_of_life game_of_life game_of_life_with_output dc2vtk
 
@@ -17,7 +17,7 @@ simple_game_of_life: simple_game_of_life.cpp $(HEADERS) Makefile
 game_of_life_with_output: game_of_life_with_output.cpp $(HEADERS) Makefile
 	$(MPICXX) -DDCCRG_TRANSFER_USING_BOOST_MPI game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
 
-dc2vtk: dc2vtk.cpp ../dccrg_constant_geometry.hpp Makefile
+dc2vtk: dc2vtk.cpp ../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
 d: data

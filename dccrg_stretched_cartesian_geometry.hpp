@@ -1,25 +1,25 @@
 /*
-The mapping logic between cells' and their geometry (location, size and comparable stuff)
-in dccrg, arbitrary version.
+The mapping logic between cells' and their geometry (location, size, etc.)
+in dccrg, stretched cartesian version.
 
-Copyright 2009, 2010, 2011, 2012 Finnish Meteorological Institute
+Copyright 2009, 2010, 2011, 2012, 2013 Finnish Meteorological Institute
 
-This program is free software: you can redistribute it and/or modify
+Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
 as published by the Free Software Foundation.
 
-This program is distributed in the hope that it will be useful,
+Dccrg is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+along with this dccrg. If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#ifndef DCCRG_ARBITRARY_GEOMETRY_HPP
-#define DCCRG_ARBITRARY_GEOMETRY_HPP
+#ifndef DCCRG_STRETCHED_CARTESIAN_GEOMETRY_HPP
+#define DCCRG_STRETCHED_CARTESIAN_GEOMETRY_HPP
 
 
 #include "cassert"
@@ -38,7 +38,7 @@ namespace dccrg {
 A geometry class in which the coordinates of unrefined cells are given
 by three vectors of floating points numbers.
 */
-class ArbitraryGeometry : public Index
+class Stretched_Cartesian_Geometry : public Index
 {
 
 public:
@@ -48,7 +48,7 @@ public:
 		- starting corner at (0, 0, 0)
 		- size of unrefined cells in each direction: 1
 	*/
-	ArbitraryGeometry()
+	Stretched_Cartesian_Geometry()
 	{
 		this->x_coordinates.clear();
 		this->x_coordinates.reserve(this->x_length + 1);
@@ -74,7 +74,7 @@ public:
 		- starting corner at (0, 0, 0)
 		- size of unrefined cells in each direction: 1
 	*/
-	~ArbitraryGeometry()
+	~Stretched_Cartesian_Geometry()
 	{
 		this->x_coordinates.clear();
 		this->x_coordinates.reserve(this->x_length + 1);

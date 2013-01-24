@@ -36,8 +36,8 @@ TEST_PROGRAMS = \
 HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_arbitrary_geometry.hpp \
-	../../dccrg_constant_geometry.hpp \
+	../../dccrg_stretched_cartesian_geometry.hpp \
+	../../dccrg_cartesian_geometry.hpp \
 	cell.hpp initialize.hpp save.hpp solve.hpp
 
 all: $(PROGRAMS)

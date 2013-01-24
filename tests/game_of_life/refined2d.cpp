@@ -12,7 +12,7 @@ Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined
 #include "iostream"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -52,7 +52,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	Dccrg<game_of_life_cell, ArbitraryGeometry> game_grid;
+	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
 	#define STARTING_CORNER 0.0
 	#define GRID_SIZE 15

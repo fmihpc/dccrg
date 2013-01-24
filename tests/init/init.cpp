@@ -9,7 +9,7 @@ Tests the scalability of initializing the grid
 #include "ctime"
 #include "zoltan.h"
 
-#include "../../dccrg_constant_geometry.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 

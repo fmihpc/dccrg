@@ -12,7 +12,7 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 #include "string"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 #include "cell.hpp"
@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grids, reference grid doesn't refine/unrefine
-	Dccrg<Cell, ArbitraryGeometry> game_grid, reference_grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid, reference_grid;
 
 	const int grid_size = 15;	// in unrefined cells
 	const double cell_size = 1.0 / grid_size;
@@ -138,8 +138,8 @@ int main(int argc, char* argv[])
 	// play complete reference game on each process
 	reference_grid.initialize(MPI_COMM_SELF, "RANDOM", neighborhood_size);
 
-	Initialize<ArbitraryGeometry>::initialize(game_grid, grid_size);
-	Initialize<ArbitraryGeometry>::initialize(reference_grid, grid_size);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_size);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_size);
 
 	// every process outputs the game state into its own file
 	string basename("unrefined2d_");
@@ -163,7 +163,7 @@ int main(int argc, char* argv[])
 	const int time_steps = 25;
 	for (int step = 0; step < time_steps; step++) {
 
-		Refine<ArbitraryGeometry>::refine(game_grid, grid_size, step, comm_size);
+		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, grid_size, step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();
@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
 			output_name.append(lexical_cast<string>(step)).append(".vtk");
-			Save<ArbitraryGeometry>::save(output_name, rank, game_grid);
+			Save<Stretched_Cartesian_Geometry>::save(output_name, rank, game_grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
 			if (rank == 0) {
@@ -192,8 +192,8 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Solve<ArbitraryGeometry>::solve(game_grid);
-		Solve<ArbitraryGeometry>::solve(reference_grid);
+		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
+		Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
 
 		// verify refined/unrefined game
 		const vector<uint64_t> cells = game_grid.get_cells();

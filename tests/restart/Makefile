@@ -11,7 +11,7 @@ PROGRAMS = restart_test dc2vtk
 HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_constant_geometry.hpp \
+	../../dccrg_cartesian_geometry.hpp \
 	../../dccrg_mpi_support.hpp \
 	initialize.hpp \
 	refine.hpp \
@@ -24,7 +24,7 @@ all: $(PROGRAMS)
 restart_test: restart_test.cpp $(HEADERS) Makefile
 	@echo "MPICXX restart_test " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS restart_test.cpp $(INCLUDES) -o restart_test
 
-dc2vtk: dc2vtk.cpp ../../dccrg_constant_geometry.hpp Makefile
+dc2vtk: dc2vtk.cpp ../../dccrg_cartesian_geometry.hpp Makefile
 	@echo "CXX dc2vtk " && $(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
 # test restart from there directories

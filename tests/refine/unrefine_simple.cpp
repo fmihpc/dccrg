@@ -9,7 +9,7 @@ Tests the grid using simple refining and unrefining
 #include "iostream"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 
@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	Dccrg<int, ArbitraryGeometry> grid;
+	Dccrg<int, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
 	#define CELL_SIZE (1.0 / GRID_SIZE)

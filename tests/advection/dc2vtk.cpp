@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "stdint.h"
 
-#include "../../dccrg_constant_geometry.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
 
 #include "cell.hpp"
 
@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 
 		} while (result == 1);
 
-		ConstantGeometry geometry;
+		Cartesian_Geometry geometry;
 		if (!geometry.set_geometry(
 			x_length, y_length, z_length,
 			x_start, y_start, z_start,

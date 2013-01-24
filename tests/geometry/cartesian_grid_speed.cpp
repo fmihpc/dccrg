@@ -6,7 +6,7 @@ Tests the speed of geometry operations with a constant cell size grid
 #include "iostream"
 #include "stdint.h"
 
-#include "../../dccrg_constant_geometry.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -15,10 +15,10 @@ int main(void)
 {
 	clock_t before, after;
 
-	cout << "\nConstant grid:" << endl;
+	cout << "\nCartesian grid:" << endl;
 
 	#define CELLS 100000000
-	ConstantGeometry geometry;
+	Cartesian_Geometry geometry;
 	geometry.set_geometry(100, 200, 300, 0, 0, 0, 1, 1.1, 1.2);
 	geometry.set_maximum_refinement_level(geometry.get_maximum_possible_refinement_level());
 	cout << "\tMaximum refinement level: " << geometry.get_maximum_refinement_level() << endl;

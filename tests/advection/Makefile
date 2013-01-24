@@ -10,7 +10,7 @@ HEADERS = \
 	cell.hpp \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_constant_geometry.hpp \
+	../../dccrg_cartesian_geometry.hpp \
 	../../dccrg_mpi_support.hpp \
 	grid_support.hpp
 
@@ -28,7 +28,7 @@ all: $(PROGRAMS)
 2d_mpi_debug: 2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG 2d.cpp $(INCLUDES) -o 2d_mpi_debug
 
-dc2vtk: dc2vtk.cpp ../../dccrg_constant_geometry.hpp Makefile
+dc2vtk: dc2vtk.cpp ../../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
 d: data

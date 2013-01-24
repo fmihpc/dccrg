@@ -11,7 +11,7 @@ Tests the grid with variable amount of data in cells using serialization
 #include "vector"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 using namespace std;
@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<CellData, ArbitraryGeometry> grid;
+	Dccrg<CellData, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 3
 	#define CELL_SIZE (1.0 / GRID_SIZE)

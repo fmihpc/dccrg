@@ -8,7 +8,7 @@ PROGRAMS = neighbor_list_length game_of_life advection
 HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_constant_geometry.hpp
+	../../dccrg_cartesian_geometry.hpp
 
 all: $(PROGRAMS)
 

@@ -83,9 +83,11 @@ size_t Cell::data_size = 0;
 /*!
 Returns the number of bytes that have to be transmitted in given list to other processes.
 */
-size_t get_traffic_size(const boost::unordered_map<int, std::vector<uint64_t> >* lists) {
+size_t get_traffic_size(
+	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >* lists
+) {
 	double communication_size = 0;
-	for (boost::unordered_map<int, std::vector<uint64_t> >::const_iterator
+	for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 		list = lists->begin();
 		list != lists->end();
 		list++
@@ -224,10 +226,11 @@ int main(int argc, char* argv[])
 	double sends_size = 0, receives_size = 0;
 	for (int timestep = 0; timestep < timesteps; timestep++) {
 
-		const boost::unordered_map<int, std::vector<uint64_t> >* send_lists = grid.get_send_lists();
-		sends_size += get_traffic_size(send_lists);
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
+			*send_lists	= grid.get_send_lists(),
+			*receive_lists = grid.get_receive_lists();
 
-		const boost::unordered_map<int, std::vector<uint64_t> >* receive_lists = grid.get_receive_lists();
+		sends_size += get_traffic_size(send_lists);
 		receives_size += get_traffic_size(receive_lists);
 
 		grid.start_remote_neighbor_data_update();

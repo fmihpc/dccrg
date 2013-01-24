@@ -46,7 +46,7 @@ using namespace dccrg;
 Returns EXIT_SUCCESS if the state of the given game at given timestep is correct on this process, returns EXIT_FAILURE otherwise.
 timestep == 0 means before any turns have been taken.
 */
-int check_game_of_life_state(int timestep, const Dccrg<Cell, ConstantGeometry>& grid)
+int check_game_of_life_state(int timestep, const Dccrg<Cell, Cartesian_Geometry>& grid)
 {
 	vector<uint64_t> cells = grid.get_cells();
 	for (vector<uint64_t>::const_iterator
@@ -287,7 +287,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grid
-	Dccrg<Cell, ConstantGeometry> game_grid, reference_grid;
+	Dccrg<Cell, Cartesian_Geometry> game_grid, reference_grid;
 
 	const int grid_size = 15;	// in unrefined cells
 	const double cell_size = 1.0 / grid_size;
@@ -313,15 +313,15 @@ int main(int argc, char* argv[])
 	uint64_t step = 0;
 
 	// always start a new reference game
-	Initialize<ConstantGeometry>::initialize(reference_grid, grid_size);
+	Initialize<Cartesian_Geometry>::initialize(reference_grid, grid_size);
 
 	// either start a new game...
 	if (restart_name == "") {
 
-		Initialize<ConstantGeometry>::initialize(game_grid, grid_size);
+		Initialize<Cartesian_Geometry>::initialize(game_grid, grid_size);
 
 		// save initial state
-		IO<ConstantGeometry>::save(
+		IO<Cartesian_Geometry>::save(
 			"gol_0.dc",
 			0,
 			comm,
@@ -330,7 +330,7 @@ int main(int argc, char* argv[])
 
 	// ...or restart from saved game
 	} else {
-		IO<ConstantGeometry>::load(
+		IO<Cartesian_Geometry>::load(
 			restart_name,
 			step,
 			comm,
@@ -339,24 +339,24 @@ int main(int argc, char* argv[])
 
 		// play the reference game to the same step
 		for (uint64_t i = 0; i < step; i++) {
-			Solve<ConstantGeometry>::solve(reference_grid);
+			Solve<Cartesian_Geometry>::solve(reference_grid);
 		}
 	}
 
 	while (step < time_steps) {
 
-		Refine<ConstantGeometry>::refine(game_grid, grid_size, step, comm_size);
+		Refine<Cartesian_Geometry>::refine(game_grid, grid_size, step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_remote_neighbor_data();
 		const vector<uint64_t> cells = game_grid.get_cells();
 
-		Solve<ConstantGeometry>::solve(game_grid);
-		Solve<ConstantGeometry>::solve(reference_grid);
+		Solve<Cartesian_Geometry>::solve(game_grid);
+		Solve<Cartesian_Geometry>::solve(reference_grid);
 
 		step++;
 
-		IO<ConstantGeometry>::save(
+		IO<Cartesian_Geometry>::save(
 			"gol_" + boost::lexical_cast<std::string>(step) + ".dc",
 			step,
 			comm,

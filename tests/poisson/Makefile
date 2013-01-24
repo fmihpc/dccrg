@@ -1,5 +1,5 @@
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
-INCLUDES = -I../advection -I$$HOME/include -L$$HOME/lib
+INCLUDES = -I.. -I../advection -I$$HOME/include -L$$HOME/lib
 LIBS = -lboost_program_options -lzoltan
 BOOST_MPI_LIBS = -lboost_serialization -lboost_mpi
 MPICXX = mpic++ $(FLAGS)
@@ -14,8 +14,8 @@ PROGRAMS = \
 HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_arbitrary_geometry.hpp \
-	../../dccrg_constant_geometry.hpp \
+	../../dccrg_stretched_cartesian_geometry.hpp \
+	../../dccrg_cartesian_geometry.hpp \
 	../advection/grid_support.hpp \
 	poisson_solve.hpp \
 	reference_poisson_solve.hpp

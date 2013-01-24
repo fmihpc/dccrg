@@ -69,13 +69,13 @@ MPI_UNSIGNED_LONG in the following:
 #include "dccrg_index.hpp"
 #include "dccrg_mpi_support.hpp"
 #include "dccrg_types.hpp"
-#include "dccrg_constant_geometry.hpp"
+#include "dccrg_cartesian_geometry.hpp"
 
 
 namespace dccrg
 {
 
-template <class UserData, class UserGeometry = ConstantGeometry> class Dccrg : public UserGeometry
+template <class UserData, class UserGeometry = Cartesian_Geometry> class Dccrg : public UserGeometry
 {
 
 public:

@@ -8,7 +8,7 @@ HEADERS = \
 	cell.hpp \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_constant_geometry.hpp
+	../../dccrg_cartesian_geometry.hpp
 
 all: $(PROGRAMS)
 

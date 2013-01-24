@@ -25,7 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "zoltan.h"
 
-#include "../../dccrg_arbitrary_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
 #include "cell.hpp"
@@ -42,7 +42,7 @@ using namespace dccrg;
 Returns EXIT_SUCCESS if the state of the given game at given timestep is correct on this process, returns EXIT_FAILURE otherwise.
 timestep == 0 means before any turns have been taken.
 */
-int check_game_of_life_state(int timestep, const Dccrg<Cell, ArbitraryGeometry>& grid)
+int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian_Geometry>& grid)
 {
 	vector<uint64_t> cells = grid.get_cells();
 	for (vector<uint64_t>::const_iterator
@@ -294,7 +294,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grid
-	Dccrg<Cell, ArbitraryGeometry> game_grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid;
 
 	const int grid_size = 15;	// in unrefined cells
 	const double cell_size = 1.0 / grid_size;
@@ -352,7 +352,7 @@ int main(int argc, char* argv[])
 			<< endl << endl;
 	}
 
-	Initialize<ArbitraryGeometry>::initialize(game_grid, grid_size);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_size);
 
 	// every process outputs the game state into its own file
 	string basename("game_of_life_test_");
@@ -397,7 +397,7 @@ int main(int argc, char* argv[])
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
 			output_name.append(lexical_cast<string>(step)).append(".vtk");
-			Save<ArbitraryGeometry>::save(output_name, rank, game_grid);
+			Save<Stretched_Cartesian_Geometry>::save(output_name, rank, game_grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
 			if (rank == 0) {
@@ -412,7 +412,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Solve<ArbitraryGeometry>::solve(game_grid);
+		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
 	}
 
 	if (rank == 0) {
