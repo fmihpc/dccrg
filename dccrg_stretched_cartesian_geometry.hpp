@@ -752,17 +752,6 @@ public:
 	}
 
 
-	// Optional BOOST serialization support
-	#ifdef BOOST_SERIALIZATION_LIBRARY_VERSION
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & this->perodic
-			& this->x_coordinates
-			& this->y_coordinates
-			& this->z_coordinates;
-	}
-	#endif
-
-
 	/*!
 	Sets the periodicity of the geometry.
 

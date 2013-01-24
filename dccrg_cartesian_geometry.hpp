@@ -612,24 +612,6 @@ public:
 	}
 
 
-	// Optional BOOST serialization support
-	#ifdef BOOST_SERIALIZATION_LIBRARY_VERSION
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & this->x_start
-			& this->y_start
-			& this->z_start
-			& this->cell_x_size
-			& this->cell_y_size
-			& this->cell_z_size
-			& this->x_length
-			& this->y_length
-			& this->z_length
-			& this->maximum_refinement_level
-			& this->periodic;
-	}
-	#endif
-
-
 	/*!
 	Sets the periodicity of the geometry.
 
