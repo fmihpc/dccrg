@@ -189,7 +189,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in x direction.
 	*/
-	double get_x_start(void) const
+	double get_start_x(void) const
 	{
 		return this->x_coordinates[0];
 	}
@@ -197,7 +197,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in y direction.
 	*/
-	double get_y_start(void) const
+	double get_start_y(void) const
 	{
 		return this->y_coordinates[0];
 	}
@@ -205,7 +205,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in z direction.
 	*/
-	double get_z_start(void) const
+	double get_start_z(void) const
 	{
 		return this->z_coordinates[0];
 	}
@@ -542,7 +542,7 @@ public:
 	*/
 	double get_real_x(const double x) const
 	{
-		if (x >= this->get_x_start()
+		if (x >= this->get_start_x()
 		&& x <= this->get_x_end()) {
 
 			return x;
@@ -552,11 +552,11 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_x_end() - this->get_x_start();
+			const double grid_size = this->get_x_end() - this->get_start_x();
 
-			if (x < this->get_x_start()) {
+			if (x < this->get_start_x()) {
 
-				const double distance = this->get_x_start() - x;
+				const double distance = this->get_start_x() - x;
 				return x + grid_size * ceil(distance/ grid_size);
 
 			} else {
@@ -578,7 +578,7 @@ public:
 	*/
 	double get_real_y(const double y) const
 	{
-		if (y >= this->get_y_start()
+		if (y >= this->get_start_y()
 		&& y <= this->get_y_end()) {
 
 			return y;
@@ -588,11 +588,11 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_y_end() - this->get_y_start();
+			const double grid_size = this->get_y_end() - this->get_start_y();
 
-			if (y < this->get_y_start()) {
+			if (y < this->get_start_y()) {
 
-				const double distance = this->get_y_start() - y;
+				const double distance = this->get_start_y() - y;
 				return y + grid_size * ceil(distance/ grid_size);
 
 			} else {
@@ -614,7 +614,7 @@ public:
 	*/
 	double get_real_z(const double z) const
 	{
-		if (z >= this->get_z_start()
+		if (z >= this->get_start_z()
 		&& z <= this->get_z_end()) {
 
 			return z;
@@ -624,11 +624,11 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_z_end() - this->get_z_start();
+			const double grid_size = this->get_z_end() - this->get_start_z();
 
-			if (z < this->get_z_start()) {
+			if (z < this->get_start_z()) {
 
-				const double distance = this->get_z_start() - z;
+				const double distance = this->get_start_z() - z;
 				return z + grid_size * ceil(distance/ grid_size);
 
 			} else {
@@ -651,7 +651,7 @@ public:
 		x = this->get_real_x(x);
 
 		if (::isnan(x)
-		|| x < this->get_x_start()
+		|| x < this->get_start_x()
 		|| x > this->get_x_end()) {
 
 			return error_index;
@@ -688,7 +688,7 @@ public:
 		y = this->get_real_y(y);
 
 		if (::isnan(y)
-		|| y < this->get_y_start()
+		|| y < this->get_start_y()
 		|| y > this->get_y_end()) {
 
 			return error_index;
@@ -725,7 +725,7 @@ public:
 		z = this->get_real_z(z);
 
 		if (::isnan(z)
-		|| z < this->get_z_start()
+		|| z < this->get_start_z()
 		|| z > this->get_z_end()) {
 
 			return error_index;

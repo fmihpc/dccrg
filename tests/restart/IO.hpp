@@ -40,9 +40,9 @@ public:
 
 	Header format:
 	uint64_t time step
-	double   x_start
-	double   y_start
-	double   z_start
+	double   start_x
+	double   start_y
+	double   start_z
 	double   cell_x_size
 	double   cell_y_size
 	double   cell_z_size
@@ -104,13 +104,13 @@ public:
 			offset += sizeof(uint64_t);
 
 			{
-			double value = game_grid.get_x_start();
+			double value = game_grid.get_start_x();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid.get_y_start();
+			value = game_grid.get_start_y();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid.get_z_start();
+			value = game_grid.get_start_z();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
 			value = game_grid.get_cell_x_size(1);

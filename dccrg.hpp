@@ -161,9 +161,9 @@ public:
 			other.get_x_length(),
 			other.get_y_length(),
 			other.get_z_length(),
-			other.get_x_start(),
-			other.get_y_start(),
-			other.get_z_start(),
+			other.get_start_x(),
+			other.get_start_y(),
+			other.get_start_z(),
 			other.get_unrefined_cell_x_size(),
 			other.get_unrefined_cell_y_size(),
 			other.get_unrefined_cell_z_size()

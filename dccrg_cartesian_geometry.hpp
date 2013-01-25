@@ -50,9 +50,9 @@ public:
 	*/
 	Cartesian_Geometry()
 	{
-		this->x_start = 0;
-		this->y_start = 0;
-		this->z_start = 0;
+		this->start_x = 0;
+		this->start_y = 0;
+		this->start_z = 0;
 
 		this->cell_x_size = 1;
 		this->cell_y_size = 1;
@@ -66,9 +66,9 @@ public:
 	*/
 	~Cartesian_Geometry()
 	{
-		this->x_start = 0;
-		this->y_start = 0;
-		this->z_start = 0;
+		this->start_x = 0;
+		this->start_y = 0;
+		this->start_z = 0;
 
 		this->cell_x_size = 1;
 		this->cell_y_size = 1;
@@ -80,7 +80,7 @@ public:
 	Sets the grid's geometry to given values.
 
 	- x, y and z_length set the number of unrefined cells in the grid in x, y and z direction.
-	- x, y and z_start set the starting corner of the grid, e.g. the first face
+	- x, y and start_z set the starting corner of the grid, e.g. the first face
 	  of the first unrefined cell(s) in x, y  and z direction.
 	- x, y and z_size set the size of unrefined cell in x, y and z direction.
 
@@ -88,7 +88,7 @@ public:
 	*/
 	bool set_geometry(
 		const uint64_t given_x_length, const uint64_t given_y_length, const uint64_t given_z_length,
-		const double given_x_start, const double given_y_start, const double given_z_start,
+		const double given_start_x, const double given_start_y, const double given_start_z,
 		const double given_cell_x_size, const double given_cell_y_size, const double given_cell_z_size
 	) {
 		if (!this->set_length(given_x_length, given_y_length, given_z_length)) {
@@ -96,9 +96,9 @@ public:
 		}
 
 		// FIXME: check that all coordinates fit into a double
-		this->x_start = given_x_start;
-		this->y_start = given_y_start;
-		this->z_start = given_z_start;
+		this->start_x = given_start_x;
+		this->start_y = given_start_y;
+		this->start_z = given_start_z;
 
 		if (given_cell_x_size <= 0) {
 			std::cerr << "Cell size in x direction must be > 0, but is " << given_cell_x_size
@@ -127,25 +127,25 @@ public:
 	/*!
 	Returns the starting corner of the grid in x direction.
 	*/
-	double get_x_start(void) const
+	double get_start_x(void) const
 	{
-		return this->x_start;
+		return this->start_x;
 	}
 
 	/*!
 	Returns the starting corner of the grid in y direction.
 	*/
-	double get_y_start(void) const
+	double get_start_y(void) const
 	{
-		return this->y_start;
+		return this->start_y;
 	}
 
 	/*!
 	Returns the starting corner of the grid in z direction.
 	*/
-	double get_z_start(void) const
+	double get_start_z(void) const
 	{
-		return this->z_start;
+		return this->start_z;
 	}
 
 
@@ -154,7 +154,7 @@ public:
 	*/
 	double get_x_end(void) const
 	{
-		return this->x_start + double(this->x_length) * this->cell_x_size;
+		return this->start_x + double(this->x_length) * this->cell_x_size;
 	}
 
 	/*!
@@ -162,7 +162,7 @@ public:
 	*/
 	double get_y_end(void) const
 	{
-		return this->y_start + double(this->y_length) * this->cell_y_size;
+		return this->start_y + double(this->y_length) * this->cell_y_size;
 	}
 
 	/*!
@@ -170,7 +170,7 @@ public:
 	*/
 	double get_z_end(void) const
 	{
-		return this->z_start + double(this->z_length) * this->cell_z_size;
+		return this->start_z + double(this->z_length) * this->cell_z_size;
 	}
 
 
@@ -265,7 +265,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->x_start + double(indices[0]) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
+		return this->start_x + double(indices[0]) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
 	}
 
 	/*!
@@ -283,7 +283,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->y_start + double(indices[1]) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
+		return this->start_y + double(indices[1]) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
 	}
 
 	/*!
@@ -301,7 +301,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->z_start + double(indices[2]) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
+		return this->start_z + double(indices[2]) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
 	}
 
 	/*!
@@ -367,7 +367,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->x_start
+		return this->start_x
 			+ double(x_index) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level)
 			+ this->cell_x_size / double(uint64_t(1) << refinement_level) / 2;
 	}
@@ -385,7 +385,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->y_start
+		return this->start_y
 			+ double(y_index) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level)
 			+ this->cell_y_size / double(uint64_t(1) << refinement_level) / 2;
 	}
@@ -403,7 +403,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->z_start
+		return this->start_z
 			+ double(z_index) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level)
 			+ this->cell_z_size / double(uint64_t(1) << refinement_level) / 2;
 	}
@@ -438,7 +438,7 @@ public:
 	*/
 	double get_real_x(const double x) const
 	{
-		if (x >= this->get_x_start()
+		if (x >= this->get_start_x()
 		&& x <= this->get_x_end()) {
 
 			return x;
@@ -448,11 +448,11 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_x_end() - this->get_x_start();
+			const double grid_size = this->get_x_end() - this->get_start_x();
 
-			if (x < this->get_x_start()) {
+			if (x < this->get_start_x()) {
 
-				const double distance = this->get_x_start() - x;
+				const double distance = this->get_start_x() - x;
 				return x + grid_size * ceil(distance/ grid_size);
 
 			} else {
@@ -474,7 +474,7 @@ public:
 	*/
 	double get_real_y(const double y) const
 	{
-		if (y >= this->get_y_start()
+		if (y >= this->get_start_y()
 		&& y <= this->get_y_end()) {
 
 			return y;
@@ -484,11 +484,11 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_y_end() - this->get_y_start();
+			const double grid_size = this->get_y_end() - this->get_start_y();
 
-			if (y < this->get_y_start()) {
+			if (y < this->get_start_y()) {
 
-				const double distance = this->get_y_start() - y;
+				const double distance = this->get_start_y() - y;
 				return y + grid_size * ceil(distance/ grid_size);
 
 			} else {
@@ -510,7 +510,7 @@ public:
 	*/
 	double get_real_z(const double z) const
 	{
-		if (z >= this->get_z_start()
+		if (z >= this->get_start_z()
 		&& z <= this->get_z_end()) {
 
 			return z;
@@ -520,11 +520,11 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_z_end() - this->get_z_start();
+			const double grid_size = this->get_z_end() - this->get_start_z();
 
-			if (z < this->get_z_start()) {
+			if (z < this->get_start_z()) {
 
-				const double distance = this->get_z_start() - z;
+				const double distance = this->get_start_z() - z;
 				return z + grid_size * ceil(distance/ grid_size);
 
 			} else {
@@ -547,7 +547,7 @@ public:
 		x = this->get_real_x(x);
 
 		if (::isnan(x)
-		|| x < this->get_x_start()
+		|| x < this->get_start_x()
 		|| x > this->get_x_end()) {
 
 			return error_index;
@@ -555,7 +555,7 @@ public:
 		} else {
 
 			return uint64_t(floor(
-				(x - this->get_x_start())
+				(x - this->get_start_x())
 				/ (this->cell_x_size / (uint64_t(1) << this->max_refinement_level))
 			));
 		}
@@ -572,7 +572,7 @@ public:
 		y = this->get_real_y(y);
 
 		if (::isnan(y)
-		|| y < this->get_y_start()
+		|| y < this->get_start_y()
 		|| y > this->get_y_end()) {
 
 			return error_index;
@@ -580,7 +580,7 @@ public:
 		} else {
 
 			return uint64_t(floor(
-				(y - this->get_y_start())
+				(y - this->get_start_y())
 				/ (this->cell_y_size / (uint64_t(1) << this->max_refinement_level))
 			));
 		}
@@ -597,7 +597,7 @@ public:
 		z = this->get_real_z(z);
 
 		if (::isnan(z)
-		|| z < this->get_z_start()
+		|| z < this->get_start_z()
 		|| z > this->get_z_end()) {
 
 			return error_index;
@@ -605,7 +605,7 @@ public:
 		} else {
 
 			return uint64_t(floor(
-				(z - this->get_z_start())
+				(z - this->get_start_z())
 				/ (this->cell_z_size / (uint64_t(1) << this->max_refinement_level))
 			));
 		}
@@ -646,7 +646,7 @@ public:
 private:
 
 	// starting corner coordinates of the grid
-	double x_start, y_start, z_start;
+	double start_x, start_y, start_z;
 	// length of unrefined cells in all directions
 	double cell_x_size, cell_y_size, cell_z_size;
 
