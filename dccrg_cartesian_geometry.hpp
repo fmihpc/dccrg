@@ -54,9 +54,9 @@ public:
 		this->start_y = 0;
 		this->start_z = 0;
 
-		this->cell_x_size = 1;
-		this->cell_y_size = 1;
-		this->cell_z_size = 1;
+		this->cell_length_x = 1;
+		this->cell_length_y = 1;
+		this->cell_length_z = 1;
 	}
 
 	/*!
@@ -70,9 +70,9 @@ public:
 		this->start_y = 0;
 		this->start_z = 0;
 
-		this->cell_x_size = 1;
-		this->cell_y_size = 1;
-		this->cell_z_size = 1;
+		this->cell_length_x = 1;
+		this->cell_length_y = 1;
+		this->cell_length_z = 1;
 	}
 
 
@@ -82,14 +82,14 @@ public:
 	- x, y and length_z set the number of unrefined cells in the grid in x, y and z direction.
 	- x, y and start_z set the starting corner of the grid, e.g. the first face
 	  of the first unrefined cell(s) in x, y  and z direction.
-	- x, y and z_size set the size of unrefined cell in x, y and z direction.
+	- x, y and length_z set the size of unrefined cell in x, y and z direction.
 
 	Returns true on success and false otherwise.
 	*/
 	bool set_geometry(
 		const uint64_t given_length_x, const uint64_t given_length_y, const uint64_t given_length_z,
 		const double given_start_x, const double given_start_y, const double given_start_z,
-		const double given_cell_x_size, const double given_cell_y_size, const double given_cell_z_size
+		const double given_cell_length_x, const double given_cell_length_y, const double given_cell_length_z
 	) {
 		if (!this->set_length(given_length_x, given_length_y, given_length_z)) {
 			return false;
@@ -100,26 +100,26 @@ public:
 		this->start_y = given_start_y;
 		this->start_z = given_start_z;
 
-		if (given_cell_x_size <= 0) {
-			std::cerr << "Cell size in x direction must be > 0, but is " << given_cell_x_size
+		if (given_cell_length_x <= 0) {
+			std::cerr << "Cell size in x direction must be > 0, but is " << given_cell_length_x
 				<< std::endl;
 			return false;
 		}
-		this->cell_x_size = given_cell_x_size;
+		this->cell_length_x = given_cell_length_x;
 
-		if (given_cell_y_size <= 0) {
-			std::cerr << "Cell size in y direction must be > 0, but is " << given_cell_y_size
+		if (given_cell_length_y <= 0) {
+			std::cerr << "Cell size in y direction must be > 0, but is " << given_cell_length_y
 				<< std::endl;
 			return false;
 		}
-		this->cell_y_size = given_cell_y_size;
+		this->cell_length_y = given_cell_length_y;
 
-		if (given_cell_z_size <= 0) {
-			std::cerr << "Cell size in z direction must be > 0, but is " << given_cell_z_size
+		if (given_cell_length_z <= 0) {
+			std::cerr << "Cell size in z direction must be > 0, but is " << given_cell_length_z
 				<< std::endl;
 			return false;
 		}
-		this->cell_z_size = given_cell_z_size;
+		this->cell_length_z = given_cell_length_z;
 
 		return true;
 	}
@@ -154,7 +154,7 @@ public:
 	*/
 	double get_x_end() const
 	{
-		return this->start_x + double(this->length_x) * this->cell_x_size;
+		return this->start_x + double(this->length_x) * this->cell_length_x;
 	}
 
 	/*!
@@ -162,7 +162,7 @@ public:
 	*/
 	double get_y_end() const
 	{
-		return this->start_y + double(this->length_y) * this->cell_y_size;
+		return this->start_y + double(this->length_y) * this->cell_length_y;
 	}
 
 	/*!
@@ -170,32 +170,32 @@ public:
 	*/
 	double get_z_end() const
 	{
-		return this->start_z + double(this->length_z) * this->cell_z_size;
+		return this->start_z + double(this->length_z) * this->cell_length_z;
 	}
 
 
 	/*!
 	Returns the length of unrefined cells in x direction
 	*/
-	double get_unrefined_cell_x_size() const
+	double get_unrefined_cell_length_x() const
 	{
-		return this->cell_x_size;
+		return this->cell_length_x;
 	}
 
 	/*!
 	Returns the length of unrefined cells in y direction
 	*/
-	double get_unrefined_cell_y_size() const
+	double get_unrefined_cell_length_y() const
 	{
-		return this->cell_y_size;
+		return this->cell_length_y;
 	}
 
 	/*!
 	Returns the length of unrefined cells in z direction
 	*/
-	double get_unrefined_cell_z_size() const
+	double get_unrefined_cell_length_z() const
 	{
-		return this->cell_z_size;
+		return this->cell_length_z;
 	}
 
 
@@ -204,7 +204,7 @@ public:
 
 	Returns a quiet nan if given an invalid cell.
 	*/
-	double get_cell_x_size(const uint64_t cell) const
+	double get_cell_length_x(const uint64_t cell) const
 	{
 		const int refinement_level = this->get_refinement_level(cell);
 
@@ -214,13 +214,13 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->cell_x_size / double(uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_length_x / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 	/*!
 	Returns the length of given cell in y direction.
 	*/
-	double get_cell_y_size(const uint64_t cell) const
+	double get_cell_length_y(const uint64_t cell) const
 	{
 		const int refinement_level = this->get_refinement_level(cell);
 
@@ -230,13 +230,13 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->cell_y_size / double(uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_length_y / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 	/*!
 	Returns the length of given cell in z direction.
 	*/
-	double get_cell_z_size(const uint64_t cell) const
+	double get_cell_length_z(const uint64_t cell) const
 	{
 		const int refinement_level = this->get_refinement_level(cell);
 
@@ -246,7 +246,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->cell_z_size / double(uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_length_z / double(uint64_t(1) << this->get_refinement_level(cell));
 	}
 
 
@@ -265,7 +265,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->start_x + double(indices[0]) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_x_size(cell) / 2;
+		return this->start_x + double(indices[0]) * this->cell_length_x / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -283,7 +283,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->start_y + double(indices[1]) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_y_size(cell) / 2;
+		return this->start_y + double(indices[1]) * this->cell_length_y / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -301,7 +301,7 @@ public:
 
 		const Types<3>::indices_t indices = this->get_indices(cell);
 
-		return this->start_z + double(indices[2]) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_z_size(cell) / 2;
+		return this->start_z + double(indices[2]) * this->cell_length_z / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_length_z(cell) / 2;
 	}
 
 	/*!
@@ -309,7 +309,7 @@ public:
 	*/
 	double get_cell_x_min(const uint64_t cell) const
 	{
-		return this->get_cell_x(cell) - this->get_cell_x_size(cell) / 2;
+		return this->get_cell_x(cell) - this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -317,7 +317,7 @@ public:
 	*/
 	double get_cell_y_min(const uint64_t cell) const
 	{
-		return this->get_cell_y(cell) - this->get_cell_y_size(cell) / 2;
+		return this->get_cell_y(cell) - this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -325,7 +325,7 @@ public:
 	*/
 	double get_cell_z_min(const uint64_t cell) const
 	{
-		return this->get_cell_z(cell) - this->get_cell_z_size(cell) / 2;
+		return this->get_cell_z(cell) - this->get_cell_length_z(cell) / 2;
 	}
 
 
@@ -334,7 +334,7 @@ public:
 	*/
 	double get_cell_x_max(const uint64_t cell) const
 	{
-		return this->get_cell_x(cell) + this->get_cell_x_size(cell) / 2;
+		return this->get_cell_x(cell) + this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -342,7 +342,7 @@ public:
 	*/
 	double get_cell_y_max(const uint64_t cell) const
 	{
-		return this->get_cell_y(cell) + this->get_cell_y_size(cell) / 2;
+		return this->get_cell_y(cell) + this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -350,7 +350,7 @@ public:
 	*/
 	double get_cell_z_max(const uint64_t cell) const
 	{
-		return this->get_cell_z(cell) + this->get_cell_z_size(cell) / 2;
+		return this->get_cell_z(cell) + this->get_cell_length_z(cell) / 2;
 	}
 
 
@@ -368,8 +368,8 @@ public:
 		}
 
 		return this->start_x
-			+ double(x_index) * this->cell_x_size / double(uint64_t(1) << this->max_refinement_level)
-			+ this->cell_x_size / double(uint64_t(1) << refinement_level) / 2;
+			+ double(x_index) * this->cell_length_x / double(uint64_t(1) << this->max_refinement_level)
+			+ this->cell_length_x / double(uint64_t(1) << refinement_level) / 2;
 	}
 
 	/*!
@@ -386,8 +386,8 @@ public:
 		}
 
 		return this->start_y
-			+ double(y_index) * this->cell_y_size / double(uint64_t(1) << this->max_refinement_level)
-			+ this->cell_y_size / double(uint64_t(1) << refinement_level) / 2;
+			+ double(y_index) * this->cell_length_y / double(uint64_t(1) << this->max_refinement_level)
+			+ this->cell_length_y / double(uint64_t(1) << refinement_level) / 2;
 	}
 
 	/*!
@@ -404,8 +404,8 @@ public:
 		}
 
 		return this->start_z
-			+ double(z_index) * this->cell_z_size / double(uint64_t(1) << this->max_refinement_level)
-			+ this->cell_z_size / double(uint64_t(1) << refinement_level) / 2;
+			+ double(z_index) * this->cell_length_z / double(uint64_t(1) << this->max_refinement_level)
+			+ this->cell_length_z / double(uint64_t(1) << refinement_level) / 2;
 	}
 
 
@@ -556,7 +556,7 @@ public:
 
 			return uint64_t(floor(
 				(x - this->get_start_x())
-				/ (this->cell_x_size / (uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_x / (uint64_t(1) << this->max_refinement_level))
 			));
 		}
 	}
@@ -581,7 +581,7 @@ public:
 
 			return uint64_t(floor(
 				(y - this->get_start_y())
-				/ (this->cell_y_size / (uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_y / (uint64_t(1) << this->max_refinement_level))
 			));
 		}
 	}
@@ -606,7 +606,7 @@ public:
 
 			return uint64_t(floor(
 				(z - this->get_start_z())
-				/ (this->cell_z_size / (uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_z / (uint64_t(1) << this->max_refinement_level))
 			));
 		}
 	}
@@ -648,7 +648,7 @@ private:
 	// starting corner coordinates of the grid
 	double start_x, start_y, start_z;
 	// length of unrefined cells in all directions
-	double cell_x_size, cell_y_size, cell_z_size;
+	double cell_length_x, cell_length_y, cell_length_z;
 
 	// periodic[0] == true means that the grid wraps around in x direction
 	bool periodic[3];

@@ -239,7 +239,7 @@ public:
 	/*!
 	Returns the length of given cell in x direction.
 	*/
-	double get_cell_x_size(const uint64_t cell) const
+	double get_cell_length_x(const uint64_t cell) const
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
@@ -256,7 +256,7 @@ public:
 	/*!
 	Returns the length of given cell in y direction.
 	*/
-	double get_cell_y_size(const uint64_t cell) const
+	double get_cell_length_y(const uint64_t cell) const
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
@@ -273,7 +273,7 @@ public:
 	/*!
 	Returns the length of given cell in z direction.
 	*/
-	double get_cell_z_size(const uint64_t cell) const
+	double get_cell_length_z(const uint64_t cell) const
 	{
 		assert(cell > 0);
 		assert(this->get_refinement_level(cell) >= 0);
@@ -310,16 +310,16 @@ public:
 			= unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
 		double
-			unref_cell_x_size
+			unref_cell_length_x
 				= this->x_coordinates[unref_cell_x_coord_start_index + 1]
 				- this->x_coordinates[unref_cell_x_coord_start_index],
 			size_of_local_index
-				= unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
+				= unref_cell_length_x / (uint64_t(1) << this->max_refinement_level);
 
 		return
 			  this->x_coordinates[unref_cell_x_coord_start_index]
 			+ size_of_local_index * (indices[0] - unref_cell_x_index)
-			+ this->get_cell_x_size(cell) / 2;
+			+ this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -342,16 +342,16 @@ public:
 			= unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
 		double
-			unref_cell_y_size
+			unref_cell_length_y
 				= this->y_coordinates[unref_cell_y_coord_start_index + 1]
 				- this->y_coordinates[unref_cell_y_coord_start_index],
 			size_of_local_index
-				= unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
+				= unref_cell_length_y / (uint64_t(1) << this->max_refinement_level);
 
 		return
 			  this->y_coordinates[unref_cell_y_coord_start_index]
 			+ size_of_local_index * (indices[1] - unref_cell_y_index)
-			+ this->get_cell_y_size(cell) / 2;
+			+ this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -374,16 +374,16 @@ public:
 			= unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level);
 
 		double
-			unref_cell_z_size
+			unref_cell_length_z
 				= this->z_coordinates[unref_cell_z_coord_start_index + 1]
 				- this->z_coordinates[unref_cell_z_coord_start_index],
 			size_of_local_index
-				= unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
+				= unref_cell_length_z / (uint64_t(1) << this->max_refinement_level);
 
 		return
 			  this->z_coordinates[unref_cell_z_coord_start_index]
 			+ size_of_local_index * (indices[2] - unref_cell_z_index)
-			+ this->get_cell_z_size(cell) / 2;
+			+ this->get_cell_length_z(cell) / 2;
 	}
 
 	/*!
@@ -391,7 +391,7 @@ public:
 	*/
 	double get_cell_x_min(const uint64_t cell) const
 	{
-		return this->get_cell_x(cell) - this->get_cell_x_size(cell) / 2;
+		return this->get_cell_x(cell) - this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -399,7 +399,7 @@ public:
 	*/
 	double get_cell_y_min(const uint64_t cell) const
 	{
-		return this->get_cell_y(cell) - this->get_cell_y_size(cell) / 2;
+		return this->get_cell_y(cell) - this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -407,7 +407,7 @@ public:
 	*/
 	double get_cell_z_min(const uint64_t cell) const
 	{
-		return this->get_cell_z(cell) - this->get_cell_z_size(cell) / 2;
+		return this->get_cell_z(cell) - this->get_cell_length_z(cell) / 2;
 	}
 
 
@@ -416,7 +416,7 @@ public:
 	*/
 	double get_cell_x_max(const uint64_t cell) const
 	{
-		return this->get_cell_x(cell) + this->get_cell_x_size(cell) / 2;
+		return this->get_cell_x(cell) + this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -424,7 +424,7 @@ public:
 	*/
 	double get_cell_y_max(const uint64_t cell) const
 	{
-		return this->get_cell_y(cell) + this->get_cell_y_size(cell) / 2;
+		return this->get_cell_y(cell) + this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -432,7 +432,7 @@ public:
 	*/
 	double get_cell_z_max(const uint64_t cell) const
 	{
-		return this->get_cell_z(cell) + this->get_cell_z_size(cell) / 2;
+		return this->get_cell_z(cell) + this->get_cell_length_z(cell) / 2;
 	}
 
 
@@ -452,8 +452,8 @@ public:
 		uint64_t unref_cell_x_coord_start_index
 			= x_index / (uint64_t(1) << this->max_refinement_level);
 
-		double unref_cell_x_size = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
-		double size_of_local_index = unref_cell_x_size / (uint64_t(1) << this->max_refinement_level);
+		double unref_cell_length_x = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
+		double size_of_local_index = unref_cell_length_x / (uint64_t(1) << this->max_refinement_level);
 
 		return this->x_coordinates[unref_cell_x_coord_start_index]
 			+ size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level))
@@ -476,8 +476,8 @@ public:
 		uint64_t unref_cell_y_coord_start_index
 			= y_index / (uint64_t(1) << this->max_refinement_level);
 
-		double unref_cell_y_size = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
-		double size_of_local_index = unref_cell_y_size / (uint64_t(1) << this->max_refinement_level);
+		double unref_cell_length_y = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
+		double size_of_local_index = unref_cell_length_y / (uint64_t(1) << this->max_refinement_level);
 
 		return this->y_coordinates[unref_cell_y_coord_start_index]
 			+ size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level))
@@ -500,8 +500,8 @@ public:
 		uint64_t unref_cell_z_coord_start_index
 			= z_index / (uint64_t(1) << this->max_refinement_level);
 
-		double unref_cell_z_size = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
-		double size_of_local_index = unref_cell_z_size / (uint64_t(1) << this->max_refinement_level);
+		double unref_cell_length_z = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
+		double size_of_local_index = unref_cell_length_z / (uint64_t(1) << this->max_refinement_level);
 
 		return this->z_coordinates[unref_cell_z_coord_start_index]
 			+ size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level))
@@ -664,17 +664,17 @@ public:
 		}
 		x_coord_start_index--;
 
-		double x_size_of_index
+		double length_x_of_index
 			= (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index])
-			/ this->get_cell_size_in_indices(1);
+			/ this->get_cell_length_in_indices(1);
 
 		uint64_t index_offset = 0;
-		while (this->x_coordinates[x_coord_start_index] + index_offset * x_size_of_index < x) {
+		while (this->x_coordinates[x_coord_start_index] + index_offset * length_x_of_index < x) {
 			index_offset++;
 		}
 		index_offset--;
 
-		return x_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+		return x_coord_start_index * this->get_cell_length_in_indices(1) + index_offset;
 	}
 
 	/*!
@@ -701,17 +701,17 @@ public:
 		}
 		y_coord_start_index--;
 
-		double y_size_of_index
+		double length_y_of_index
 			= (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index])
-			/ this->get_cell_size_in_indices(1);
+			/ this->get_cell_length_in_indices(1);
 
 		uint64_t index_offset = 0;
-		while (this->y_coordinates[y_coord_start_index] + index_offset * y_size_of_index < y) {
+		while (this->y_coordinates[y_coord_start_index] + index_offset * length_y_of_index < y) {
 			index_offset++;
 		}
 		index_offset--;
 
-		return y_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+		return y_coord_start_index * this->get_cell_length_in_indices(1) + index_offset;
 	}
 
 	/*!
@@ -738,17 +738,17 @@ public:
 		}
 		z_coord_start_index--;
 
-		double z_size_of_index
+		double length_z_of_index
 			= (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index])
-			/ this->get_cell_size_in_indices(1);
+			/ this->get_cell_length_in_indices(1);
 
 		uint64_t index_offset = 0;
-		while (this->z_coordinates[z_coord_start_index] + index_offset * z_size_of_index < z) {
+		while (this->z_coordinates[z_coord_start_index] + index_offset * length_z_of_index < z) {
 			index_offset++;
 		}
 		index_offset--;
 
-		return z_coord_start_index * this->get_cell_size_in_indices(1) + index_offset;
+		return z_coord_start_index * this->get_cell_length_in_indices(1) + index_offset;
 	}
 
 

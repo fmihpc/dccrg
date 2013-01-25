@@ -195,9 +195,9 @@ std::vector<cell_info_t> get_cell_info_cache(
 
 		const int cell_ref_lvl = grid.get_refinement_level(cell);
 		const double
-			cell_x_half_size = grid.get_cell_x_size(cell) / 2.0,
-			cell_y_half_size = grid.get_cell_y_size(cell) / 2.0,
-			cell_z_half_size = grid.get_cell_z_size(cell) / 2.0;
+			cell_x_half_size = grid.get_cell_length_x(cell) / 2.0,
+			cell_y_half_size = grid.get_cell_length_y(cell) / 2.0,
+			cell_z_half_size = grid.get_cell_length_z(cell) / 2.0;
 
 		// get face neighbors of current cell
 		std::vector<uint64_t> face_neighbors;
@@ -222,9 +222,9 @@ std::vector<cell_info_t> get_cell_info_cache(
 			const direction_t direction = directions[i];
 			const uint64_t neighbor = face_neighbors[i];
 			const double
-				neigh_x_half_size = grid.get_cell_x_size(neighbor) / 2.0,
-				neigh_y_half_size = grid.get_cell_y_size(neighbor) / 2.0,
-				neigh_z_half_size = grid.get_cell_z_size(neighbor) / 2.0;
+				neigh_x_half_size = grid.get_cell_length_x(neighbor) / 2.0,
+				neigh_y_half_size = grid.get_cell_length_y(neighbor) / 2.0,
+				neigh_z_half_size = grid.get_cell_length_z(neighbor) / 2.0;
 
 			// assume rhs and solution are cell-centered
 			switch(direction) {

@@ -43,9 +43,9 @@ public:
 	double   start_x
 	double   start_y
 	double   start_z
-	double   cell_x_size
-	double   cell_y_size
-	double   cell_z_size
+	double   cell_length_x
+	double   cell_length_y
+	double   cell_length_z
 	uint64_t length_x in cells
 	uint64_t length_y in cells
 	uint64_t length_z in cells
@@ -113,13 +113,13 @@ public:
 			value = game_grid.get_start_z();
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid.get_cell_x_size(1);
+			value = game_grid.get_cell_length_x(1);
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid.get_cell_y_size(1);
+			value = game_grid.get_cell_length_y(1);
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
-			value = game_grid.get_cell_z_size(1);
+			value = game_grid.get_cell_length_z(1);
 			memcpy(buffer + offset, &value, sizeof(double));
 			offset += sizeof(double);
 			}

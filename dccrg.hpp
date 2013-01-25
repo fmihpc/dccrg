@@ -112,7 +112,7 @@ public:
 	*/
 	template<class OtherUserData> Dccrg(const Dccrg<OtherUserData, UserGeometry>& other) :
 		initialized(other.get_initialized()),
-		neighborhood_size(other.get_neighborhood_size()),
+		neighborhood_length(other.get_neighborhood_length()),
 		max_tag(other.get_max_tag()),
 		max_ref_lvl_diff(other.get_max_ref_lvl_diff()),
 		send_single_cells(other.get_send_single_cells()),
@@ -164,9 +164,9 @@ public:
 			other.get_start_x(),
 			other.get_start_y(),
 			other.get_start_z(),
-			other.get_unrefined_cell_x_size(),
-			other.get_unrefined_cell_y_size(),
-			other.get_unrefined_cell_z_size()
+			other.get_unrefined_cell_length_x(),
+			other.get_unrefined_cell_length_y(),
+			other.get_unrefined_cell_length_z()
 		)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't copy geometry when copy constructing"
@@ -216,13 +216,13 @@ public:
 		- All methods except REFTREE are supported, see this page for a list of available methods:
 		- http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
 
-	neighborhood_size:
+	neighborhood_length:
 		- Determines which cells are considered neighbors.
 		- When calculating the neighbors of a given cell a cube of length
-		  2 * neighborhood_size + 1 in every direction is considered, centered
+		  2 * neighborhood_length + 1 in every direction is considered, centered
 		  at the cell for which neighbors are being calculated.
 		- The unit lenght of the cube is the cell for which neighbors are being calculated.
-		- If neighborhood_size == 0, only cells (or children within the volume of
+		- If neighborhood_length == 0, only cells (or children within the volume of
 		  cells of the same size as the current cell) that share a face are considered.
 
 	maximum_refinement_level:
@@ -237,7 +237,7 @@ public:
 	void initialize(
 		const MPI_Comm& given_comm,
 		const char* load_balancing_method,
-		const unsigned int neighborhood_size,
+		const unsigned int given_neighborhood_length,
 		const int maximum_refinement_level = -1,
 		const bool periodic_in_x = false,
 		const bool periodic_in_y = false,
@@ -380,8 +380,8 @@ public:
 		this->set_periodicity(2, periodic_in_z);
 
 		// set / check neighborhood_of
-		this->neighborhood_size = neighborhood_size;
-		if (this->neighborhood_size == 0) {
+		this->neighborhood_length = given_neighborhood_length;
+		if (this->neighborhood_length == 0) {
 			{
 			Types<3>::neighborhood_item_t item = {{0, 0, -1}};
 			this->neighborhood_of.push_back(item);
@@ -407,9 +407,9 @@ public:
 			this->neighborhood_of.push_back(item);
 			}
 		} else {
-			for (int z = -neighborhood_size; (unsigned int) abs(z) < neighborhood_size + 1; z++)
-			for (int y = -neighborhood_size; (unsigned int) abs(y) < neighborhood_size + 1; y++)
-			for (int x = -neighborhood_size; (unsigned int) abs(x) < neighborhood_size + 1; x++) {
+			for (int z = -this->neighborhood_length; (unsigned int) abs(z) < this->neighborhood_length + 1; z++)
+			for (int y = -this->neighborhood_length; (unsigned int) abs(y) < this->neighborhood_length + 1; y++)
+			for (int x = -this->neighborhood_length; (unsigned int) abs(x) < this->neighborhood_length + 1; x++) {
 				if (x == 0 && y == 0 && z == 0) {
 					continue;
 				}
@@ -2728,9 +2728,9 @@ public:
 	/*!
 	Returns the size of cells' neihgbourhood in every direction.
 	*/
-	unsigned int get_neighborhood_size() const
+	unsigned int get_neighborhood_length() const
 	{
-		return this->neighborhood_size;
+		return this->neighborhood_length;
 	}
 
 
@@ -2756,20 +2756,20 @@ public:
 		const int refinement_level = this->get_refinement_level(cell);
 
 		// find cell(s) at given indices in the stored neighbor list
-		const int last_offset = (this->neighborhood_size > 0) ? int(this->neighborhood_size) : 1;
+		const int last_offset = (this->neighborhood_length > 0) ? int(this->neighborhood_length) : 1;
 		int index = 0;
 		for (int
-			current_k = (this->neighborhood_size > 0) ? -int(this->neighborhood_size) : -1;
+			current_k = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
 			current_k <= last_offset;
 			current_k++
 		)
 		for (int
-			current_j = (this->neighborhood_size > 0) ? -int(this->neighborhood_size) : -1;
+			current_j = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
 			current_j <= last_offset;
 			current_j++
 		)
 		for (int
-			current_i = (this->neighborhood_size > 0) ? -int(this->neighborhood_size) : -1;
+			current_i = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
 			current_i <= last_offset;
 			current_i++
 		) {
@@ -2777,7 +2777,7 @@ public:
 				continue;
 			}
 
-			if (this->neighborhood_size == 0) {
+			if (this->neighborhood_length == 0) {
 				// skip diagonal offsets
 				const int zero_offsets_in_current =
 					  ((current_i == 0) ? 1 : 0)
@@ -3300,13 +3300,13 @@ public:
 	/*!
 	Returns the indices corresponding to the given neighborhood at given indices.
 
-	Neighborhood is returned in units of size_in_indices.
+	Neighborhood is returned in units of length_in_indices.
 	If grid is not periodic in some direction then indices which would fall outside
 	of the grid in that direction are returned as error_index.
 	*/
 	std::vector<Types<3>::indices_t> indices_from_neighborhood(
 		const Types<3>::indices_t indices,
-		const uint64_t size_in_indices,
+		const uint64_t length_in_indices,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
 		// TODO: make neighborhood a const reference
@@ -3344,7 +3344,7 @@ public:
 						for (int i = 0; i > offsets[dimension]; i--) {
 
 							#ifdef DEBUG
-							if (temp_indices[dimension] < size_in_indices - 1
+							if (temp_indices[dimension] < length_in_indices - 1
 							&& temp_indices[dimension] > 0) {
 								std::cerr << __FILE__ << ":" << __LINE__
 									<< " Cells aren't supposed to wrap around the grid."
@@ -3353,22 +3353,22 @@ public:
 							}
 							#endif
 
-							if (temp_indices[dimension] >= size_in_indices) {
-								temp_indices[dimension] -= size_in_indices;
+							if (temp_indices[dimension] >= length_in_indices) {
+								temp_indices[dimension] -= length_in_indices;
 							} else {
-								temp_indices[dimension] = grid_length[dimension] - size_in_indices;
+								temp_indices[dimension] = grid_length[dimension] - length_in_indices;
 							}
 						}
 					// use error_indices to signal that this neighborhood item is outside of the grid
 					} else {
-						if (indices[dimension] < abs(offsets[dimension]) * size_in_indices) {
+						if (indices[dimension] < abs(offsets[dimension]) * length_in_indices) {
 							temp_indices[0] = error_index;
 							temp_indices[1] = error_index;
 							temp_indices[2] = error_index;
 							break;
 						}
 
-						temp_indices[dimension] += offsets[dimension] * size_in_indices;
+						temp_indices[dimension] += offsets[dimension] * length_in_indices;
 					}
 
 				} else {
@@ -3377,27 +3377,27 @@ public:
 						for (int i = 0; i < offsets[dimension]; i++) {
 
 							#ifdef DEBUG
-							if (temp_indices[dimension] > grid_length[dimension] - size_in_indices) {
+							if (temp_indices[dimension] > grid_length[dimension] - length_in_indices) {
 								std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
 								abort();
 							}
 							#endif
 
-							if (temp_indices[dimension] < grid_length[dimension] - size_in_indices) {
-								temp_indices[dimension] += size_in_indices;
+							if (temp_indices[dimension] < grid_length[dimension] - length_in_indices) {
+								temp_indices[dimension] += length_in_indices;
 							} else {
 								temp_indices[dimension] = 0;
 							}
 						}
 					} else {
-						if (indices[dimension] + offsets[dimension] * size_in_indices >= grid_length[dimension]) {
+						if (indices[dimension] + offsets[dimension] * length_in_indices >= grid_length[dimension]) {
 							temp_indices[0] = error_index;
 							temp_indices[1] = error_index;
 							temp_indices[2] = error_index;
 							break;
 						}
 
-						temp_indices[dimension] += offsets[dimension] * size_in_indices;
+						temp_indices[dimension] += offsets[dimension] * length_in_indices;
 					}
 				}
 			}
@@ -3459,11 +3459,11 @@ public:
 			return return_neighbors;
 		}
 
-		const uint64_t cell_size = this->get_cell_size_in_indices(cell);
+		const uint64_t cell_length = this->get_cell_length_in_indices(cell);
 
 		const std::vector<Types<3>::indices_t> indices_of = this->indices_from_neighborhood(
 			this->get_indices(cell),
-			cell_size,
+			cell_length,
 			neighborhood
 		);
 
@@ -3531,9 +3531,9 @@ public:
 			} else {
 
 				const Types<3>::indices_t index_max = {{
-					index_of[0] + cell_size - 1,
-					index_of[1] + cell_size - 1,
-					index_of[2] + cell_size - 1
+					index_of[0] + cell_length - 1,
+					index_of[1] + cell_length - 1,
+					index_of[2] + cell_length - 1
 				}};
 
 				const std::vector<uint64_t> current_neighbors = this->find_cells(
@@ -3559,7 +3559,7 @@ public:
 				if (current_neighbors.size() < 8) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Too few neighbors for cell " << cell
-						<< " of size " << cell_size
+						<< " of size " << cell_length
 						<< " with max_diff " << max_diff
 						<< std::endl;
 
@@ -3657,11 +3657,11 @@ public:
 		if (refinement_level > 0) {
 			const uint64_t parent = this->get_parent(cell);
 			const Types<3>::indices_t indices = this->get_indices(parent);
-			const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
+			const uint64_t length_in_indices = this->get_cell_length_in_indices(parent);
 
 			std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 				indices,
-				size_in_indices,
+				length_in_indices,
 				neighborhood
 			);
 
@@ -3690,7 +3690,7 @@ public:
 			}
 			#endif
 
-			const uint64_t size_in_indices = this->get_cell_size_in_indices(children[0]);
+			const uint64_t length_in_indices = this->get_cell_length_in_indices(children[0]);
 
 			BOOST_FOREACH(const uint64_t& child, children) {
 
@@ -3698,7 +3698,7 @@ public:
 
 				std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 					indices,
-					size_in_indices,
+					length_in_indices,
 					neighborhood
 				);
 
@@ -3719,11 +3719,11 @@ public:
 
 		// neighbors_to of the same size as given cell
 		const Types<3>::indices_t indices = this->get_indices(cell);
-		const uint64_t size_in_indices = this->get_cell_size_in_indices(cell);
+		const uint64_t length_in_indices = this->get_cell_length_in_indices(cell);
 
 		std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 			indices,
-			size_in_indices,
+			length_in_indices,
 			neighborhood
 		);
 
@@ -3814,10 +3814,10 @@ public:
 			#endif
 
 			const Types<3>::indices_t indices = this->get_indices(parent);
-			const uint64_t size_in_indices = this->get_cell_size_in_indices(parent);
+			const uint64_t length_in_indices = this->get_cell_length_in_indices(parent);
 			const std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 				indices,
-				size_in_indices,
+				length_in_indices,
 				this->neighborhood_to
 			);
 
@@ -4627,11 +4627,11 @@ public:
 		}
 		#endif
 
-		if (this->neighborhood_size > 0) {
+		if (this->neighborhood_length > 0) {
 
 			BOOST_FOREACH(const Types<3>::neighborhood_item_t& neigh_item, given_neigh) {
 				for (size_t i = 0; i < 3; i++) {
-					if ((unsigned int) abs(neigh_item[i]) > this->neighborhood_size) {
+					if ((unsigned int) abs(neigh_item[i]) > this->neighborhood_length) {
 						return false;
 					}
 				}
@@ -5084,7 +5084,7 @@ private:
 	bool initialized;
 
 	// size of the neighbor stencil of a cells in cells (of the same size as the cell itself)
-	unsigned int neighborhood_size;
+	unsigned int neighborhood_length;
 
 	// maximum value an MPI tag can have
 	unsigned int max_tag;
@@ -6241,8 +6241,8 @@ private:
 
 		const Types<3>::indices_t indices1 = this->get_indices(cell1);
 		const Types<3>::indices_t indices2 = this->get_indices(cell2);
-		const uint64_t cell1_size = this->get_cell_size_in_indices(cell1);
-		const uint64_t cell2_size = this->get_cell_size_in_indices(cell2);
+		const uint64_t cell1_length = this->get_cell_length_in_indices(cell1);
+		const uint64_t cell2_length = this->get_cell_length_in_indices(cell2);
 
 		// distance in indices between given cells
 		Types<3>::indices_t distance = {{0, 0, 0}};
@@ -6257,25 +6257,25 @@ private:
 
 		for (unsigned int i = 0; i < 3; i++) {
 			if (indices1[i] <= indices2[i]) {
-				if (indices2[i] <= indices1[i] + cell1_size) {
+				if (indices2[i] <= indices1[i] + cell1_length) {
 					distance[i] = 0;
 				} else {
-					distance[i] = indices2[i] - (indices1[i] + cell1_size);
+					distance[i] = indices2[i] - (indices1[i] + cell1_length);
 				}
 
 				if (this->is_periodic(i)) {
-					const uint64_t distance_to_end = grid_length[i] - (indices2[i] + cell2_size);
+					const uint64_t distance_to_end = grid_length[i] - (indices2[i] + cell2_length);
 					distance[i] = std::min(distance[i], indices1[i] + distance_to_end);
 				}
 			} else {
-				if (indices1[i] <= indices2[i] + cell2_size) {
+				if (indices1[i] <= indices2[i] + cell2_length) {
 					distance[i] = 0;
 				} else {
-					distance[i] = indices1[i] - (indices2[i] + cell2_size);
+					distance[i] = indices1[i] - (indices2[i] + cell2_length);
 				}
 
 				if (this->is_periodic(i)) {
-					const uint64_t distance_to_end = grid_length[i] - (indices1[i] + cell1_size);
+					const uint64_t distance_to_end = grid_length[i] - (indices1[i] + cell1_length);
 					distance[i] = std::min(distance[i], indices2[i] + distance_to_end);
 				}
 			}
@@ -6283,8 +6283,8 @@ private:
 			max_distance = std::max(max_distance, distance[i]);
 		}
 
-		if (this->neighborhood_size == 0) {
-			if (max_distance < cell1_size
+		if (this->neighborhood_length == 0) {
+			if (max_distance < cell1_length
 			&& this->overlapping_indices(cell1, cell2) >= 2) {
 				return true;
 			// diagonal cell isn't a neighbor
@@ -6293,7 +6293,7 @@ private:
 			}
 		}
 
-		if (max_distance < this->neighborhood_size * cell1_size) {
+		if (max_distance < this->neighborhood_length * cell1_length) {
 			return true;
 		} else {
 			return false;
@@ -7974,8 +7974,8 @@ private:
 
 		const uint64_t index1 = this->get_x_index(cell1);
 		const uint64_t index2 = this->get_x_index(cell2);
-		const uint64_t size1 = this->get_cell_size_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_size_in_indices(cell2);
+		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
 
 		return this->indices_overlap(index1, size1, index2, size2);
 	}
@@ -8004,8 +8004,8 @@ private:
 
 		const uint64_t index1 = this->get_y_index(cell1);
 		const uint64_t index2 = this->get_y_index(cell2);
-		const uint64_t size1 = this->get_cell_size_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_size_in_indices(cell2);
+		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
 
 		return this->indices_overlap(index1, size1, index2, size2);
 	}
@@ -8034,8 +8034,8 @@ private:
 
 		const uint64_t index1 = this->get_z_index(cell1);
 		const uint64_t index2 = this->get_z_index(cell2);
-		const uint64_t size1 = this->get_cell_size_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_size_in_indices(cell2);
+		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
 
 		return this->indices_overlap(index1, size1, index2, size2);
 	}
@@ -8074,8 +8074,8 @@ private:
 		const Types<3>::indices_t indices1 = this->get_indices(cell1);
 		const Types<3>::indices_t indices2 = this->get_indices(cell2);
 
-		const uint64_t size1 = this->get_cell_size_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_size_in_indices(cell2);
+		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
 
 		int ret = 0;
 		if (this->indices_overlap(indices1[0], size1, indices2[0], size2)) {

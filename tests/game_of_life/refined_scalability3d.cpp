@@ -89,7 +89,7 @@ int main(int argc, char* argv[])
 		cell_data->live_neighbor_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
+		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;
@@ -101,7 +101,7 @@ int main(int argc, char* argv[])
 		cell_data->live_neighbor_count = 0;
 
 		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
+		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;

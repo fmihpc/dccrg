@@ -420,10 +420,10 @@ template<class CellData> void solve(
 		}
 
 		const double cell_density = cell_data->density(),
-			cell_x_size = grid.get_cell_x_size(cell),
-			cell_y_size = grid.get_cell_y_size(cell),
-			cell_z_size = grid.get_cell_z_size(cell),
-			cell_volume = cell_x_size * cell_y_size * cell_z_size;
+			cell_length_x = grid.get_cell_length_x(cell),
+			cell_length_y = grid.get_cell_length_y(cell),
+			cell_length_z = grid.get_cell_length_z(cell),
+			cell_volume = cell_length_x * cell_length_y * cell_length_z;
 
 		vector<uint64_t> neighbors_to_solve;
 		vector<direction_t> directions;
@@ -443,27 +443,27 @@ template<class CellData> void solve(
 			}
 
 			const double neighbor_density = neighbor_data->density(),
-				neighbor_x_size = grid.get_cell_x_size(neighbor),
-				neighbor_y_size = grid.get_cell_y_size(neighbor),
-				neighbor_z_size = grid.get_cell_z_size(neighbor),
-				neighbor_volume = neighbor_x_size * neighbor_y_size * neighbor_z_size;
+				neighbor_length_x = grid.get_cell_length_x(neighbor),
+				neighbor_length_y = grid.get_cell_length_y(neighbor),
+				neighbor_length_z = grid.get_cell_length_z(neighbor),
+				neighbor_volume = neighbor_length_x * neighbor_length_y * neighbor_length_z;
 
 			// get area shared between cell and current neighbor
 			double min_area = -1;
 			switch (direction) {
 			case POS_X:
 			case NEG_X:
-				min_area = min(cell_y_size * cell_z_size, neighbor_y_size * neighbor_z_size);
+				min_area = min(cell_length_y * cell_length_z, neighbor_length_y * neighbor_length_z);
 				break;
 
 			case POS_Y:
 			case NEG_Y:
-				min_area = min(cell_x_size * cell_z_size, neighbor_x_size * neighbor_z_size);
+				min_area = min(cell_length_x * cell_length_z, neighbor_length_x * neighbor_length_z);
 				break;
 
 			case POS_Z:
 			case NEG_Z:
-				min_area = min(cell_x_size * cell_y_size, neighbor_x_size * neighbor_y_size);
+				min_area = min(cell_length_x * cell_length_y, neighbor_length_x * neighbor_length_y);
 				break;
 			}
 
@@ -475,9 +475,9 @@ template<class CellData> void solve(
 			double flux = 0;
 
 			// velocity interpolated to shared face
-			const double vx = (cell_x_size * neighbor_data->vx() + neighbor_x_size * cell_data->vx()) / (cell_x_size + neighbor_x_size),
-				vy = (cell_y_size * neighbor_data->vy() + neighbor_y_size * cell_data->vy()) / (cell_y_size + neighbor_y_size),
-				vz = (cell_z_size * neighbor_data->vz() + neighbor_z_size * cell_data->vz()) / (cell_z_size + neighbor_z_size);
+			const double vx = (cell_length_x * neighbor_data->vx() + neighbor_length_x * cell_data->vx()) / (cell_length_x + neighbor_length_x),
+				vy = (cell_length_y * neighbor_data->vy() + neighbor_length_y * cell_data->vy()) / (cell_length_y + neighbor_length_y),
+				vz = (cell_length_z * neighbor_data->vz() + neighbor_length_z * cell_data->vz()) / (cell_length_z + neighbor_length_z);
 
 			switch (direction) {
 			case POS_X:
@@ -864,9 +864,9 @@ template<class CellData> double get_max_time_step(
 			abort();
 		}
 
-		const double min_step_x = grid.get_cell_x_size(cell_id) / fabs(cell->vx()),
-			min_step_y = grid.get_cell_y_size(cell_id) / fabs(cell->vy()),
-			min_step_z = grid.get_cell_z_size(cell_id) / fabs(cell->vz()),
+		const double min_step_x = grid.get_cell_length_x(cell_id) / fabs(cell->vx()),
+			min_step_y = grid.get_cell_length_y(cell_id) / fabs(cell->vy()),
+			min_step_z = grid.get_cell_length_z(cell_id) / fabs(cell->vz()),
 			current_min_step = min(min_step_x, min(min_step_y, min_step_z));
 
 		if (min_step > current_min_step) {

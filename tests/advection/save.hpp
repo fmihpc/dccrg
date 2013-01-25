@@ -165,16 +165,16 @@ public:
 			memcpy(buffer + offset, &start_z, sizeof(double));
 			offset += sizeof(double);
 
-			const double cell_x_size = grid.get_cell_x_size(1);
-			memcpy(buffer + offset, &cell_x_size, sizeof(double));
+			const double cell_length_x = grid.get_cell_length_x(1);
+			memcpy(buffer + offset, &cell_length_x, sizeof(double));
 			offset += sizeof(double);
 
-			const double cell_y_size = grid.get_cell_y_size(1);
-			memcpy(buffer + offset, &cell_y_size, sizeof(double));
+			const double cell_length_y = grid.get_cell_length_y(1);
+			memcpy(buffer + offset, &cell_length_y, sizeof(double));
 			offset += sizeof(double);
 
-			const double cell_z_size = grid.get_cell_z_size(1);
-			memcpy(buffer + offset, &cell_z_size, sizeof(double));
+			const double cell_length_z = grid.get_cell_length_z(1);
+			memcpy(buffer + offset, &cell_length_z, sizeof(double));
 			offset += sizeof(double);
 
 			const uint64_t length_x = grid.get_length_x();

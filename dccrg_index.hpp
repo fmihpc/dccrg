@@ -40,7 +40,7 @@ class Index
 public:
 
 	/*!
-	Creates and sets the grid to a default size of 1 cell with maximum refinement level 0.
+	Creates and sets the grid to a default length of 1 cell with maximum refinement level 0.
 	*/
 	Index()
 	{
@@ -50,7 +50,7 @@ public:
 	}
 
 	/*!
-	Sets the grid to a default size of 1 cell with maximum refinement level 0.
+	Sets the grid to a default length of 1 cell with maximum refinement level 0.
 	*/
 	~Index()
 	{
@@ -60,7 +60,7 @@ public:
 	}
 
 	/*!
-	Sets the size of the grid in unrefined cells.
+	Sets the length of the grid in unrefined cells.
 
 	Returns true if successful, probably invalidating all previous cell
 	information (cell numbers, indices, etc.)
@@ -210,7 +210,7 @@ public:
 			indices[2] / (uint64_t(1) << (this->max_refinement_level - refinement_level))
 		}};
 
-		// get the size of the grid in terms of cells of this refinement level
+		// get the length of the grid in terms of cells of this refinement level
 		const uint64_t this_level_length_x = this->length_x * (uint64_t(1) << refinement_level);
 		const uint64_t this_level_length_y = this->length_y * (uint64_t(1) << refinement_level);
 
@@ -311,7 +311,7 @@ public:
 
 	Returns error_index if given an invalid cell.
 	*/
-	uint64_t get_cell_size_in_indices(const uint64_t cell) const
+	uint64_t get_cell_length_in_indices(const uint64_t cell) const
 	{
 		if (cell == error_cell) {
 			return error_index;
@@ -394,7 +394,7 @@ public:
 
 protected:
 
-	// size of the grid in unrefined cells
+	// length of the grid in unrefined cells
 	// TODO: switch to boost::array<uint64_t, Dimensions> length
 	uint64_t length_x, length_y, length_z;
 

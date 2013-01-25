@@ -42,7 +42,7 @@ int main(void)
 	double avg_size = 0;
 	before = clock();
 	for (uint64_t cell = 1; cell <= CELLS; cell++) {
-		avg_size += geometry.get_cell_x_size(cell);
+		avg_size += geometry.get_cell_length_x(cell);
 	}
 	after = clock();
 	avg_size /= CELLS;
@@ -52,7 +52,7 @@ int main(void)
 	avg_size = 0;
 	before = clock();
 	for (uint64_t cell = 1; cell <= CELLS; cell++) {
-		avg_size += geometry.get_cell_y_size(cell);
+		avg_size += geometry.get_cell_length_y(cell);
 	}
 	after = clock();
 	avg_size /= CELLS;
@@ -62,7 +62,7 @@ int main(void)
 	avg_size = 0;
 	before = clock();
 	for (uint64_t cell = 1; cell <= CELLS; cell++) {
-		avg_size += geometry.get_cell_z_size(cell);
+		avg_size += geometry.get_cell_length_z(cell);
 	}
 	after = clock();
 	avg_size /= CELLS;

@@ -115,7 +115,7 @@ int main(int argc, char* argv[])
 		#endif
 
 		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
+		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
 			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else
@@ -142,7 +142,7 @@ int main(int argc, char* argv[])
 		#endif
 
 		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_y_size(*cell) - y) < 0.5 * game_grid.get_cell_y_size(*cell)) {
+		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
 			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else
