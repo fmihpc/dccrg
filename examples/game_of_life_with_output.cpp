@@ -1,5 +1,6 @@
 /*
-A simple 2 D game of life program to demonstrate the efficient usage of dccrg and shows an example of how to output dccrg grid data into a file
+A simple 2 D game of life program to demonstrate the efficient usage of dccrg
+and shows an example of how to output dccrg grid data into a file
 */
 
 #include "boost/mpi.hpp"

@@ -2,7 +2,7 @@
 Turns .dc files produced by advection test into .vtk files, visualize for
 example with VisIt (https://wci.llnl.gov/codes/visit/)
 
-Copyright 2012 Finnish Meteorological Institute
+Copyright 2012, 2013 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3

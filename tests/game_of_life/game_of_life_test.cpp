@@ -1,7 +1,7 @@
 /*
 Program for testing dccrg using Conway's game of life.
 
-Copyright 2010, 2011, 2012 Finnish Meteorological Institute
+Copyright 2010, 2011, 2012, 2013 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3

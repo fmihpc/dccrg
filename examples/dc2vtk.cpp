@@ -1,5 +1,6 @@
 /*
-Turns the files saved from game_of_life_with_output.cpp into .vtk files, visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
+Turns the files saved from game_of_life_with_output.cpp into .vtk files,
+visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
 */
 
 #include "algorithm"
