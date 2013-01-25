@@ -436,17 +436,18 @@ public:
 
 
 		// create unrefined cells
+		const uint64_t grid_length = this->x_length * this->y_length * this->z_length;
 		uint64_t cells_per_process = 0;
-		if (this->grid_length < this->comm_size) {
+		if (grid_length < this->comm_size) {
 			cells_per_process = 1;
-		} else if (this->grid_length % this->comm_size > 0) {
-			cells_per_process = this->grid_length / this->comm_size + 1;
+		} else if (grid_length % this->comm_size > 0) {
+			cells_per_process = grid_length / this->comm_size + 1;
 		} else {
-			cells_per_process = this->grid_length / this->comm_size;
+			cells_per_process = grid_length / this->comm_size;
 		}
 
 		// some processes get fewer cells if grid size not divisible by this->comm_size
-		uint64_t procs_with_fewer = cells_per_process * this->comm_size - this->grid_length;
+		uint64_t procs_with_fewer = cells_per_process * this->comm_size - grid_length;
 
 		#ifndef USE_SFC
 
@@ -470,10 +471,10 @@ public:
 		}
 
 		#ifdef DEBUG
-		if (cell_to_create != this->grid_length + 1) {
+		if (cell_to_create != grid_length + 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of cells created: " << cell_to_create - 1
-				<< ", should be " << this->grid_length
+				<< ", should be " << grid_length
 				<< std::endl;
 			abort();
 		}
@@ -544,10 +545,10 @@ public:
 		}
 		mapping.clear();
 
-		if (sfc_index != this->grid_length) {
+		if (sfc_index != grid_length) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->rank
 				<< ": Incorrect number of cells created: " << sfc_index
-				<< ", should be " << this->grid_length
+				<< ", should be " << grid_length
 				<< std::endl;
 			abort();
 		}

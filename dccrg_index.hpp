@@ -45,7 +45,7 @@ public:
 	Index()
 	{
 		this->max_refinement_level = 0;
-		this->x_length = this->y_length = this->z_length = this->grid_length = 1;
+		this->x_length = this->y_length = this->z_length = 1;
 		this->last_cell = 1;
 	}
 
@@ -55,7 +55,7 @@ public:
 	~Index()
 	{
 		this->max_refinement_level = 0;
-		this->x_length = this->y_length = this->z_length = this->grid_length = 1;
+		this->x_length = this->y_length = this->z_length = 1;
 		this->last_cell = 1;
 	}
 
@@ -83,15 +83,16 @@ public:
 			return false;
 		}
 
-		uint64_t old_x_length = this->x_length;
-		uint64_t old_y_length = this->y_length;
-		uint64_t old_z_length = this->z_length;
+		const uint64_t
+			old_x_length = this->x_length,
+			old_y_length = this->y_length,
+			old_z_length = this->z_length;
 
 		this->x_length = given_x_length;
 		this->y_length = given_y_length;
 		this->z_length = given_z_length;
 
-		if (double(this->x_length) + double(this->x_length) + double(this->x_length) > double(~uint64_t(0))) {
+		if (double(this->x_length) + double(this->y_length) + double(this->z_length) > double(~uint64_t(0))) {
 			std::cerr << "Grid would have too many unrefined cells for uint64_t (x_length, y_length, z_length): "
 				<< this->x_length << " " << this->y_length << " " << this->z_length
 				<< std::endl;
@@ -102,18 +103,14 @@ public:
 			return false;
 		}
 
-		uint64_t old_grid_length = this->grid_length;
-		this->grid_length = this->x_length * this->y_length * this->z_length;
-
 		if (this->max_refinement_level > this->get_maximum_possible_refinement_level()) {
-			std::cerr << "Grid would have too many cells for an uint64_t with current refinement level" << std::endl;
+			std::cerr << "Grid would have too many cells for an uint64_t with current refinement level"
+				<< std::endl;
 			this->x_length = old_x_length;
 			this->y_length = old_y_length;
 			this->z_length = old_z_length;
-			this->grid_length = old_grid_length;
 			return false;
 		} else {
-			this->update_last_cell();
 			return true;
 		}
 	}
@@ -332,16 +329,15 @@ public:
 
 	/*!
 	Returns the maximum possible refinement level for a cell in the grid (0 means unrefined).
-
-	Assumes up to date grid_length.
 	*/
 	int get_maximum_possible_refinement_level(void) const
 	{
+		const uint64_t grid_length = this->x_length * this->y_length * this->z_length;
 		int refinement_level = 0;
 		double current_last = 0;
 		while (current_last <= double(~uint64_t(0))) {
 			// TODO: don't assume 3 dimensions
-			current_last += double(this->grid_length) * pow(double(8), double(refinement_level));
+			current_last += double(grid_length) * pow(double(8), double(refinement_level));
 			refinement_level++;
 		}
 
@@ -402,9 +398,6 @@ protected:
 	// TODO: switch to boost::array<uint64_t, Dimensions> length
 	uint64_t x_length, y_length, z_length;
 
-	// x_length * y_length * z_length
-	uint64_t grid_length;
-
 	// maximum refinemet level of any cell in the grid, 0 means unrefined
 	int max_refinement_level;
 
@@ -416,14 +409,13 @@ private:
 
 	/*!
 	Set the value of last_cell based on current grid lengths and max_refinement_level.
-
-	Assumes up to date grid_length.
 	*/
 	void update_last_cell(void)
 	{
+		const uint64_t grid_length = this->x_length * this->y_length * this->z_length;
 		this->last_cell = 0;
 		for (int i = 0; i <= this->max_refinement_level; i++) {
-			this->last_cell += this->grid_length * (uint64_t(1) << (i * 3));
+			this->last_cell += grid_length * (uint64_t(1) << (i * 3));
 		}
 	}
 
