@@ -51,20 +51,20 @@ public:
 	Stretched_Cartesian_Geometry()
 	{
 		this->x_coordinates.clear();
-		this->x_coordinates.reserve(this->x_length + 1);
-		for (uint64_t i = 0; i <= this->x_length; i++) {
+		this->x_coordinates.reserve(this->length_x + 1);
+		for (uint64_t i = 0; i <= this->length_x; i++) {
 			this->x_coordinates.push_back(i);
 		}
 
 		this->y_coordinates.clear();
-		this->y_coordinates.reserve(this->y_length + 1);
-		for (uint64_t i = 0; i <= this->y_length; i++) {
+		this->y_coordinates.reserve(this->length_y + 1);
+		for (uint64_t i = 0; i <= this->length_y; i++) {
 			this->y_coordinates.push_back(i);
 		}
 
 		this->z_coordinates.clear();
-		this->z_coordinates.reserve(this->z_length + 1);
-		for (uint64_t i = 0; i <= this->z_length; i++) {
+		this->z_coordinates.reserve(this->length_z + 1);
+		for (uint64_t i = 0; i <= this->length_z; i++) {
 			this->z_coordinates.push_back(i);
 		}
 	}
@@ -77,20 +77,20 @@ public:
 	~Stretched_Cartesian_Geometry()
 	{
 		this->x_coordinates.clear();
-		this->x_coordinates.reserve(this->x_length + 1);
-		for (uint64_t i = 0; i <= this->x_length; i++) {
+		this->x_coordinates.reserve(this->length_x + 1);
+		for (uint64_t i = 0; i <= this->length_x; i++) {
 			this->x_coordinates.push_back(i);
 		}
 
 		this->y_coordinates.clear();
-		this->y_coordinates.reserve(this->y_length + 1);
-		for (uint64_t i = 0; i <= this->y_length; i++) {
+		this->y_coordinates.reserve(this->length_y + 1);
+		for (uint64_t i = 0; i <= this->length_y; i++) {
 			this->y_coordinates.push_back(i);
 		}
 
 		this->z_coordinates.clear();
-		this->z_coordinates.reserve(this->z_length + 1);
-		for (uint64_t i = 0; i <= this->z_length; i++) {
+		this->z_coordinates.reserve(this->length_z + 1);
+		for (uint64_t i = 0; i <= this->length_z; i++) {
 			this->z_coordinates.push_back(i);
 		}
 	}
@@ -216,7 +216,7 @@ public:
 	*/
 	double get_x_end(void) const
 	{
-		return this->x_coordinates[this->x_length];
+		return this->x_coordinates[this->length_x];
 	}
 
 	/*!
@@ -224,7 +224,7 @@ public:
 	*/
 	double get_y_end(void) const
 	{
-		return this->y_coordinates[this->y_length];
+		return this->y_coordinates[this->length_y];
 	}
 
 	/*!
@@ -232,7 +232,7 @@ public:
 	*/
 	double get_z_end(void) const
 	{
-		return this->z_coordinates[this->z_length];
+		return this->z_coordinates[this->length_z];
 	}
 
 
@@ -445,7 +445,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (x_index > this->x_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (x_index > this->length_x * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -469,7 +469,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (y_index > this->y_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (y_index > this->length_y * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -493,7 +493,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (z_index > this->z_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (z_index > this->length_z * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 

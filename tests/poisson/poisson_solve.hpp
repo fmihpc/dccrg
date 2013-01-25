@@ -313,7 +313,7 @@ std::vector<cell_info_t> get_cell_info_cache(
 			- cell_data->f_z_neg;
 
 		// check that factors identical when cells are cubes
-		if (grid.get_x_length() > 1) {
+		if (grid.get_length_x() > 1) {
 			if (cell_data->f_x_pos != cell_data->f_x_neg) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Geometry factors not identical in x: "
@@ -322,7 +322,7 @@ std::vector<cell_info_t> get_cell_info_cache(
 				abort();
 			}
 		}
-		if (grid.get_y_length() > 1) {
+		if (grid.get_length_y() > 1) {
 			if (cell_data->f_y_pos != cell_data->f_y_neg) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Geometry factors not identical in y: "
@@ -331,7 +331,7 @@ std::vector<cell_info_t> get_cell_info_cache(
 				abort();
 			}
 		}
-		if (grid.get_z_length() > 1) {
+		if (grid.get_length_z() > 1) {
 			if (cell_data->f_z_pos != cell_data->f_z_neg) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Geometry factors not identical in z: "

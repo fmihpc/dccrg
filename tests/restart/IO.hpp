@@ -46,9 +46,9 @@ public:
 	double   cell_x_size
 	double   cell_y_size
 	double   cell_z_size
-	uint64_t x_length in cells
-	uint64_t y_length in cells
-	uint64_t z_length in cells
+	uint64_t length_x in cells
+	uint64_t length_y in cells
+	uint64_t length_z in cells
 	int      maximum_refinement_level
 	*/
 	static void save(
@@ -124,13 +124,13 @@ public:
 			offset += sizeof(double);
 			}
 			{
-			uint64_t value = game_grid.get_x_length();
+			uint64_t value = game_grid.get_length_x();
 			memcpy(buffer + offset, &value, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
-			value = game_grid.get_y_length();
+			value = game_grid.get_length_y();
 			memcpy(buffer + offset, &value, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
-			value = game_grid.get_z_length();
+			value = game_grid.get_length_z();
 			memcpy(buffer + offset, &value, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 			}

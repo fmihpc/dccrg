@@ -79,7 +79,7 @@ public:
 	/*!
 	Sets the grid's geometry to given values.
 
-	- x, y and z_length set the number of unrefined cells in the grid in x, y and z direction.
+	- x, y and length_z set the number of unrefined cells in the grid in x, y and z direction.
 	- x, y and start_z set the starting corner of the grid, e.g. the first face
 	  of the first unrefined cell(s) in x, y  and z direction.
 	- x, y and z_size set the size of unrefined cell in x, y and z direction.
@@ -87,11 +87,11 @@ public:
 	Returns true on success and false otherwise.
 	*/
 	bool set_geometry(
-		const uint64_t given_x_length, const uint64_t given_y_length, const uint64_t given_z_length,
+		const uint64_t given_length_x, const uint64_t given_length_y, const uint64_t given_length_z,
 		const double given_start_x, const double given_start_y, const double given_start_z,
 		const double given_cell_x_size, const double given_cell_y_size, const double given_cell_z_size
 	) {
-		if (!this->set_length(given_x_length, given_y_length, given_z_length)) {
+		if (!this->set_length(given_length_x, given_length_y, given_length_z)) {
 			return false;
 		}
 
@@ -154,7 +154,7 @@ public:
 	*/
 	double get_x_end(void) const
 	{
-		return this->start_x + double(this->x_length) * this->cell_x_size;
+		return this->start_x + double(this->length_x) * this->cell_x_size;
 	}
 
 	/*!
@@ -162,7 +162,7 @@ public:
 	*/
 	double get_y_end(void) const
 	{
-		return this->start_y + double(this->y_length) * this->cell_y_size;
+		return this->start_y + double(this->length_y) * this->cell_y_size;
 	}
 
 	/*!
@@ -170,7 +170,7 @@ public:
 	*/
 	double get_z_end(void) const
 	{
-		return this->start_z + double(this->z_length) * this->cell_z_size;
+		return this->start_z + double(this->length_z) * this->cell_z_size;
 	}
 
 
@@ -363,7 +363,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (x_index > this->x_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (x_index > this->length_x * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -381,7 +381,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (y_index > this->y_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (y_index > this->length_y * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
@@ -399,7 +399,7 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (z_index > this->z_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (z_index > this->length_z * (uint64_t(1) << this->max_refinement_level)) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 

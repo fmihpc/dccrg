@@ -158,9 +158,9 @@ public:
 		// copy grid geometry
 		// FIXME: support geometries other than constant
 		if (!this->set_geometry(
-			other.get_x_length(),
-			other.get_y_length(),
-			other.get_z_length(),
+			other.get_length_x(),
+			other.get_length_y(),
+			other.get_length_z(),
 			other.get_start_x(),
 			other.get_start_y(),
 			other.get_start_z(),
@@ -436,7 +436,7 @@ public:
 
 
 		// create unrefined cells
-		const uint64_t grid_length = this->x_length * this->y_length * this->z_length;
+		const uint64_t grid_length = this->length_x * this->length_y * this->length_z;
 		uint64_t cells_per_process = 0;
 		if (grid_length < this->comm_size) {
 			cells_per_process = 1;
@@ -483,9 +483,9 @@ public:
 		#else
 
 		const dccrg::Types<3>::indices_t length = {{
-			this->x_length,
-			this->y_length,
-			this->z_length
+			this->length_x,
+			this->length_y,
+			this->length_z
 		}};
 		sfc::Sfc<3, uint64_t> mapping(length);
 
@@ -3315,9 +3315,9 @@ public:
 
 		// grid length in indices
 		const uint64_t grid_length[3] = {
-			this->get_x_length() * (uint64_t(1) << this->max_refinement_level),
-			this->get_y_length() * (uint64_t(1) << this->max_refinement_level),
-			this->get_z_length() * (uint64_t(1) << this->max_refinement_level)
+			this->get_length_x() * (uint64_t(1) << this->max_refinement_level),
+			this->get_length_y() * (uint64_t(1) << this->max_refinement_level),
+			this->get_length_z() * (uint64_t(1) << this->max_refinement_level)
 		};
 
 		#ifdef DEBUG
@@ -6248,9 +6248,9 @@ private:
 		Types<3>::indices_t distance = {{0, 0, 0}};
 
 		const uint64_t grid_length[3] = {
-			this->get_x_length() * (uint64_t(1) << this->max_refinement_level),
-			this->get_y_length() * (uint64_t(1) << this->max_refinement_level),
-			this->get_z_length() * (uint64_t(1) << this->max_refinement_level)
+			this->get_length_x() * (uint64_t(1) << this->max_refinement_level),
+			this->get_length_y() * (uint64_t(1) << this->max_refinement_level),
+			this->get_length_z() * (uint64_t(1) << this->max_refinement_level)
 		};
 
 		uint64_t max_distance = 0;
@@ -7905,16 +7905,16 @@ private:
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
 		#ifdef DEBUG
-		if (index1 >= this->get_x_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index1 >= this->get_y_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index1 >= this->get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index1 >= this->get_length_x() * (uint64_t(1) << this->max_refinement_level)
+		&& index1 >= this->get_length_y() * (uint64_t(1) << this->max_refinement_level)
+		&& index1 >= this->get_length_z() * (uint64_t(1) << this->max_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (index2 >= this->get_x_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index2 >= this->get_y_length() * (uint64_t(1) << this->max_refinement_level)
-		&& index2 >= this->get_z_length() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index2 >= this->get_length_x() * (uint64_t(1) << this->max_refinement_level)
+		&& index2 >= this->get_length_y() * (uint64_t(1) << this->max_refinement_level)
+		&& index2 >= this->get_length_z() * (uint64_t(1) << this->max_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
@@ -8104,15 +8104,15 @@ private:
 		const int maximum_refinement_level
 	) const
 	{
-		if (indices[0] >= this->x_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[0] >= this->length_x * (uint64_t(1) << this->max_refinement_level)) {
 			return error_cell;
 		}
 
-		if (indices[1] >= this->y_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[1] >= this->length_y * (uint64_t(1) << this->max_refinement_level)) {
 			return error_cell;
 		}
 
-		if (indices[2] >= this->z_length * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[2] >= this->length_z * (uint64_t(1) << this->max_refinement_level)) {
 			return error_cell;
 		}
 

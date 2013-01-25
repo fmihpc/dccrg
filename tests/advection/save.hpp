@@ -177,16 +177,16 @@ public:
 			memcpy(buffer + offset, &cell_z_size, sizeof(double));
 			offset += sizeof(double);
 
-			const uint64_t x_length = grid.get_x_length();
-			memcpy(buffer + offset, &x_length, sizeof(uint64_t));
+			const uint64_t length_x = grid.get_length_x();
+			memcpy(buffer + offset, &length_x, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const uint64_t y_length = grid.get_y_length();
-			memcpy(buffer + offset, &y_length, sizeof(uint64_t));
+			const uint64_t length_y = grid.get_length_y();
+			memcpy(buffer + offset, &length_y, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const uint64_t z_length = grid.get_z_length();
-			memcpy(buffer + offset, &z_length, sizeof(uint64_t));
+			const uint64_t length_z = grid.get_length_z();
+			memcpy(buffer + offset, &length_z, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
 			const uint8_t max_ref_lvl = uint8_t(grid.get_maximum_refinement_level());
