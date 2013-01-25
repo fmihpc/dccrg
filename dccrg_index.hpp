@@ -119,7 +119,7 @@ public:
 	/*!
 	Returns length of the grid in unrefined cells in x direction.
 	*/
-	uint64_t get_length_x(void) const
+	uint64_t get_length_x() const
 	{
 		return this->length_x;
 	}
@@ -127,7 +127,7 @@ public:
 	/*!
 	Returns length of the grid in unrefined cells in y direction.
 	*/
-	uint64_t get_length_y(void) const
+	uint64_t get_length_y() const
 	{
 		return this->length_y;
 	}
@@ -135,7 +135,7 @@ public:
 	/*!
 	Returns length of the grid in unrefined cells in z direction.
 	*/
-	uint64_t get_length_z(void) const
+	uint64_t get_length_z() const
 	{
 		return this->length_z;
 	}
@@ -144,7 +144,7 @@ public:
 	/*!
 	Returns the maximum refinement level of any cell in the grid (0 means unrefined).
 	*/
-	int get_maximum_refinement_level(void) const
+	int get_maximum_refinement_level() const
 	{
 		return this->max_refinement_level;
 	}
@@ -330,7 +330,7 @@ public:
 	/*!
 	Returns the maximum possible refinement level for a cell in the grid (0 means unrefined).
 	*/
-	int get_maximum_possible_refinement_level(void) const
+	int get_maximum_possible_refinement_level() const
 	{
 		const uint64_t grid_length = this->length_x * this->length_y * this->length_z;
 		int refinement_level = 0;
@@ -410,7 +410,7 @@ private:
 	/*!
 	Set the value of last_cell based on current grid lengths and max_refinement_level.
 	*/
-	void update_last_cell(void)
+	void update_last_cell()
 	{
 		const uint64_t grid_length = this->length_x * this->length_y * this->length_z;
 		this->last_cell = 0;

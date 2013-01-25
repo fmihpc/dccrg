@@ -127,7 +127,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in x direction.
 	*/
-	double get_start_x(void) const
+	double get_start_x() const
 	{
 		return this->start_x;
 	}
@@ -135,7 +135,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in y direction.
 	*/
-	double get_start_y(void) const
+	double get_start_y() const
 	{
 		return this->start_y;
 	}
@@ -143,7 +143,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in z direction.
 	*/
-	double get_start_z(void) const
+	double get_start_z() const
 	{
 		return this->start_z;
 	}
@@ -152,7 +152,7 @@ public:
 	/*!
 	Returns the end corner of the grid in x direction.
 	*/
-	double get_x_end(void) const
+	double get_x_end() const
 	{
 		return this->start_x + double(this->length_x) * this->cell_x_size;
 	}
@@ -160,7 +160,7 @@ public:
 	/*!
 	Returns the end corner of the grid in y direction.
 	*/
-	double get_y_end(void) const
+	double get_y_end() const
 	{
 		return this->start_y + double(this->length_y) * this->cell_y_size;
 	}
@@ -168,7 +168,7 @@ public:
 	/*!
 	Returns the end corner of the grid in z direction.
 	*/
-	double get_z_end(void) const
+	double get_z_end() const
 	{
 		return this->start_z + double(this->length_z) * this->cell_z_size;
 	}
@@ -177,7 +177,7 @@ public:
 	/*!
 	Returns the length of unrefined cells in x direction
 	*/
-	double get_unrefined_cell_x_size(void) const
+	double get_unrefined_cell_x_size() const
 	{
 		return this->cell_x_size;
 	}
@@ -185,7 +185,7 @@ public:
 	/*!
 	Returns the length of unrefined cells in y direction
 	*/
-	double get_unrefined_cell_y_size(void) const
+	double get_unrefined_cell_y_size() const
 	{
 		return this->cell_y_size;
 	}
@@ -193,7 +193,7 @@ public:
 	/*!
 	Returns the length of unrefined cells in z direction
 	*/
-	double get_unrefined_cell_z_size(void) const
+	double get_unrefined_cell_z_size() const
 	{
 		return this->cell_z_size;
 	}

@@ -189,7 +189,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in x direction.
 	*/
-	double get_start_x(void) const
+	double get_start_x() const
 	{
 		return this->x_coordinates[0];
 	}
@@ -197,7 +197,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in y direction.
 	*/
-	double get_start_y(void) const
+	double get_start_y() const
 	{
 		return this->y_coordinates[0];
 	}
@@ -205,7 +205,7 @@ public:
 	/*!
 	Returns the starting corner of the grid in z direction.
 	*/
-	double get_start_z(void) const
+	double get_start_z() const
 	{
 		return this->z_coordinates[0];
 	}
@@ -214,7 +214,7 @@ public:
 	/*!
 	Returns the end corner of the grid in x direction.
 	*/
-	double get_x_end(void) const
+	double get_x_end() const
 	{
 		return this->x_coordinates[this->length_x];
 	}
@@ -222,7 +222,7 @@ public:
 	/*!
 	Returns the end corner of the grid in y direction.
 	*/
-	double get_y_end(void) const
+	double get_y_end() const
 	{
 		return this->y_coordinates[this->length_y];
 	}
@@ -230,7 +230,7 @@ public:
 	/*!
 	Returns the end corner of the grid in z direction.
 	*/
-	double get_z_end(void) const
+	double get_z_end() const
 	{
 		return this->z_coordinates[this->length_z];
 	}
