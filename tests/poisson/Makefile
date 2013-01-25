@@ -9,6 +9,7 @@ RUN =
 
 PROGRAMS = \
 	reference_poisson_example \
+	reference_poisson_test \
 	poisson1d
 
 HEADERS = \
@@ -26,6 +27,9 @@ poisson1d: poisson1d.cpp $(SOURCES) $(HEADERS) Makefile
 	@echo "MPICXX  $@" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
 
 reference_poisson_example: reference_poisson_example.cpp reference_poisson_solve.hpp Makefile
+	@echo "CXX $@" && $(CXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
+
+reference_poisson_test: reference_poisson_test.cpp reference_poisson_solve.hpp Makefile
 	@echo "CXX $@" && $(CXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 c: clean
