@@ -13,7 +13,7 @@ using namespace std;
 int main()
 {
 	const size_t number_of_cells = 10;
-	Reference_Poisson_Solve solver(number_of_cells);
+	Reference_Poisson_Solve solver(number_of_cells, 1);
 
 	solver.get_rhs(number_of_cells / 2 - 1) = 1;
 	solver.get_rhs(number_of_cells / 2) =  -1;

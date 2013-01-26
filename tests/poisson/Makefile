@@ -32,6 +32,11 @@ reference_poisson_example: reference_poisson_example.cpp reference_poisson_solve
 reference_poisson_test: reference_poisson_test.cpp reference_poisson_solve.hpp Makefile
 	@echo "CXX $@" && $(CXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
+t: test
+test: reference_poisson_test poisson1d
+	@echo -n "Testing reference poisson solver... " && ./reference_poisson_test
+	@echo -n "Testing poisson solver using 1 process... " && ./poisson1d
+
 c: clean
 clean:
 	rm -f $(PROGRAMS)

@@ -312,11 +312,15 @@ public:
 		/*
 		Setup Zoltan
 		*/
-		this->zoltan = Zoltan_Create(this->comm);
+		MPI_Comm temp; // give a separate comminucator to zoltan
+		if (MPI_Comm_dup(this->comm, &temp) != MPI_SUCCESS) {
+			std::cerr << "Couldn't duplicate communicator for Zoltan" << std::endl;
+			abort();
+		}
+		this->zoltan = Zoltan_Create(temp);
 		if (this->zoltan == NULL) {
 			std::cerr << "Zoltan_Create failed"  << std::endl;
-			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
+			abort();
 		}
 
 		// check whether Zoltan_LB_Partition is expected to fail

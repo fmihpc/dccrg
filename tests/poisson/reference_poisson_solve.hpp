@@ -45,28 +45,41 @@ public:
 		this->initialized = false;
 	}
 
-	Reference_Poisson_Solve(const size_t number_of_cells)
-	{
-		this->initialize(number_of_cells);
-	}
+	/*
+	Initializes the class with given parameter.
 
-	~Reference_Poisson_Solve()
-	{
-		this->initialized = false;
+	See initialize(...) for the details.
+	*/
+	Reference_Poisson_Solve(
+		const size_t number_of_cells,
+		const double dx
+	) {
+		this->initialize(number_of_cells, dx);
 	}
-
 
 	/*!
-	Initializes the solver to a grid with given number of cells.
+	Initializes the solver to a grid with given parameters.
 
+	number_of_cells is the number of cells in the grid,
+	dx is the size of each cell.
 	Clears previous solution and rhs.
 	*/
-	void initialize(const size_t number_of_cells)
-	{
+	void initialize(
+		const size_t number_of_cells,
+		const double given_dx
+	) {
+		if (given_dx <= 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " dx must be > 0 but is: " << given_dx
+				<< std::endl;
+			abort();
+		}
+
 		this->solution.clear();
 		this->solution.resize(number_of_cells);
 		this->rhs.clear();
 		this->rhs.resize(number_of_cells);
+		this->dx = given_dx;
 		this->initialized = true;
 	}
 
@@ -111,6 +124,13 @@ public:
 		return this->solution;
 	}
 
+	/*!
+	Returns the size of cells in the grid.
+	*/
+	double get_dx() const
+	{
+		return this->dx;
+	}
 
 	/*!
 	Solves the equation.
@@ -152,20 +172,24 @@ public:
 		/*
 		The algorithm in the book assumes rhs is charge density
 		which is negated in the Poisson's equation for electric
-		potential. To solve for general rhs negate the rhs in the
-		book.
+		potential. But the book also negates the potential so
+		the given algorithm works as is except for a scaling
+		factor that is here applied to rhs.
 		*/
+
+		const double scaling_factor = this->dx * this->dx;
+
 		this->solution[0] = 0;
 		for (size_t i = 0; i < this->rhs.size(); i++) {
-			this->solution[0] -= (i + 1) * this->rhs[i];
+			this->solution[0] += scaling_factor * (i + 1) * this->rhs[i];
 		}
 		this->solution[0] /= this->rhs.size();
 
-		this->solution[1] = -this->rhs[0] + 2 * this->solution[0];
+		this->solution[1] = scaling_factor * this->rhs[0] + 2 * this->solution[0];
 
 		for (size_t i = 2; i < this->rhs.size(); i++) {
 			this->solution[i]
-				= -this->rhs[i - 1]
+				= scaling_factor * this->rhs[i - 1]
 				+ 2 * this->solution[i - 1]
 				- this->solution[i - 2];
 		}
@@ -175,6 +199,8 @@ public:
 private:
 
 	bool initialized;
+
+	double dx;
 
 	std::vector<double> solution, rhs;
 };
