@@ -1,5 +1,5 @@
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
-INCLUDES = -I.. -I../advection -I$$HOME/include -L$$HOME/lib
+INCLUDES = -I../.. -I../advection -I$$HOME/include -L$$HOME/lib
 LIBS = -lboost_program_options -lzoltan
 BOOST_MPI_LIBS = -lboost_serialization -lboost_mpi
 MPICXX = mpic++ $(FLAGS)
