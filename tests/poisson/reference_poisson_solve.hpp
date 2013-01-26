@@ -116,7 +116,7 @@ public:
 	Solves the equation.
 
 	rhs must have been set before calling this function.
-	rhs is scaled in this function.
+	rhs is scaled in this function so that total rhs == 0.
 	*/
 	void solve()
 	{
@@ -125,6 +125,10 @@ public:
 				<< " solve() called before initialize()"
 				<< std::endl;
 			abort();
+		}
+
+		if (this->rhs.size() == 0) {
+			return;
 		}
 
 		// make total rhs == 0
@@ -138,14 +142,19 @@ public:
 			this->rhs[i] -= avg_charge;
 		}
 
-		double total_charge = 0;
-		for (size_t i = 0; i < this->rhs.size(); i++) {
-			total_charge += this->rhs[i];
-		}
-
 		// solution in last cell is defined thus
 		this->solution[this->solution.size() - 1] = 0;
 
+		if (this->rhs.size() == 1) {
+			return;
+		}
+
+		/*
+		The algorithm in the book assumes rhs is charge density
+		which is negated in the Poisson's equation for electric
+		potential. To solve for general rhs negate the rhs in the
+		book.
+		*/
 		this->solution[0] = 0;
 		for (size_t i = 0; i < this->rhs.size(); i++) {
 			this->solution[0] -= (i + 1) * this->rhs[i];
