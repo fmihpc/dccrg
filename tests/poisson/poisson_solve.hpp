@@ -81,7 +81,7 @@ public:
 	/*
 	Factors that data in neighboring cells is multiplied with
 	when calculating A . i for each local cell where i = p0, p1.
-	The same factors are used when calculating traspose(A) . i.
+	The neighbors' factors are used when calculating traspose(A) . i.
 	One factor per direction.
 	*/
 	double f_x_pos, f_x_neg, f_y_pos, f_y_neg, f_z_pos, f_z_neg;
