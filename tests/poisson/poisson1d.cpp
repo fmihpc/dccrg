@@ -178,10 +178,25 @@ int main(int argc, char* argv[])
 		grid_z.initialize(comm, "RCB", 0, 0, true, true, true);
 		grid_serial.initialize(MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
 
-		// TODO: balance load "randomly" but in a predictable way
+		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
+
+		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
+		BOOST_FOREACH(const uint64_t cell, initial_cells) {
+			const int target_process = cell % comm.size();
+			grid_x.pin(cell, target_process);
+			grid_y.pin(cell, target_process);
+			grid_z.pin(cell, target_process);
+		}
+		grid_x.balance_load(false);
+		grid_y.balance_load(false);
+		grid_z.balance_load(false);
+		grid_x.unpin_all_cells();
+		grid_y.unpin_all_cells();
+		grid_z.unpin_all_cells();
+
+		const std::vector<uint64_t> cells = grid_x.get_cells();
 
 		// initialize parallel
-		const std::vector<uint64_t> cells = grid_x.get_cells();
 		BOOST_FOREACH(const uint64_t cell, cells) {
 			Poisson_Cell
 				*data_x = grid_x[cell],
