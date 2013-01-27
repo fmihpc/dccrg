@@ -286,7 +286,9 @@ public:
 			dot_r_l += data->r0 * data->r1;
 		}
 		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
-		//std::cout << "r0 . r1: " << dot_r_g << std::endl;
+		if (this->comm_rank == 0) {
+			//std::cout << "r0 . r1: " << dot_r_g << std::endl;
+		}
 
 		size_t iteration = 0;
 		do {
@@ -355,11 +357,20 @@ public:
 				dot_p_l += data->p1 / data->scaling_factor * data->A_dot_p0;
 			}
 			MPI_Allreduce(&dot_p_l, &dot_p_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
-			//std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
+			if (this->comm_rank == 0) {
+				//std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
+			}
 			p_dots.push_back(dot_p_g);
 
+			// no sense in continuing with dividing by zero
+			if (dot_p_g == 0) {
+				break;
+			}
+
 			const double alpha = dot_r_g / dot_p_g;
-			//std::cout << "alpha: " << alpha << std::endl;
+			if (this->comm_rank == 0) {
+				//std::cout << "alpha: " << alpha << std::endl;
+			}
 			alphas.push_back(alpha);
 
 
@@ -372,9 +383,6 @@ public:
 			const double residual = this->get_residual();
 			if (residual <= this->stop_residual) {
 				break;
-			}
-			if (this->comm_rank == 0) {
-				residuals.push_back(residual);
 			}
 
 			// update r0
@@ -438,6 +446,11 @@ public:
 				data->r1 -= alpha * A_dot_p1;
 			}
 
+			// no sense in continuing with dividing by zero
+			if (dot_r_g == 0) {
+				break;
+			}
+
 			// calculate beta
 			const double old_dot_r_g = dot_r_g;
 			dot_r_l = dot_r_g = 0;
@@ -446,12 +459,16 @@ public:
 				dot_r_l += data->r0 * data->r1;
 			}
 			MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
-			//std::cout << "new r0 . r1: " << dot_r_g << std::endl;
+			if (this->comm_rank == 0) {
+				//std::cout << "new r0 . r1: " << dot_r_g << std::endl;
+			}
 			r_dots.push_back(dot_r_g);
 			old_r_dots.push_back(old_dot_r_g);
 
 			const double beta = dot_r_g / old_dot_r_g;
-			//std::cout << "beta: " << beta << std::endl;
+			if (this->comm_rank == 0) {
+				//std::cout << "beta: " << beta << std::endl;
+			}
 			betas.push_back(beta);
 
 
@@ -464,10 +481,16 @@ public:
 
 		} while (iteration < this->max_iterations);
 
+		if (this->comm_rank == 0) {
+			//std::cout << "iterations: " << iteration << std::endl;
+		}
+
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 			Poisson_Cell* data = info.first;
 			data->solution /= data->scaling_factor;
 		}
+
+		MPI_Comm_free(&(this->comm));
 	}
 
 
@@ -510,7 +533,7 @@ private:
 			Poisson_Cell* data = info.first;
 			local += std::pow(fabs(data->r0), this->p_of_norm);
 		}
-		MPI_Reduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, 0, this->comm);
+		MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 		global = std::pow(global, 1.0 / p_of_norm);
 		return global;
 	}

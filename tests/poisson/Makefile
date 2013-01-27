@@ -1,3 +1,6 @@
+# use this many mpi processes in parallel tests
+PROCS := 6
+
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
 INCLUDES = -I../.. -I../advection -I$$HOME/include -L$$HOME/lib
 LIBS = -lboost_program_options -lzoltan
@@ -36,6 +39,10 @@ t: test
 test: reference_poisson_test poisson1d
 	@echo -n "Testing reference poisson solver... " && ./reference_poisson_test
 	@echo -n "Testing poisson solver using 1 process... " && ./poisson1d
+
+pt: parallel-test
+parallel-test: poisson1d
+	@echo -n "Testing poisson solver using $(PROCS) processes... " && mpirun -n $(PROCS) ./poisson1d
 
 c: clean
 clean:

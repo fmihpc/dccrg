@@ -55,7 +55,9 @@ double get_p_norm(
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(fabs(data->solution - reference.get_solution(cell - 1)), p_of_norm);
 	}
-	MPI_Reduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, 0, grid.get_comm());
+	MPI_Comm temp = grid.get_comm();
+	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
+	MPI_Comm_free(&temp);
 	global = std::pow(global, 1.0 / p_of_norm);
 
 	return global;
@@ -65,7 +67,7 @@ double get_p_norm(
 Returns the p-norm between given solutions to Poisson's equation.
 
 Given cells must be local in both grids and both grids must also
-have identical structure except for their orientation.
+have identical communicators and structure except for their orientation.
 */
 double get_p_norm(
 	const std::vector<uint64_t>& cells,
@@ -81,7 +83,9 @@ double get_p_norm(
 
 		local += std::pow(fabs(data1->solution - data2->solution), p_of_norm);
 	}
-	MPI_Reduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, 0, grid1.get_comm());
+	MPI_Comm temp = grid1.get_comm();
+	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
+	MPI_Comm_free(&temp);
 	global = std::pow(global, 1.0 / p_of_norm);
 
 	return global;
@@ -89,42 +93,42 @@ double get_p_norm(
 
 
 /*!
-Offsets the given parallel solution so that it is 0 in the last cell of given list.
+Offsets the given parallel solution so that it is 0 in the last cell.
 */
 void offset_solution(
+	const uint64_t last_cell,
 	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell>& grid
 ) {
 	MPI_Comm comm = grid.get_comm();
 
-	// get process that has the last cell
-	const uint64_t last_cell = uint64_t(cells.size());
+	// globally get process with the last cell
 	int proc_with_last = 0, proc_local = 0;
 	if (grid.is_local(last_cell)) {
 		proc_local = grid.get_rank();
-	} else {
-		proc_local = 0;
 	}
 	MPI_Allreduce(&proc_local, &proc_with_last, 1, MPI_INT, MPI_SUM, comm);
 
-	// scatter solution from last cell
-	double solution_in_last = 0, solution_local = 0;
+	// proc with last cell tells others the solution in last cell
+	double solution = 0;
 	if (grid.is_local(last_cell)) {
-		solution_local = grid[last_cell]->solution;
-	} else {
-		solution_local = 0;
+		Poisson_Cell* data = grid[last_cell];
+		if (data == NULL) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No data for last cell " << last_cell
+				<< std::endl;
+			abort();
+		}
+		solution = data->solution;
 	}
-	MPI_Scatter(
-		&solution_local, 1, MPI_DOUBLE,
-		&solution_in_last, 1, MPI_DOUBLE,
-		proc_with_last,
-		comm
-	);
+	MPI_Bcast(&solution, 1, MPI_DOUBLE, proc_with_last, comm);
+
+	MPI_Comm_free(&comm);
 
 	// offset solutions
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		Poisson_Cell *data = grid[cell];
-		data->solution -= solution_in_last;
+		data->solution -= solution;
 	}
 }
 
@@ -140,7 +144,7 @@ int main(int argc, char* argv[])
 	    return EXIT_FAILURE;
 	}
 
-	bool success = true;
+	int success = 0, global_success = 0; // > 0 means failure
 
 	const size_t max_number_of_cells = 32768;
 	for (size_t
@@ -162,28 +166,22 @@ int main(int argc, char* argv[])
 		Parallel 1d solution in each dimension
 		*/
 		Poisson_Solve solver(10, 1e-7, 2); // using more iterations doesn't help
-		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z;
+		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z, grid_serial;
 
 		grid_x.set_geometry(number_of_cells, 1, 1, 0, 0, 0, cell_length, 1, 1);
 		grid_y.set_geometry(1, number_of_cells, 1, 0, 0, 0, 1, cell_length, 1);
 		grid_z.set_geometry(1, 1, number_of_cells, 0, 0, 0, 1, 1, cell_length);
+		grid_serial.set_geometry(number_of_cells, 1, 1, 0, 0, 0, cell_length, 1, 1);
 
 		grid_x.initialize(comm, "RCB", 0, 0, true, true, true);
 		grid_y.initialize(comm, "RCB", 0, 0, true, true, true);
 		grid_z.initialize(comm, "RCB", 0, 0, true, true, true);
+		grid_serial.initialize(MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
 
 		// TODO: balance load "randomly" but in a predictable way
 
-		grid_x.update_remote_neighbor_data();
-		grid_y.update_remote_neighbor_data();
-		grid_z.update_remote_neighbor_data();
-
-		// initialize
-		std::vector<uint64_t> cells = grid_x.get_cells();
-		/*for (uint64_t cell = 1; cell <= number_of_cells; cell++) {
-			cells.push_back(cell);
-		}*/
-
+		// initialize parallel
+		const std::vector<uint64_t> cells = grid_x.get_cells();
 		BOOST_FOREACH(const uint64_t cell, cells) {
 			Poisson_Cell
 				*data_x = grid_x[cell],
@@ -191,104 +189,143 @@ int main(int argc, char* argv[])
 				*data_z = grid_z[cell];
 
 			if (data_x == NULL || data_y == NULL || data_z == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for cell " << cell
+					<< std::endl;
 				abort();
 			}
 
-			data_x->rhs = data_y->rhs = data_z->rhs = reference_solver.get_rhs(cell - 1);
-			data_x->solution = data_y->solution = data_z->solution = 0;
+			data_x->rhs =
+			data_y->rhs =
+			data_z->rhs = reference_solver.get_rhs(cell - 1);
+
+			data_x->solution =
+			data_y->solution =
+			data_z->solution = 0;
+		}
+
+		// initialize serial
+		const std::vector<uint64_t> cells_serial = grid_serial.get_cells();
+		BOOST_FOREACH(const uint64_t cell, cells_serial) {
+			Poisson_Cell* data = grid_serial[cell];
+			if (data == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for cell " << cell
+					<< std::endl;
+				abort();
+			}
+			data->rhs = reference_solver.get_rhs(cell - 1);
+			data->solution = 0;
 		}
 
 		solver.solve(cells, grid_x);
 		solver.solve(cells, grid_y);
 		solver.solve(cells, grid_z);
+		solver.solve(cells_serial, grid_serial);
 
-		offset_solution(cells, grid_x);
-		offset_solution(cells, grid_y);
-		offset_solution(cells, grid_z);
+		offset_solution(number_of_cells, cells, grid_x);
+		offset_solution(number_of_cells, cells, grid_y);
+		offset_solution(number_of_cells, cells, grid_z);
+		offset_solution(number_of_cells, cells_serial, grid_serial);
 
-		// check that parallel solutions are close to reference
+		// check that serial solution close to parallel
 		const double
 			p_of_norm = 2,
+			// comm of first grid used in Allreduce so serial must be second
+			norm_serial = get_p_norm(cells, grid_x, grid_serial, p_of_norm),
+			// parallel solver doesn't get closer regardless of stopping residual
+			norm_threshold = 3e-7;
+
+		if (norm_serial > norm_threshold) {
+			success = 1;
+			if (comm.rank() == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << comm.rank()
+					<< ": " << p_of_norm
+					<< "-norm between x and serial is too large with " << number_of_cells
+					<< " cells: " << norm_serial
+					<< std::endl;
+			}
+		}
+
+		// check that parallel solutions are close to reference and each other
+		const double
 			norm_x  = get_p_norm(cells, grid_x, reference_solver, p_of_norm),
 			norm_y  = get_p_norm(cells, grid_y, reference_solver, p_of_norm),
 			norm_z  = get_p_norm(cells, grid_z, reference_solver, p_of_norm),
 			norm_xy = get_p_norm(cells, grid_x, grid_y, p_of_norm),
 			norm_xz = get_p_norm(cells, grid_x, grid_z, p_of_norm),
-			norm_yz = get_p_norm(cells, grid_y, grid_z, p_of_norm),
-			// parallel solver doesn't get closer regardless of stopping residual
-			norm_threshold = 3e-7;
+			norm_yz = get_p_norm(cells, grid_y, grid_z, p_of_norm);
 
 		if (norm_x > norm_threshold) {
-			success = false;
+			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " " << p_of_norm
+					<< " Process " << comm.rank()
+					<< ": " << p_of_norm
 					<< "-norm between x and reference is too large with " << number_of_cells
 					<< " cells: " << norm_x
 					<< std::endl;
 			}
-			break;
 		}
 		if (norm_y > norm_threshold) {
-			success = false;
+			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " " << p_of_norm
+					<< " Process " << comm.rank()
+					<< ": " << p_of_norm
 					<< "-norm between y and reference is too large with " << number_of_cells
 					<< " cells: " << norm_y
 					<< std::endl;
 			}
-			break;
 		}
 		if (norm_z > norm_threshold) {
-			success = false;
+			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " " << p_of_norm
+					<< " Process " << comm.rank()
+					<< ": " << p_of_norm
 					<< "-norm between z and reference is too large with " << number_of_cells
 					<< " cells: " << norm_z
 					<< std::endl;
 			}
-			break;
 		}
 
 		if (norm_xy > norm_threshold) {
-			success = false;
+			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between x and y is too large: " << norm_xy
 					<< std::endl;
 			}
-			break;
 		}
 		if (norm_xz > norm_threshold) {
-			success = false;
+			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between x and z differs too much: " << norm_xz
 					<< std::endl;
 			}
-			break;
 		}
 		if (norm_yz > norm_threshold) {
-			success = false;
+			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between y and z differs too much: " << norm_yz
 					<< std::endl;
 			}
-			break;
 		}
 
-		if (!success) {
+		MPI_Allreduce(&success, &global_success, 1, MPI_INT, MPI_SUM, comm);
+		if (global_success > 0) {
 			break;
 		}
 	}
 
-	if (success) {
+	if (success == 0) {
 		if (comm.rank() == 0) {
 			cout << "PASSED" << endl;
 		}
