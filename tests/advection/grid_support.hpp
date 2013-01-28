@@ -46,9 +46,9 @@ Given vectors are cleared before filling.
 Assumes given dccrg instance was initialized with neighborhood
 size of 0.
 */
-template<class Cell_Data> void get_face_neighbors(
+template<class Cell_Data, class Geometry> void get_face_neighbors(
 	const uint64_t cell,
-	const dccrg::Dccrg<Cell_Data>& grid,
+	const dccrg::Dccrg<Cell_Data, Geometry>& grid,
 	std::vector<uint64_t>& face_neighbors,
 	std::vector<direction_t>& directions
 ) {
@@ -263,8 +263,8 @@ template<class Cell_Data> void get_face_neighbors(
 /*
 Removes from given face_neighbor cells those which are local and in negative direction.
 */
-template<class Cell_Data> void remove_local_negative_neighbors(
-	const dccrg::Dccrg<Cell_Data>& grid,
+template<class Cell_Data, class Geometry> void remove_local_negative_neighbors(
+	const dccrg::Dccrg<Cell_Data, Geometry>& grid,
 	std::vector<uint64_t>& face_neighbors,
 	std::vector<direction_t>& directions
 ) {

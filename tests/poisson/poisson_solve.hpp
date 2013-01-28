@@ -191,12 +191,12 @@ public:
 	can be set to true in which case the caching/preparation step will be
 	skipped speeding up this function.
 	*/
-	void solve(
+	template<class Geometry> void solve(
 		/* TODO: overlap computation with communication
 		const std::vector<uint64_t>& inner_cells,
 		const std::vector<uint64_t>& outer_cells,*/
 		const std::vector<uint64_t>& cells,
-		dccrg::Dccrg<Poisson_Cell>& grid,
+		dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
 		const bool cache_is_up_to_date = false
 	) {
 		// TODO: if a neighbor is not in given cells assume it doesn't exist
@@ -544,9 +544,9 @@ private:
 
 	Prepares geometric factors, scales the initial solution, etc.
 	*/
-	void cache_system_info(
+	template<class Geometry> void cache_system_info(
 		const std::vector<uint64_t>& cells,
-		dccrg::Dccrg<Poisson_Cell>& grid
+		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
 		// make sure copies of remote neighbors exist before caching and
 		// transfer user's guess for the solution to calculate residual
@@ -688,35 +688,6 @@ private:
 				- cell_data->f_y_neg
 				- cell_data->f_z_pos
 				- cell_data->f_z_neg;
-
-			// check that factors identical when cells are cubes
-			if (grid.get_length_x() > 1) {
-				if (cell_data->f_x_pos != cell_data->f_x_neg) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Geometry factors not identical in x: "
-						<< cell_data->f_x_pos << " " << cell_data->f_x_neg
-						<< std::endl;
-					abort();
-				}
-			}
-			if (grid.get_length_y() > 1) {
-				if (cell_data->f_y_pos != cell_data->f_y_neg) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Geometry factors not identical in y: "
-						<< cell_data->f_y_pos << " " << cell_data->f_y_neg
-						<< std::endl;
-					abort();
-				}
-			}
-			if (grid.get_length_z() > 1) {
-				if (cell_data->f_z_pos != cell_data->f_z_neg) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Geometry factors not identical in z: "
-						<< cell_data->f_z_pos << " " << cell_data->f_z_neg
-						<< std::endl;
-					abort();
-				}
-			}
 
 			// cache neighbor info
 			for (size_t i = 0; i < face_neighbors.size(); i++) {

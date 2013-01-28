@@ -165,7 +165,9 @@ int main(int argc, char* argv[])
 		/*
 		Parallel 1d solution in each dimension
 		*/
-		Poisson_Solve solver(10, 1e-7, 2); // using more iterations doesn't help
+
+		// using more iterations doesn't help
+		Poisson_Solve solver(10, 1e-7, 2);
 		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z, grid_serial;
 
 		grid_x.set_geometry(number_of_cells, 1, 1, 0, 0, 0, cell_length, 1, 1);
