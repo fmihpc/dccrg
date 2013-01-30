@@ -5382,7 +5382,7 @@ private:
 
 			if (pin_request->second == this->rank
 			&& current_process_of_cell != this->rank) {
-				this->cells_to_receive[current_process_of_cell].push_back(
+				this->cells_to_receive[int(current_process_of_cell)].push_back(
 					std::make_pair(pin_request->first, -1)
 				);
 				this->added_cells.insert(pin_request->first);
@@ -5459,7 +5459,7 @@ private:
 
 			if (destination_process != this->rank
 			&& current_process_of_cell == this->rank) {
-				this->cells_to_send[destination_process].push_back(
+				this->cells_to_send[int(destination_process)].push_back(
 					std::make_pair(pin_request->first, -1)
 				);
 				this->removed_cells.insert(pin_request->first);
@@ -5747,7 +5747,7 @@ private:
 				}
 
 				if (this->cell_process.at(neighbor) != this->rank) {
-					user_neigh_unique_receives[this->cell_process.at(neighbor)].insert(neighbor);
+					user_neigh_unique_receives[int(this->cell_process.at(neighbor))].insert(neighbor);
 				}
 			}
 
@@ -5759,7 +5759,7 @@ private:
 				}
 
 				if (this->cell_process.at(neighbor) != this->rank) {
-					user_neigh_unique_sends[this->cell_process.at(neighbor)].insert(cell);
+					user_neigh_unique_sends[int(this->cell_process.at(neighbor))].insert(cell);
 				}
 			}
 		}
@@ -8202,15 +8202,23 @@ private:
 	{
 		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
-		return dccrg_instance->cells.size();
+		return int(dccrg_instance->cells.size());
 	}
 
 
 	/*!
 	Writes all cell ids on this process to the global_ids array
 	*/
-	static void fill_cell_list(void* data, int /*global_id_size*/, int /*local_id_size*/, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int number_of_weights_per_object, float* object_weights, int* error)
-	{
+	static void fill_cell_list(
+		void* data,
+		int /*global_id_size*/,
+		int /*local_id_size*/,
+		ZOLTAN_ID_PTR global_ids,
+		ZOLTAN_ID_PTR /*local_ids*/,
+		int number_of_weights_per_object,
+		float* object_weights,
+		int* error
+	) {
 		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
@@ -8228,7 +8236,7 @@ private:
 
 			if (number_of_weights_per_object > 0) {
 				if (dccrg_instance->cell_weights.count(item.first) > 0) {
-					object_weights[i] = dccrg_instance->cell_weights.at(item.first);
+					object_weights[i] = float(dccrg_instance->cell_weights.at(item.first));
 				} else {
 					object_weights[i] = 1;
 				}
@@ -8325,7 +8333,7 @@ private:
 
 				neighbors[current_neighbor_number] = neighbor;
 				processes_of_neighbors[current_neighbor_number]
-					= dccrg_instance->cell_process.at(neighbor);
+					= int(dccrg_instance->cell_process.at(neighbor));
 
 				// weight of edge from cell to *neighbor
 				if (number_of_weights_per_edge > 0) {
@@ -8351,7 +8359,7 @@ private:
 			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
-		*number_of_hyperedges = dccrg_instance->cells.size();
+		*number_of_hyperedges = int(dccrg_instance->cells.size());
 		*format = ZOLTAN_COMPRESSED_EDGE;
 
 		*number_of_connections = 0;
@@ -8448,7 +8456,7 @@ private:
 			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
-		*number_of_edge_weights = dccrg_instance->cells.size();
+		*number_of_edge_weights = int(dccrg_instance->cells.size());
 		return;
 	}
 
@@ -8496,7 +8504,7 @@ private:
 					}
 				}
 
-				hyperedge_weights[i] = 1.0 * number_of_hyperedges;
+				hyperedge_weights[i] = float(1.0 * number_of_hyperedges);
 			}
 
 			i++;
@@ -8512,7 +8520,7 @@ private:
 		Dccrg<UserData, UserGeometry>* dccrg_instance
 			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
-		return dccrg_instance->processes_per_part.size();
+		return int(dccrg_instance->processes_per_part.size());
 	}
 
 
@@ -8535,7 +8543,7 @@ private:
 			*error = ZOLTAN_OK;
 		}
 
-		int process = dccrg_instance->rank;
+		int process = int(dccrg_instance->rank);
 		int part;
 
 		for (int i = 0; i <= level; i++) {

@@ -556,7 +556,7 @@ public:
 
 			return uint64_t(floor(
 				(x - this->get_start_x())
-				/ (this->cell_length_x / (uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_x / double(uint64_t(1) << this->max_refinement_level))
 			));
 		}
 	}
@@ -581,7 +581,7 @@ public:
 
 			return uint64_t(floor(
 				(y - this->get_start_y())
-				/ (this->cell_length_y / (uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_y / double(uint64_t(1) << this->max_refinement_level))
 			));
 		}
 	}
@@ -606,7 +606,7 @@ public:
 
 			return uint64_t(floor(
 				(z - this->get_start_z())
-				/ (this->cell_length_z / (uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_z / double(uint64_t(1) << this->max_refinement_level))
 			));
 		}
 	}

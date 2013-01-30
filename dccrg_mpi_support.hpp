@@ -119,7 +119,7 @@ public:
 				<< std::endl;
 			abort();
 		} else {
-			send_count = values.size();
+			send_count = int(values.size());
 		}
 
 		if (
@@ -193,7 +193,7 @@ public:
 		if (
 			MPI_Allgatherv(
 				sane_address,
-				values.size(),
+				int(values.size()),
 				MPI_UINT64_T,
 				&(temp_result[0]),
 				&(send_counts[0]),

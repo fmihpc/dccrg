@@ -191,24 +191,24 @@ bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_
 		value = game_grid->get_start_z();
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_cell_x_size(1);
+		value = game_grid->get_cell_length_x(1);
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_cell_y_size(1);
+		value = game_grid->get_cell_length_y(1);
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_cell_z_size(1);
+		value = game_grid->get_cell_length_z(1);
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
 		}
 		{
-		uint64_t value = game_grid->get_x_length();
+		uint64_t value = game_grid->get_length_x();
 		memcpy(buffer + offset, &value, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
-		value = game_grid->get_y_length();
+		value = game_grid->get_length_y();
 		memcpy(buffer + offset, &value, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
-		value = game_grid->get_z_length();
+		value = game_grid->get_length_z();
 		memcpy(buffer + offset, &value, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
 		}
@@ -241,7 +241,7 @@ bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_
 	MPI_File_set_view(outfile, mpi_offset, MPI_BYTE, MPI_BYTE, (char*)"native", MPI_INFO_NULL);
 
 	MPI_Status status;
-	MPI_File_write_at_all(outfile, 0, (void*)buffer, bytes, MPI_BYTE, &status);
+	MPI_File_write_at_all(outfile, 0, (void*)buffer, int(bytes), MPI_BYTE, &status);
 	//if (status...
 
 	MPI_File_close(&outfile);

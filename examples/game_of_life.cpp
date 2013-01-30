@@ -153,15 +153,20 @@ int main(int argc, char* argv[])
 
 
 	// calculate some timing statistics
-	time_t total_time = after - before;
-	uint64_t total_cells = TURNS * (cells_with_local_neighbors.size() + cells_with_remote_neighbor.size());
-
-	double min_speed = all_reduce(comm, total_cells / total_time, minimum<double>());
-	double max_speed = all_reduce(comm, total_cells / total_time, maximum<double>());
-	double avg_speed = all_reduce(comm, total_cells / total_time, plus<double>()) / comm.size();
-
-	uint64_t total_global_cells = all_reduce(comm, total_cells, plus<uint64_t>());
-	double avg_global_speed = all_reduce(comm, total_global_cells / (all_reduce(comm, total_time, plus<double>()) / comm.size()), plus<double>()) / comm.size();
+	double
+		total_time = double(after - before),
+		total_cells
+			= double(TURNS * (cells_with_local_neighbors.size() + cells_with_remote_neighbor.size())),
+		min_speed = all_reduce(comm, total_cells / total_time, minimum<double>()),
+		max_speed = all_reduce(comm, total_cells / total_time, maximum<double>()),
+		avg_speed = all_reduce(comm, total_cells / total_time, plus<double>()) / comm.size(),
+		total_global_cells = all_reduce(comm, total_cells, plus<double>()),
+		avg_global_speed
+			= all_reduce(
+				comm,
+				total_global_cells / (all_reduce(comm, total_time, plus<double>()) / comm.size()),
+				plus<double>())
+			/ comm.size();
 
 	// print the statistics
 	if (comm.rank() == 0) {

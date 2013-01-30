@@ -18,7 +18,7 @@ using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
-	int result;
+	size_t result;
 
 	for (int arg = 1; arg < argc; arg++) {
 
