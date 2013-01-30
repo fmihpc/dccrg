@@ -34,7 +34,6 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "dccrg.hpp"
 
 #include "grid_support.hpp"
-#include "reference_poisson_solve.hpp"
 
 
 /*
