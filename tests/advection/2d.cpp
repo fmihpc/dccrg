@@ -36,7 +36,6 @@ but the used solver is probably the simplest possible.
 #include "string"
 #include "zoltan.h"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
 #include "../../dccrg.hpp"
 
 #include "cell.hpp"

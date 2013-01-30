@@ -28,8 +28,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "string"
 #include "zoltan.h"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
-#define DCCRG_USER_MPI_DATA_TYPE
 #include "../../dccrg.hpp"
 
 #include "cell.hpp"

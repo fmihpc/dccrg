@@ -24,6 +24,8 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "dccrg.hpp"
 
+namespace dccrg {
+
 /*!
 Directions used by get_neighbor_directions(...).
 */
@@ -290,6 +292,8 @@ template<class Cell_Data, class Geometry> void remove_local_negative_neighbors(
 	face_neighbors = ret_neighbors;
 	directions = ret_directions;
 }
+
+} // namespace
 
 #endif
 
