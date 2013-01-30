@@ -201,24 +201,24 @@ public:
 
 				// final multiplier to use for current neighbor's data
 				double multiplier = 0;
-				const direction_t direction = neigh_info.get<1>();
+				const dccrg::direction_t direction = neigh_info.get<1>();
 				switch(direction) {
-				case POS_X:
+				case dccrg::POS_X:
 					multiplier = data->f_x_pos;
 					break;
-				case NEG_X:
+				case dccrg::NEG_X:
 					multiplier = data->f_x_neg;
 					break;
-				case POS_Y:
+				case dccrg::POS_Y:
 					multiplier = data->f_y_pos;
 					break;
-				case NEG_Y:
+				case dccrg::NEG_Y:
 					multiplier = data->f_y_neg;
 					break;
-				case POS_Z:
+				case dccrg::POS_Z:
 					multiplier = data->f_z_pos;
 					break;
-				case NEG_Z:
+				case dccrg::NEG_Z:
 					multiplier = data->f_z_neg;
 					break;
 				default:
@@ -331,24 +331,24 @@ public:
 					Poisson_Cell* neighbor_data = neigh_info.get<0>();
 
 					double multiplier = 0;
-					const direction_t direction = neigh_info.get<1>();
+					const dccrg::direction_t direction = neigh_info.get<1>();
 					switch(direction) {
-					case POS_X:
+					case dccrg::POS_X:
 						multiplier = data->f_x_pos;
 						break;
-					case NEG_X:
+					case dccrg::NEG_X:
 						multiplier = data->f_x_neg;
 						break;
-					case POS_Y:
+					case dccrg::POS_Y:
 						multiplier = data->f_y_pos;
 						break;
-					case NEG_Y:
+					case dccrg::NEG_Y:
 						multiplier = data->f_y_neg;
 						break;
-					case POS_Z:
+					case dccrg::POS_Z:
 						multiplier = data->f_z_pos;
 						break;
-					case NEG_Z:
+					case dccrg::NEG_Z:
 						multiplier = data->f_z_neg;
 						break;
 					default:
@@ -446,24 +446,24 @@ public:
 					i.e. just "reverse" the direction of the update.
 					*/
 					double multiplier = 0;
-					const direction_t direction = neigh_info.get<1>();
+					const dccrg::direction_t direction = neigh_info.get<1>();
 					switch(direction) {
-					case POS_X:
+					case dccrg::POS_X:
 						multiplier = neighbor_data->f_x_neg;
 						break;
-					case NEG_X:
+					case dccrg::NEG_X:
 						multiplier = neighbor_data->f_x_pos;
 						break;
-					case POS_Y:
+					case dccrg::POS_Y:
 						multiplier = neighbor_data->f_y_neg;
 						break;
-					case NEG_Y:
+					case dccrg::NEG_Y:
 						multiplier = neighbor_data->f_y_pos;
 						break;
-					case POS_Z:
+					case dccrg::POS_Z:
 						multiplier = neighbor_data->f_z_neg;
 						break;
-					case NEG_Z:
+					case dccrg::NEG_Z:
 						multiplier = neighbor_data->f_z_pos;
 						break;
 					default:
@@ -537,7 +537,7 @@ private:
 	Data of cell's neighbor, neighbor's direction from cell
 	and neighbor's relative refinement level (if > 0 neighbor is smaller)
 	*/
-	typedef typename boost::tuple<Poisson_Cell*, direction_t, int> neighbor_info_t;
+	typedef typename boost::tuple<Poisson_Cell*, dccrg::direction_t, int> neighbor_info_t;
 
 	// data of a local cell and info of its neighbors
 	typedef typename std::pair<Poisson_Cell*, std::vector<neighbor_info_t> > cell_info_t;
@@ -615,8 +615,8 @@ private:
 
 			// get face neighbors of current cell
 			std::vector<uint64_t> face_neighbors;
-			std::vector<direction_t> directions;
-			get_face_neighbors<Poisson_Cell>(cell, grid, face_neighbors, directions);
+			std::vector<dccrg::direction_t> directions;
+			dccrg::get_face_neighbors<Poisson_Cell>(cell, grid, face_neighbors, directions);
 
 
 			/*
@@ -633,7 +633,7 @@ private:
 				neigh_neg_z_offset = -2 * cell_z_half_size;
 
 			for (size_t i = 0; i < face_neighbors.size(); i++) {
-				const direction_t direction = directions[i];
+				const dccrg::direction_t direction = directions[i];
 				const uint64_t neighbor = face_neighbors[i];
 				const double
 					neigh_x_half_size = grid.get_cell_length_x(neighbor) / 2.0,
@@ -642,22 +642,22 @@ private:
 
 				// assume rhs and solution are cell-centered
 				switch(direction) {
-				case POS_X:
+				case dccrg::POS_X:
 					neigh_pos_x_offset = cell_x_half_size + neigh_x_half_size;
 					break;
-				case NEG_X:
+				case dccrg::NEG_X:
 					neigh_neg_x_offset = -1.0 * (cell_x_half_size + neigh_x_half_size);
 					break;
-				case POS_Y:
+				case dccrg::POS_Y:
 					neigh_pos_y_offset = cell_y_half_size + neigh_y_half_size;
 					break;
-				case NEG_Y:
+				case dccrg::NEG_Y:
 					neigh_neg_y_offset = -1.0 * (cell_y_half_size + neigh_y_half_size);
 					break;
-				case POS_Z:
+				case dccrg::POS_Z:
 					neigh_pos_z_offset = cell_z_half_size + neigh_z_half_size;
 					break;
-				case NEG_Z:
+				case dccrg::NEG_Z:
 					neigh_neg_z_offset = -1.0 * (cell_z_half_size + neigh_z_half_size);
 					break;
 				default:
@@ -687,26 +687,26 @@ private:
 			cell_data->f_z_neg = 0;
 
 			for (size_t i = 0; i < face_neighbors.size(); i++) {
-				const direction_t direction = directions[i];
+				const dccrg::direction_t direction = directions[i];
 
 				// don't mind extra work due to 4 smaller face neighbors
 				switch(direction) {
-				case POS_X:
+				case dccrg::POS_X:
 					cell_data->f_x_pos = +2.0 / (neigh_pos_x_offset * total_offset_x);
 					break;
-				case NEG_X:
+				case dccrg::NEG_X:
 					cell_data->f_x_neg = -2.0 / (neigh_neg_x_offset * total_offset_x);
 					break;
-				case POS_Y:
+				case dccrg::POS_Y:
 					cell_data->f_y_pos = +2.0 / (neigh_pos_y_offset * total_offset_y);
 					break;
-				case NEG_Y:
+				case dccrg::NEG_Y:
 					cell_data->f_y_neg = -2.0 / (neigh_neg_y_offset * total_offset_y);
 					break;
-				case POS_Z:
+				case dccrg::POS_Z:
 					cell_data->f_z_pos = +2.0 / (neigh_pos_z_offset * total_offset_z);
 					break;
-				case NEG_Z:
+				case dccrg::NEG_Z:
 					cell_data->f_z_neg = -2.0 / (neigh_neg_z_offset * total_offset_z);
 					break;
 				default:
@@ -731,7 +731,7 @@ private:
 
 				neighbor_info_t temp_neigh_info;
 
-				const direction_t direction = directions[i];
+				const dccrg::direction_t direction = directions[i];
 				temp_neigh_info.get<1>() = direction;
 
 				const uint64_t neighbor = face_neighbors[i];
@@ -788,40 +788,40 @@ private:
 
 			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
 				Poisson_Cell* neighbor_data = neigh_info.get<0>();
-				const direction_t direction = neigh_info.get<1>();
+				const dccrg::direction_t direction = neigh_info.get<1>();
 
 				switch(direction) {
-				case POS_X:
+				case dccrg::POS_X:
 					if (!pos_x_done) {
 						pos_x_done = true;
 						data->f_x_pos /= neighbor_data->scaling_factor;
 					}
 					break;
-				case NEG_X:
+				case dccrg::NEG_X:
 					if (!neg_x_done) {
 						neg_x_done = true;
 						data->f_x_neg /= neighbor_data->scaling_factor;
 					}
 					break;
-				case POS_Y:
+				case dccrg::POS_Y:
 					if (!pos_y_done) {
 						pos_y_done = true;
 						data->f_y_pos /= neighbor_data->scaling_factor;
 					}
 					break;
-				case NEG_Y:
+				case dccrg::NEG_Y:
 					if (!neg_y_done) {
 						neg_y_done = true;
 						data->f_y_neg /= neighbor_data->scaling_factor;
 					}
 					break;
-				case POS_Z:
+				case dccrg::POS_Z:
 					if (!pos_z_done) {
 						pos_z_done = true;
 						data->f_z_pos /= neighbor_data->scaling_factor;
 					}
 					break;
-				case NEG_Z:
+				case dccrg::NEG_Z:
 					if (!neg_z_done) {
 						neg_z_done = true;
 						data->f_z_neg /= neighbor_data->scaling_factor;
