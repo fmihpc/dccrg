@@ -75,7 +75,10 @@ MPI_UNSIGNED_LONG in the following:
 namespace dccrg
 {
 
-template <class UserData, class UserGeometry = Cartesian_Geometry> class Dccrg : public UserGeometry
+template <
+	class UserData,
+	class UserGeometry = Cartesian_Geometry
+> class Dccrg : public UserGeometry
 {
 
 public:
@@ -340,8 +343,11 @@ public:
 		this->reserved_options.insert("NUM_LOCAL_PARTS");
 		this->reserved_options.insert("AUTO_MIGRATE");
 
-		// set reserved options
-		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");	// 0 because Zoltan crashes in hierarchial with larger values
+		/*
+		Set reserved options
+		*/
+		// 0 because Zoltan crashes in hierarchial with larger values
+		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
 		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
@@ -355,24 +361,89 @@ public:
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
 
 
-		// size of cells id in unsigned ints, but has to be 1 even when global id is uint64_t, for some reason
+		// size of cells id in unsigned ints, but has to be 1 even when
+		// global id is uint64_t, for some reason
 		/*char global_id_length_string[10];
-		snprintf(global_id_length_string, 10, "%0i", int(sizeof(uint64_t) / sizeof(unsigned int)));*/
+		snprintf(global_id_length_string, 10, "%0i",
+			int(sizeof(uint64_t) / sizeof(unsigned int)));*/
 
 		// set the grids callback functions in Zoltan
-		Zoltan_Set_Num_Obj_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_number_of_cells, this);
-		Zoltan_Set_Obj_List_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_cell_list, this);
-		Zoltan_Set_Num_Geom_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_grid_dimensionality, NULL);
-		Zoltan_Set_Geom_Multi_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_with_cell_coordinates, this);
-		Zoltan_Set_Num_Edges_Multi_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_number_of_neighbors_for_cells, this);
-		Zoltan_Set_Edge_List_Multi_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_neighbor_lists, this);
-		Zoltan_Set_HG_Size_CS_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_number_of_hyperedges, this);
-		Zoltan_Set_HG_CS_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_hyperedge_lists, this);
-		Zoltan_Set_HG_Size_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_number_of_edge_weights, this);
-		Zoltan_Set_HG_Edge_Wts_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::fill_edge_weights, this);
-		Zoltan_Set_Hier_Num_Levels_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_number_of_load_balancing_hierarchies, this);
-		Zoltan_Set_Hier_Part_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::get_part_number, this);
-		Zoltan_Set_Hier_Method_Fn(this->zoltan, &Dccrg<UserData, UserGeometry>::set_partitioning_options, this);
+		Zoltan_Set_Num_Obj_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::get_number_of_cells,
+			this
+		);
+
+		Zoltan_Set_Obj_List_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_cell_list,
+			this
+		);
+
+		Zoltan_Set_Num_Geom_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::get_grid_dimensionality,
+			NULL);
+
+		Zoltan_Set_Geom_Multi_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_with_cell_coordinates,
+			this
+		);
+
+		Zoltan_Set_Num_Edges_Multi_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_number_of_neighbors_for_cells,
+			this
+		);
+
+		Zoltan_Set_Edge_List_Multi_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_neighbor_lists,
+			this
+		);
+
+		Zoltan_Set_HG_Size_CS_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_number_of_hyperedges,
+			this
+		);
+
+		Zoltan_Set_HG_CS_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_hyperedge_lists,
+			this
+		);
+
+		Zoltan_Set_HG_Size_Edge_Wts_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_number_of_edge_weights,
+			this
+		);
+
+		Zoltan_Set_HG_Edge_Wts_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::fill_edge_weights,
+			this
+		);
+
+		Zoltan_Set_Hier_Num_Levels_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::get_number_of_load_balancing_hierarchies,
+			this
+		);
+
+		Zoltan_Set_Hier_Part_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::get_part_number,
+			this
+		);
+
+		Zoltan_Set_Hier_Method_Fn(
+			this->zoltan,
+			&Dccrg<UserData, UserGeometry>::set_partitioning_options,
+			this
+		);
 
 
 		/*
@@ -386,6 +457,7 @@ public:
 		// set / check neighborhood_of
 		this->neighborhood_length = given_neighborhood_length;
 		if (this->neighborhood_length == 0) {
+
 			{
 			Types<3>::neighborhood_item_t item = {{0, 0, -1}};
 			this->neighborhood_of.push_back(item);
@@ -410,16 +482,31 @@ public:
 			Types<3>::neighborhood_item_t item = {{0, 0, 1}};
 			this->neighborhood_of.push_back(item);
 			}
+
 		} else {
-			for (int z = -this->neighborhood_length; (unsigned int) abs(z) < this->neighborhood_length + 1; z++)
-			for (int y = -this->neighborhood_length; (unsigned int) abs(y) < this->neighborhood_length + 1; y++)
-			for (int x = -this->neighborhood_length; (unsigned int) abs(x) < this->neighborhood_length + 1; x++) {
+
+			for (int
+				z = -this->neighborhood_length;
+				(unsigned int) abs(z) < this->neighborhood_length + 1;
+				z++
+			)
+			for (int
+				y = -this->neighborhood_length;
+				(unsigned int) abs(y) < this->neighborhood_length + 1;
+				y++
+			)
+			for (int
+				x = -this->neighborhood_length;
+				(unsigned int) abs(x) < this->neighborhood_length + 1;
+				x++
+			) {
 				if (x == 0 && y == 0 && z == 0) {
 					continue;
 				}
 				const Types<3>::neighborhood_item_t item = {{x, y, z}};
 				this->neighborhood_of.push_back(item);
 			}
+
 		}
 
 		// set neighborhood_to
@@ -432,7 +519,9 @@ public:
 		if (maximum_refinement_level < 0) {
 			this->set_maximum_refinement_level(this->get_maximum_possible_refinement_level());
 		} else if (!this->set_maximum_refinement_level(maximum_refinement_level)) {
-			std::cerr << "Couldn't set maximum refinement level to " << maximum_refinement_level << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "Couldn't set maximum refinement level to " << maximum_refinement_level
+				<< std::endl;
 			abort();
 		}
 
@@ -568,7 +657,9 @@ public:
 		}
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are inconsistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbor lists are inconsistent"
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -1843,7 +1934,11 @@ public:
 			}
 		}
 
-		for (int current_ref_lvl = 0; current_ref_lvl < max_ref_lvl_of_overlapping; current_ref_lvl++) {
+		for (int
+			current_ref_lvl = 0;
+			current_ref_lvl < max_ref_lvl_of_overlapping;
+			current_ref_lvl++
+		) {
 			BOOST_FOREACH(const uint64_t cell, cells_and_parents[current_ref_lvl]) {
 				this->refine_completely(cell);
 			}
@@ -1911,12 +2006,16 @@ public:
 
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info is not consistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " User data not consistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -2078,7 +2177,6 @@ public:
 
 		/*
 		Calculate where cells have migrated to update internal data structures
-		Any cell can end up on any process and any neighbor of any cell can end up on yet another process
 		*/
 
 		// removed cells on all processes
@@ -2157,12 +2255,16 @@ public:
 
 		#ifdef DEBUG
 		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Grid is not consistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Grid is not consistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (!this->pin_requests_succeeded()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Pin requests didn't succeed" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Pin requests didn't succeed"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -2221,22 +2323,30 @@ public:
 
 		#ifdef DEBUG
 		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " The grid is inconsistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " The grid is inconsistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are incorrect" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbor lists are incorrect"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info is not consistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " User data not consistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -2748,8 +2858,12 @@ public:
 		  size or larger than 1 if neihgborhood size == 0
 		- i == 0 && j == 0 && k == 0
 	*/
-	std::vector<uint64_t> get_neighbors_of(const uint64_t cell, const int i, const int j, const int k) const
-	{
+	std::vector<uint64_t> get_neighbors_of(
+		const uint64_t cell,
+		const int i,
+		const int j,
+		const int k
+	) const {
 		std::vector<uint64_t> return_neighbors;
 		if (this->cell_process.count(cell) == 0
 		|| this->cell_process.at(cell) != this->rank
@@ -2760,7 +2874,11 @@ public:
 		const int refinement_level = this->get_refinement_level(cell);
 
 		// find cell(s) at given indices in the stored neighbor list
-		const int last_offset = (this->neighborhood_length > 0) ? int(this->neighborhood_length) : 1;
+		const int last_offset
+			= (this->neighborhood_length > 0)
+			? int(this->neighborhood_length)
+			: 1;
+
 		int index = 0;
 		for (int
 			current_k = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
@@ -2792,7 +2910,9 @@ public:
 				}
 			}
 
-			const int current_refinement_level = this->get_refinement_level(this->neighbors.at(cell)[index]);
+			const int current_refinement_level
+				= this->get_refinement_level(this->neighbors.at(cell)[index]);
+
 			if (i == current_i && j == current_j && k == current_k) {
 
 				// TODO check for 0 neighbor instead of error from get_refinement_level
@@ -3014,8 +3134,11 @@ public:
 		}
 
 		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
+
 			if (this->get_refinement_level(neighbor) <= refinement_level) {
-				const std::vector<uint64_t> neighbor_siblings = this->get_all_children(this->get_parent(neighbor));
+				const std::vector<uint64_t> neighbor_siblings
+					= this->get_all_children(this->get_parent(neighbor));
+
 				BOOST_FOREACH(const uint64_t& sibling, neighbor_siblings) {
 					this->cells_to_unrefine.erase(sibling);
 				}
@@ -3023,8 +3146,11 @@ public:
 		}
 
 		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors_to.at(cell)) {
+
 			if (this->get_refinement_level(neighbor) <= refinement_level) {
-				const std::vector<uint64_t> neighbor_siblings = this->get_all_children(this->get_parent(neighbor));
+				const std::vector<uint64_t> neighbor_siblings
+					= this->get_all_children(this->get_parent(neighbor));
+
 				BOOST_FOREACH(const uint64_t& sibling, neighbor_siblings) {
 					this->cells_to_unrefine.erase(sibling);
 				}
@@ -3113,7 +3239,9 @@ public:
 		}
 
 		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for parent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid refinement level for parent"
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -3382,7 +3510,9 @@ public:
 
 							#ifdef DEBUG
 							if (temp_indices[dimension] > grid_length[dimension] - length_in_indices) {
-								std::cerr << __FILE__ << ":" << __LINE__ << " Cells aren't supposed to wrap around the grid." << std::endl;
+								std::cerr << __FILE__ << ":" << __LINE__
+									<< " Cells aren't supposed to wrap around the grid."
+									<< std::endl;
 								abort();
 							}
 							#endif
@@ -3394,7 +3524,10 @@ public:
 							}
 						}
 					} else {
-						if (indices[dimension] + offsets[dimension] * length_in_indices >= grid_length[dimension]) {
+						if (
+							indices[dimension] + offsets[dimension] * length_in_indices
+							>= grid_length[dimension]
+						) {
 							temp_indices[0] = error_index;
 							temp_indices[1] = error_index;
 							temp_indices[2] = error_index;
@@ -3435,22 +3568,32 @@ public:
 
 		#ifdef DEBUG
 		if (max_diff < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " max_diff must not be negative" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " max_diff must not be negative"
+				<< std::endl;
 			abort();
 		}
 
 		if (cell == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given: " << cell << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid cell given: " << cell
+				<< std::endl;
 			abort();
 		}
 
 		if (refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of given cell (" << cell << ") is too large: " << refinement_level << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Refinement level of given cell (" << cell
+				<< ") is too large: " << refinement_level
+				<< std::endl;
 			abort();
 		}
 
 		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for cell " << cell << ": " << refinement_level << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid refinement level for cell " << cell
+				<< ": " << refinement_level
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -3489,7 +3632,9 @@ public:
 			#ifdef DEBUG
 			if (neighbor == 0) {
 				const Types<3>::indices_t indices = this->get_indices(cell);
-				const uint64_t smallest = this->get_existing_cell(index_of, 0, this->max_refinement_level);
+				const uint64_t smallest
+					= this->get_existing_cell(index_of, 0, this->max_refinement_level);
+
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor not found for cell " << cell
 					<< " (at indices " << indices[0]
@@ -3591,7 +3736,8 @@ public:
 					if (this->cell_process.count(current_neighbor) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Neighbor " << current_neighbor
-							<< " doesn't exist between refinement levels " << refinement_level - max_diff
+							<< " doesn't exist between refinement levels "
+							<< refinement_level - max_diff
 							<< ", " << refinement_level + max_diff
 							<< std::endl;
 						abort();
@@ -3639,12 +3785,20 @@ public:
 
 		#ifdef DEBUG
 		if (refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level (" << refinement_level << ") of cell " << cell << " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Refinement level (" << refinement_level
+				<< ") of cell " << cell
+				<< " exceeds maximum refinement level of the grid ("
+				<< this->max_refinement_level << ")"
+				<< std::endl;
 			abort();
 		}
 
 		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Refinement level of cell " << cell << " is less than 0: " << refinement_level << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Refinement level of cell " << cell
+				<< " is less than 0: " << refinement_level
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -3675,7 +3829,9 @@ public:
 					continue;
 				}
 
-				const uint64_t found = this->get_cell_from_indices(search_index, refinement_level - 1);
+				const uint64_t found
+					= this->get_cell_from_indices(search_index, refinement_level - 1);
+
 				// only add if found cell doesn't have children
 				if (found == this->get_child(found)) {
 					unique_neighbors.insert(found);
@@ -3689,7 +3845,9 @@ public:
 			const std::vector<uint64_t> children = this->get_all_children(cell);
 			#ifdef DEBUG
 			if (children.size() == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Got no children for cell " << cell << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Got no children for cell " << cell
+					<< std::endl;
 				abort();
 			}
 			#endif
@@ -3712,7 +3870,8 @@ public:
 						continue;
 					}
 
-					const uint64_t found = this->get_cell_from_indices(search_index, refinement_level + 1);
+					const uint64_t found
+						= this->get_cell_from_indices(search_index, refinement_level + 1);
 
 					if (found == this->get_child(found)) {
 						unique_neighbors.insert(found);
@@ -3812,18 +3971,22 @@ public:
 			const uint64_t parent = this->get_parent(cell);
 			#ifdef DEBUG
 			if (parent == cell) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent for cell " << cell << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid parent for cell " << cell
+					<< std::endl;
 				abort();
 			}
 			#endif
 
 			const Types<3>::indices_t indices = this->get_indices(parent);
 			const uint64_t length_in_indices = this->get_cell_length_in_indices(parent);
-			const std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
-				indices,
-				length_in_indices,
-				this->neighborhood_to
-			);
+
+			const std::vector<Types<3>::indices_t> search_indices
+				= this->indices_from_neighborhood(
+					indices,
+					length_in_indices,
+					this->neighborhood_to
+				);
 
 			BOOST_FOREACH(const Types<3>::indices_t& search_index, search_indices) {
 
@@ -3831,7 +3994,9 @@ public:
 					continue;
 				}
 
-				const uint64_t found = this->get_cell_from_indices(search_index, refinement_level - 1);
+				const uint64_t found
+					= this->get_cell_from_indices(search_index, refinement_level - 1);
+
 				// only add if found cell doesn't have children
 				if (found == this->get_child(found)) {
 					unique_neighbors_to.insert(found);
@@ -3858,40 +4023,50 @@ public:
 	first in the positive x direction then y direction and finally z direction.
 	*/
 	// TODO: make private?
-	std::vector<uint64_t> find_cells
-	(
+	std::vector<uint64_t> find_cells (
 		const Types<3>::indices_t indices_min,
 		const Types<3>::indices_t indices_max,
 		const int minimum_refinement_level,
 		const int maximum_refinement_level
 	) const {
 		// size of cells in indices of given maximum_refinement_level
-		const uint64_t index_increase = uint64_t(1) << (this->max_refinement_level - maximum_refinement_level);
+		const uint64_t index_increase
+			= uint64_t(1) << (this->max_refinement_level - maximum_refinement_level);
 
 		#ifdef DEBUG
 		if (minimum_refinement_level > maximum_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement levels given" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid refinement levels given"
+				<< std::endl;
 			abort();
 		}
 
 		if (maximum_refinement_level > this->max_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid maximum refinement level given" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid maximum refinement level given"
+				<< std::endl;
 			abort();
 		}
 
 		// check that outer shell makes sense
 		if (indices_min[0] > indices_max[0]) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " minimum x index > maximum x index" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " minimum x index > maximum x index"
+				<< std::endl;
 			abort();
 		}
 
 		if (indices_min[1] > indices_max[1]) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " minimum y index > maximum y index" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " minimum y index > maximum y index"
+				<< std::endl;
 			abort();
 		}
 
 		if (indices_min[2] > indices_max[2]) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " minimum z index > maximum z index" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " minimum z index > maximum z index"
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -3916,7 +4091,9 @@ public:
 					<< " " << indices[2]
 					<< std::endl;
 
-				const uint64_t smallest = this->get_existing_cell(indices, 0, this->max_refinement_level);
+				const uint64_t smallest
+					= this->get_existing_cell(indices, 0, this->max_refinement_level);
+
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " smallest cell there is " << smallest
 					<< " with refinement level " << this->get_refinement_level(smallest)
@@ -3982,7 +4159,10 @@ public:
 	{
 		if (this->reserved_options.count(name) > 0) {
 			#ifdef DEBUG
-			std::cerr << "User tried to set an option reserved for dccrg (" << name << ": " << value << ")" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "User tried to set an option reserved for dccrg (" << name
+				<< ": " << value << ")"
+				<< std::endl;
 			#endif
 			return;
 		}
@@ -4001,7 +4181,10 @@ public:
 	{
 		if (processes < 1) {
 			#ifdef DEBUG
-			std::cerr << "User tried to assign " << processes << " processes per part for a new hierarchial partitioning level" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "User tried to assign " << processes
+				<< " processes per part for a new hierarchial partitioning level"
+				<< std::endl;
 			#endif
 			return;
 		}
@@ -4029,21 +4212,29 @@ public:
 			return;
 		}
 
-		this->processes_per_part.erase(this->processes_per_part.begin() + hierarchial_partitioning_level);
-		this->partitioning_options.erase(this->partitioning_options.begin() + hierarchial_partitioning_level);
+		this->processes_per_part.erase(
+			this->processes_per_part.begin() + hierarchial_partitioning_level
+		);
+		this->partitioning_options.erase(
+			this->partitioning_options.begin() + hierarchial_partitioning_level
+		);
 	}
 
 
 	/*!
-	Adds (or overwrites) the given option and its value for hierarchial partitioning of given level.
+	Adds (or overwrites) the given option and its value for
+	hierarchial partitioning of given level.
 
 	Level numbering starts from 0.
 	Does nothing in the following cases:
 		- option name is one of: RETURN_LISTS, ...
 		- given level doesn't exist
 	*/
-	void add_partitioning_option(const int hierarchial_partitioning_level, const std::string name, const std::string value)
-	{
+	void add_partitioning_option(
+		const int hierarchial_partitioning_level,
+		const std::string name,
+		const std::string value
+	) {
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return;
@@ -4051,7 +4242,12 @@ public:
 
 		if (this->reserved_options.count(name) > 0) {
 			#ifdef DEBUG
-			std::cerr << "User tried to set an option reserved for dccrg (" << name << ": " << value << ") for level " << hierarchial_partitioning_level << " of hierarchial partitioning" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "User tried to set an option reserved for dccrg (" << name
+				<< ": " << value
+				<< ") for level " << hierarchial_partitioning_level
+				<< " of hierarchial partitioning"
+				<< std::endl;
 			#endif
 			return;
 		}
@@ -4066,8 +4262,10 @@ public:
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
 	*/
-	void remove_partitioning_option(const int hierarchial_partitioning_level, const std::string name)
-	{
+	void remove_partitioning_option(
+		const int hierarchial_partitioning_level,
+		const std::string name
+	) {
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return;
@@ -4108,8 +4306,10 @@ public:
 
 	Returns an empty string if given option or given level doesn't exist.
 	*/
-	std::string get_partitioning_option_value(const int hierarchial_partitioning_level, const std::string name) const
-	{
+	std::string get_partitioning_option_value(
+		const int hierarchial_partitioning_level,
+		const std::string name
+	) const {
 		std::string value;
 
 		if (hierarchial_partitioning_level < 0
@@ -4234,12 +4434,18 @@ public:
 
 			if (cell == this->get_child(cell)) {
 				if (this->cells.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " should be in this->cells of process " << this->rank << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << cell
+						<< " should be in this->cells of process " << this->rank
+						<< std::endl;
 					abort();
 				}
 			} else {
 				if (this->cells.count(cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cell " << cell << " shouldn't be in this->cells of process " << this->rank << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << cell
+						<< " shouldn't be in this->cells of process " << this->rank
+						<< std::endl;
 					abort();
 				}
 			}
@@ -4526,10 +4732,24 @@ public:
 
 		// get indices of next refinement level within this cell
 		refinement_level++;
-		const uint64_t index_offset = (uint64_t(1) << (this->max_refinement_level - refinement_level));
-		for (uint64_t z_index_offset = 0; z_index_offset < 2 * index_offset; z_index_offset += index_offset)
-		for (uint64_t y_index_offset = 0; y_index_offset < 2 * index_offset; y_index_offset += index_offset)
-		for (uint64_t x_index_offset = 0; x_index_offset < 2 * index_offset; x_index_offset += index_offset) {
+		const uint64_t index_offset
+			= (uint64_t(1) << (this->max_refinement_level - refinement_level));
+
+		for (uint64_t
+			z_index_offset = 0;
+			z_index_offset < 2 * index_offset;
+			z_index_offset += index_offset
+		)
+		for (uint64_t
+			y_index_offset = 0;
+			y_index_offset < 2 * index_offset;
+			y_index_offset += index_offset
+		)
+		for (uint64_t
+			x_index_offset = 0;
+			x_index_offset < 2 * index_offset;
+			x_index_offset += index_offset
+		) {
 			children.push_back(
 				this->get_cell_from_indices(
 					indices[0] + x_index_offset,
@@ -5128,7 +5348,8 @@ private:
 	> user_hood_of, user_hood_to;
 
 	/*!
-	Cell on this process and those cells that aren't neighbors of this cell but whose neighbor this cell is.
+	Cell on this process and those cells that aren't neighbors of
+	this cell but whose neighbor this cell is.
 	For example with a stencil size of 1 in the following grid:
 \verbatim
 |-----------|
@@ -5153,10 +5374,12 @@ private:
 	// on which process every cell in the grid is
 	boost::unordered_map<uint64_t, uint64_t> cell_process;
 
-	// cells on this process that have a neighbor on another process or are considered as a neighbor of a cell on another process
+	// cells on this process that have a neighbor on another
+	// process or are considered as a neighbor of a cell on another process
 	boost::unordered_set<uint64_t> cells_with_remote_neighbors;
 
-	// cells on other processes that have a neighbor on this process or are considered as a neighbor of a cell on this process
+	// cells on other processes that have a neighbor on this process
+	// or are considered as a neighbor of a cell on this process
 	boost::unordered_set<uint64_t> remote_cells_with_local_neighbors;
 
 	/*
@@ -5226,7 +5449,8 @@ private:
 	std::vector<unsigned int> processes_per_part;
 	// options for each level of hierarchial load balancing (numbering start from 0)
 	std::vector<boost::unordered_map<std::string, std::string> > partitioning_options;
-	// record whether Zoltan_LB_Partition is expected to fail (when the user selects NONE as the load balancing algorithm)
+	// record whether Zoltan_LB_Partition is expected to fail
+	// (when the user selects NONE as the load balancing algorithm)
 	bool no_load_balancing;
 	// reserved options that the user cannot change
 	boost::unordered_set<std::string> reserved_options;
@@ -5292,7 +5516,10 @@ private:
 
 				#ifdef DEBUG
 				if (this->cell_process.at(all_new_pinned_cells[process][i]) != process) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Process " << process << " tried pin cell " << all_new_pinned_cells[process][i] << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << process
+						<< " tried pin cell " << all_new_pinned_cells[process][i]
+						<< std::endl;
 					exit(EXIT_FAILURE);
 				}
 				#endif
@@ -5313,9 +5540,20 @@ private:
 	{
 		this->update_pin_requests();
 
-		int partition_changed, global_id_size, local_id_size, number_to_receive, number_to_send;
-		ZOLTAN_ID_PTR global_ids_to_receive, local_ids_to_receive, global_ids_to_send, local_ids_to_send;
-		int *sender_processes, *receiver_processes;
+		int
+			partition_changed,
+			global_id_size,
+			local_id_size,
+			number_to_receive,
+			number_to_send,
+			*sender_processes,
+			*receiver_processes;
+
+		ZOLTAN_ID_PTR
+			global_ids_to_receive,
+			local_ids_to_receive,
+			global_ids_to_send,
+			local_ids_to_send;
 
 		if (use_zoltan && Zoltan_LB_Balance(
 			this->zoltan,
@@ -5345,7 +5583,10 @@ private:
 			// check that processes have the cells they're supposed to send
 			for (int i = 0; i < number_to_send; i++) {
 				if (this->cells.count(global_ids_to_send[i]) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " Cannot send cell " << global_ids_to_send[i] << " to process " << receiver_processes[i] << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cannot send cell " << global_ids_to_send[i]
+						<< " to process " << receiver_processes[i]
+						<< std::endl;
 					abort();
 				}
 			}
@@ -5844,7 +6085,8 @@ private:
 	Does nothing in the following cases:
 		- given cell doesn't exist in the grid
 		- given cell has children
-	Assumes that the refinement level difference between given cell and its neighborhood is no larger than 1.
+	Assumes that the refinement level difference between given cell and
+	its neighborhood is no larger than 1.
 	*/
 	void update_neighbors(const uint64_t cell)
 	{
@@ -6007,7 +6249,10 @@ private:
 
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info(cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info for cell " << cell << " is not consistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info for cell " << cell
+				<< " is not consistent"
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -6129,7 +6374,10 @@ private:
 
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info(cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info for cell " << cell << " is not consistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info for cell " << cell
+				<< " is not consistent"
+				<< std::endl;
 			abort();
 		}
 		#endif
@@ -6143,7 +6391,8 @@ private:
 	*/
 	void update_remote_neighbor_info()
 	{
-		// TODO this probably can't be optimized without storing neighbor lists also for remote neighbors
+		// TODO this probably can't be optimized without
+		// storing neighbor lists also for remote neighbors
 		this->cells_with_remote_neighbors.clear();
 		this->remote_cells_with_local_neighbors.clear();
 
@@ -6443,8 +6692,15 @@ private:
 			}
 			all_new_refines.clear();
 
-			new_refines.insert(new_refines.end(), unique_induced_refines.begin(), unique_induced_refines.end());
-			this->cells_to_refine.insert(unique_induced_refines.begin(), unique_induced_refines.end());
+			new_refines.insert(
+				new_refines.end(),
+				unique_induced_refines.begin(),
+				unique_induced_refines.end()
+			);
+			this->cells_to_refine.insert(
+				unique_induced_refines.begin(),
+				unique_induced_refines.end()
+			);
 			unique_induced_refines.clear();
 		}
 
@@ -6575,7 +6831,9 @@ private:
 			}
 
 			if (refinement_level < 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid refinement level for parent" << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid refinement level for parent"
+					<< std::endl;
 				abort();
 			}
 			#endif
@@ -6611,7 +6869,10 @@ private:
 		All_Gather()(unrefines, all_unrefines, this->comm);
 
 		for (unsigned int process = 0; process < this->comm_size; process++) {
-			this->cells_to_unrefine.insert(all_unrefines[process].begin(), all_unrefines[process].end());
+			this->cells_to_unrefine.insert(
+				all_unrefines[process].begin(),
+				all_unrefines[process].end()
+			);
 		}
 
 		#ifdef DEBUG
@@ -6704,7 +6965,9 @@ private:
 	{
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Remote neighbor info is not consistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 
@@ -6735,8 +6998,14 @@ private:
 		All_Gather()(ordered_cells_to_refine, all_ordered_cells_to_refine, this->comm);
 
 		for (unsigned int process = 0; process < this->comm_size; process++) {
-			if (!std::equal(all_ordered_cells_to_refine[process].begin(), all_ordered_cells_to_refine[process].end(), all_ordered_cells_to_refine[0].begin())) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " cells_to_refine differ between processes 0 and " << process << std::endl;
+			if (!std::equal(
+				all_ordered_cells_to_refine[process].begin(),
+				all_ordered_cells_to_refine[process].end(),
+				all_ordered_cells_to_refine[0].begin()
+			)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " cells_to_refine differ between processes 0 and " << process
+					<< std::endl;
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -6749,8 +7018,14 @@ private:
 		All_Gather()(ordered_cells_to_unrefine, all_ordered_cells_to_unrefine, this->comm);
 
 		for (unsigned int process = 0; process < this->comm_size; process++) {
-			if (!std::equal(all_ordered_cells_to_unrefine[process].begin(), all_ordered_cells_to_unrefine[process].end(), all_ordered_cells_to_unrefine[0].begin())) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " cells_to_unrefine differ between processes 0 and " << process << std::endl;
+			if (!std::equal(
+				all_ordered_cells_to_unrefine[process].begin(),
+				all_ordered_cells_to_unrefine[process].end(),
+				all_ordered_cells_to_unrefine[0].begin()
+			)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " cells_to_unrefine differ between processes 0 and " << process
+					<< std::endl;
 				exit(EXIT_FAILURE);
 			}
 		}
@@ -6759,7 +7034,8 @@ private:
 		// cells whose neighbor lists have to be updated afterwards
 		boost::unordered_set<uint64_t> update_neighbors;
 
-		// a separate neighborhood update function has to be used for cells whose children were removed by unrefining
+		// a separate neighborhood update function has to be used
+		// for cells whose children were removed by unrefining
 		boost::unordered_set<uint64_t> update_neighbors_unrefined;
 
 		// refines
@@ -6873,7 +7149,8 @@ private:
 				}
 			}
 
-			// without using local neighbor lists figure out rest of the neighbor lists that need updating
+			// without using local neighbor lists figure out rest of the
+			// neighbor lists that need updating
 			if (this->remote_cells_with_local_neighbors.count(refined) > 0) {
 
 				/*
@@ -6903,7 +7180,8 @@ private:
 		// needed for checking which neighborhoods to update due to unrefining
 		boost::unordered_set<uint64_t> parents_of_unrefined;
 
-		// initially only one sibling is recorded per process when unrefining, insert the rest of them now
+		// initially only one sibling is recorded per process when unrefining,
+		// insert the rest of them now
 		boost::unordered_set<uint64_t> all_to_unrefine;
 		BOOST_FOREACH(const uint64_t& unrefined, this->cells_to_unrefine) {
 
@@ -7232,7 +7510,9 @@ private:
 
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Neighbor lists are inconsistent" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbor lists are inconsistent"
+				<< std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -7553,7 +7833,9 @@ private:
 			#ifdef DEBUG
 			if (receiving_process == (int) this->rank
 			&& number_of_sends > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Trying to transfer to self" << std::endl;
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Trying to transfer to self"
+					<< std::endl;
 				abort();
 			}
 			#endif
@@ -8124,8 +8406,11 @@ private:
 			return error_cell;
 		}
 
-		int average_refinement_level = (maximum_refinement_level + minimum_refinement_level) / 2;
-		const uint64_t average_cell = this->get_cell_from_indices(indices, average_refinement_level);
+		int average_refinement_level
+			= (maximum_refinement_level + minimum_refinement_level) / 2;
+
+		const uint64_t average_cell
+			= this->get_cell_from_indices(indices, average_refinement_level);
 
 		// use binary search recursively (assumes that all cells refine to 8 children)
 		if (this->cell_process.count(average_cell) == 0) {
@@ -8133,7 +8418,12 @@ private:
 			// search for larger cell
 			if (average_refinement_level > minimum_refinement_level) {
 
-				uint64_t larger_cell = this->get_existing_cell(indices, minimum_refinement_level, average_refinement_level - 1);
+				uint64_t larger_cell
+					= this->get_existing_cell(
+						indices,
+						minimum_refinement_level,
+						average_refinement_level - 1
+					);
 
 				if (this->cell_process.count(larger_cell) == 0) {
 					return 0;
@@ -8146,7 +8436,12 @@ private:
 		} else {
 			// search for smaller cell
 			if (average_refinement_level < maximum_refinement_level) {
-				uint64_t smaller_cell = this->get_existing_cell(indices, average_refinement_level + 1, maximum_refinement_level);
+				uint64_t smaller_cell
+					= this->get_existing_cell(
+						indices,
+						average_refinement_level + 1,
+						maximum_refinement_level
+					);
 
 				if (this->cell_process.count(smaller_cell) == 0) {
 					return average_cell;
@@ -8173,9 +8468,19 @@ private:
 	/*!
 	Fills geom_vec with the coordinates of cells given in global_id
 	*/
-	static void fill_with_cell_coordinates(void *data, int /*global_id_size*/, int /*local_id_size*/, int number_of_cells, ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR /*local_ids*/, int /*number_of_dimensions*/, double *geom_vec, int *error)
-	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+	static void fill_with_cell_coordinates(
+		void *data,
+		int /*global_id_size*/,
+		int /*local_id_size*/,
+		int number_of_cells,
+		ZOLTAN_ID_PTR global_ids,
+		ZOLTAN_ID_PTR /*local_ids*/,
+		int /*number_of_dimensions*/,
+		double *geom_vec,
+		int *error
+	) {
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -8200,7 +8505,8 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->cells.size());
 	}
@@ -8219,7 +8525,8 @@ private:
 		float* object_weights,
 		int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance = reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<UserData, UserGeometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -8480,7 +8787,8 @@ private:
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
-			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
+			std::cerr
+				<< "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
 				<< " instead of " << dccrg_instance->cells.size()
 				<< std::endl;
 			*error = ZOLTAN_FATAL;
@@ -8533,7 +8841,8 @@ private:
 			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
-			std::cerr << "Zoltan wanted a part number for an invalid hierarchy level (should be [0, "
+			std::cerr
+				<< "Zoltan wanted a part number for an invalid hierarchy level (should be [0, "
 				<< dccrg_instance->processes_per_part.size() - 1
 				<< "]): " << level
 				<< std::endl;
@@ -8558,8 +8867,12 @@ private:
 	/*!
 	Sets the partitioning options of given zoltan instance for given level.
 	*/
-	static void set_partitioning_options(void* data, int level, struct Zoltan_Struct* zz, int* error)
-	{
+	static void set_partitioning_options(
+		void* data,
+		int level,
+		struct Zoltan_Struct* zz,
+		int* error
+	) {
 		if (zz == NULL) {
 			std::cerr << "Zoltan gave a NULL pointer for zz" << std::endl;
 			*error = ZOLTAN_FATAL;
@@ -8571,7 +8884,8 @@ private:
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
-				<< "Zoltan wanted partitioning options for an invalid hierarchy level (level should be between 0 and "
+				<< "Zoltan wanted partitioning options for an invalid hierarchy "
+				<< "level (level should be between 0 and "
 				<< dccrg_instance->processes_per_part.size() - 1
 				<< " inclusive): " << level
 				<< std::endl;
@@ -8855,7 +9169,8 @@ private:
 	/*!
 	Returns false if remote neighbor info for given cell is inconsistent.
 
-	Remote neighbor info consists of cells_with_remote_neighbors and remote_cells_with_local_neighbors.
+	Remote neighbor info consists of cells_with_remote_neighbors and
+	remote_cells_with_local_neighbors.
 	*/
 	bool verify_remote_neighbor_info(const uint64_t cell)
 	{
@@ -8972,7 +9287,9 @@ private:
 
 						BOOST_FOREACH(const cell_and_data_pair_t& cell, this->cells) {
 							if (item->first == cell.first) {
-								std::cerr << __FILE__ << ":" << __LINE__ << " Same cell." << std::endl;
+								std::cerr << __FILE__ << ":" << __LINE__
+									<< " Same cell."
+									<< std::endl;
 								abort();
 							}
 
@@ -9004,7 +9321,11 @@ private:
 
 				// search in neighbors_of
 				const std::vector<uint64_t> neighbors_of
-					= this->find_neighbors_of(item->first, this->neighborhood_of, this->max_ref_lvl_diff);
+					= this->find_neighbors_of(
+						item->first,
+						this->neighborhood_of,
+						this->max_ref_lvl_diff
+					);
 
 				BOOST_FOREACH(const uint64_t& neighbor, neighbors_of) {
 
