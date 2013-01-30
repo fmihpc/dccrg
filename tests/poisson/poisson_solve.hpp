@@ -153,6 +153,7 @@ public:
 		this->max_iterations = 1000;
 		this->stop_residual = 1e-15;
 		this->p_of_norm = 2;
+		this->adaptive_stop_residual = true;
 	};
 
 	/*!
@@ -160,17 +161,99 @@ public:
 
 	When solving no more than given_max_iterations iterations will be done.
 	Solving will stop if the p-norm of the solution is below given_stop_residual.
+	If given_adaptive_... is true and the residual starts growing too much
+	a new solution will be attempted with its initial guess as 0 everywhere
+	and a higher stop_residual than the minimum achieved from the first try.
+	Too much is 100x the minimum that was achieved on the first try.
 	*/
 	Poisson_Solve(
 		const unsigned int given_max_iterations,
 		const double given_stop_residual,
-		const double given_p
+		const double given_p_of_norm,
+		const bool given_adaptive_stop_residual
 	) {
 		this->max_iterations = given_max_iterations;
 		this->stop_residual = given_stop_residual;
-		this->p_of_norm = given_p;
+		this->p_of_norm = given_p_of_norm;
+		this->adaptive_stop_residual = given_adaptive_stop_residual;
 	};
 
+
+	/*!
+	Initializes the solution for solve(...).
+
+	Returns the initial value of r0 . r1.
+	*/
+	template<class Geometry> double initialize_solver(
+		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+	) {
+		// transfer user's guess for the solution to calculate residual
+		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
+		grid.update_remote_neighbor_data();
+
+		// residual == r0 = rhs - A . solution
+		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+			Poisson_Cell* data = info.first;
+
+			data->r0 = data->rhs - data->solution;
+
+			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
+				Poisson_Cell* neighbor_data = neigh_info.get<0>();
+
+				// final multiplier to use for current neighbor's data
+				double multiplier = 0;
+				const direction_t direction = neigh_info.get<1>();
+				switch(direction) {
+				case POS_X:
+					multiplier = data->f_x_pos;
+					break;
+				case NEG_X:
+					multiplier = data->f_x_neg;
+					break;
+				case POS_Y:
+					multiplier = data->f_y_pos;
+					break;
+				case NEG_Y:
+					multiplier = data->f_y_neg;
+					break;
+				case POS_Z:
+					multiplier = data->f_z_pos;
+					break;
+				case NEG_Z:
+					multiplier = data->f_z_neg;
+					break;
+				default:
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Invalid direction: " << direction
+						<< std::endl;
+					abort();
+					break;
+				}
+
+				/*const int rel_ref_lvl = neigh_info.get<2>();
+				if (rel_ref_lvl > 0) {
+					// average over 4 smaller face neighbors
+					multiplier /= 4.0;
+				}*/
+
+				data->r0 -= multiplier * neighbor_data->solution;
+			}
+
+			// initially all variables equal to residual
+			data->r1 = data->r0;
+			// p0 and p1 are used scaled
+			data->p0 = data->p1 = data->scaling_factor * data->r0;
+		}
+
+		double dot_r_l = 0, dot_r_g = 0;
+		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+			Poisson_Cell* data = info.first;
+			dot_r_l += data->r0 * data->r1;
+		}
+		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
+
+		return dot_r_g;
+	}
 
 	/*!
 	Solves the Poisson's equation in given cells.
@@ -212,80 +295,17 @@ public:
 			this->cache_system_info(cells, grid);
 		}
 
-		/*
-		Initialize solver, assume initial solution already updated between neighbors
-		*/
+		initialize_solver(grid);
 
-		// residual == r0 = rhs - A . solution
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
+		double
+			// stopping residual during this function call
+			current_stop_residual = this->stop_residual,
+			// minimum residual reached for trying a second time
+			residual_min = std::numeric_limits<double>::max(),
+			// local and global values of r0 . r1
+			dot_r_l = 0,
+			dot_r_g = initialize_solver(grid);
 
-			data->r0 = data->rhs - data->solution;
-
-			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-				Poisson_Cell* neighbor_data = neigh_info.get<0>();
-
-				// final multiplier to use for current neighbor's data
-				double multiplier = 0;
-				const direction_t direction = neigh_info.get<1>();
-				switch(direction) {
-				case POS_X:
-					multiplier = data->f_x_pos;
-					break;
-				case NEG_X:
-					multiplier = data->f_x_neg;
-					break;
-				case POS_Y:
-					multiplier = data->f_y_pos;
-					break;
-				case NEG_Y:
-					multiplier = data->f_y_neg;
-					break;
-				case POS_Z:
-					multiplier = data->f_z_pos;
-					break;
-				case NEG_Z:
-					multiplier = data->f_z_neg;
-					break;
-				default:
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Invalid direction: " << direction
-						<< std::endl;
-					abort();
-					break;
-				}
-
-				/* TODO: put into f_*_* ?
-				const int rel_ref_lvl = neigh_info.get<2>();
-				if (rel_ref_lvl > 0) {
-					// average over 4 smaller face neighbors
-					multiplier /= 4.0;
-				}*/
-
-				data->r0 -= multiplier * neighbor_data->solution;
-			}
-
-			// initially all variables equal to residual
-			data->r1 = data->r0;
-			// p0 and p1 are used scaled
-			data->p0 = data->p1 = data->scaling_factor * data->r0;
-		}
-
-
-		/*
-		Solve
-		*/
-
-		// for debugging
-		std::vector<double> alphas, betas, p_dots, r_dots, old_r_dots, residuals;
-
-		// calculate initial value of r0 . r1
-		double dot_r_l = 0, dot_r_g = 0;
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
-			dot_r_l += data->r0 * data->r1;
-		}
-		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 		if (this->comm_rank == 0) {
 			//std::cout << "r0 . r1: " << dot_r_g << std::endl;
 		}
@@ -360,7 +380,6 @@ public:
 			if (this->comm_rank == 0) {
 				//std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
 			}
-			p_dots.push_back(dot_p_g);
 
 			// no sense in continuing with dividing by zero
 			if (dot_p_g == 0) {
@@ -371,7 +390,6 @@ public:
 			if (this->comm_rank == 0) {
 				//std::cout << "alpha: " << alpha << std::endl;
 			}
-			alphas.push_back(alpha);
 
 
 			// update solution
@@ -380,10 +398,32 @@ public:
 				data->solution += alpha * data->p0;
 			}
 
+			// get residual and decide what to do
 			const double residual = this->get_residual();
-			if (residual <= this->stop_residual) {
+			if (residual <= current_stop_residual) {
 				break;
 			}
+			if (residual_min > residual) {
+				residual_min = residual;
+			}
+
+			// restart if solution seems to have exploded
+			if (this->adaptive_stop_residual && residual >= 100 * residual_min) {
+
+				iteration = 0;
+				current_stop_residual = 1.5 * residual_min;
+				residual_min = std::numeric_limits<double>::max();
+
+				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+					Poisson_Cell* data = info.first;
+					data->solution = 0;
+				}
+
+				dot_r_g = initialize_solver(grid);
+
+				continue;
+			}
+
 
 			// update r0
 			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
@@ -462,14 +502,11 @@ public:
 			if (this->comm_rank == 0) {
 				//std::cout << "new r0 . r1: " << dot_r_g << std::endl;
 			}
-			r_dots.push_back(dot_r_g);
-			old_r_dots.push_back(old_dot_r_g);
 
 			const double beta = dot_r_g / old_dot_r_g;
 			if (this->comm_rank == 0) {
 				//std::cout << "beta: " << beta << std::endl;
 			}
-			betas.push_back(beta);
 
 
 			// update p0, p1
@@ -482,7 +519,7 @@ public:
 		} while (iteration < this->max_iterations);
 
 		if (this->comm_rank == 0) {
-			//std::cout << "iterations: " << iteration << std::endl;
+			//std::cout << "iterations: " << iteration << ", residual: " << residual << std::endl;
 		}
 
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
@@ -516,6 +553,8 @@ private:
 	// p to use when calculating the residual as a p-norm
 	double p_of_norm;
 
+	bool adaptive_stop_residual;
+
 	// cached and grid agnostic form of the system to solve
 	std::vector<cell_info_t> cell_info;
 
@@ -548,8 +587,7 @@ private:
 		const std::vector<uint64_t>& cells,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
-		// make sure copies of remote neighbors exist before caching and
-		// transfer user's guess for the solution to calculate residual
+		// make sure copies of remote neighbors exist
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 		grid.update_remote_neighbor_data();
 
