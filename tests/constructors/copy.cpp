@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 	grid1.update_remote_neighbor_data();
 
 	const boost::unordered_set<uint64_t>& remote_neighbors1
-		= grid1.get_cells_with_remote_neighbors();
+		= grid1.get_cells_with_remote_neighbors_internal();
 
 	const boost::unordered_map<uint64_t, uint64_t>& cell_process1
 		= grid1.get_cell_process();
@@ -142,7 +142,7 @@ int main(int argc, char* argv[])
 	grid2.update_remote_neighbor_data();
 
 	const boost::unordered_set<uint64_t>& remote_neighbors2
-		= grid2.get_cells_with_remote_neighbors();
+		= grid2.get_cells_with_remote_neighbors_internal();
 
 	const boost::unordered_map<uint64_t, uint64_t>& cell_process2
 		= grid2.get_cell_process();

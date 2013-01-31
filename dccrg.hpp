@@ -135,7 +135,7 @@ public:
 		user_neigh_to(other.get_user_neigh_to()),
 		cell_process(other.get_cell_process()),
 		cells_with_remote_neighbors(other.get_cells_with_remote_neighbors_internal()),
-		remote_cells_with_local_neighbors(other.get_remote_cells_with_local_neighbors()),
+		remote_cells_with_local_neighbors(other.get_remote_cells_with_local_neighbors_internal()),
 		user_cells_with_remote_neighbors(other.get_user_cells_with_remote_neighbors()),
 		user_remote_cells_with_local_neighbors(other.get_user_remote_cells_with_local_neighbors()),
 		cells_to_send(other.get_cells_to_send()),
@@ -1678,139 +1678,6 @@ public:
 			}
 
 			if (!has_remote_neighbor) {
-				return_cells.push_back(cell);
-			}
-		}
-
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
-
-		return return_cells;
-	}
-
-
-	/*!
-	Returns local cells with at least one remote neighbor.
-
-	Returns all cells on this process that don't have children (e.g. leaf cells)
-	and have at least one neighbor on another processes.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_cells_with_remote_neighbor(const bool sorted = false) const
-	{
-		std::vector<uint64_t> return_cells;
-		return_cells.reserve(this->cells.size());
-
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-
-			uint64_t child = this->get_child(item.first);
-			if (child == error_cell) {
-				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-				abort();
-			}
-
-			if (child != item.first) {
-				continue;
-			}
-
-			bool has_remote_neighbor = false;
-
-			if (this->neighbors.count(item.first) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-				abort();
-			}
-
-			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(item.first)) {
-
-				if (neighbor == 0) {
-					continue;
-				}
-
-				if (this->cell_process.at(neighbor) != this->rank) {
-					has_remote_neighbor = true;
-					break;
-				}
-			}
-
-			if (has_remote_neighbor) {
-				return_cells.push_back(item.first);
-			}
-		}
-
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
-
-		return return_cells;
-	}
-
-	/*!
-	Returns local cells with at least one remote neighbor in given cell neighborhood
-
-	Returns nothing if given neighborhood doesn't exist.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_cells_with_remote_neighbor(
-		const int neighborhood_id,
-		const bool sorted = false
-	) const {
-		std::vector<uint64_t> return_cells;
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			return return_cells;
-		}
-
-		return_cells.reserve(this->cells.size());
-
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-
-			const uint64_t
-				cell = item.first,
-				child = this->get_child(cell);
-
-			if (child != cell) {
-				continue;
-			}
-
-			#ifdef DEBUG
-			if (child == error_cell) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid child for cell " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No neighbors for cell " << cell
-					<< " in neighborhood " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			bool has_remote_neighbor = false;
-
-			BOOST_FOREACH(
-				const uint64_t& neighbor,
-				this->user_neigh_of.at(neighborhood_id).at(cell)
-			) {
-				if (neighbor == error_cell) {
-					continue;
-				}
-
-				if (this->cell_process.at(neighbor) != this->rank) {
-					has_remote_neighbor = true;
-					break;
-				}
-			}
-
-			if (has_remote_neighbor) {
 				return_cells.push_back(cell);
 			}
 		}
@@ -4499,6 +4366,8 @@ public:
 
 	/*!
 	Executes unpin(cell) for all cells on this process.
+
+	TODO: only execute for cells that are pinned
 	*/
 	void unpin_local_cells()
 	{
@@ -4553,115 +4422,98 @@ public:
 
 
 	/*!
-	Returns a pointer to the send lists of this process.
-
-	These lists record which cells' user data this process will send during neighbor data updates.
-	The key is the target process.
-	*/
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >* get_send_lists()
-	{
-		return &(this->cells_to_send);
-	}
-
-	/*!
-	Returns a pointer to the receive lists of this process.
-
-	These lists record which cells' user data this process will receive during neighbor data updates.
-	The key is the source process.
-	*/
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >* get_receive_lists()
-	{
-		return &(this->cells_to_receive);
-	}
-
-
-	/*!
-	Returns a pointer to the set of local cells which have at least one neighbor
-	on another process with given neighborhood id.
-
-	Returns NULL if neighborhood with given id hasn't been set.
-	*/
-	const boost::unordered_set<uint64_t>* get_cells_with_remote_neighbors(const int id) const
-	{
-		if (this->user_cells_with_remote_neighbors.count(id) == 0) {
-			return NULL;
-		} else {
-			return &(this->user_cells_with_remote_neighbors.at(id));
-		}
-	}
-
-	/*!
 	Returns local cells which have at least one neighbor on another process.
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> get_list_of_cells_with_remote_neighbors() const
+	std::vector<uint64_t> get_cells_with_remote_neighbor(const bool sorted = false) const
 	{
-		const std::vector<uint64_t> result(
+		std::vector<uint64_t> return_cells(
 			this->cells_with_remote_neighbors.begin(),
 			this->cells_with_remote_neighbors.end()
 		);
-		return result;
+
+		if (sorted && return_cells.size() > 0) {
+			std::sort(return_cells.begin(), return_cells.end());
+		}
+
+		return return_cells;
 	}
 
 	/*!
-	Returns a vector of local cells which have at least one neighbor on another process
-	with given neighborhood.
+	Same as get_cells_with_remote_neighbors(bool) but for given neighborhood.
 
 	Returns nothing if neighborhood with given id hasn't been set.
 	*/
-	std::vector<uint64_t> get_list_of_cells_with_remote_neighbors(const int id) const
-	{
-		// TODO: rename to get_cells_with_remote_neighbors
-		std::vector<uint64_t> result;
-		if (this->user_cells_with_remote_neighbors.count(id) > 0) {
-			result.insert(result.end(),
+	std::vector<uint64_t> get_cells_with_remote_neighbor(
+		const int id,
+		const bool sorted = false
+	) const {
+		std::vector<uint64_t> return_cells;
+
+		if (this->user_cells_with_remote_neighbors.count(id) == 0) {
+			return return_cells;
+		} else {
+			return_cells.insert(return_cells.end(),
 				this->user_cells_with_remote_neighbors.at(id).begin(),
 				this->user_cells_with_remote_neighbors.at(id).end()
 			);
 		}
-		return result;
-	}
 
-	/*!
-	Returns a pointer to the set of remote cells which have at least one local neighbor
-	with given neighborhood id.
-
-	Returns NULL if neighborhood with given id hasn't been set.
-	*/
-	const boost::unordered_set<uint64_t>* get_remote_cells_with_local_neighbors(const int id) const
-	{
-		if (this->user_remote_cells_with_local_neighbors.count(id) == 0) {
-			return NULL;
-		} else {
-			return &(this->user_remote_cells_with_local_neighbors.at(id));
+		if (sorted && return_cells.size() > 0) {
+			std::sort(return_cells.begin(), return_cells.end());
 		}
+
+		return return_cells;
 	}
 
+
 	/*!
-	See get_remote_cells_with_local_neighbors().
+	Returns cells on other processes which have at least one local neighbor.
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors() const
+	std::vector<uint64_t> get_remote_cells_with_local_neighbor(const bool sorted = false) const
 	{
-		const std::vector<uint64_t> result(
+		std::vector<uint64_t> return_cells(
 			this->remote_cells_with_local_neighbors.begin(),
 			this->remote_cells_with_local_neighbors.end()
 		);
-		return result;
+
+		if (sorted && return_cells.size() > 0) {
+			std::sort(return_cells.begin(), return_cells.end());
+		}
+
+		return return_cells;
 	}
 
 	/*!
-	See get_remote_cells_with_local_neighbors(const int id).
+	Same as get_remote_cells_with_local_neighbors(bool) but for given neighborhood.
+
+	Returns no cells if neighborhood with given id hasn't been set.
 	*/
-	std::vector<uint64_t> get_list_of_remote_cells_with_local_neighbors(const int id) const
-	{
-		std::vector<uint64_t> result;
-		if (this->user_remote_cells_with_local_neighbors.count(id) > 0) {
-			result.insert(
-				result.end(),
+	std::vector<uint64_t> get_remote_cells_with_local_neighbor(
+		const int id,
+		const bool sorted = false
+	) const {
+		std::vector<uint64_t> return_cells;
+
+		if (this->user_remote_cells_with_local_neighbors.count(id) == 0) {
+			return return_cells;
+		} else {
+			return_cells.insert(return_cells.end(),
 				this->user_remote_cells_with_local_neighbors.at(id).begin(),
 				this->user_remote_cells_with_local_neighbors.at(id).end()
 			);
 		}
-		return result;
+
+		if (sorted && return_cells.size() > 0) {
+			std::sort(return_cells.begin(), return_cells.end());
+		}
+
+		return return_cells;
 	}
 
 
@@ -5227,7 +5079,7 @@ public:
 	/*!
 	Returns remote cells which have a local neighbor.
 	*/
-	const boost::unordered_set<uint64_t>& get_remote_cells_with_local_neighbors() const
+	const boost::unordered_set<uint64_t>& get_remote_cells_with_local_neighbors_internal() const
 	{
 		return this->remote_cells_with_local_neighbors;
 	}
@@ -5257,8 +5109,8 @@ public:
 	/*!
 	Returns cells that will be sent to other processes.
 
-	First int is the target process, uint64_t is the cell id and
-	the last int is the message tag when dccrg sends one cell / MPI_Isend.
+	First int is the target process, uint64_t is cell id and
+	last int is the message tag when dccrg sends one cell / MPI_Isend.
 	*/
 	const boost::unordered_map<
 		int,
@@ -5271,8 +5123,8 @@ public:
 	/*!
 	Returns cells that will be received from other processes.
 
-	First int is the process from which to receive, uint64_t is cell id
-	last it is the message tag when dccrg receives one cell / MPI_Irecv.
+	First int is the sending process, uint64_t is cell id and
+	last int is the message tag when dccrg receives one cell / MPI_Irecv.
 	*/
 	const boost::unordered_map<
 		int,
