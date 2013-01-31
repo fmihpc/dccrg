@@ -134,10 +134,10 @@ public:
 		user_neigh_of(other.get_user_neigh_of()),
 		user_neigh_to(other.get_user_neigh_to()),
 		cell_process(other.get_cell_process()),
-		cells_with_remote_neighbors(other.get_cells_with_remote_neighbors_internal()),
-		remote_cells_with_local_neighbors(other.get_remote_cells_with_local_neighbors_internal()),
-		user_cells_with_remote_neighbors(other.get_user_cells_with_remote_neighbors()),
-		user_remote_cells_with_local_neighbors(other.get_user_remote_cells_with_local_neighbors()),
+		local_cells_on_process_boundary(other.get_local_cells_on_process_boundary_internal()),
+		remote_cells_on_process_boundary(other.get_remote_cells_on_process_boundary_internal()),
+		user_local_cells_on_process_boundary(other.get_user_local_cells_on_process_boundary()),
+		user_remote_cells_on_process_boundary(other.get_user_remote_cells_on_process_boundary()),
 		cells_to_send(other.get_cells_to_send()),
 		cells_to_receive(other.get_cells_to_receive()),
 		user_neigh_cells_to_send(other.get_user_neigh_cells_to_send()),
@@ -664,9 +664,7 @@ public:
 		}
 		#endif
 
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			this->update_remote_neighbor_info(item.first);
-		}
+		this->update_remote_neighbor_info();
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -1951,10 +1949,10 @@ public:
 		}
 
 		// clear data related to remote neighbor updates, adaptation, etc.
-		this->cells_with_remote_neighbors.clear();
-		this->remote_cells_with_local_neighbors.clear();
-		this->user_cells_with_remote_neighbors.clear();
-		this->user_remote_cells_with_local_neighbors.clear();
+		this->local_cells_on_process_boundary.clear();
+		this->remote_cells_on_process_boundary.clear();
+		this->user_local_cells_on_process_boundary.clear();
+		this->user_remote_cells_on_process_boundary.clear();
 		this->user_neigh_cells_to_send.clear();
 		this->user_neigh_cells_to_receive.clear();
 		this->remote_neighbors.clear();
@@ -2859,7 +2857,7 @@ public:
 
 
 	/*!
-	Returns the given cell's neighbors that are on another process.
+	Returns neighbors of given local cell that are on another process.
 
 	Returns nothing if given cell doesn't exist or is on another process
 	or doesn't have remote neighbors.
@@ -2867,7 +2865,7 @@ public:
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> get_remote_neighbors(
+	std::vector<uint64_t> get_remote_neighbors_of(
 		const uint64_t cell,
 		const bool sorted = false
 	) const {
@@ -2878,9 +2876,9 @@ public:
 			return return_cells;
 		}
 
-		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
+		BOOST_FOREACH(const uint64_t neighbor, this->neighbors.at(cell)) {
 
-			if (neighbor == 0) {
+			if (neighbor == error_cell) {
 				continue;
 			}
 
@@ -2896,24 +2894,36 @@ public:
 		return return_cells;
 	}
 
-
 	/*!
-	Returns remote neighbors of local cells.
+	Returns remote cells that consider given local cell as a neighbor.
 
-	Returns all cells on other processes which at least one local cell
-	considers as a neighbor.
-	Use update_remote_neighbor_data to make sure that a local copy
-	of remote neighbors' data exists.
+	Returns nothing if given cell doesn't exist or is on another process
+	or doesn't have remote neighbors.
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> get_remote_neighbors(const bool sorted = false) const
-	{
-		std::vector<uint64_t> return_cells(
-			this->remote_cells_with_local_neighbors.begin(),
-			this->remote_cells_with_local_neighbors.end()
-		);
+	std::vector<uint64_t> get_remote_neighbors_to(
+		const uint64_t cell,
+		const bool sorted = false
+	) const {
+		std::vector<uint64_t> return_cells;
+
+		if (this->cells.count(cell) == 0
+		|| this->neighbors.count(cell) == 0) {
+			return return_cells;
+		}
+
+		BOOST_FOREACH(const uint64_t neighbor, this->neighbors_to.at(cell)) {
+
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->cell_process.at(neighbor) != this->rank) {
+				return_cells.push_back(neighbor);
+			}
+		}
 
 		if (sorted && return_cells.size() > 0) {
 			std::sort(return_cells.begin(), return_cells.end());
@@ -4422,16 +4432,23 @@ public:
 
 
 	/*!
-	Returns local cells which have at least one neighbor on another process.
+	Returns local cells that are on the local process boundary.
+
+	Returns cells for which either of the following is true:
+		- a cell on another process is considered as a neighbor
+		- are considered as a neighbor by a cell on another process
+	In other words for all cells returned by this function a cell
+	on another process is either in their get_neighbors or
+	get_neighbors2 list.
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> get_cells_with_remote_neighbor(const bool sorted = false) const
+	std::vector<uint64_t> get_local_cells_on_process_boundary(const bool sorted = false) const
 	{
 		std::vector<uint64_t> return_cells(
-			this->cells_with_remote_neighbors.begin(),
-			this->cells_with_remote_neighbors.end()
+			this->local_cells_on_process_boundary.begin(),
+			this->local_cells_on_process_boundary.end()
 		);
 
 		if (sorted && return_cells.size() > 0) {
@@ -4442,22 +4459,22 @@ public:
 	}
 
 	/*!
-	Same as get_cells_with_remote_neighbors(bool) but for given neighborhood.
+	Same as get_local_cells_on_process_boundary(bool) but for given neighborhood.
 
 	Returns nothing if neighborhood with given id hasn't been set.
 	*/
-	std::vector<uint64_t> get_cells_with_remote_neighbor(
+	std::vector<uint64_t> get_local_cells_on_process_boundary(
 		const int id,
 		const bool sorted = false
 	) const {
 		std::vector<uint64_t> return_cells;
 
-		if (this->user_cells_with_remote_neighbors.count(id) == 0) {
+		if (this->user_local_cells_on_process_boundary.count(id) == 0) {
 			return return_cells;
 		} else {
 			return_cells.insert(return_cells.end(),
-				this->user_cells_with_remote_neighbors.at(id).begin(),
-				this->user_cells_with_remote_neighbors.at(id).end()
+				this->user_local_cells_on_process_boundary.at(id).begin(),
+				this->user_local_cells_on_process_boundary.at(id).end()
 			);
 		}
 
@@ -4470,16 +4487,91 @@ public:
 
 
 	/*!
-	Returns cells on other processes which have at least one local neighbor.
+	Returns local cells that are not on the local process boundary.
+
+	Returns cells which do not consider a cell on another process
+	as a neighbor and which are not considered as a neighbor
+	by a cell on another process.
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> get_remote_cells_with_local_neighbor(const bool sorted = false) const
+	std::vector<uint64_t> get_local_cells_not_on_process_boundary(const bool sorted = false) const
+	{
+		std::vector<uint64_t> return_cells;
+
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+			const uint64_t cell = item.first;
+			if (this->local_cells_on_process_boundary.count(cell) == 0) {
+				return_cells.push_back(cell);
+			}
+		}
+
+		if (sorted && return_cells.size() > 0) {
+			std::sort(return_cells.begin(), return_cells.end());
+		}
+
+		return return_cells;
+	}
+
+	/*!
+	Same as get_local_cells_not_on_process_boundary(bool) but for given neighborhood.
+
+	Returns nothing if neighborhood with given id hasn't been set.
+	*/
+	std::vector<uint64_t> get_local_cells_not_on_process_boundary(
+		const int id,
+		const bool sorted = false
+	) const {
+		std::vector<uint64_t> return_cells;
+
+
+		if (this->user_local_cells_on_process_boundary.count(id) == 0) {
+			return return_cells;
+		}
+
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+			const uint64_t cell = item.first;
+			if (this->user_local_cells_on_process_boundary.at(id).count(cell) == 0) {
+				return_cells.push_back(cell);
+			}
+		}
+
+		if (sorted && return_cells.size() > 0) {
+			std::sort(return_cells.begin(), return_cells.end());
+		}
+
+		return return_cells;
+	}
+
+
+	/* TODO:
+	std::vector<uint64_t> get_cells(
+		const bool have_remote_neighbors_of,
+		const bool have_remote_neighbors_to,
+		const bool sorted = false
+	) const {
+	}
+	*/
+
+
+	/*!
+	Returns remote cells that are on the local process boundary.
+
+	Returns cells for which either of the following is true:
+		- a local cell is considered as a neighbor
+		- are considered as a neighbor by a local cell
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
+
+	To skip creating a copy use get_remote_cells_on_process_boundary_internal().
+	*/
+	std::vector<uint64_t> get_remote_cells_on_process_boundary(const bool sorted = false) const
 	{
 		std::vector<uint64_t> return_cells(
-			this->remote_cells_with_local_neighbors.begin(),
-			this->remote_cells_with_local_neighbors.end()
+			this->remote_cells_on_process_boundary.begin(),
+			this->remote_cells_on_process_boundary.end()
 		);
 
 		if (sorted && return_cells.size() > 0) {
@@ -4490,22 +4582,22 @@ public:
 	}
 
 	/*!
-	Same as get_remote_cells_with_local_neighbors(bool) but for given neighborhood.
+	Same as get_remote_cells_on_process_boundary(bool) but for given neighborhood.
 
 	Returns no cells if neighborhood with given id hasn't been set.
 	*/
-	std::vector<uint64_t> get_remote_cells_with_local_neighbor(
+	std::vector<uint64_t> get_remote_cells_on_process_boundary(
 		const int id,
 		const bool sorted = false
 	) const {
 		std::vector<uint64_t> return_cells;
 
-		if (this->user_remote_cells_with_local_neighbors.count(id) == 0) {
+		if (this->user_remote_cells_on_process_boundary.count(id) == 0) {
 			return return_cells;
 		} else {
 			return_cells.insert(return_cells.end(),
-				this->user_remote_cells_with_local_neighbors.at(id).begin(),
-				this->user_remote_cells_with_local_neighbors.at(id).end()
+				this->user_remote_cells_on_process_boundary.at(id).begin(),
+				this->user_remote_cells_on_process_boundary.at(id).end()
 			);
 		}
 
@@ -4838,9 +4930,9 @@ public:
 			this->update_user_neighbors(item.first, id);
 		}
 
-		this->recalculate_neighbor_update_send_receive_lists(id);
-
 		this->update_user_remote_neighbor_info(id);
+
+		this->recalculate_neighbor_update_send_receive_lists(id);
 
 		return true;
 	}
@@ -4861,8 +4953,8 @@ public:
 		this->user_neigh_to.erase(id);
 		this->user_neigh_cells_to_send.erase(id);
 		this->user_neigh_cells_to_receive.erase(id);
-		this->user_cells_with_remote_neighbors.erase(id);
-		this->user_remote_cells_with_local_neighbors.erase(id);
+		this->user_local_cells_on_process_boundary.erase(id);
+		this->user_remote_cells_on_process_boundary.erase(id);
 	}
 
 
@@ -5071,17 +5163,17 @@ public:
 	/*!
 	Returns cells which have a remote neighbor.
 	*/
-	const boost::unordered_set<uint64_t>& get_cells_with_remote_neighbors_internal() const
+	const boost::unordered_set<uint64_t>& get_local_cells_on_process_boundary_internal() const
 	{
-		return this->cells_with_remote_neighbors;
+		return this->local_cells_on_process_boundary;
 	}
 
 	/*!
 	Returns remote cells which have a local neighbor.
 	*/
-	const boost::unordered_set<uint64_t>& get_remote_cells_with_local_neighbors_internal() const
+	const boost::unordered_set<uint64_t>& get_remote_cells_on_process_boundary_internal() const
 	{
-		return this->remote_cells_with_local_neighbors;
+		return this->remote_cells_on_process_boundary;
 	}
 
 	/*!
@@ -5090,9 +5182,9 @@ public:
 	const boost::unordered_map<
 		int,
 		boost::unordered_set<uint64_t>
-	>& get_user_cells_with_remote_neighbors() const
+	>& get_user_local_cells_on_process_boundary() const
 	{
-		return this->user_cells_with_remote_neighbors;
+		return this->user_local_cells_on_process_boundary;
 	}
 
 	/*!
@@ -5101,9 +5193,9 @@ public:
 	const boost::unordered_map<
 		int,
 		boost::unordered_set<uint64_t>
-	>& get_user_remote_cells_with_local_neighbors() const
+	>& get_user_remote_cells_on_process_boundary() const
 	{
-		return this->user_remote_cells_with_local_neighbors;
+		return this->user_remote_cells_on_process_boundary;
 	}
 
 	/*!
@@ -5312,19 +5404,19 @@ private:
 
 	// cells on this process that have a neighbor on another
 	// process or are considered as a neighbor of a cell on another process
-	boost::unordered_set<uint64_t> cells_with_remote_neighbors;
+	boost::unordered_set<uint64_t> local_cells_on_process_boundary;
 
 	// cells on other processes that have a neighbor on this process
 	// or are considered as a neighbor of a cell on this process
-	boost::unordered_set<uint64_t> remote_cells_with_local_neighbors;
+	boost::unordered_set<uint64_t> remote_cells_on_process_boundary;
 
 	/*
-	User defined versions of cells_with_remote_neighbors and remote_cells_with_local_neighbors
+	User defined versions of local_cells_on_process_boundary and remote_cells_on_process_boundary
 	*/
 	boost::unordered_map<
 		int, // user defined id of neighbor lists
 		boost::unordered_set<uint64_t>
-	> user_cells_with_remote_neighbors, user_remote_cells_with_local_neighbors;
+	> user_local_cells_on_process_boundary, user_remote_cells_on_process_boundary;
 
 	// remote neighbors and their data, of cells on this process
 	boost::unordered_map<uint64_t, UserData> remote_neighbors;
@@ -5399,20 +5491,6 @@ private:
 
 	bool balancing_load;
 
-
-	/*!
-	Prepares to move cells between processes with move_cells.
-
-	Sends user data of cells between processes once before move_cells so that
-	the correct mpi datatype can be constructed when actually moving cells.
-
-	Must be called simultaneously on all processes.
-	move_cells must be the next dccrg function to be called after this one.
-	*/
-	void prepare_to_move_cells() {
-		this->continue_balance_load();
-		this->finish_balance_load();
-	}
 
 
 	/*!
@@ -5726,7 +5804,7 @@ private:
 		> unique_cells_to_send, unique_cells_to_receive;
 
 		// calculate new lists for neighbor data updates
-		BOOST_FOREACH(const uint64_t& cell, this->cells_with_remote_neighbors) {
+		BOOST_FOREACH(const uint64_t& cell, this->local_cells_on_process_boundary) {
 
 			#ifdef DEBUG
 			if (cell != this->get_child(cell)) {
@@ -5896,6 +5974,15 @@ private:
 	*/
 	void recalculate_neighbor_update_send_receive_lists(const int id)
 	{
+		#ifdef DEBUG
+		if (this->user_local_cells_on_process_boundary.count(id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// clear previous lists
 		this->user_neigh_cells_to_send[id].clear();
 		this->user_neigh_cells_to_receive[id].clear();
@@ -5905,7 +5992,7 @@ private:
 			user_neigh_unique_receives;
 
 		// calculate new lists for neighbor data updates
-		BOOST_FOREACH(const uint64_t cell, this->cells_with_remote_neighbors) {
+		BOOST_FOREACH(const uint64_t cell, this->user_local_cells_on_process_boundary.at(id)) {
 
 			#ifdef DEBUG
 			if (cell != this->get_child(cell)) {
@@ -5919,7 +6006,7 @@ private:
 			// data must be received from neighbors_of
 			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(id).at(cell)) {
 
-				if (neighbor == 0) {
+				if (neighbor == error_cell) {
 					continue;
 				}
 
@@ -5931,7 +6018,7 @@ private:
 			// data must be sent to neighbors_to
 			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_to.at(id).at(cell)) {
 
-				if (neighbor == 0) {
+				if (neighbor == error_cell) {
 					continue;
 				}
 
@@ -6121,8 +6208,8 @@ private:
 			return;
 		}
 
-		// TODO: also update remote_cells_with_local_neighbors
-		this->cells_with_remote_neighbors.erase(cell);
+		// TODO: also update remote_cells_on_process_boundary
+		this->local_cells_on_process_boundary.erase(cell);
 
 		#ifdef DEBUG
 		if (this->neighbors.count(cell) == 0) {
@@ -6145,7 +6232,7 @@ private:
 		// neighbors of given cell
 		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
 
-			if (neighbor == 0) {
+			if (neighbor == error_cell) {
 				continue;
 			}
 
@@ -6160,10 +6247,11 @@ private:
 			#endif
 
 			if (this->cell_process.at(neighbor) != this->rank) {
-				this->cells_with_remote_neighbors.insert(cell);
-				this->remote_cells_with_local_neighbors.insert(neighbor);
+				this->local_cells_on_process_boundary.insert(cell);
+				this->remote_cells_on_process_boundary.insert(neighbor);
 			}
 		}
+
 		// cells with given cell as neighbor
 		BOOST_FOREACH(const uint64_t& neighbor_to, this->neighbors_to.at(cell)) {
 
@@ -6178,8 +6266,8 @@ private:
 			#endif
 
 			if (this->cell_process.at(neighbor_to) != this->rank) {
-				this->cells_with_remote_neighbors.insert(cell);
-				this->remote_cells_with_local_neighbors.insert(neighbor_to);
+				this->local_cells_on_process_boundary.insert(cell);
+				this->remote_cells_on_process_boundary.insert(neighbor_to);
 			}
 		}
 
@@ -6258,7 +6346,7 @@ private:
 		}
 		#endif
 
-		this->user_cells_with_remote_neighbors.at(id).erase(cell);
+		this->user_local_cells_on_process_boundary.at(id).erase(cell);
 
 		// neighbors of given cell
 		BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(id).at(cell)) {
@@ -6278,10 +6366,11 @@ private:
 			#endif
 
 			if (this->cell_process.at(neighbor) != this->rank) {
-				this->user_cells_with_remote_neighbors.at(id).insert(cell);
-				this->user_remote_cells_with_local_neighbors.at(id).insert(neighbor);
+				this->user_local_cells_on_process_boundary.at(id).insert(cell);
+				this->user_remote_cells_on_process_boundary.at(id).insert(neighbor);
 			}
 		}
+
 		// cells with given cell as neighbor
 		BOOST_FOREACH(const uint64_t& neighbor_to, this->user_neigh_to.at(id).at(cell)) {
 
@@ -6303,8 +6392,8 @@ private:
 			#endif
 
 			if (this->cell_process.at(neighbor_to) != this->rank) {
-				this->user_cells_with_remote_neighbors.at(id).insert(cell);
-				this->user_remote_cells_with_local_neighbors.at(id).insert(neighbor_to);
+				this->user_local_cells_on_process_boundary.at(id).insert(cell);
+				this->user_remote_cells_on_process_boundary.at(id).insert(neighbor_to);
 			}
 		}
 
@@ -6329,8 +6418,8 @@ private:
 	{
 		// TODO this probably can't be optimized without
 		// storing neighbor lists also for remote neighbors
-		this->cells_with_remote_neighbors.clear();
-		this->remote_cells_with_local_neighbors.clear();
+		this->local_cells_on_process_boundary.clear();
+		this->remote_cells_on_process_boundary.clear();
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
@@ -6368,8 +6457,8 @@ private:
 	*/
 	void update_user_remote_neighbor_info(const int id)
 	{
-		this->user_cells_with_remote_neighbors[id].clear();
-		this->user_remote_cells_with_local_neighbors[id].clear();
+		this->user_local_cells_on_process_boundary[id].clear();
+		this->user_remote_cells_on_process_boundary[id].clear();
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
@@ -6606,7 +6695,7 @@ private:
 
 				BOOST_FOREACH(const uint64_t& refined, all_new_refines.at(process)) {
 
-					if (this->remote_cells_with_local_neighbors.count(refined) == 0) {
+					if (this->remote_cells_on_process_boundary.count(refined) == 0) {
 						continue;
 					}
 
@@ -6616,7 +6705,7 @@ private:
 					cell, even faster would be to also store neighbors lists of
 					remote cells with local neighbors
 					*/
-					BOOST_FOREACH(const uint64_t& local, this->cells_with_remote_neighbors) {
+					BOOST_FOREACH(const uint64_t& local, this->local_cells_on_process_boundary) {
 
 						if (this->is_neighbor(local, refined)
 						&& this->get_refinement_level(local) < this->get_refinement_level(refined)
@@ -7087,7 +7176,7 @@ private:
 
 			// without using local neighbor lists figure out rest of the
 			// neighbor lists that need updating
-			if (this->remote_cells_with_local_neighbors.count(refined) > 0) {
+			if (this->remote_cells_on_process_boundary.count(refined) > 0) {
 
 				/*
 				No need to update local neighbors_to of refined cell, if they are larger
@@ -7470,7 +7559,11 @@ private:
 		#endif
 
 		// remove user data of unrefined cells from this->cells
-		for (boost::unordered_set<uint64_t>::const_iterator unrefined = all_to_unrefine.begin(); unrefined != all_to_unrefine.end(); unrefined++) {
+		for (boost::unordered_set<uint64_t>::const_iterator
+			unrefined = all_to_unrefine.begin();
+			unrefined != all_to_unrefine.end();
+			unrefined++
+		) {
 			this->cells.erase(*unrefined);
 		}
 
@@ -7491,7 +7584,7 @@ private:
 
 	For example if the default constructed version of cell data class
 	doesn't return a correct MPI_Datatype when updating remote neighbor
-	data then call this beforehand and use get_remote_neighbors() to
+	data then call this beforehand and use get_remote_neighbors_to() to
 	get a list of cells which you should change.
 	*/
 	void create_copies_of_remote_neighbors()
@@ -9105,8 +9198,8 @@ private:
 	/*!
 	Returns false if remote neighbor info for given cell is inconsistent.
 
-	Remote neighbor info consists of cells_with_remote_neighbors and
-	remote_cells_with_local_neighbors.
+	Remote neighbor info consists of local_cells_on_process_boundary and
+	remote_cells_on_process_boundary.
 	*/
 	bool verify_remote_neighbor_info(const uint64_t cell)
 	{
@@ -9145,24 +9238,24 @@ private:
 
 		BOOST_FOREACH(const uint64_t& neighbor, all_neighbors) {
 
-			if (neighbor == 0) {
+			if (neighbor == error_cell) {
 				continue;
 			}
 
 			if (this->cell_process.at(neighbor) != this->rank) {
 
-				if (this->cells_with_remote_neighbors.count(cell) == 0) {
+				if (this->local_cells_on_process_boundary.count(cell) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Local cell " << cell
-						<< " should be in cells_with_remote_neighbors"
+						<< " should be in local_cells_on_process_boundary"
 						<< std::endl;
 					return false;
 				}
 
-				if (this->remote_cells_with_local_neighbors.count(neighbor) == 0) {
+				if (this->remote_cells_on_process_boundary.count(neighbor) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Remote cell " << neighbor
-						<< " should be in remote_cells_with_local_neighbors"
+						<< " should be in remote_cells_on_process_boundary"
 						<< std::endl;
 					return false;
 				}
@@ -9176,8 +9269,8 @@ private:
 	/*!
 	Returns false if remote neighbor info on this process is inconsistent.
 
-	Remote neighbor info consists of cells_with_remote_neighbors
-	and remote_cells_with_local_neighbors.
+	Remote neighbor info consists of local_cells_on_process_boundary
+	and remote_cells_on_process_boundary.
 	*/
 	bool verify_remote_neighbor_info()
 	{
@@ -9191,7 +9284,7 @@ private:
 				continue;
 			}
 
-			// check whether this cell should be in remote_cells_with_local_neighbors
+			// check whether this cell should be in remote_cells_on_process_boundary
 			if (item->second != this->rank) {
 
 				bool should_be_in_remote_cells = false;
@@ -9215,10 +9308,10 @@ private:
 
 				if (should_be_in_remote_cells) {
 
-					if (this->remote_cells_with_local_neighbors.count(item->first) == 0) {
+					if (this->remote_cells_on_process_boundary.count(item->first) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Remote cell " << item->first
-							<< " should be in remote_cells_with_local_neighbors because:"
+							<< " should be in remote_cells_on_process_boundary because:"
 							<< std::endl;
 
 						BOOST_FOREACH(const cell_and_data_pair_t& cell, this->cells) {
@@ -9241,10 +9334,10 @@ private:
 
 				} else {
 
-					if (this->remote_cells_with_local_neighbors.count(item->first) > 0) {
+					if (this->remote_cells_on_process_boundary.count(item->first) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Remote cell " << item->first
-							<< " should not be in remote_cells_with_local_neighbors"
+							<< " should not be in remote_cells_on_process_boundary"
 							<< std::endl;
 						return false;
 					}
@@ -9305,18 +9398,18 @@ private:
 				}
 
 				if (no_remote_neighbor) {
-					if (this->cells_with_remote_neighbors.count(item->first) > 0) {
+					if (this->local_cells_on_process_boundary.count(item->first) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Local cell " << item->first
-							<< " should not be in cells_with_remote_neighbors"
+							<< " should not be in local_cells_on_process_boundary"
 							<< std::endl;
 						return false;
 					}
 				} else {
-					if (this->cells_with_remote_neighbors.count(item->first) == 0) {
+					if (this->local_cells_on_process_boundary.count(item->first) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Local cell " << item->first
-							<< " should be in cells_with_remote_neighbors"
+							<< " should be in local_cells_on_process_boundary"
 							<< std::endl;
 						return false;
 					}

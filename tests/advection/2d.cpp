@@ -688,7 +688,8 @@ int main(int argc, char* argv[])
 			"Use arg as load balancing method")
 		("balance-n",
 			boost::program_options::value<int>(&balance_n)->default_value(25),
-			"Balance computational load every argth time step (-1 == never balance load)")
+			"Balance computational load every argth time step "
+			"(0 == balance load only at start, -1 == never balance load)")
 		("adapt-n",
 			boost::program_options::value<int>(&adapt_n)->default_value(1),
 			"Check for grid adaptation every argth timestep")
@@ -882,8 +883,9 @@ int main(int argc, char* argv[])
 		cout << "Starting simulation" << endl;
 	}
 
-	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbors();
-	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbor();
+	vector<uint64_t>
+		inner_cells = grid.get_local_cells_not_on_process_boundary(),
+		outer_cells = grid.get_local_cells_on_process_boundary();
 
 	// record solution time for inner cells and amount of neighbor data received
 	double inner_solve_time = 0, outer_solve_time = 0, neighbor_receive_size = 0;
@@ -974,8 +976,8 @@ int main(int argc, char* argv[])
 			created_cells += adapted_cells.first;
 			removed_cells += adapted_cells.second;
 
-			inner_cells = grid.get_cells_with_local_neighbors();
-			outer_cells = grid.get_cells_with_remote_neighbor();
+			inner_cells = grid.get_local_cells_not_on_process_boundary();
+			outer_cells = grid.get_local_cells_on_process_boundary();
 
 			// update maximum allowed time step
 			dt = get_max_time_step(comm, grid);
@@ -993,8 +995,8 @@ int main(int argc, char* argv[])
 
 			grid.balance_load();
 
-			inner_cells = grid.get_cells_with_local_neighbors();
-			outer_cells = grid.get_cells_with_remote_neighbor();
+			inner_cells = grid.get_local_cells_not_on_process_boundary();
+			outer_cells = grid.get_local_cells_on_process_boundary();
 		}
 
 		step++;

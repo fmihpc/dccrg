@@ -55,35 +55,40 @@ public:
 		this->rhs = this->solution = 0;
 	}
 
-	// rhs is b and solution is x in the equation A . x = b
-	double rhs, solution;
+	double
+		// rhs is b and solution is x in the equation A . x = b
+		rhs, solution,
 
-	/*
-	Same variables are used as in 2.7.6 of numerical recipes
-	with the modification that bold r is r0 and bold r with
-	dash on top is r1; same for p.
-	*/
-	double p0, p1, r0, r1;
+		// saved solution whenever minimum residual obtained
+		best_solution,
 
-	/*
-	The recurrence in numerical recipes does A . p0 two times,
-	this variable caches the result from first to save CPU time.
-	*/
-	double A_dot_p0;
+		/*
+		Same variables are used as in 2.7.6 of numerical recipes
+		with the modification that bold r is r0 and bold r with
+		dash on top is r1; same for p.
+		*/
+		p0, p1, r0, r1,
 
-	/*
-	Factor by which solution variables in this cell are scaled
-	so that diagonal of matrix A has only ones
-	*/
-	double scaling_factor;
+		/*
+		The recurrence in numerical recipes does A . p0 two times,
+		this variable caches the result from first to save CPU time.
+		*/
+		A_dot_p0,
 
-	/*
-	Factors that data in neighboring cells is multiplied with
-	when calculating A . i for each local cell where i = p0, p1.
-	The neighbors' factors are used when calculating traspose(A) . i.
-	One factor per direction.
-	*/
-	double f_x_pos, f_x_neg, f_y_pos, f_y_neg, f_z_pos, f_z_neg;
+		/*
+		Factor by which solution variables in this cell are scaled
+		so that diagonal of matrix A has only ones
+		*/
+		scaling_factor,
+
+		/*
+		Factors that data in neighboring cells is multiplied with
+		when calculating A . i for each local cell where i = p0, p1.
+		The neighbors' factors are used when calculating traspose(A) . i.
+		One factor per direction.
+		*/
+		f_x_pos, f_x_neg, f_y_pos, f_y_neg, f_z_pos, f_z_neg;
+
 
 	/*
 	Decides which data to transfer over MPI.
@@ -152,7 +157,6 @@ public:
 		this->max_iterations = 1000;
 		this->stop_residual = 1e-15;
 		this->p_of_norm = 2;
-		this->adaptive_stop_residual = true;
 	};
 
 	/*!
@@ -160,21 +164,15 @@ public:
 
 	When solving no more than given_max_iterations iterations will be done.
 	Solving will stop if the p-norm of the solution is below given_stop_residual.
-	If given_adaptive_... is true and the residual starts growing too much
-	a new solution will be attempted with its initial guess as 0 everywhere
-	and a higher stop_residual than the minimum achieved from the first try.
-	Too much is 100x the minimum that was achieved on the first try.
 	*/
 	Poisson_Solve(
 		const unsigned int given_max_iterations,
 		const double given_stop_residual,
-		const double given_p_of_norm,
-		const bool given_adaptive_stop_residual
+		const double given_p_of_norm
 	) {
 		this->max_iterations = given_max_iterations;
 		this->stop_residual = given_stop_residual;
 		this->p_of_norm = given_p_of_norm;
-		this->adaptive_stop_residual = given_adaptive_stop_residual;
 	};
 
 
@@ -272,6 +270,10 @@ public:
 	cells haven't changed processes, ...) then cache_is_up_to_date
 	can be set to true in which case the caching/preparation step will be
 	skipped speeding up this function.
+
+	If the residual increases to 10x its minimum value while solving
+	the last solution will be replaced with the one for which
+	the residual was smallest and this function will return.
 	*/
 	template<class Geometry> void solve(
 		/* TODO: overlap computation with communication
@@ -297,9 +299,7 @@ public:
 		initialize_solver(grid);
 
 		double
-			// stopping residual during this function call
-			current_stop_residual = this->stop_residual,
-			// minimum residual reached for trying a second time
+			// minimum residual reached while solving
 			residual_min = std::numeric_limits<double>::max(),
 			// local and global values of r0 . r1
 			dot_r_l = 0,
@@ -397,30 +397,42 @@ public:
 				data->solution += alpha * data->p0;
 			}
 
-			// get residual and decide what to do
+
+			// update residual, etc.
 			const double residual = this->get_residual();
-			if (residual <= current_stop_residual) {
+			if (residual <= this->stop_residual) {
 				break;
 			}
+			// save solution if at minimum residual so far
 			if (residual_min > residual) {
 				residual_min = residual;
-			}
-
-			// restart if solution seems to have exploded
-			if (this->adaptive_stop_residual && residual >= 100 * residual_min) {
-
-				iteration = 0;
-				current_stop_residual = 1.5 * residual_min;
-				residual_min = std::numeric_limits<double>::max();
 
 				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 					Poisson_Cell* data = info.first;
-					data->solution = 0;
+					if (data == NULL) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " No data for cell."
+							<< std::endl;
+						abort();
+					}
+
+					data->best_solution = data->solution;
+				}
+			}
+			if (residual > 10 * residual_min) {
+				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+					Poisson_Cell* data = info.first;
+					if (data == NULL) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " No data for cell."
+							<< std::endl;
+						abort();
+					}
+
+					data->solution = data->best_solution;
 				}
 
-				dot_r_g = initialize_solver(grid);
-
-				continue;
+				break;
 			}
 
 
@@ -518,7 +530,7 @@ public:
 		} while (iteration < this->max_iterations);
 
 		if (this->comm_rank == 0) {
-			//std::cout << "iterations: " << iteration << ", residual: " << residual << std::endl;
+			//std::cout << "iterations: " << iteration << ", residual: " << residual_min << std::endl;
 		}
 
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
@@ -551,8 +563,6 @@ private:
 
 	// p to use when calculating the residual as a p-norm
 	double p_of_norm;
-
-	bool adaptive_stop_residual;
 
 	// cached and grid agnostic form of the system to solve
 	std::vector<cell_info_t> cell_info;

@@ -1151,8 +1151,8 @@ int main(int argc, char* argv[])
 		cout << "Starting simulation" << endl;
 	}
 
-	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbors(NEIGHBORHOOD_ID);
-	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbor(NEIGHBORHOOD_ID);
+	vector<uint64_t> inner_cells = grid.get_local_cells_not_on_process_boundary(NEIGHBORHOOD_ID);
+	vector<uint64_t> outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 
 	// record solution time for inner cells and amount of neighbor data received
 	double inner_solve_time = 0, outer_solve_time = 0, neighbor_receive_size = 0;
@@ -1243,8 +1243,8 @@ int main(int argc, char* argv[])
 			created_cells += adapted_cells.first;
 			removed_cells += adapted_cells.second;
 
-			inner_cells = grid.get_cells_with_local_neighbors(NEIGHBORHOOD_ID);
-			outer_cells = grid.get_cells_with_remote_neighbor(NEIGHBORHOOD_ID);
+			inner_cells = grid.get_local_cells_not_on_process_boundary(NEIGHBORHOOD_ID);
+			outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 
 			// update maximum allowed time step
 			dt = get_max_time_step(comm, grid);
@@ -1262,8 +1262,8 @@ int main(int argc, char* argv[])
 
 			grid.balance_load();
 
-			inner_cells = grid.get_cells_with_local_neighbors(NEIGHBORHOOD_ID);
-			outer_cells = grid.get_cells_with_remote_neighbor(NEIGHBORHOOD_ID);
+			inner_cells = grid.get_local_cells_not_on_process_boundary(NEIGHBORHOOD_ID);
+			outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 		}
 
 		step++;

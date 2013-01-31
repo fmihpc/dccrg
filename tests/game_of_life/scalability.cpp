@@ -94,17 +94,17 @@ int main(int argc, char* argv[])
 	game_grid.balance_load();
 	comm.barrier();
 
-	vector<uint64_t> cells_with_local_neighbors = game_grid.get_cells_with_local_neighbors();
-	vector<uint64_t> cells_with_remote_neighbor = game_grid.get_cells_with_remote_neighbor();
+	vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();
+	vector<uint64_t> outer_cells = game_grid.get_local_cells_on_process_boundary();
 	cout << "Process " << comm.rank()
-		<< ": number of cells with local neighbors: " << cells_with_local_neighbors.size()
-		<< ", number of cells with a remote neighbor: " << cells_with_remote_neighbor.size()
+		<< ": number of cells with local neighbors: " << inner_cells.size()
+		<< ", number of cells with a remote neighbor: " << outer_cells.size()
 		<< endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
 	for (vector<uint64_t>::const_iterator
-		cell = cells_with_local_neighbors.begin();
-		cell != cells_with_local_neighbors.end();
+		cell = inner_cells.begin();
+		cell != inner_cells.end();
 		cell++
 	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -130,8 +130,8 @@ int main(int argc, char* argv[])
 		}
 	}
 	for (vector<uint64_t>::const_iterator
-		cell = cells_with_remote_neighbor.begin();
-		cell != cells_with_remote_neighbor.end();
+		cell = outer_cells.begin();
+		cell != outer_cells.end();
 		cell++
 	) {
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -176,8 +176,8 @@ int main(int argc, char* argv[])
 		doesn't come from other processes
 		*/
 		for (vector<uint64_t>::const_iterator
-			cell = cells_with_local_neighbors.begin();
-			cell != cells_with_local_neighbors.end();
+			cell = inner_cells.begin();
+			cell != inner_cells.end();
 			cell++
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -213,8 +213,8 @@ int main(int argc, char* argv[])
 		// wait for neighbor data updates to this process to finish and go through the rest of the cells
 		game_grid.wait_neighbor_data_update_receives();
 		for (vector<uint64_t>::const_iterator
-			cell = cells_with_remote_neighbor.begin();
-			cell != cells_with_remote_neighbor.end();
+			cell = outer_cells.begin();
+			cell != outer_cells.end();
 			cell++
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -254,8 +254,8 @@ int main(int argc, char* argv[])
 
 		// calculate the next turn
 		for (vector<uint64_t>::const_iterator
-			cell = cells_with_local_neighbors.begin();
-			cell != cells_with_local_neighbors.end();
+			cell = inner_cells.begin();
+			cell != inner_cells.end();
 			cell++
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -275,8 +275,8 @@ int main(int argc, char* argv[])
 			#endif
 		}
 		for (vector<uint64_t>::const_iterator
-			cell = cells_with_remote_neighbor.begin();
-			cell != cells_with_remote_neighbor.end();
+			cell = outer_cells.begin();
+			cell != outer_cells.end();
 			cell++
 		) {
 			game_of_life_cell* cell_data = game_grid[*cell];
@@ -303,7 +303,7 @@ int main(int argc, char* argv[])
 	}
 	comm.barrier();
 
-	int number_of_cells = cells_with_local_neighbors.size() + cells_with_remote_neighbor.size();
+	int number_of_cells = inner_cells.size() + outer_cells.size();
 	cout << "Process " << comm.rank()
 		<< ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of "
 		<< double(number_of_cells * TIME_STEPS) / total << " cells / second"

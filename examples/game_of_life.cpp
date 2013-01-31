@@ -125,11 +125,11 @@ int main(int argc, char* argv[])
 	To make the game scale better, separate local cells into those without even one neighbor on another process and those that do.
 	While updating cell data between processes, start calculating the next turn for cells which don't have neighbors on other processes
 	*/
-	vector<uint64_t> cells_with_local_neighbors = game_grid.get_cells_with_local_neighbors();
-	vector<uint64_t> cells_with_remote_neighbor = game_grid.get_cells_with_remote_neighbor();
+	vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();
+	vector<uint64_t> outer_cells = game_grid.get_local_cells_on_process_boundary();
 
-	initialize_game(&cells_with_local_neighbors, &game_grid);
-	initialize_game(&cells_with_remote_neighbor, &game_grid);
+	initialize_game(&inner_cells, &game_grid);
+	initialize_game(&outer_cells, &game_grid);
 
 
 	// time the game to examine its scalability
@@ -139,15 +139,15 @@ int main(int argc, char* argv[])
 
 		// start updating cell data from other processes and calculate the next turn for cells without neighbors on other processes in the meantime
 		game_grid.start_remote_neighbor_data_update();
-		get_live_neighbor_counts(&cells_with_local_neighbors, &game_grid);
+		get_live_neighbor_counts(&inner_cells, &game_grid);
 
 		// wait for neighbor data updates to finish and the calculate the next turn for rest of the cells on this process
 		game_grid.wait_neighbor_data_update();
-		get_live_neighbor_counts(&cells_with_remote_neighbor, &game_grid);
+		get_live_neighbor_counts(&outer_cells, &game_grid);
 
 		// update the state of life for all local cells
-		apply_rules(&cells_with_local_neighbors, &game_grid);
-		apply_rules(&cells_with_remote_neighbor, &game_grid);
+		apply_rules(&inner_cells, &game_grid);
+		apply_rules(&outer_cells, &game_grid);
 	}
 	time_t after = time(NULL);
 
@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
 	double
 		total_time = double(after - before),
 		total_cells
-			= double(TURNS * (cells_with_local_neighbors.size() + cells_with_remote_neighbor.size())),
+			= double(TURNS * (inner_cells.size() + outer_cells.size())),
 		min_speed = all_reduce(comm, total_cells / total_time, minimum<double>()),
 		max_speed = all_reduce(comm, total_cells / total_time, maximum<double>()),
 		avg_speed = all_reduce(comm, total_cells / total_time, plus<double>()) / comm.size(),
@@ -174,5 +174,5 @@ int main(int argc, char* argv[])
 		cout << "Average total playing speed " << avg_global_speed << " cells / s" << endl;
 	}
 
-	return game_grid[cells_with_local_neighbors[0]]->is_alive;
+	return game_grid[inner_cells[0]]->is_alive;
 }

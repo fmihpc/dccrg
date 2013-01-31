@@ -54,7 +54,7 @@ void propagate_particles(Dccrg<Cell>& grid) {
 	// propagate particles in local cells and copies of remote neighbors
 	vector<uint64_t> cells = grid.get_cells();
 	const boost::unordered_set<uint64_t>& remote_neighbors
-		= grid.get_remote_cells_with_local_neighbors_internal();
+		= grid.get_remote_cells_on_process_boundary_internal();
 	cells.insert(cells.begin(), remote_neighbors.begin(), remote_neighbors.end());
 
 	BOOST_FOREACH(const uint64_t& cell, cells) {
@@ -314,7 +314,7 @@ int main(int argc, char* argv[])
 		grid.update_remote_neighbor_data();
 
 		const boost::unordered_set<uint64_t>& remote_neighbors
-			= grid.get_remote_cells_with_local_neighbors_internal();
+			= grid.get_remote_cells_on_process_boundary_internal();
 
 		BOOST_FOREACH(uint64_t remote_neighbor, remote_neighbors) {
 			Cell* data = grid[remote_neighbor];

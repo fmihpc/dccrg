@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Poisson_Solve solver(10, 1e-5, 2, true);
+		Poisson_Solve solver(10, 1e-5, 2);
 		dccrg::Dccrg<Poisson_Cell, dccrg::Stretched_Cartesian_Geometry> grid_stretched;
 		dccrg::Dccrg<Poisson_Cell> grid_reference;
 
@@ -275,7 +275,7 @@ int main(int argc, char* argv[])
 			norm_stretched = get_p_norm(cells, grid_stretched, p_of_norm, 0),
 			norm_reference = get_p_norm(cells, grid_reference, p_of_norm, 0);
 
-		if (number_of_cells == 32
+		if (number_of_cells == 8
 		&& norm_stretched > norm_reference) {
 			success = 1;
 			if (comm.rank() == 0) {

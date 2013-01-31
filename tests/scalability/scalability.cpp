@@ -219,8 +219,8 @@ int main(int argc, char* argv[])
 	grid.initialize(comm, load_balancer.c_str(), neighborhood_size, maximum_refinement_level);
 	grid.balance_load();
 
-	vector<uint64_t> inner_cells = grid.get_cells_with_local_neighbors();
-	vector<uint64_t> outer_cells = grid.get_cells_with_remote_neighbor();
+	vector<uint64_t> inner_cells = grid.get_local_cells_not_on_process_boundary();
+	vector<uint64_t> outer_cells = grid.get_local_cells_on_process_boundary();
 
 	double total_solution_time = 0;
 	double sends_size = 0, receives_size = 0;
