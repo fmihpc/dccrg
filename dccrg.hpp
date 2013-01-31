@@ -4551,6 +4551,7 @@ public:
 		const bool have_remote_neighbors_to,
 		const bool sorted = false
 	) const {
+		...
 	}
 	*/
 
