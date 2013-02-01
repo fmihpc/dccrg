@@ -27,10 +27,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 namespace dccrg {
 
-// Indicates a non-existing cell or an error when dealing with cells
+//! Indicates a non-existing cell or an error when dealing with cells
 static const uint64_t error_cell = 0;
 
-// Indicates a non-existing index or an error when dealing with indices
+//! Indicates a non-existing index or an error when dealing with indices
 static const uint64_t error_index = std::numeric_limits<uint64_t>::max();
 
 

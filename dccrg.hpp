@@ -83,8 +83,11 @@ template <
 
 public:
 
-	// helper type for iterating over this->cells using BOOST_FOREACH
+	//! helper type for iterating over local cells and their data using BOOST_FOREACH
 	typedef typename std::pair<const uint64_t&, const UserData&> cell_and_data_pair_t;
+
+	//! id of the default neighborhood created when dccrg is initialized
+	static const int default_neighborhood_id = -0xdcc;
 
 
 	/*!
@@ -2747,6 +2750,21 @@ public:
 		} else {
 			return NULL;
 		}
+	}
+
+
+	/*!
+	Returns cells which share a face with the given cell.
+
+	Only those cells are returned which are considered as neighbors
+	by given cell.
+
+	\see default_neighborhood_id
+	*/
+	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
+	) const {
 	}
 
 
