@@ -1,6 +1,6 @@
 # use -fno-builtin-sprintf to avoid warning about gnu specific formatting in sprintf by boost lexical_cast
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -fno-builtin-sprintf
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
+INCLUDES = -I../.. -I../advection -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
 CXX = mpic++ $(FLAGS)
 
 PROGRAMS = neighbor_list_length game_of_life advection
@@ -8,7 +8,16 @@ PROGRAMS = neighbor_list_length game_of_life advection
 HEADERS = \
 	../../dccrg.hpp \
 	../../dccrg_index.hpp \
-	../../dccrg_cartesian_geometry.hpp
+	../../dccrg_cartesian_geometry.hpp \
+	../advection/adapter.hpp \
+	../advection/cell.hpp \
+	../advection/initialize.hpp \
+	../advection/save.hpp \
+	../advection/solve.hpp \
+	../game_of_life/cell.hpp \
+	../game_of_life/initialize.hpp \
+	../game_of_life/save.hpp \
+	../game_of_life/solve.hpp
 
 all: $(PROGRAMS)
 
@@ -19,7 +28,7 @@ game_of_life: game_of_life.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG game_of_life.cpp $(INCLUDES) -o game_of_life
 
 advection: advection.cpp $(HEADERS) ../advection/cell.hpp ../advection/save.hpp Makefile
-	$(CXX) -DDEBUG advection.cpp $(INCLUDES) -o advection
+	$(CXX) advection.cpp $(INCLUDES) -o advection
 
 d: data
 data:

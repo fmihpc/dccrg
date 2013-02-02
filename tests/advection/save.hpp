@@ -16,35 +16,36 @@ You should have received a copy of the GNU Lesser General Public License
 along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SAVE_HPP
-#define SAVE_HPP
+#ifndef DCCRG_ADVECTION_SAVE_HPP
+#define DCCRG_ADVECTION_SAVE_HPP
+
 
 #include "boost/mpi.hpp"
 #include "cstring"
 #include "string"
 #include "vector"
 
-#define DCCRG_CELL_DATA_SIZE_FROM_USER
-#include "../../dccrg.hpp"
+#include "dccrg.hpp"
+
 
 /*!
-Class for saving advection test data in a file.
+Saves the given simulation as a .dc file of the given name.
+
+Returns the number of bytes written by this process.
+Must be called simultaneously by all processes.
 */
-template<class CellData> class Save
+class Save
 {
 
 public:
 
-	/*!
-	Saves the given simulation as a .dc file of the given name.
-
-	Returns the number of bytes written by this process.
-	Must be called simultaneously by all processes.
-	*/
-	static size_t save(
+	template<
+		class CellData,
+		class Geometry
+	> size_t operator()(
 		const std::string& filename,
 		MPI_Comm& comm,
-		const dccrg::Dccrg<CellData>& grid
+		const dccrg::Dccrg<CellData, Geometry>& grid
 	) {
 		int rank = 0, comm_size = 0;
 		MPI_Comm_rank(comm, &rank);
@@ -268,7 +269,7 @@ public:
 		return offset;
 	}
 
-};	// class
+};	// class Save
 
 #endif
 

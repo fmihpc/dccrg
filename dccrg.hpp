@@ -41,7 +41,6 @@ for more advanced usage of dccrg.
 #include "boost/unordered_set.hpp"
 #include "cstdio"
 #include "cstdlib"
-#include "cstring"
 #include "fstream"
 #include "functional"
 #include "limits"
@@ -362,13 +361,6 @@ public:
 		Zoltan_Set_Param(this->zoltan, "HIER_CHECKS", "0");
 		Zoltan_Set_Param(this->zoltan, "LB_METHOD", load_balancing_method);
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
-
-
-		// size of cells id in unsigned ints, but has to be 1 even when
-		// global id is uint64_t, for some reason
-		/*char global_id_length_string[10];
-		snprintf(global_id_length_string, 10, "%0i",
-			int(sizeof(uint64_t) / sizeof(unsigned int)));*/
 
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(
@@ -2758,13 +2750,174 @@ public:
 
 	Only those cells are returned which are considered as neighbors
 	by given cell.
+	Uses the default neighborhood.
+	Does not return error_cell as a face neighbor.
+	Returns nothing in the same cases as get_neighbors(uint64_t).
 
+	uint64_t == neighbor id, int == neighbor direction.
+	Directions are +N or -N where N is the Nth dimension and
+	+ means positive direction and - negative in that dimension,
+	e.g. +1 is positive x direction, -3 negative z.
+
+	TODO:
+	By default uses neighborhood with which this dccrg was initialized,
 	\see default_neighborhood_id
 	*/
 	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
-		const uint64_t cell,
-		const int neighborhood_id = default_neighborhood_id
+		const uint64_t cell/*,
+		const int neighborhood_id = default_neighborhood_id*/
 	) const {
+		std::vector<std::pair<uint64_t, int> > ret_val;
+
+		if (this->cells.count(cell) == 0) {
+			return ret_val;
+		}
+
+		// get location of face neighbors' offsets in neighborhood_of
+		boost::array<size_t, 2 * 3> neighborhood_of_indices = {{0, 0, 0, 0, 0, 0}};
+		for (int direction = -1; direction <= 1; direction += 2)
+		for (size_t dimension = 0; dimension < 3; dimension++) {
+
+			// neigh_of_indices[n] == negative direction in dimension n,
+			// n + 1 positive direction
+			const size_t neigh_of_indices_index
+				= 2 * dimension + ((direction > 0) ? 1 : 0);
+
+			for (size_t i = 0; i <= this->neighborhood_of.size(); i++) {
+				if (i == this->neighborhood_of.size()) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighborhood_of offsets not found for face neighbors in dimension: "
+						<< dimension << ", direction: " << direction
+						<< std::endl;
+					abort();
+				}
+
+				bool found = true;
+				for (size_t other_dims = 0; other_dims < 3; other_dims++) {
+					if (other_dims != dimension
+					&& this->neighborhood_of[i][other_dims] != 0) {
+						found = false;
+						break;
+					}
+				}
+
+				if (this->neighborhood_of[i][dimension] != direction) {
+					found = false;
+				}
+
+				if (found) {
+					neighborhood_of_indices[neigh_of_indices_index] = i;
+					break;
+				}
+			}
+		}
+
+		// gather cells in given cell's neighbor_of list at indices found above
+		boost::array<size_t, 2 * 3> current_index = {{0, 0, 0, 0, 0, 0}};
+		const int refinement_level = this->get_refinement_level(cell);
+
+		for (size_t
+			neighbor_i = 0;
+			neighbor_i < this->neighbors.at(cell).size();
+			neighbor_i++
+		) {
+
+			const uint64_t neighbor = this->neighbors.at(cell)[neighbor_i];
+
+			if (neighbor == error_cell) {
+				for (size_t i = 0; i < current_index.size(); i++) {
+					current_index[i]++;
+				}
+				continue;
+			}
+
+			const int neigh_ref_lvl = this->get_refinement_level(neighbor);
+
+			for (int direction = -1; direction <= 1; direction += 2)
+			for (size_t dimension = 0; dimension < 3; dimension++) {
+
+				// neigh_of_indices[n] == negative direction, n + 1 positive
+				const size_t neigh_of_indices_index
+					= 2 * dimension + ((direction > 0) ? 1 : 0);
+
+				// at correct index in neighbors_of for current dim & dir
+				if (current_index[neigh_of_indices_index]
+				== neighborhood_of_indices[neigh_of_indices_index]) {
+
+					int final_dir = int(dimension) + 1;
+					if (direction < 0) {
+						final_dir *= -1;
+					}
+
+					// add one neighbor not smaller than given cell
+					if (neigh_ref_lvl <= refinement_level) {
+
+						ret_val.push_back(std::make_pair(neighbor, final_dir));
+
+					// add only face neighbors in current dim & dir
+					} else {
+
+						const uint64_t neighs_in_offset = uint64_t(1) << 3;
+
+						#ifdef DEBUG
+						if (this->neighbors.at(cell).size() < neighbor_i + neighs_in_offset) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " Invalid number of neighbors for cell " << cell
+								<< " while processing dimension " << dimension
+								<< " and direction " << direction
+								<< " starting at index " << neighbor_i
+								<< std::endl;
+							abort();
+						}
+						#endif
+
+						// see find_neighbors_of(...) for the order of these
+						const std::vector<uint64_t> dir_neighs(
+							this->neighbors.at(cell).begin() + neighbor_i,
+							this->neighbors.at(cell).begin() + neighbor_i + neighs_in_offset
+						);
+
+						// neighbor at offset    0, 1, 2, 3, 4, 5, 6, 7 is
+						// face neighbor of given cell when neighbors are in
+						// dim = 0, dir = -1      , y,  , y,  , y,  , y
+						// dim = 0, dir = +1     y,  , y,  , y,  , y,
+						// dim = 1, dir = -1      ,  , y, y,  ,  , y, y
+						// dim = 1, dir = +1     y, y,  ,  , y, y,  ,
+						// dim = 2, dir = -1      ,  ,  ,  , y, y, y, y
+						// dim = 2, dir = +1     y, y, y, y,  ,  ,  ,
+						const size_t
+							batch_size = size_t(1) << dimension,
+							mod_target = (direction < 0) ? 1 : 0;
+
+						for (size_t i = 0; i < neighs_in_offset; i++) {
+
+							#ifdef DEBUG
+							if (dir_neighs[i] == error_cell) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " Invalid neighbor of cell " << cell
+								<< " at index " << neighbor_i + i
+								<< std::endl;
+							abort();
+							}
+							#endif
+
+							if ((i / batch_size) % 2 == mod_target) {
+								ret_val.push_back(std::make_pair(dir_neighs[i], final_dir));
+							}
+						}
+					}
+				}
+
+				current_index[neigh_of_indices_index]++;
+			}
+
+			// skip all cells in this neighborhood offset
+			if (neigh_ref_lvl > refinement_level) {
+				neighbor_i += 7;
+			}
+		}
+
+		return ret_val;
 	}
 
 
@@ -3532,6 +3685,13 @@ public:
 	Returns nothing if the following cases:
 		- given cell has children
 		- given doesn't exist
+
+	Cells smaller than given one at any offset are returned in the order in which
+	neighbors' index increases first in x, then in y, ...
+	In other words the first small cell within an neighborhood offset is
+	closest to the origin of the grid, the second one is in direction +1
+	from the first, 3rd is in dir +2 from 1st, 4th is in +1 from 3rd, +2 from 2nd,
+	8th is +3 from 4th, +2 from 6th, +1 from 7th, assuming max_ref_lvl_diff == 1
 	*/
 	// TODO: make private?
 	std::vector<uint64_t> find_neighbors_of(
