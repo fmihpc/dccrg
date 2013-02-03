@@ -28,7 +28,6 @@ HEADERS = \
 	../../dccrg_index.hpp \
 	../../dccrg_stretched_cartesian_geometry.hpp \
 	../../dccrg_cartesian_geometry.hpp \
-	../advection/grid_support.hpp \
 	poisson_solve.hpp \
 	reference_poisson_solve.hpp
 
