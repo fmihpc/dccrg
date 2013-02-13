@@ -2264,41 +2264,40 @@ public:
 
 
 	/*!
-	Updates the user data of neighboring cells between processes.
+	Updates the cell data of neighboring cells between processes.
 
-	User data of any local cell which is considered as a neighbor
-	to a cell on another process is sent to that process.
-	User data of any cell that is considered as a neighbor of a
-	cell on this process is received from the other process.
-	Cells' user data is only sent to / received from a process once.
-	Must be called simultaneously on all processes
+	Cell data of any local cell that a cell on another process
+	considers as a neighbor is sent to that process.
+	Cell data of any cell on another process that a local cell
+	considers as a neighbor is received from that process.
+	Afterwards a copy of the remote cells' data is available
+	through operator[].
+
+	Data of any cell is only exchanged between any two processes
+	once, even if a cell the neighbor of more than one cell on
+	another process.
+
+	The decision of which cells are neighbors is controlled by
+	the neighborhood. By default the neighborhood with which
+	this instance of dccrg was initialized is used.
+
+	Returns true if successful and false otherwise (on one or more
+	processes), for example if a neighborhood with the given id
+	has not been set.
+
+	Must be called simultaneously on all processes and with
+	identical neigbhorhood_id.
+	Must not be called while load balancing is underway.
+
+	\see
+	start_remote_neighbor_data_updates()
+	add_remote_update_neighborhood()
+	get_remote_cells_on_process_boundary()
+	set_send_single_cells()
 	*/
-	void update_remote_neighbor_data()
-	{
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " update_remote_neighbor_data() called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		this->start_remote_neighbor_data_update();
-		this->wait_neighbor_data_update();
-	}
-
-	/*!
-	Same as the version without id but uses the given neighborhood.
-
-	Must be called with the same id by all processes.
-	Can be used to transfer the cell data of less number of cells
-	between processes than the full neighborhood would.
-	add_remote_update_neighborhood must be used once prior to
-	calling this with the same id in order to create the reduced
-	neighborhood.
-	Does nothing in case a neighborhood with given id doesn't exist.
-	*/
-	void update_remote_neighbor_data(const int id)
-	{
+	bool update_remote_neighbor_data(
+		const int neighborhood_id = default_neighborhood_id
+	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " update_remote_neighbor_data(...) called while balancing load"
@@ -2306,41 +2305,36 @@ public:
 			abort();
 		}
 
-		this->start_remote_neighbor_data_update(id);
-		this->wait_neighbor_data_update(id);
-	}
+		bool ret_val = true;
 
-
-	/*!
-	Starts the update of neighbor data between processes, returns immediately.
-
-	Must be called simultaneously on all processes
-	*/
-	void start_remote_neighbor_data_update()
-	{
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " start_remote_neighbor_data_update() called while balancing load"
-				<< std::endl;
-			abort();
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			ret_val = false;
 		}
 
-		this->start_user_data_transfers(
-			this->remote_neighbors,
-			this->cells_to_receive,
-			this->cells_to_send
-		);
+		if (!this->start_remote_neighbor_data_updates(neighborhood_id)) {
+			ret_val = false;
+		}
+
+		if (!this->wait_neighbor_data_updates(neighborhood_id)) {
+			ret_val = false;
+		}
+
+		return ret_val;
 	}
 
-	/*!
-	Same as the version without id but uses the given neighborhood.
 
-	add_remote_update_neighborhood must been used once with the
-	same id prior to calling this.
-	Does nothing in case a neighborhood with given id doesn't exist.
+	/*!
+	An asynchronous version of update_remote_neighbor_data().
+
+	Starts remote neighbor data updates and returns immediately.
+
+	\see
+	update_remote_neighbor_data()
+	wait_neighbor_data_updates()
 	*/
-	void start_remote_neighbor_data_update(const int id)
-	{
+	bool start_remote_neighbor_data_updates(
+		const int neighborhood_id = default_neighborhood_id
+	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " start_remote_neighbor_data_update(...) called while balancing load"
@@ -2348,125 +2342,129 @@ public:
 			abort();
 		}
 
-		if (this->user_hood_of.count(id) == 0) {
+		bool ret_val = true;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->start_user_data_transfers(
+				this->remote_neighbors,
+				this->cells_to_receive,
+				this->cells_to_send
+			);
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
 
 			#ifdef DEBUG
-			if (this->user_hood_to.count(id) > 0) {
+			if (this->user_hood_to.count(neighborhood_id) > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << id
+					<< " Should not have id " << neighborhood_id
 					<< std::endl;
 				abort();
 			}
 
-			if (this->user_neigh_of.count(id) > 0) {
+			if (this->user_neigh_of.count(neighborhood_id) > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << id
+					<< " Should not have id " << neighborhood_id
 					<< std::endl;
 				abort();
 			}
 
-			if (this->user_neigh_to.count(id) > 0) {
+			if (this->user_neigh_to.count(neighborhood_id) > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << id
+					<< " Should not have id " << neighborhood_id
 					<< std::endl;
 				abort();
 			}
 			#endif
 
-			return;
+			ret_val = false;
 		}
 
 		#ifdef DEBUG
-		if (this->user_hood_to.count(id) == 0) {
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << id
+				<< " Should have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_of.count(id) == 0) {
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << id
+				<< " Should have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_to.count(id) == 0) {
+		if (this->user_neigh_to.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << id
+				<< " Should have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_cells_to_send.count(id) == 0) {
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << id
+				<< " Should have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_cells_to_receive.count(id) == 0) {
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << id
+				<< " Should have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 		#endif
 
-		this->start_user_data_transfers(
+		if (!this->start_user_data_transfers(
 			this->remote_neighbors,
-			this->user_neigh_cells_to_receive.at(id),
-			this->user_neigh_cells_to_send.at(id)
-		);
+			this->user_neigh_cells_to_receive.at(neighborhood_id),
+			this->user_neigh_cells_to_send.at(neighborhood_id)
+		)) {
+			ret_val = false;
+		}
+
+		return ret_val;
 	}
 
 
 	/*!
-	Waits for remote neighbor data transfers to/from this process to complete.
+	Finishes what start_remote_neighbor_data_update() started.
 
-	Must be called simultaneously on all processes.
+	\see
+	start_remote_neighbor_data_updates()
 	*/
-	void wait_neighbor_data_update()
-	{
+	bool wait_neighbor_data_updates(
+		const int neighborhood_id = default_neighborhood_id
+	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_neighbor_data_update() called while balancing load"
+				<< " wait_neighbor_data_updates(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
 
-		this->wait_neighbor_data_update_receives();
-		this->wait_neighbor_data_update_sends();
-	}
+		bool ret_val = true;
 
-	/*!
-	Same as the version without id but uses the given neighborhood.
-
-	Does nothing if neighborhood with given id doesn't exist.
-	*/
-	void wait_neighbor_data_update(const int id)
-	{
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_neighbor_data_update(...) called while balancing load"
-				<< std::endl;
-			abort();
+		if (!this->wait_neighbor_data_update_receives(neighborhood_id)) {
+			ret_val = false;
+		}
+		if (!this->wait_neighbor_data_update_sends()) {
+			ret_val = false;
 		}
 
-		this->wait_neighbor_data_update_receives(id);
-		this->wait_neighbor_data_update_sends();
+		return ret_val;
 	}
 
 
 	/*!
-	Waits for remote neighbor data transfers to other processes to complete.
+	Waits for sends started by start_remote_neighbor_data_updates().
 
-	Waits until all sends associated with neighbor data update transfers
-	between processes have completed.
-	Must be called simultaneously on all processes and probably must be
-	called after wait...update_receives().
+	\see
+	start_remote_neighbor_data_updates()
 	*/
-	void wait_neighbor_data_update_sends()
+	bool wait_neighbor_data_update_sends()
 	{
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -2475,41 +2473,19 @@ public:
 			abort();
 		}
 
-		this->wait_user_data_transfer_sends();
+		return this->wait_user_data_transfer_sends();
 	}
 
 
 	/*!
-	Waits for remote neighbor data transfers from other processes to complete.
+	Waits for receives started by start_remote_neighbor_data_updates().
 
-	Waits until all receives associated with neighbor data update transfers
-	between processes have completed and incorporates that data.
-	Must be called simultaneously on all processes and probably must be
-	called before wait...update_sends().
+	\see
+	start_remote_neighbor_data_updates()
 	*/
-	void wait_neighbor_data_update_receives()
-	{
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_neighbor_data_update_receives() called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		this->wait_user_data_transfer_receives(
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->remote_neighbors, this->cells_to_receive
-		#endif
-		);
-	}
-
-	/*!
-	Same as the version without id but uses the given neighborhood.
-
-	Does nothing if neighborhood with given id doesn't exist.
-	*/
-	void wait_neighbor_data_update_receives(const int id)
-	{
+	bool wait_neighbor_data_update_receives(
+		const int neighborhood_id = default_neighborhood_id
+	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_neighbor_data_update_receives(...) called while balancing load"
@@ -2517,44 +2493,62 @@ public:
 			abort();
 		}
 
-		if (this->user_hood_of.count(id) == 0) {
-			return;
+		bool ret_val = true;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->wait_user_data_transfer_receives(
+				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+				this->remote_neighbors,
+				this->cells_to_receive
+				#endif
+			);
 		}
 
-		this->wait_user_data_transfer_receives(
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->remote_neighbors, this->user_neigh_cells_to_receive.at(id)
-		#endif
-		);
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			ret_val = false;
+		}
+
+		if (!this->wait_user_data_transfer_receives(
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+			this->remote_neighbors,
+			this->user_neigh_cells_to_receive.at(neighborhood_id)
+			#endif
+		)) {
+			ret_val = false;
+		}
+
+		return ret_val;
 	}
 
 
 	/*!
-	Returns the number of cells whose data this process has to send during a neighbor data update.
+	Returns number of cells that will be sent in a remote neighbor data update.
 
-	The total amount of cells to be sent is returned so if a cell's data will be sent to
-	N processes it is counted N times.
+	The total amount of cells to be sent is returned so if one cell's data
+	is sent to N processes it is counted N times.
+
+	Returns maximum uint64_t if given neighborhood id doesn't exist.
+
+	\see
+	update_remote_neighbor_data()
+	add_remote_update_neighborhood()
 	*/
-	uint64_t get_number_of_update_send_cells() const
-	{
-		uint64_t result = 0;
-		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			receiver = cells_to_send.begin();
-			receiver != cells_to_send.end();
-			receiver++
-		) {
-			result += receiver->second.size();
+	uint64_t get_number_of_update_send_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		uint64_t ret_val = 0;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+				receiver = cells_to_send.begin();
+				receiver != cells_to_send.end();
+				receiver++
+			) {
+				ret_val += receiver->second.size();
+			}
+			return ret_val;
 		}
-		return result;
-	}
 
-	/*!
-	Same as get_number_of_update_send_cells() but for given neighborhood id.
-
-	Returns maximum uint64_t if given a neighborhood id which doesn't exist.
-	*/
-	uint64_t get_number_of_update_send_cells(const int neighborhood_id) const
-	{
 		if (this->user_hood_to.count(neighborhood_id) == 0) {
 			return std::numeric_limits<uint64_t>::max();
 		}
@@ -2568,42 +2562,45 @@ public:
 		}
 		#endif
 
-		uint64_t result = 0;
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			receiver_item = this->user_neigh_cells_to_send.at(neighborhood_id).begin();
 			receiver_item != this->user_neigh_cells_to_send.at(neighborhood_id).end();
 			receiver_item++
 		) {
-			result += receiver_item->second.size();
+			ret_val += receiver_item->second.size();
 		}
 
-		return result;
+		return ret_val;
 	}
 
 
 	/*!
 	Returns the number of cells whose data this process has to receive during a neighbor data update.
-	*/
-	uint64_t get_number_of_update_receive_cells() const
-	{
-		uint64_t result = 0;
-		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			sender = this->cells_to_receive.begin();
-			sender != this->cells_to_receive.end();
-			sender++
-		) {
-			result += sender->second.size();
-		}
-		return result;
-	}
 
-	/*!
+
 	Same as get_number_of_update_receive_cells() but for given neighborhood id.
 
-	Returns maximum uint64_t if given a neighborhood id which doesn't exist.
+	Returns maximum uint64_t if given neighborhood id doesn't exist.
+
+	\see
+	get_number_of_update_send_cells()
 	*/
-	uint64_t get_number_of_update_receive_cells(const int neighborhood_id) const
-	{
+	uint64_t get_number_of_update_receive_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		uint64_t ret_val = 0;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+				sender = this->cells_to_receive.begin();
+				sender != this->cells_to_receive.end();
+				sender++
+			) {
+				ret_val += sender->second.size();
+			}
+			return ret_val;
+		}
+
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
 			return std::numeric_limits<uint64_t>::max();
 		}
@@ -2617,15 +2614,15 @@ public:
 		}
 		#endif
 
-		uint64_t result = 0;
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender_item = this->user_neigh_cells_to_receive.at(neighborhood_id).begin();
 			sender_item != this->user_neigh_cells_to_receive.at(neighborhood_id).end();
 			sender_item++
 		) {
-			result += sender_item->second.size();
+			ret_val += sender_item->second.size();
 		}
-		return result;
+
+		return ret_val;
 	}
 
 
@@ -2653,48 +2650,49 @@ public:
 
 	Offset (0, 0, 0) is skipped in all neighbor lists, so with a neighborhood
 	size of 2 the minimum length of neighbors lists is 124 and not 5^3 = 125.
-	*/
-	const std::vector<uint64_t>* get_neighbors(const uint64_t cell) const
-	{
-		if (this->cells.count(cell) > 0) {
-			#ifdef DEBUG
-			if (this->neighbors.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< ": Neighbor list for cell " << cell
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-			#endif
-			return &(this->neighbors.at(cell));
-		} else {
-			return NULL;
-		}
-	}
 
-	/*!
-	Same as the function without id but returns neighbors for the given neighborhood.
+	If given a non-default neighborhood neighbors are in the same order as
+	the offsets in the given neighborhood.
 
-	Neighbors are in the same order as the offsets in the neighborhood with given id.
+	Returns NULL if neighborhood with given id doesn't exist.
 	*/
-	const std::vector<uint64_t>* get_neighbors(const uint64_t cell, const int id) const
-	{
+	const std::vector<uint64_t>* get_neighbors(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
+	) const {
 		if (this->cells.count(cell) > 0) {
-			#ifdef DEBUG
-			if (this->user_neigh_of.at(id).count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< ": Neighbor list for cell " << cell
-					<< " doesn't exist for neighborhood id " << id
-					<< std::endl;
-				abort();
+			if (neighborhood_id == default_neighborhood_id) {
+				#ifdef DEBUG
+				if (this->neighbors.count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Neighbor list for cell " << cell
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+				#endif
+
+				return &(this->neighbors.at(cell));
+
+			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+
+				#ifdef DEBUG
+				if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Neighbor list for cell " << cell
+						<< " doesn't exist for neighborhood id " << neighborhood_id
+						<< std::endl;
+					abort();
+				}
+				#endif
+
+				return &(this->user_neigh_of.at(neighborhood_id).at(cell));
 			}
-			#endif
-			return &(this->user_neigh_of.at(id).at(cell));
-		} else {
-			return NULL;
 		}
+
+		return NULL;
 	}
 
 
@@ -2704,44 +2702,43 @@ public:
 	This list doesn't include 0s even if the grid isn't periodic in some direction.
 	Returns NULL if given cell doesn't exist or is on another process.
 	Neighbors returned by this function are in no particular order.
-	*/
-	const std::vector<uint64_t>* get_neighbors2(const uint64_t cell) const
-	{
-		if (this->cells.count(cell) > 0) {
-			#ifdef DEBUG
-			if (this->neighbors_to.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbors_to list for cell " << cell
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-			#endif
-			return &(this->neighbors_to.at(cell));
-		} else {
-			return NULL;
-		}
-	}
 
-	/*!
-	Same as the functions without id but with respect to the given neighborhood.
+	Returns NULL if neighborhood with given id doesn't exist.
 	*/
-	const std::vector<uint64_t>* get_neighbors2(const uint64_t cell, const int id) const
-	{
+	const std::vector<uint64_t>* get_neighbors2(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
+	) const {
 		if (this->cells.count(cell) > 0) {
-			#ifdef DEBUG
-			if (this->user_neigh_to.at(id).count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbors_to list for cell " << cell
-					<< " doesn't exist for neighborhood id " << id
-					<< std::endl;
-				abort();
+
+			if (neighborhood_id == default_neighborhood_id) {
+				#ifdef DEBUG
+				if (this->neighbors_to.count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbors_to list for cell " << cell
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+				#endif
+				return &(this->neighbors_to.at(cell));
+
+			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+
+				#ifdef DEBUG
+				if (this->user_neigh_to.at(neighborhood_id).count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbors_to list for cell " << cell
+						<< " doesn't exist for neighborhood id " << neighborhood_id
+						<< std::endl;
+					abort();
+				}
+				#endif
+				return &(this->user_neigh_to.at(neighborhood_id).at(cell));
 			}
-			#endif
-			return &(this->user_neigh_to.at(id).at(cell));
-		} else {
-			return NULL;
 		}
+
+		return NULL;
 	}
 
 
@@ -3030,39 +3027,56 @@ public:
 	/*!
 	Returns neighbors of given local cell that are on another process.
 
-	Returns nothing if given cell doesn't exist or is on another process
-	or doesn't have remote neighbors.
+	Returns nothing if:
+		- given cell doesn't exist
+		- given cell is on another process
+		- given cell doesn't have remote neighbors
+		- given neighborhood doesn't exist
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 	*/
 	std::vector<uint64_t> get_remote_neighbors_of(
 		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
-		std::vector<uint64_t> return_cells;
+		std::vector<uint64_t> ret_val;
 
-		if (this->cells.count(cell) == 0
-		|| this->neighbors.count(cell) == 0) {
-			return return_cells;
+		if (this->cell_process.count(cell) == 0) {
+			return ret_val;
 		}
 
-		BOOST_FOREACH(const uint64_t neighbor, this->neighbors.at(cell)) {
+		if (this->cell_process.at(cell) != this->rank) {
+			return ret_val;
+		}
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return ret_val;
+		}
+
+		const std::vector<uint64_t>& neighbors_ref
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors.at(cell)
+			: this->user_neigh_of.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighbors_ref) {
 
 			if (neighbor == error_cell) {
 				continue;
 			}
 
 			if (this->cell_process.at(neighbor) != this->rank) {
-				return_cells.push_back(neighbor);
+				ret_val.push_back(neighbor);
 			}
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 	/*!
@@ -3076,31 +3090,45 @@ public:
 	*/
 	std::vector<uint64_t> get_remote_neighbors_to(
 		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
-		std::vector<uint64_t> return_cells;
+		std::vector<uint64_t> ret_val;
 
-		if (this->cells.count(cell) == 0
-		|| this->neighbors.count(cell) == 0) {
-			return return_cells;
+		if (this->cell_process.count(cell) == 0) {
+			return ret_val;
 		}
 
-		BOOST_FOREACH(const uint64_t neighbor, this->neighbors_to.at(cell)) {
+		if (this->cell_process.at(cell) != this->rank) {
+			return ret_val;
+		}
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return ret_val;
+		}
+
+		const std::vector<uint64_t>& neighbors_ref
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors_to.at(cell)
+			: this->user_neigh_to.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighbors_ref) {
 
 			if (neighbor == error_cell) {
 				continue;
 			}
 
 			if (this->cell_process.at(neighbor) != this->rank) {
-				return_cells.push_back(neighbor);
+				ret_val.push_back(neighbor);
 			}
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
@@ -4161,7 +4189,7 @@ public:
 	first in the positive x direction then y direction and finally z direction.
 	*/
 	// TODO: make private?
-	std::vector<uint64_t> find_cells (
+	std::vector<uint64_t> find_cells(
 		const Types<3>::indices_t indices_min,
 		const Types<3>::indices_t indices_max,
 		const int minimum_refinement_level,
@@ -4217,7 +4245,12 @@ public:
 		for (indices[1] = indices_min[1]; indices[1] <= indices_max[1]; indices[1] += index_increase)
 		for (indices[0] = indices_min[0]; indices[0] <= indices_max[0]; indices[0] += index_increase) {
 
-			const uint64_t cell = this->get_existing_cell(indices, minimum_refinement_level, maximum_refinement_level);
+			const uint64_t cell
+				= this->get_existing_cell(
+					indices,
+					minimum_refinement_level,
+					maximum_refinement_level
+				);
 
 			#ifdef DEBUG
 			if (cell == 0) {
@@ -7792,7 +7825,7 @@ private:
 	and sending all cells in one message in which case the destination is actually used by
 	wait_user_data_transfer_receives(...).
 	*/
-	void start_user_data_transfers(
+	bool start_user_data_transfers(
 		boost::unordered_map<uint64_t, UserData>& destination,
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
@@ -8257,6 +8290,8 @@ private:
 				#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			}
 		}
+
+		return true;
 	}
 
 
@@ -8265,12 +8300,14 @@ private:
 
 	User data arriving to this process is saved in given destination.
 	*/
-	void wait_user_data_transfer_receives(
+	bool wait_user_data_transfer_receives(
 	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	boost::unordered_map<uint64_t, UserData>& destination,
 	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item
 	#endif
 	) {
+		bool success = true;
+
 		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 		// wait for data to arrive
@@ -8324,11 +8361,11 @@ private:
 			if (ret_val != MPI_SUCCESS) {
 				BOOST_FOREACH(const MPI_Status& status, statuses) {
 					if (status.MPI_ERROR != MPI_SUCCESS) {
+						success = false;
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " MPI receive failed from process " << status.MPI_SOURCE
 							<< " with tag " << status.MPI_TAG
 							<< std::endl;
-						abort();
 					}
 				}
 			}
@@ -8337,13 +8374,15 @@ private:
 		#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 		this->receive_requests.clear();
+
+		return success;
 	}
 
 
 	/*!
 	Waits for the sends of user data transfers between processes to complete.
 	*/
-	void wait_user_data_transfer_sends()
+	bool wait_user_data_transfer_sends()
 	{
 		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
@@ -8388,6 +8427,8 @@ private:
 		#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 		this->send_requests.clear();
+
+		return true;
 	}
 
 

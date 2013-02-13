@@ -170,7 +170,7 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		game_grid.start_remote_neighbor_data_update();
+		game_grid.start_remote_neighbor_data_updates();
 		/*
 		Get the neighbor counts of every cell, starting with the cells whose neighbor data
 		doesn't come from other processes

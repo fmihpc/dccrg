@@ -233,7 +233,7 @@ int main(int argc, char* argv[])
 		sends_size += get_traffic_size(sends);
 		receives_size += get_traffic_size(receives);
 
-		grid.start_remote_neighbor_data_update();
+		grid.start_remote_neighbor_data_updates();
 
 		total_solution_time += solve<Cell>(solution_time, inner_cells, grid);
 		grid.wait_neighbor_data_update_receives();

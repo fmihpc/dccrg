@@ -93,8 +93,8 @@ int main(int argc, char* argv[])
 	#define TIME_STEPS 25
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		game_grid.start_remote_neighbor_data_update();
-		game_grid.wait_neighbor_data_update();
+		game_grid.start_remote_neighbor_data_updates();
+		game_grid.wait_neighbor_data_updates();
 
 		if (comm.rank() == 0) {
 			cout << step << " ";

@@ -323,7 +323,7 @@ int main(int argc, char* argv[])
 			cout << "Simulation time: " << time << endl;
 		}
 
-		grid.start_remote_neighbor_data_update();
+		grid.start_remote_neighbor_data_updates();
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();

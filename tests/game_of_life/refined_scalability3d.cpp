@@ -190,7 +190,7 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		game_grid.start_remote_neighbor_data_update();
+		game_grid.start_remote_neighbor_data_updates();
 		// get the neighbor counts of every cell, starting with the cells whose neighbor data doesn't come from other processes
 		for (vector<uint64_t>::const_iterator cell = inner_cells.begin(); cell != inner_cells.end(); cell++) {
 
@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
 		}
 
 		// wait for neighbor data updates to finish and go through the rest of the cells
-		game_grid.wait_neighbor_data_update();
+		game_grid.wait_neighbor_data_updates();
 		for (vector<uint64_t>::const_iterator cell = outer_cells.begin(); cell != outer_cells.end(); cell++) {
 
 			game_of_life_cell* cell_data = game_grid[*cell];
