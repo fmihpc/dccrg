@@ -5023,29 +5023,33 @@ public:
 	neighborhood doesn't have to be used.
 	*/
 	bool add_remote_update_neighborhood(
-		const int id,
+		const int neighborhood_id,
 		const std::vector<Types<3>::neighborhood_item_t>& given_neigh
 	) {
-		if (this->user_hood_of.count(id) > 0) {
+		if (neighborhood_id == default_neighborhood_id) {
+			return false;
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) > 0) {
 
 			#ifdef DEBUG
-			if (this->user_hood_to.count(id) == 0) {
+			if (this->user_hood_to.count(neighborhood_id) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << id
+					<< " Should have id " << neighborhood_id
 					<< std::endl;
 				abort();
 			}
 
-			if (this->user_neigh_of.count(id) == 0) {
+			if (this->user_neigh_of.count(neighborhood_id) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << id
+					<< " Should have id " << neighborhood_id
 					<< std::endl;
 				abort();
 			}
 
-			if (this->user_neigh_to.count(id) == 0) {
+			if (this->user_neigh_to.count(neighborhood_id) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << id
+					<< " Should have id " << neighborhood_id
 					<< std::endl;
 				abort();
 			}
@@ -5055,37 +5059,37 @@ public:
 		}
 
 		#ifdef DEBUG
-		if (this->user_hood_to.count(id) > 0) {
+		if (this->user_hood_to.count(neighborhood_id) > 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << id
+				<< " Should not have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_of.count(id) > 0) {
+		if (this->user_neigh_of.count(neighborhood_id) > 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << id
+				<< " Should not have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_to.count(id) > 0) {
+		if (this->user_neigh_to.count(neighborhood_id) > 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << id
+				<< " Should not have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_cells_to_send.count(id) > 0) {
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) > 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << id
+				<< " Should not have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_cells_to_receive.count(id) > 0) {
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) > 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << id
+				<< " Should not have id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
@@ -5127,24 +5131,24 @@ public:
 		}
 
 		// set user_hood_of and _to
-		this->user_hood_of[id] = given_neigh;
-		this->user_hood_to[id].clear();
+		this->user_hood_of[neighborhood_id] = given_neigh;
+		this->user_hood_to[neighborhood_id].clear();
 		BOOST_FOREACH(const Types<3>::neighborhood_item_t& neigh_item, given_neigh) {
 			const Types<3>::neighborhood_item_t neigh_item_to = {{
 				-neigh_item[0],
 				-neigh_item[1],
 				-neigh_item[2]
 			}};
-			this->user_hood_to.at(id).push_back(neigh_item_to);
+			this->user_hood_to.at(neighborhood_id).push_back(neigh_item_to);
 		}
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			this->update_user_neighbors(item.first, id);
+			this->update_user_neighbors(item.first, neighborhood_id);
 		}
 
-		this->update_user_remote_neighbor_info(id);
+		this->update_user_remote_neighbor_info(neighborhood_id);
 
-		this->recalculate_neighbor_update_send_receive_lists(id);
+		this->recalculate_neighbor_update_send_receive_lists(neighborhood_id);
 
 		return true;
 	}
@@ -5157,16 +5161,20 @@ public:
 	Frees local neighbor lists and other resources associated
 	with given neighborhood.
 	*/
-	void remove_remote_update_neighborhood(const int id)
+	void remove_remote_update_neighborhood(const int neighborhood_id)
 	{
-		this->user_hood_of.erase(id);
-		this->user_hood_to.erase(id);
-		this->user_neigh_of.erase(id);
-		this->user_neigh_to.erase(id);
-		this->user_neigh_cells_to_send.erase(id);
-		this->user_neigh_cells_to_receive.erase(id);
-		this->user_local_cells_on_process_boundary.erase(id);
-		this->user_remote_cells_on_process_boundary.erase(id);
+		if (neighborhood_id == default_neighborhood_id) {
+			return;
+		}
+
+		this->user_hood_of.erase(neighborhood_id);
+		this->user_hood_to.erase(neighborhood_id);
+		this->user_neigh_of.erase(neighborhood_id);
+		this->user_neigh_to.erase(neighborhood_id);
+		this->user_neigh_cells_to_send.erase(neighborhood_id);
+		this->user_neigh_cells_to_receive.erase(neighborhood_id);
+		this->user_local_cells_on_process_boundary.erase(neighborhood_id);
+		this->user_remote_cells_on_process_boundary.erase(neighborhood_id);
 	}
 
 
@@ -6184,27 +6192,27 @@ private:
 	Updates send/receive lists of cells using only the given
 	neighborhood id.
 	*/
-	void recalculate_neighbor_update_send_receive_lists(const int id)
+	void recalculate_neighbor_update_send_receive_lists(const int neighborhood_id)
 	{
 		#ifdef DEBUG
-		if (this->user_local_cells_on_process_boundary.count(id) == 0) {
+		if (this->user_local_cells_on_process_boundary.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << id
+				<< " No neighborhood with id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 		#endif
 
 		// clear previous lists
-		this->user_neigh_cells_to_send[id].clear();
-		this->user_neigh_cells_to_receive[id].clear();
+		this->user_neigh_cells_to_send[neighborhood_id].clear();
+		this->user_neigh_cells_to_receive[neighborhood_id].clear();
 
 		boost::unordered_map<int, boost::unordered_set<uint64_t> >
 			user_neigh_unique_sends,
 			user_neigh_unique_receives;
 
 		// calculate new lists for neighbor data updates
-		BOOST_FOREACH(const uint64_t cell, this->user_local_cells_on_process_boundary.at(id)) {
+		BOOST_FOREACH(const uint64_t cell, this->user_local_cells_on_process_boundary.at(neighborhood_id)) {
 
 			#ifdef DEBUG
 			if (cell != this->get_child(cell)) {
@@ -6216,7 +6224,7 @@ private:
 			#endif
 
 			// data must be received from neighbors_of
-			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(id).at(cell)) {
+			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(neighborhood_id).at(cell)) {
 
 				if (neighbor == error_cell) {
 					continue;
@@ -6228,7 +6236,7 @@ private:
 			}
 
 			// data must be sent to neighbors_to
-			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_to.at(id).at(cell)) {
+			BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_to.at(neighborhood_id).at(cell)) {
 
 				if (neighbor == error_cell) {
 					continue;
@@ -6249,7 +6257,7 @@ private:
 			const int receiving_process = receiver->first;
 
 			std::vector<std::pair<uint64_t, int> >& current_cells_to_send
-				= this->user_neigh_cells_to_send.at(id)[receiving_process];
+				= this->user_neigh_cells_to_send.at(neighborhood_id)[receiving_process];
 
 			current_cells_to_send.reserve(receiver->second.size());
 
@@ -6285,7 +6293,7 @@ private:
 			const int sending_process = sender->first;
 
 			std::vector<std::pair<uint64_t, int> >& current_cells_to_receive
-				= this->user_neigh_cells_to_receive[id][sending_process];
+				= this->user_neigh_cells_to_receive[neighborhood_id][sending_process];
 
 			current_cells_to_receive.reserve(sender->second.size());
 
@@ -6368,39 +6376,39 @@ private:
 		- given cell has children
 	Assumes that update_neighbors(cell) has been called prior to this.
 	*/
-	void update_user_neighbors(const uint64_t cell, const int id)
+	void update_user_neighbors(const uint64_t cell, const int neighborhood_id)
 	{
-		if (this->user_hood_of.count(id) == 0) {
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood with id " << id
+				<< " No user neighborhood with id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
 		#ifdef DEBUG
-		if (this->user_hood_to.count(id) == 0) {
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood to with id " << id
+				<< " No user neighborhood to with id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 		#endif
 
 		// find neighbors_of, should be in order given by user
-		this->user_neigh_of[id][cell].clear();
-		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_of[id]) {
+		this->user_neigh_of[neighborhood_id][cell].clear();
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_of[neighborhood_id]) {
 			std::vector<uint64_t> cells_at_offset
 				= this->get_neighbors_of(cell, item[0], item[1], item[2]);
-			this->user_neigh_of[id][cell].insert(
-				this->user_neigh_of[id][cell].end(),
+			this->user_neigh_of[neighborhood_id][cell].insert(
+				this->user_neigh_of[neighborhood_id][cell].end(),
 				cells_at_offset.begin(),
 				cells_at_offset.end()
 			);
 		}
 
 		// find neighbors_to
-		this->user_neigh_to[id][cell]
-			= this->find_neighbors_to(cell, this->user_hood_to[id]);
+		this->user_neigh_to[neighborhood_id][cell]
+			= this->find_neighbors_to(cell, this->user_hood_to[neighborhood_id]);
 	}
 
 
@@ -6500,7 +6508,7 @@ private:
 	Uses current neighbor lists of neighborhood with given id.
 	Does nothing if given cell doesn't exist on this process or has children.
 	*/
-	void update_user_remote_neighbor_info(const uint64_t cell, const int id)
+	void update_user_remote_neighbor_info(const uint64_t cell, const int neighborhood_id)
 	{
 		if (this->cells.count(cell) == 0) {
 			return;
@@ -6511,57 +6519,57 @@ private:
 		}
 
 		#ifdef DEBUG
-		if (this->user_hood_of.count(id) == 0) {
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood with id " << id
+				<< " No user neighborhood with id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_hood_to.count(id) == 0) {
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood to with id " << id
+				<< " No user neighborhood to with id " << neighborhood_id
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_of.count(id) == 0) {
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << id
+				<< " No neighborhood with id " << neighborhood_id
 				<< " in neighbor lists"
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_of.at(id).count(cell) == 0) {
+		if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighbor list with neighborhood id " << id
+				<< " No neighbor list with neighborhood id " << neighborhood_id
 				<< " for cell " << cell
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_to.count(id) == 0) {
+		if (this->user_neigh_to.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << id
+				<< " No neighborhood with id " << neighborhood_id
 				<< " in neighbor_to lists"
 				<< std::endl;
 			abort();
 		}
 
-		if (this->user_neigh_to.at(id).count(cell) == 0) {
+		if (this->user_neigh_to.at(neighborhood_id).count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighbor_to list with neighborhood id " << id
+				<< " No neighbor_to list with neighborhood id " << neighborhood_id
 				<< " for cell " << cell
 				<< std::endl;
 			abort();
 		}
 		#endif
 
-		this->user_local_cells_on_process_boundary.at(id).erase(cell);
+		this->user_local_cells_on_process_boundary.at(neighborhood_id).erase(cell);
 
 		// neighbors of given cell
-		BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(id).at(cell)) {
+		BOOST_FOREACH(const uint64_t& neighbor, this->user_neigh_of.at(neighborhood_id).at(cell)) {
 
 			if (neighbor == 0) {
 				continue;
@@ -6578,13 +6586,13 @@ private:
 			#endif
 
 			if (this->cell_process.at(neighbor) != this->rank) {
-				this->user_local_cells_on_process_boundary.at(id).insert(cell);
-				this->user_remote_cells_on_process_boundary.at(id).insert(neighbor);
+				this->user_local_cells_on_process_boundary.at(neighborhood_id).insert(cell);
+				this->user_remote_cells_on_process_boundary.at(neighborhood_id).insert(neighbor);
 			}
 		}
 
 		// cells with given cell as neighbor
-		BOOST_FOREACH(const uint64_t& neighbor_to, this->user_neigh_to.at(id).at(cell)) {
+		BOOST_FOREACH(const uint64_t& neighbor_to, this->user_neigh_to.at(neighborhood_id).at(cell)) {
 
 			#ifdef DEBUG
 			if (neighbor_to == error_cell) {
@@ -6604,8 +6612,8 @@ private:
 			#endif
 
 			if (this->cell_process.at(neighbor_to) != this->rank) {
-				this->user_local_cells_on_process_boundary.at(id).insert(cell);
-				this->user_remote_cells_on_process_boundary.at(id).insert(neighbor_to);
+				this->user_local_cells_on_process_boundary.at(neighborhood_id).insert(cell);
+				this->user_remote_cells_on_process_boundary.at(neighborhood_id).insert(neighbor_to);
 			}
 		}
 
@@ -6667,10 +6675,10 @@ private:
 
 	Uses current neighbor lists of neighborhood with given id.
 	*/
-	void update_user_remote_neighbor_info(const int id)
+	void update_user_remote_neighbor_info(const int neighborhood_id)
 	{
-		this->user_local_cells_on_process_boundary[id].clear();
-		this->user_remote_cells_on_process_boundary[id].clear();
+		this->user_local_cells_on_process_boundary[neighborhood_id].clear();
+		this->user_remote_cells_on_process_boundary[neighborhood_id].clear();
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
@@ -6678,7 +6686,7 @@ private:
 				continue;
 			}
 
-			this->update_user_remote_neighbor_info(item.first, id);
+			this->update_user_remote_neighbor_info(item.first, neighborhood_id);
 
 			#ifdef DEBUG
 			if (!this->verify_remote_neighbor_info(item.first)) {
