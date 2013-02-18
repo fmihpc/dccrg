@@ -71,8 +71,72 @@ MPI_UNSIGNED_LONG in the following:
 #include "dccrg_cartesian_geometry.hpp"
 
 
+/*!
+Namespace where all dccrg classes, functions, etc are defined.
+*/
 namespace dccrg
 {
+
+static const int
+	/*! @var
+	*/
+
+	/*!
+	Id of the default neighborhood created when dccrg is initialized
+	\see Dccrg::initialize() Dccrg::add_remote_update_neighborhood()
+	*/
+	default_neighborhood_id = -0xdcc,
+
+	/*!
+	This bit is set for a cell that does not consider any cell as a
+	neighbor and is not considered as a neighbor by any cell
+	\see Dccrg::get_cells()
+	*/
+	has_no_neighbor = 0,
+
+	/*!
+	This bit is set for a cell that considers a cell on this
+	process as a neighbor
+	\see Dccrg::get_cells()
+	*/
+	has_local_neighbor_of = (1 << 0),
+
+	/*!
+	This bit is set for a cell that is considered as a neighbor
+	by a cell on this process
+	\see Dccrg::get_cells()
+	*/
+	has_local_neighbor_to = (1 << 1),
+
+	/*!
+	This bit is set for a cell that considers a cell on another
+	process as a neighbor
+	\see Dccrg::get_cells()
+	*/
+	has_remote_neighbor_of = (1 << 2),
+
+	/*!
+	This bit is set for a cell that c is considered as a neighbor
+	by a cell on another process
+	\see Dccrg::get_cells()
+	*/
+	has_remote_neighbor_to = (1 << 3),
+
+	/*!
+	This bit is set for a cell which is both dccrg::has_local_neighbor_of
+	and dccrg::has_local_neighbor_to
+	\see Dccrg::get_cells()
+	*/
+	has_local_neighbor_both = has_local_neighbor_of | has_local_neighbor_to,
+
+	/*!
+	This bit is set for a cell which is both dccrg::has_remote_neighbor_of
+	and dccrg::has_remote_neighbor_to
+	\see Dccrg::get_cells()
+	*/
+	has_remote_neighbor_both = has_remote_neighbor_of | has_remote_neighbor_to;
+
+
 
 template <
 	class UserData,
@@ -84,10 +148,6 @@ public:
 
 	//! helper type for iterating over local cells and their data using BOOST_FOREACH
 	typedef typename std::pair<const uint64_t&, const UserData&> cell_and_data_pair_t;
-
-	//! id of the default neighborhood created when dccrg is initialized
-	static const int default_neighborhood_id = -0xdcc;
-
 
 	/*!
 	Creates an uninitialized instance of the grid.
@@ -676,13 +736,70 @@ public:
 
 
 	/*!
-	Returns all cells on this process that don't have children (e.g. leaf cells).
+	Returns cells without children on this process fulfilling given criteria.
+
+	By default returns all local cells.	Otherwise only those local cells are
+	returned which match one or more of the given criteria.
+
+	A list of criteria can be constructed in-place with boost::assign::list_of
+	when calling this function, see further down for examples.
+
+	Criteria represent which type of neighbors a cell must (and possibly must not)
+	have in order to be returned. Each criteria is a bitmask of possibly several
+	neighbor types.
+
+	If exact_match = false then a cell is returned as long as it has at least
+	one neighbor of the type given by any of the given criteria. If
+	exact_match == true a cell is returned only if it has neighbors of the
+	type(s) in any given criteria and no other types of neighbors in that
+	criteria.
+
+	For example to only get cells which:
+		- are not on the process boundary, i.e. don't have neighbors or only
+		  consider cells on this process as a neighbor or are only considered
+		  as a neighbor by cells on this process, give exact_match = true and
+		  \verbatim
+		  list_of
+		  	(has_no_neighbor)
+		  	(has_local_neighbor_of)
+		  	(has_local_neighbor_to)
+		  	(has_local_neighbor_both)
+		  \endverbatim
+		- are on the process boundary, i.e. consider a cell on another process
+		  as a neighbor or are considered as a neighbor by a cell on another
+		  process, give exact_match = false and
+		  \verbatim
+		  list_of(has_remote_neighbor_both)
+		  \endverbatim
+		- are considered as a neighbor by at least one local and at least one
+		  remote cell but do not consider any local or remote cells as their
+		  neighbors, give exact_match = true and
+		  \verbatim
+		  list_of(has_local_neighor_to | has_remote_neighbor_to)
+		  \endverbatim
+		- are considered as a neighbor by a local cell or by a remote cell
+		  but do not consider any local of remote cells as their neighbors, give
+		  exact_match = true and
+		  \verbatim
+		  list_of(has_local_neighor_to)(has_remote_neighbor_to)
+		  \endverbatim
+
+	Cells' neighbors from the given neighborhood are used when checking for
+	neighbor types.
 
 	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
+	they are sorted using std::sort.
+
+	Returns nothing if:
+		- this process doesn't have any cells
+		- given neighborhood doesn't exist
 	*/
-	std::vector<uint64_t> get_cells(const bool sorted = false) const
-	{
+	std::vector<uint64_t> get_cells(
+		const std::vector<int>& criteria = std::vector<int>(),
+		const bool exact_match = false,
+		const int neighborhood_id = default_neighborhood_id,
+		const bool sorted = false
+	) const {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " get_cells() must not be called while balancing load"
@@ -690,56 +807,118 @@ public:
 			abort();
 		}
 
-		std::vector<uint64_t> return_cells;
-		return_cells.reserve(this->cells.size());
+		std::vector<uint64_t> ret_val;
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return ret_val;
+		}
+
+		// with inexact matching all criteria can be merged into one
+		int merged_criteria = 0;
+		if (exact_match == false) {
+			BOOST_FOREACH(const int criterion, criteria) {
+				merged_criteria |= criterion;
+			}
+		}
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
+			const uint64_t cell = item.first;
+
 			#ifdef DEBUG
-			if (this->cell_process.count(item.first) == 0) {
+			if (this->cell_process.count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << item.first
+					<< " Cell " << cell
 					<< " shouldn't exist"
 					<< std::endl;
 				abort();
 			}
 
-			if (this->cell_process.at(item.first) != this->rank) {
+			if (this->cell_process.at(cell) != this->rank) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
-					<< ": Cell " << item.first
-					<< " should be on process " << this->cell_process.at(item.first)
+					<< ": Cell " << cell
+					<< " should be on process " << this->cell_process.at(cell)
 					<< std::endl;
 				abort();
 			}
 
-			const uint64_t child = this->get_child(item.first);
+			const uint64_t child = this->get_child(cell);
 			if (child == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
-					<< ": Child == 0 for cell " << item.first
+					<< ": Child == 0 for cell " << cell
 					<< std::endl;
 				abort();
 			}
 
-			if (child != item.first) {
+			if (child != cell) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
-					<< ": Cell " << item.first
+					<< ": Cell " << cell
 					<< " has a child"
 					<< std::endl;
 				abort();
 			}
 			#endif
 
-			return_cells.push_back(item.first);
+			if (criteria.size() == 0) {
+				ret_val.push_back(cell);
+				continue;
+			}
+
+			// check which neighbor types current cell has
+			int neighbor_types = 0;
+
+			const std::vector<uint64_t>& neighs_of
+				= (neighborhood_id == default_neighborhood_id)
+				? this->neighbors.at(cell)
+				: this->user_neigh_of.at(neighborhood_id).at(cell);
+
+			BOOST_FOREACH(const uint64_t neighbor, neighs_of) {
+				if (this->is_local(neighbor)) {
+					neighbor_types |= has_local_neighbor_of;
+				} else {
+					neighbor_types |= has_remote_neighbor_of;
+				}
+			}
+
+			const std::vector<uint64_t>& neighs_to
+				= (neighborhood_id == default_neighborhood_id)
+				? this->neighbors_to.at(cell)
+				: this->user_neigh_to.at(neighborhood_id).at(cell);
+
+			BOOST_FOREACH(const uint64_t neighbor, neighs_to) {
+				if (this->is_local(neighbor)) {
+					neighbor_types |= has_local_neighbor_to;
+				} else {
+					neighbor_types |= has_remote_neighbor_to;
+				}
+			}
+
+			if (exact_match) {
+
+				BOOST_FOREACH(const int criterion, criteria) {
+					if (neighbor_types == criterion) {
+						ret_val.push_back(cell);
+						break;
+					}
+				}
+
+			} else {
+
+				if ((neighbor_types & merged_criteria) > 0) {
+					ret_val.push_back(cell);
+				}
+			}
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
