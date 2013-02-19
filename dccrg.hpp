@@ -877,6 +877,11 @@ public:
 				: this->user_neigh_of.at(neighborhood_id).at(cell);
 
 			BOOST_FOREACH(const uint64_t neighbor, neighs_of) {
+
+				if (neighbor == error_cells) {
+					continue;
+				}
+
 				if (this->is_local(neighbor)) {
 					neighbor_types |= has_local_neighbor_of;
 				} else {
@@ -890,6 +895,11 @@ public:
 				: this->user_neigh_to.at(neighborhood_id).at(cell);
 
 			BOOST_FOREACH(const uint64_t neighbor, neighs_to) {
+
+				if (neighbor == error_cells) {
+					continue;
+				}
+
 				if (this->is_local(neighbor)) {
 					neighbor_types |= has_local_neighbor_to;
 				} else {
