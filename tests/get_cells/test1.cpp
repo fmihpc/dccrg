@@ -107,9 +107,9 @@ int main(int argc, char* argv[])
 
 	// cells returned for different neighbor types
 	const std::vector<uint64_t>
-		no_neigh_cells = grid.get_cells(list_of(0), true, neighborhood_id0),
+		no_neigh_cells = grid.get_cells(list_of(has_no_neighbor), true, neighborhood_id0),
 		one_neigh_cells = grid.get_cells(std::vector<int>(), true, neighborhood_id1),
-		two_neigh_cells = grid.get_cells(list_of(0), true, neighborhood_id2),
+		two_neigh_cells = grid.get_cells(list_of(has_no_neighbor), true, neighborhood_id2),
 		local_neigh_of_cells = grid.get_cells(list_of(has_local_neighbor_of), true, neighborhood_id1),
 		local_neigh_to_cells = grid.get_cells(list_of(has_local_neighbor_to), true, neighborhood_id1),
 		remote_neigh_of_cells = grid.get_cells(list_of(has_remote_neighbor_of), true, neighborhood_id1),
