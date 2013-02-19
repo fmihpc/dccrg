@@ -736,6 +736,100 @@ public:
 
 
 	/*!
+	Returns true if given cell's neighbor types match given criterion, false otherwise.
+
+	Returns false if:
+		- given neighborhood doesn't exist
+		- given cell doesn't exist
+		- given cell is on another process
+
+	\see get_cells()
+	*/
+	bool is_neighbor_type_match(
+		const uint64_t cell,
+		const std::vector<int>& criteria,
+		const bool exact_match,
+		const int neighborhood_id
+	) const {
+
+		if (cell == error_cell) {
+			return false;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return false;
+		}
+
+		if (this->cell_process.at(cell) != this->rank) {
+			return false;
+		}
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return false;
+		}
+
+
+		int neighbor_types = 0;
+
+		const std::vector<uint64_t>& neighs_of
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors.at(cell)
+			: this->user_neigh_of.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighs_of) {
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->is_local(neighbor)) {
+				neighbor_types |= has_local_neighbor_of;
+			} else {
+				neighbor_types |= has_remote_neighbor_of;
+			}
+		}
+
+		const std::vector<uint64_t>& neighs_to
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors_to.at(cell)
+			: this->user_neigh_to.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighs_to) {
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->is_local(neighbor)) {
+				neighbor_types |= has_local_neighbor_to;
+			} else {
+				neighbor_types |= has_remote_neighbor_to;
+			}
+		}
+
+
+		if (exact_match) {
+			BOOST_FOREACH(const int criterion, criteria) {
+				if (neighbor_types == criterion) {
+					return true;
+				}
+			}
+		} else {
+			// with inexact matching all criteria can be merged into one
+			int merged_criteria = 0;
+			BOOST_FOREACH(const int criterion, criteria) {
+				merged_criteria |= criterion;
+			}
+
+			if ((neighbor_types & merged_criteria) > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+
+	/*!
 	Returns cells without children on this process fulfilling given criteria.
 
 	By default returns all local cells.	Otherwise only those local cells are
@@ -814,14 +908,6 @@ public:
 			return ret_val;
 		}
 
-		// with inexact matching all criteria can be merged into one
-		int merged_criteria = 0;
-		if (exact_match == false) {
-			BOOST_FOREACH(const int criterion, criteria) {
-				merged_criteria |= criterion;
-			}
-		}
-
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
 
 			const uint64_t cell = item.first;
@@ -865,62 +951,15 @@ public:
 
 			if (criteria.size() == 0) {
 				ret_val.push_back(cell);
-				continue;
 			}
 
-			// check which neighbor types current cell has
-			int neighbor_types = 0;
-
-			const std::vector<uint64_t>& neighs_of
-				= (neighborhood_id == default_neighborhood_id)
-				? this->neighbors.at(cell)
-				: this->user_neigh_of.at(neighborhood_id).at(cell);
-
-			BOOST_FOREACH(const uint64_t neighbor, neighs_of) {
-
-				if (neighbor == error_cells) {
-					continue;
-				}
-
-				if (this->is_local(neighbor)) {
-					neighbor_types |= has_local_neighbor_of;
-				} else {
-					neighbor_types |= has_remote_neighbor_of;
-				}
-			}
-
-			const std::vector<uint64_t>& neighs_to
-				= (neighborhood_id == default_neighborhood_id)
-				? this->neighbors_to.at(cell)
-				: this->user_neigh_to.at(neighborhood_id).at(cell);
-
-			BOOST_FOREACH(const uint64_t neighbor, neighs_to) {
-
-				if (neighbor == error_cells) {
-					continue;
-				}
-
-				if (this->is_local(neighbor)) {
-					neighbor_types |= has_local_neighbor_to;
-				} else {
-					neighbor_types |= has_remote_neighbor_to;
-				}
-			}
-
-			if (exact_match) {
-
-				BOOST_FOREACH(const int criterion, criteria) {
-					if (neighbor_types == criterion) {
-						ret_val.push_back(cell);
-						break;
-					}
-				}
-
-			} else {
-
-				if ((neighbor_types & merged_criteria) > 0) {
-					ret_val.push_back(cell);
-				}
+			if (this->is_neighbor_type_match(
+				cell,
+				criteria,
+				exact_match,
+				neighborhood_id
+			)) {
+				ret_val.push_back(cell);
 			}
 		}
 

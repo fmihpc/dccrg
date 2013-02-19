@@ -1,4 +1,4 @@
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -DDEBUG
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lzoltan
 CXX = mpic++ $(FLAGS)
 
