@@ -181,7 +181,7 @@ public:
 		max_tag(other.get_max_tag()),
 		max_ref_lvl_diff(other.get_max_ref_lvl_diff()),
 		send_single_cells(other.get_send_single_cells()),
-		comm(other.get_comm()),
+		comm(other.get_communicator()),
 		rank(other.get_rank()),
 		comm_size(other.get_comm_size()),
         #ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -5406,24 +5406,6 @@ public:
 	}
 
 
-	/*!
-	Returns dccrg's communicator.
-
-	Returns a duplicate of the MPI communicator of dccrg
-	which itself is a duplicate of the communicator that
-	was given to dccrg's initialize function.
-	*/
-	MPI_Comm get_communicator() const
-	{
-		MPI_Comm result;
-		if (MPI_Comm_dup(this->comm, &result) != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " MPI_Comm_dup failed." << std::endl;
-			abort();
-		}
-		return result;
-	}
-
-
 	bool get_initialized() const
 	{
 		return this->initialized;
@@ -5471,9 +5453,13 @@ public:
 	}
 
 	/*!
-	Returns a duplicate of this dccrg instance's communicator.
+	Returns dccrg's communicator.
+
+	Returns a duplicate of the MPI communicator of dccrg
+	which itself is a duplicate of the communicator that
+	was given to dccrg's initialize function.
 	*/
-	MPI_Comm get_comm() const
+	MPI_Comm get_communicator() const
 	{
 		MPI_Comm ret_val;
 		int result = MPI_Comm_dup(this->comm, &ret_val);

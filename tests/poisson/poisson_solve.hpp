@@ -287,7 +287,7 @@ public:
 		// unique_cells.insert(inner_cells.begin(), inner_cells.end());
 		// unique_cells.insert(outer_cells.begin(), outer_cells.end());
 
-		this->comm = grid.get_comm();
+		this->comm = grid.get_communicator();
 		this->comm_rank = grid.get_rank();
 
 		if (!cache_is_up_to_date) {

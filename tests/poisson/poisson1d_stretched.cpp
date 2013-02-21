@@ -98,7 +98,7 @@ template<class Geometry> double get_p_norm(
 			p_of_norm
 		);
 	}
-	MPI_Comm temp = grid.get_comm();
+	MPI_Comm temp = grid.get_communicator();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
 	MPI_Comm_free(&temp);
 	global = std::pow(global, 1.0 / p_of_norm);
@@ -113,7 +113,7 @@ template<class Geometry> double get_last_cell_solution(
 	const uint64_t last_cell,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 ) {
-	MPI_Comm comm = grid.get_comm();
+	MPI_Comm comm = grid.get_communicator();
 
 	// globally get process with the last cell
 	int proc_with_last = 0, proc_local = 0;

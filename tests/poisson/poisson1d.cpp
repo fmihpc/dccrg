@@ -55,7 +55,7 @@ double get_p_norm(
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(fabs(data->solution - reference.get_solution(cell - 1)), p_of_norm);
 	}
-	MPI_Comm temp = grid.get_comm();
+	MPI_Comm temp = grid.get_communicator();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
 	MPI_Comm_free(&temp);
 	global = std::pow(global, 1.0 / p_of_norm);
@@ -83,7 +83,7 @@ double get_p_norm(
 
 		local += std::pow(fabs(data1->solution - data2->solution), p_of_norm);
 	}
-	MPI_Comm temp = grid1.get_comm();
+	MPI_Comm temp = grid1.get_communicator();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
 	MPI_Comm_free(&temp);
 	global = std::pow(global, 1.0 / p_of_norm);
@@ -100,7 +100,7 @@ void offset_solution(
 	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell>& grid
 ) {
-	MPI_Comm comm = grid.get_comm();
+	MPI_Comm comm = grid.get_communicator();
 
 	// globally get process with the last cell
 	int proc_with_last = 0, proc_local = 0;
