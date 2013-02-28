@@ -887,6 +887,11 @@ public:
 	Returns nothing if:
 		- this process doesn't have any cells
 		- given neighborhood doesn't exist
+
+	\see
+	get_local_cells_on_process_boundary()
+	get_local_cells_not_on_process_boundary()
+	get_remote_cells_on_process_boundary()
 	*/
 	std::vector<uint64_t> get_cells(
 		const std::vector<int>& criteria = std::vector<int>(),
