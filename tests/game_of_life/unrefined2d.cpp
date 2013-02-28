@@ -63,6 +63,7 @@ int main(int argc, char* argv[])
 			cout << options << endl;
 		}
 		MPI_Barrier(comm);
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
