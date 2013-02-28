@@ -1783,140 +1783,6 @@ public:
 
 
 	/*!
-	Returns local cells without remote neighbors.
-
-	Returns cell in this process that don't have children (e.g. leaf cells)
-	and don't have neighbors on other processes.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_cells_with_local_neighbors(const bool sorted = false) const
-	{
-		std::vector<uint64_t> return_cells;
-		return_cells.reserve(this->cells.size());
-
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-
-			uint64_t child = this->get_child(item.first);
-			if (child == error_cell) {
-				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-				abort();
-			}
-
-			if (child != item.first) {
-				continue;
-			}
-
-			bool has_remote_neighbor = false;
-
-			if (this->neighbors.count(item.first) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-				abort();
-			}
-
-			BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(item.first)) {
-
-				if (neighbor == 0) {
-					continue;
-				}
-
-				if (this->cell_process.at(neighbor) != this->rank) {
-					has_remote_neighbor = true;
-					break;
-				}
-			}
-
-			if (!has_remote_neighbor) {
-				return_cells.push_back(item.first);
-			}
-		}
-
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
-
-		return return_cells;
-	}
-
-	/*!
-	Returns local cells without remote neighbors for given cell neighborhood.
-
-	Returns nothing if given neighborhood doesn't exist.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_cells_with_local_neighbors(
-		const int neighborhood_id,
-		const bool sorted = false
-	) const {
-		std::vector<uint64_t> return_cells;
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			return return_cells;
-		}
-
-		return_cells.reserve(this->cells.size());
-
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-
-			const uint64_t
-				cell = item.first,
-				child = this->get_child(cell);
-
-			if (child != cell) {
-				continue;
-			}
-
-			#ifdef DEBUG
-			if (child == error_cell) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid child for cell " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No neighbors for cell " << cell
-					<< " in neighborhood " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			bool has_remote_neighbor = false;
-
-			BOOST_FOREACH(
-				const uint64_t neighbor,
-				this->user_neigh_of.at(neighborhood_id).at(cell)
-			) {
-
-				if (neighbor == error_cell) {
-					continue;
-				}
-
-				if (this->cell_process.at(neighbor) != this->rank) {
-					has_remote_neighbor = true;
-					break;
-				}
-			}
-
-			if (!has_remote_neighbor) {
-				return_cells.push_back(cell);
-			}
-		}
-
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
-
-		return return_cells;
-	}
-
-
-	/*!
 	Returns all cells in the grid that don't have children (e.g. leaf cells).
 
 	Only those cells are returned which this process knows about, this
@@ -1927,8 +1793,8 @@ public:
 	*/
 	std::vector<uint64_t> get_all_cells(const bool sorted = false) const
 	{
-		std::vector<uint64_t> return_cells;
-		return_cells.reserve(this->cell_process.size());
+		std::vector<uint64_t> ret_val;
+		ret_val.reserve(this->cell_process.size());
 
 		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
 			item = this->cell_process.begin();
@@ -1939,15 +1805,15 @@ public:
 			const uint64_t child = this->get_child(item->first);
 
 			if (child == item->first) {
-				return_cells.push_back(item->first);
+				ret_val.push_back(item->first);
 			}
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
@@ -3759,13 +3625,13 @@ public:
 		this->override_unrefines();
 		this->cells_not_to_unrefine.clear();
 
-		std::vector<uint64_t> return_cells = this->execute_refines();
+		std::vector<uint64_t> ret_val = this->execute_refines();
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
@@ -3778,18 +3644,18 @@ public:
 	*/
 	std::vector<uint64_t> get_removed_cells(const bool sorted = false) const
 	{
-		std::vector<uint64_t> return_cells;
-		return_cells.reserve(this->unrefined_cell_data.size());
+		std::vector<uint64_t> ret_val;
+		ret_val.reserve(this->unrefined_cell_data.size());
 
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->unrefined_cell_data) {
-			return_cells.push_back(item.first);
+			ret_val.push_back(item.first);
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
@@ -4876,62 +4742,51 @@ public:
 
 
 	/*!
-	Returns local cells that are on the local process boundary.
+	Returns cells that are on the local process boundary.
 
 	Returns cells for which either of the following is true:
 		- a cell on another process is considered as a neighbor
 		- are considered as a neighbor by a cell on another process
-	In other words for all cells returned by this function a cell
-	on another process is either in their get_neighbors or
-	get_neighbors2 list.
+
+	Given neighborhood is used when considering neighbor relations.
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_local_cells_on_process_boundary(const bool sorted = false) const
-	{
-		std::vector<uint64_t> return_cells(
-			this->local_cells_on_process_boundary.begin(),
-			this->local_cells_on_process_boundary.end()
-		);
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
+	Returns nothing if neighborhood with given id doesn't exist.
 
-		return return_cells;
-	}
-
-	/*!
-	Same as get_local_cells_on_process_boundary(bool) but for given neighborhood.
-
-	Returns nothing if neighborhood with given id hasn't been set.
+	\see get_cells() is more general than this but slower.
 	*/
 	std::vector<uint64_t> get_local_cells_on_process_boundary(
-		const int id,
+		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
-		std::vector<uint64_t> return_cells;
+		std::vector<uint64_t> ret_val;
 
-		if (this->user_local_cells_on_process_boundary.count(id) == 0) {
-			return return_cells;
-		} else {
-			return_cells.insert(return_cells.end(),
-				this->user_local_cells_on_process_boundary.at(id).begin(),
-				this->user_local_cells_on_process_boundary.at(id).end()
+		if (neighborhood_id == default_neighborhood_id) {
+			ret_val.insert(
+				ret_val.end(),
+				this->local_cells_on_process_boundary.begin(),
+				this->local_cells_on_process_boundary.end()
+			);
+		} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+			ret_val.insert(
+				ret_val.end(),
+				this->user_local_cells_on_process_boundary.at(neighborhood_id).begin(),
+				this->user_local_cells_on_process_boundary.at(neighborhood_id).end()
 			);
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
 	/*!
-	Returns local cells that are not on the local process boundary.
+	Returns cells that are not on the local process boundary.
 
 	Returns cells which do not consider a cell on another process
 	as a neighbor and which are not considered as a neighbor
@@ -4939,65 +4794,42 @@ public:
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_local_cells_not_on_process_boundary(const bool sorted = false) const
-	{
-		std::vector<uint64_t> return_cells;
 
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			const uint64_t cell = item.first;
-			if (this->local_cells_on_process_boundary.count(cell) == 0) {
-				return_cells.push_back(cell);
-			}
-		}
+	Returns nothing if neighborhood with given id doesn't exist.
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
-
-		return return_cells;
-	}
-
-	/*!
-	Same as get_local_cells_not_on_process_boundary(bool) but for given neighborhood.
-
-	Returns nothing if neighborhood with given id hasn't been set.
+	\see get_cells() is more general than this but a bit slower.
 	*/
 	std::vector<uint64_t> get_local_cells_not_on_process_boundary(
-		const int id,
+		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
-		std::vector<uint64_t> return_cells;
+		std::vector<uint64_t> ret_val;
 
+		if (neighborhood_id == default_neighborhood_id) {
 
-		if (this->user_local_cells_on_process_boundary.count(id) == 0) {
-			return return_cells;
-		}
+			BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+				const uint64_t cell = item.first;
+				if (this->local_cells_on_process_boundary.count(cell) == 0) {
+					ret_val.push_back(cell);
+				}
+			}
 
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			const uint64_t cell = item.first;
-			if (this->user_local_cells_on_process_boundary.at(id).count(cell) == 0) {
-				return_cells.push_back(cell);
+		} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+
+			BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+				const uint64_t cell = item.first;
+				if (this->user_local_cells_on_process_boundary.at(neighborhood_id).count(cell) == 0) {
+					ret_val.push_back(cell);
+				}
 			}
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
-
-
-	/* TODO:
-	std::vector<uint64_t> get_cells(
-		const bool have_remote_neighbors_of,
-		const bool have_remote_neighbors_to,
-		const bool sorted = false
-	) const {
-		...
-	}
-	*/
 
 
 	/*!
@@ -5010,47 +4842,34 @@ public:
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 
-	To skip creating a copy use get_remote_cells_on_process_boundary_internal().
-	*/
-	std::vector<uint64_t> get_remote_cells_on_process_boundary(const bool sorted = false) const
-	{
-		std::vector<uint64_t> return_cells(
-			this->remote_cells_on_process_boundary.begin(),
-			this->remote_cells_on_process_boundary.end()
-		);
+	Returns nothing if neighborhood with given id doesn't exist.
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
-		}
-
-		return return_cells;
-	}
-
-	/*!
-	Same as get_remote_cells_on_process_boundary(bool) but for given neighborhood.
-
-	Returns no cells if neighborhood with given id hasn't been set.
+	\see get_cells() is more general than this but a bit slower.
 	*/
 	std::vector<uint64_t> get_remote_cells_on_process_boundary(
-		const int id,
+		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
-		std::vector<uint64_t> return_cells;
+		std::vector<uint64_t> ret_val;
 
-		if (this->user_remote_cells_on_process_boundary.count(id) == 0) {
-			return return_cells;
-		} else {
-			return_cells.insert(return_cells.end(),
-				this->user_remote_cells_on_process_boundary.at(id).begin(),
-				this->user_remote_cells_on_process_boundary.at(id).end()
+		if (neighborhood_id == default_neighborhood_id) {
+			ret_val.insert(
+				ret_val.end(),
+				this->remote_cells_on_process_boundary.begin(),
+				this->remote_cells_on_process_boundary.end()
+			);
+		} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+			ret_val.insert(ret_val.end(),
+				this->user_remote_cells_on_process_boundary.at(neighborhood_id).begin(),
+				this->user_remote_cells_on_process_boundary.at(neighborhood_id).end()
 			);
 		}
 
-		if (sorted && return_cells.size() > 0) {
-			std::sort(return_cells.begin(), return_cells.end());
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
 		}
 
-		return return_cells;
+		return ret_val;
 	}
 
 
