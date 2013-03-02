@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Poisson_Solve solver(10, 1e-5, 2);
+		Poisson_Solve solver(10, 1e-5, 2, 10);
 		dccrg::Dccrg<Poisson_Cell, dccrg::Stretched_Cartesian_Geometry> grid_stretched;
 		dccrg::Dccrg<Poisson_Cell> grid_reference;
 

@@ -155,22 +155,29 @@ public:
 		this->max_iterations = 1000;
 		this->stop_residual = 1e-15;
 		this->p_of_norm = 2;
+		this->stop_after_residual_increase = 10;
 	};
 
 	/*!
 	Creates a solver with given parameters.
 
 	When solving no more than given_max_iterations iterations will be done.
-	Solving will stop if the p-norm of the solution is below given_stop_residual.
+	Solving will stop if:
+		- more than given_max_iterations iterations have been calculated
+		- p-norm of the solution is below given_stop_residual
+		- residual has increased by a factor stop_after_residual_increase
+		  from its minimum encountered so far
 	*/
 	Poisson_Solve(
 		const unsigned int given_max_iterations,
 		const double given_stop_residual,
-		const double given_p_of_norm
+		const double given_p_of_norm,
+		const double given_stop_after_residual_increase
 	) {
 		this->max_iterations = given_max_iterations;
 		this->stop_residual = given_stop_residual;
 		this->p_of_norm = given_p_of_norm;
+		this->stop_after_residual_increase = given_stop_after_residual_increase;
 	};
 
 
@@ -218,17 +225,15 @@ public:
 		this->comm_rank = grid.get_rank();
 
 		if (!cache_is_up_to_date) {
-			this->cache_system_info(cells, grid);
+			this->cache_system_info(cells, cells_to_skip, grid);
 		}
-
-		this->initialize_solver(grid);
 
 		double
 			// minimum residual reached while solving
 			residual_min = std::numeric_limits<double>::max(),
 			// local and global values of r0 . r1
 			dot_r_l = 0,
-			dot_r_g = initialize_solver(grid);
+			dot_r_g = this->initialize_solver(grid);
 
 		if (this->comm_rank == 0) {
 			//std::cout << "r0 . r1: " << dot_r_g << std::endl;
@@ -304,7 +309,6 @@ public:
 			if (this->comm_rank == 0) {
 				//std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
 			}
-
 			// no sense in continuing with dividing by zero
 			if (dot_p_g == 0) {
 				break;
@@ -322,44 +326,27 @@ public:
 				data->solution += alpha * data->p0;
 			}
 
-
-			// update residual, etc.
+			// update residual and possibly stop solving
 			const double residual = this->get_residual();
 			if (residual <= this->stop_residual) {
 				break;
 			}
-			// save solution if at minimum residual so far
-			if (residual_min > residual) {
-				residual_min = residual;
-
-				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-					Poisson_Cell* data = info.first;
-					if (data == NULL) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " No data for cell."
-							<< std::endl;
-						abort();
-					}
-
-					data->best_solution = data->solution;
-				}
+			if (this->comm_rank == 0) {
+				//std::cout << "residual: " << residual << std::endl;
 			}
-			if (residual > 10 * residual_min) {
-				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-					Poisson_Cell* data = info.first;
-					if (data == NULL) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " No data for cell."
-							<< std::endl;
-						abort();
-					}
-
-					data->solution = data->best_solution;
-				}
-
+			if (residual >= this->stop_after_residual_increase * residual_min) {
 				break;
 			}
 
+			// save solution if at minimum residual so far
+			if (residual_min > residual) {
+				//std::cout << "saving solution at residual " << residual << std::endl;
+				residual_min = residual;
+				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+					Poisson_Cell* data = info.first;
+					data->best_solution = data->solution;
+				}
+			}
 
 			// update r0
 			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
@@ -460,7 +447,7 @@ public:
 
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 			Poisson_Cell* data = info.first;
-			data->solution /= data->scaling_factor;
+			data->solution = data->best_solution / data->scaling_factor;
 		}
 
 		MPI_Comm_free(&(this->comm));
@@ -488,6 +475,10 @@ private:
 
 	// p to use when calculating the residual as a p-norm
 	double p_of_norm;
+
+	// stop solving when residual has increased by this
+	// factor from its minimum value encountered so far
+	double stop_after_residual_increase;
 
 	// cached and grid agnostic form of the system to solve
 	std::vector<cell_info_t> cell_info;
@@ -519,6 +510,7 @@ private:
 	*/
 	template<class Geometry> void cache_system_info(
 		const std::vector<uint64_t>& cells,
+		const boost::unordered_set<uint64_t>& cells_to_skip,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
 		// make sure copies of remote neighbors exist
@@ -548,10 +540,18 @@ private:
 				cell_y_half_size = grid.get_cell_length_y(cell) / 2.0,
 				cell_z_half_size = grid.get_cell_length_z(cell) / 2.0;
 
-			// get face neighbors of current cell
-			std::vector<std::pair<uint64_t, int> > face_neighbors
+			// get face neighbors of current cell, possibly skipping some
+			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
 				= grid.get_face_neighbors_of(cell);
 
+			std::vector<std::pair<uint64_t, int> > face_neighbors;
+
+			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
+				const uint64_t neighbor = all_face_neighbors[i].first;
+				if (cells_to_skip.count(neighbor) == 0) {
+					face_neighbors.push_back(all_face_neighbors[i]);
+				}
+			}
 
 			/*
 			Get cell centers of neighbors relative to current cell

@@ -15,6 +15,7 @@ PROGRAMS = \
 	reference_poisson_test \
 	poisson1d \
 	poisson1d_amr \
+	poisson1d_skip_cells \
 	poisson1d_stretched \
 	poisson2d
 
@@ -22,6 +23,7 @@ TEST_PROGRAMS = \
 	reference_poisson_test \
 	poisson1d \
 	poisson1d_amr \
+	poisson1d_skip_cells \
 	poisson1d_stretched \
 	poisson2d
 
@@ -36,6 +38,9 @@ HEADERS = \
 all: $(PROGRAMS)
 
 poisson1d_amr: poisson1d_amr.cpp $(HEADERS) Makefile
+	@echo "MPICXX $@" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+
+poisson1d_skip_cells: poisson1d_skip_cells.cpp $(HEADERS) Makefile
 	@echo "MPICXX $@" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
 
 poisson1d_stretched: poisson1d_stretched.cpp $(HEADERS) Makefile
@@ -61,6 +66,7 @@ test: $(TEST_PROGRAMS)
 	@echo -n "Testing reference poisson solver... " && ./reference_poisson_test
 	@echo -n "Testing 1d poisson solver in serial... " && ./poisson1d
 	@echo -n "Testing 1d poisson solver on a refined grid in serial... " && ./poisson1d_amr
+	@echo -n "Testing 1d poisson solver with skipped cells in serial... " && ./poisson1d_skip_cells
 	@echo -n "Testing 1d poisson solver on a stretched grid in serial... " && ./poisson1d_stretched
 	@echo -n "Testing 2d poisson solver in serial... " && ./poisson2d
 
@@ -68,6 +74,7 @@ pt: parallel-test
 parallel-test: $(TEST_PROGRAMS)
 	@echo -n "Testing 1d poisson solver using $(PROCS) processes... " && $(MPIRUN) ./poisson1d
 	@echo -n "Testing 1d amr poisson solver using $(PROCS) processes... " && $(MPIRUN) ./poisson1d_amr
+	@echo -n "Testing 1d poisson solver with skipped cells using $(PROCS) processes... " && $(MPIRUN) ./poisson1d_skip_cells
 	@echo -n "Testing 1d stretched poisson solver using $(PROCS) processes... " && $(MPIRUN) ./poisson1d_stretched
 	@echo -n "Testing 2d poisson solver using $(PROCS) processes... " && $(MPIRUN) ./poisson2d
 

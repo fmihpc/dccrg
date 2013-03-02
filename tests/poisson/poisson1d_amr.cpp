@@ -72,8 +72,7 @@ Given offset is added to the exact solution before calculating the norm.
 template<class Geometry> double get_p_norm(
 	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
-	const double p_of_norm,
-	const double offset
+	const double p_of_norm
 ) {
 	double local = 0, global = 0;
 
@@ -92,7 +91,7 @@ template<class Geometry> double get_p_norm(
 
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(
-			fabs(data->solution - (get_solution_value(coord) + offset)),
+			fabs(data->solution - get_solution_value(coord)),
 			p_of_norm
 		);
 	}
@@ -244,10 +243,10 @@ int main(int argc, char* argv[])
 		// check that parallel solutions are close to analytic
 		const double
 			p_of_norm = 2,
-			norm_x = get_p_norm(cells_x, grid_x, p_of_norm, 0),
-			norm_y = get_p_norm(cells_y, grid_y, p_of_norm, 0),
-			norm_z = get_p_norm(cells_z, grid_z, p_of_norm, 0),
-			norm_reference = get_p_norm(cells_reference, grid_reference, p_of_norm, 0);
+			norm_x = get_p_norm(cells_x, grid_x, p_of_norm),
+			norm_y = get_p_norm(cells_y, grid_y, p_of_norm),
+			norm_z = get_p_norm(cells_z, grid_z, p_of_norm),
+			norm_reference = get_p_norm(cells_reference, grid_reference, p_of_norm);
 
 		if (norm_x > old_norm) {
 			success = 1;
@@ -286,16 +285,16 @@ int main(int argc, char* argv[])
 		// check that AMR solution is better (in some cases) than reference
 		if (number_of_cells == 2
 		|| number_of_cells == 32
-		|| number_of_cells == 256
 		|| number_of_cells == 512) {
 			if (norm_x > norm_reference) {
 				success = 1;
 				if (comm.rank() == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
-						<< " norm of x solution larger than reference with " << number_of_cells
-						<< " cells (" << norm_x << ") than with " << old_number_of_cells
-						<< " cells (" << old_norm << ")"
+						<< " norm of x solution (" << norm_x
+						<< ") larger than reference (" << norm_reference
+						<< ") with " << number_of_cells
+						<< " cells"
 						<< std::endl;
 				}
 			}
@@ -304,9 +303,10 @@ int main(int argc, char* argv[])
 				if (comm.rank() == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
-						<< " norm of y solution larger than reference with " << number_of_cells
-						<< " cells (" << norm_y << ") than with " << old_number_of_cells
-						<< " cells (" << old_norm << ")"
+						<< " norm of y solution (" << norm_y
+						<< ") larger than reference (" << norm_reference
+						<< ") with " << number_of_cells
+						<< " cells"
 						<< std::endl;
 				}
 			}
@@ -315,9 +315,10 @@ int main(int argc, char* argv[])
 				if (comm.rank() == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
-						<< " norm of z solution larger than reference with " << number_of_cells
-						<< " cells (" << norm_z << ") than with " << old_number_of_cells
-						<< " cells (" << old_norm << ")"
+						<< " norm of z solution (" << norm_z
+						<< ") larger than reference (" << norm_reference
+						<< ") with " << number_of_cells
+						<< " cells"
 						<< std::endl;
 				}
 			}
