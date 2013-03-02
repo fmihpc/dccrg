@@ -225,11 +225,11 @@ public:
 					break;
 				}
 
-				/*const int rel_ref_lvl = neigh_info.get<2>();
+				const int rel_ref_lvl = neigh_info.get<2>();
 				if (rel_ref_lvl > 0) {
 					// average over 4 smaller face neighbors
 					multiplier /= 4.0;
-				}*/
+				}
 
 				data->r0 -= multiplier * neighbor_data->solution;
 			}
@@ -357,10 +357,10 @@ public:
 						break;
 					}
 
-					/*const int rel_ref_lvl = neigh_info.get<2>();
+					const int rel_ref_lvl = neigh_info.get<2>();
 					if (rel_ref_lvl > 0) {
 						multiplier /= 4.0;
-					}*/
+					}
 
 					data->A_dot_p0 += multiplier * neighbor_data->p0;
 				}
@@ -484,10 +484,10 @@ public:
 						break;
 					}
 
-					/*const int rel_ref_lvl = neigh_info.get<2>();
+					const int rel_ref_lvl = neigh_info.get<2>();
 					if (rel_ref_lvl < 0) {
 						multiplier /= 4.0;
-					}*/
+					}
 
 					A_dot_p1 += multiplier * neighbor_data->p1;
 				}
