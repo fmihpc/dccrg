@@ -104,41 +104,6 @@ template<class Geometry> double get_p_norm(
 	return global;
 }
 
-/*!
-Returns the solution in the last cell.
-*/
-template<class Geometry> double get_last_cell_solution(
-	const uint64_t last_cell,
-	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid
-) {
-	MPI_Comm comm = grid.get_communicator();
-
-	// globally get process with the last cell
-	int proc_with_last = 0, proc_local = 0;
-	if (grid.is_local(last_cell)) {
-		proc_local = grid.get_rank();
-	}
-	MPI_Allreduce(&proc_local, &proc_with_last, 1, MPI_INT, MPI_SUM, comm);
-
-	// proc with last cell tells others the solution in last cell
-	double solution = 0;
-	if (grid.is_local(last_cell)) {
-		Poisson_Cell* data = grid[last_cell];
-		if (data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << last_cell
-				<< std::endl;
-			abort();
-		}
-		solution = data->solution;
-	}
-	MPI_Bcast(&solution, 1, MPI_DOUBLE, proc_with_last, comm);
-
-	MPI_Comm_free(&comm);
-
-	return solution;
-}
-
 
 int main(int argc, char* argv[])
 {
