@@ -185,7 +185,7 @@ public:
 	Given grid must have a default neighborhood of size 0? or ...
 
 	If given grid is non-periodic missing neighbors are assumed to be of
-	equal size and have equal value (of whatever comes after the dot in A . i)
+	equal size and have rhs of equal value.
 
 	If the structure of the grid has not changed since the last call
 	to this function (new cells haven't been created or existing ones removed,
