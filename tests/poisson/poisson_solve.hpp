@@ -221,7 +221,7 @@ public:
 			this->cache_system_info(cells, grid);
 		}
 
-		initialize_solver(grid);
+		this->initialize_solver(grid);
 
 		double
 			// minimum residual reached while solving
