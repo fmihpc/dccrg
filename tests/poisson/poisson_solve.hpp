@@ -191,9 +191,9 @@ public:
 
 	If the structure of the grid has not changed since the last call
 	to this function (new cells haven't been created or existing ones removed,
-	cells haven't changed processes, ...) then cache_is_up_to_date
-	can be set to true in which case the caching/preparation step will be
-	skipped speeding up this function.
+	cells haven't changed processes, cells_to_skip hasn't changed) then
+	cache_is_up_to_date can be set to true in which case the
+	caching/preparation step will be skipped speeding up this function.
 
 	If the residual increases to 10x its minimum value while solving
 	the last solution will be replaced with the one for which
