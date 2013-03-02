@@ -175,82 +175,6 @@ public:
 
 
 	/*!
-	Initializes the solution for solve(...).
-
-	Returns the initial value of r0 . r1.
-	*/
-	template<class Geometry> double initialize_solver(
-		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
-	) {
-		// transfer user's guess for the solution to calculate residual
-		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
-		grid.update_remote_neighbor_data();
-
-		// residual == r0 = rhs - A . solution
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
-
-			data->r0 = data->rhs - data->solution;
-
-			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-				Poisson_Cell* neighbor_data = neigh_info.get<0>();
-
-				// final multiplier to use for current neighbor's data
-				double multiplier = 0;
-				const int direction = neigh_info.get<1>();
-				switch(direction) {
-				case +1:
-					multiplier = data->f_x_pos;
-					break;
-				case -1:
-					multiplier = data->f_x_neg;
-					break;
-				case +2:
-					multiplier = data->f_y_pos;
-					break;
-				case -2:
-					multiplier = data->f_y_neg;
-					break;
-				case +3:
-					multiplier = data->f_z_pos;
-					break;
-				case -3:
-					multiplier = data->f_z_neg;
-					break;
-				default:
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Invalid direction: " << direction
-						<< std::endl;
-					abort();
-					break;
-				}
-
-				const int rel_ref_lvl = neigh_info.get<2>();
-				if (rel_ref_lvl > 0) {
-					// average over 4 smaller face neighbors
-					multiplier /= 4.0;
-				}
-
-				data->r0 -= multiplier * neighbor_data->solution;
-			}
-
-			// initially all variables equal to residual
-			data->r1 = data->r0;
-			// p0 and p1 are used scaled
-			data->p0 = data->p1 = data->scaling_factor * data->r0;
-		}
-
-		double dot_r_l = 0, dot_r_g = 0;
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
-			dot_r_l += data->r0 * data->r1;
-		}
-		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
-
-		return dot_r_g;
-	}
-
-	/*!
 	Solves the Poisson's equation in given cells.
 
 	The right hand side (rhs) of the equation must have been initialized
@@ -850,6 +774,83 @@ private:
 		// update scaled solution
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 		grid.update_remote_neighbor_data();
+	}
+
+
+	/*!
+	Initializes the solution for solve(...).
+
+	Returns the initial value of r0 . r1.
+	*/
+	template<class Geometry> double initialize_solver(
+		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+	) {
+		// transfer user's guess for the solution to calculate residual
+		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
+		grid.update_remote_neighbor_data();
+
+		// residual == r0 = rhs - A . solution
+		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+			Poisson_Cell* data = info.first;
+
+			data->r0 = data->rhs - data->solution;
+
+			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
+				Poisson_Cell* neighbor_data = neigh_info.get<0>();
+
+				// final multiplier to use for current neighbor's data
+				double multiplier = 0;
+				const int direction = neigh_info.get<1>();
+				switch(direction) {
+				case +1:
+					multiplier = data->f_x_pos;
+					break;
+				case -1:
+					multiplier = data->f_x_neg;
+					break;
+				case +2:
+					multiplier = data->f_y_pos;
+					break;
+				case -2:
+					multiplier = data->f_y_neg;
+					break;
+				case +3:
+					multiplier = data->f_z_pos;
+					break;
+				case -3:
+					multiplier = data->f_z_neg;
+					break;
+				default:
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Invalid direction: " << direction
+						<< std::endl;
+					abort();
+					break;
+				}
+
+				const int rel_ref_lvl = neigh_info.get<2>();
+				if (rel_ref_lvl > 0) {
+					// average over 4 smaller face neighbors
+					multiplier /= 4.0;
+				}
+
+				data->r0 -= multiplier * neighbor_data->solution;
+			}
+
+			// initially all variables equal to residual
+			data->r1 = data->r0;
+			// p0 and p1 are used scaled
+			data->p0 = data->p1 = data->scaling_factor * data->r0;
+		}
+
+		double dot_r_l = 0, dot_r_g = 0;
+		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+			Poisson_Cell* data = info.first;
+			dot_r_l += data->r0 * data->r1;
+		}
+		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
+
+		return dot_r_g;
 	}
 
 }; // class Poisson_Solve
