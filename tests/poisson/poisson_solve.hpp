@@ -184,8 +184,10 @@ public:
 
 	Given grid must have a default neighborhood of size 0? or ...
 
-	If given grid is non-periodic missing neighbors are assumed to be of
-	equal size and have rhs of equal value.
+	Cells in cells_to_skip and missing neighbors in case the grid is not
+	periodic are assumed to be of equal size and have rhs of equal value
+	to their current neighbor. If any cell is both in given cells and
+	cells_to_skip the result is undefined.
 
 	If the structure of the grid has not changed since the last call
 	to this function (new cells haven't been created or existing ones removed,
@@ -203,6 +205,7 @@ public:
 		const std::vector<uint64_t>& outer_cells,*/
 		const std::vector<uint64_t>& cells,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
+		const boost::unordered_set<uint64_t>& cells_to_skip = boost::unordered_set<uint64_t>(),
 		const bool cache_is_up_to_date = false
 	) {
 		// TODO: if a neighbor is not in given cells assume it doesn't exist
