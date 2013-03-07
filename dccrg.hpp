@@ -139,15 +139,15 @@ static const int
 
 
 template <
-	class UserData,
-	class UserGeometry = Cartesian_Geometry
-> class Dccrg : public UserGeometry
+	class Cell_Data,
+	class Geometry = Cartesian_Geometry
+> class Dccrg : public Geometry
 {
 
 public:
 
 	//! helper type for iterating over local cells and their data using BOOST_FOREACH
-	typedef typename std::pair<const uint64_t&, const UserData&> cell_and_data_pair_t;
+	typedef typename std::pair<const uint64_t&, const Cell_Data&> cell_and_data_pair_t;
 
 	/*!
 	Creates an uninitialized instance of the grid.
@@ -167,15 +167,15 @@ public:
 	Call this with all processes unless you know what you are doing.
 	Must not be used while the instance being copied is updating remote
 	neighbor data or balancing the load.
-	The UserData class can differ between the two grids but the geometry
+	The Cell_Data class can differ between the two grids but the geometry
 	must be the same.
 	The following data is not included in the new dccrg instance:
-		- refined/unrefined cells and their UserData
+		- refined/unrefined cells and their Cell_Data
 		- cell weights
 		- user data of remote neighbors
 		- everything related to load balancing or remote neighbor updates
 	*/
-	template<class OtherUserData> Dccrg(const Dccrg<OtherUserData, UserGeometry>& other) :
+	template<class Other_Cell_Data> Dccrg(const Dccrg<Other_Cell_Data, Geometry>& other) :
 		initialized(other.get_initialized()),
 		neighborhood_length(other.get_neighborhood_length()),
 		max_tag(other.get_max_tag()),
@@ -255,8 +255,8 @@ public:
 		// zoltan
 		this->zoltan = Zoltan_Copy(other.get_zoltan());
 
-		// default construct OtherUserData of local cells
-		for (typename boost::unordered_map<uint64_t, OtherUserData>::const_iterator
+		// default construct Other_Cell_Data of local cells
+		for (typename boost::unordered_map<uint64_t, Other_Cell_Data>::const_iterator
 			cell_item = other.get_cell_data().begin();
 			cell_item != other.get_cell_data().end();
 			cell_item++
@@ -425,78 +425,78 @@ public:
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::get_number_of_cells,
+			&Dccrg<Cell_Data, Geometry>::get_number_of_cells,
 			this
 		);
 
 		Zoltan_Set_Obj_List_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_cell_list,
+			&Dccrg<Cell_Data, Geometry>::fill_cell_list,
 			this
 		);
 
 		Zoltan_Set_Num_Geom_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::get_grid_dimensionality,
+			&Dccrg<Cell_Data, Geometry>::get_grid_dimensionality,
 			NULL);
 
 		Zoltan_Set_Geom_Multi_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_with_cell_coordinates,
+			&Dccrg<Cell_Data, Geometry>::fill_with_cell_coordinates,
 			this
 		);
 
 		Zoltan_Set_Num_Edges_Multi_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_number_of_neighbors_for_cells,
+			&Dccrg<Cell_Data, Geometry>::fill_number_of_neighbors_for_cells,
 			this
 		);
 
 		Zoltan_Set_Edge_List_Multi_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_neighbor_lists,
+			&Dccrg<Cell_Data, Geometry>::fill_neighbor_lists,
 			this
 		);
 
 		Zoltan_Set_HG_Size_CS_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_number_of_hyperedges,
+			&Dccrg<Cell_Data, Geometry>::fill_number_of_hyperedges,
 			this
 		);
 
 		Zoltan_Set_HG_CS_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_hyperedge_lists,
+			&Dccrg<Cell_Data, Geometry>::fill_hyperedge_lists,
 			this
 		);
 
 		Zoltan_Set_HG_Size_Edge_Wts_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_number_of_edge_weights,
+			&Dccrg<Cell_Data, Geometry>::fill_number_of_edge_weights,
 			this
 		);
 
 		Zoltan_Set_HG_Edge_Wts_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::fill_edge_weights,
+			&Dccrg<Cell_Data, Geometry>::fill_edge_weights,
 			this
 		);
 
 		Zoltan_Set_Hier_Num_Levels_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::get_number_of_load_balancing_hierarchies,
+			&Dccrg<Cell_Data, Geometry>::get_number_of_load_balancing_hierarchies,
 			this
 		);
 
 		Zoltan_Set_Hier_Part_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::get_part_number,
+			&Dccrg<Cell_Data, Geometry>::get_part_number,
 			this
 		);
 
 		Zoltan_Set_Hier_Method_Fn(
 			this->zoltan,
-			&Dccrg<UserData, UserGeometry>::set_partitioning_options,
+			&Dccrg<Cell_Data, Geometry>::set_partitioning_options,
 			this
 		);
 
@@ -1759,7 +1759,7 @@ public:
 	/*!
 	Returns a begin const_iterator to the internal storage of local cells and their data.
 	*/
-	typename boost::unordered_map<uint64_t, UserData>::const_iterator begin() const
+	typename boost::unordered_map<uint64_t, Cell_Data>::const_iterator begin() const
 	{
 		return this->cells.begin();
 	}
@@ -1767,7 +1767,7 @@ public:
 	/*!
 	Returns an end const_iterator to the internal storage of local cells and their data.
 	*/
-	typename boost::unordered_map<uint64_t, UserData>::const_iterator end() const
+	typename boost::unordered_map<uint64_t, Cell_Data>::const_iterator end() const
 	{
 		return this->cells.end();
 	}
@@ -1826,16 +1826,16 @@ public:
 		- the cells are neighbors to a local cell and remote neighbor data has been updated
 		- the cells were unrefined and their parent is now a local cell
 	*/
-	UserData* operator [] (const uint64_t cell) const
+	Cell_Data* operator [] (const uint64_t cell) const
 	{
 		if (this->cells.count(cell) > 0) {
-			return (UserData*) &(this->cells.at(cell));
+			return (Cell_Data*) &(this->cells.at(cell));
 		} else if (this->remote_neighbors.count(cell) > 0) {
-			return (UserData*) &(this->remote_neighbors.at(cell));
+			return (Cell_Data*) &(this->remote_neighbors.at(cell));
 		} else if (this->refined_cell_data.count(cell) > 0) {
-			return (UserData*) &(this->refined_cell_data.at(cell));
+			return (Cell_Data*) &(this->refined_cell_data.at(cell));
 		} else if (this->unrefined_cell_data.count(cell) > 0) {
-			return (UserData*) &(this->unrefined_cell_data.at(cell));
+			return (Cell_Data*) &(this->unrefined_cell_data.at(cell));
 		} else {
 			return NULL;
 		}
@@ -5324,7 +5324,7 @@ public:
 	/*!
 	Returns the storage of mostly local cell ids and their data.
 	*/
-	const boost::unordered_map<uint64_t, UserData>& get_cell_data() const
+	const boost::unordered_map<uint64_t, Cell_Data>& get_cell_data() const
 	{
 		return this->cells;
 	}
@@ -5614,7 +5614,7 @@ private:
 	#endif
 
 	// cells and their data on this process
-	boost::unordered_map<uint64_t, UserData> cells;
+	boost::unordered_map<uint64_t, Cell_Data> cells;
 
 	// cell on this process and its neighbors
 	boost::unordered_map<uint64_t, std::vector<uint64_t> > neighbors;
@@ -5677,7 +5677,7 @@ private:
 	> user_local_cells_on_process_boundary, user_remote_cells_on_process_boundary;
 
 	// remote neighbors and their data, of cells on this process
-	boost::unordered_map<uint64_t, UserData> remote_neighbors;
+	boost::unordered_map<uint64_t, Cell_Data> remote_neighbors;
 
 	boost::unordered_map<
 		int,
@@ -5710,7 +5710,7 @@ private:
 
 	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	// storage for cells' user data that awaits transfer to or from this process
-	boost::unordered_map<int, std::vector<UserData> > incoming_data, outgoing_data;
+	boost::unordered_map<int, std::vector<Cell_Data> > incoming_data, outgoing_data;
 	#endif
 
 	// cells to be refined / unrefined after a call to stop_refining()
@@ -5720,9 +5720,9 @@ private:
 	boost::unordered_set<uint64_t> cells_not_to_unrefine;
 
 	// stores user data of cells whose children were created while refining
-	boost::unordered_map<uint64_t, UserData> refined_cell_data;
+	boost::unordered_map<uint64_t, Cell_Data> refined_cell_data;
 	// stores user data of cells that were removed while unrefining
-	boost::unordered_map<uint64_t, UserData> unrefined_cell_data;
+	boost::unordered_map<uint64_t, Cell_Data> unrefined_cell_data;
 
 	// cell that should be kept on a particular process
 	boost::unordered_map<uint64_t, uint64_t> pin_requests;
@@ -7872,7 +7872,7 @@ private:
 	wait_user_data_transfer_receives(...).
 	*/
 	bool start_user_data_transfers(
-		boost::unordered_map<uint64_t, UserData>& destination,
+		boost::unordered_map<uint64_t, Cell_Data>& destination,
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
 	) {
@@ -8227,7 +8227,7 @@ private:
 					item++
 				) {
 					const uint64_t cell = item->first;
-					UserData* user_data = &(this->cells.at(cell));
+					Cell_Data* user_data = &(this->cells.at(cell));
 					if (user_data == NULL) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " No data for cell " << cell
@@ -8348,7 +8348,7 @@ private:
 	*/
 	bool wait_user_data_transfer_receives(
 	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	boost::unordered_map<uint64_t, UserData>& destination,
+	boost::unordered_map<uint64_t, Cell_Data>& destination,
 	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item
 	#endif
 	) {
@@ -8368,7 +8368,7 @@ private:
 		// incorporate received data
 		if (!this->send_single_cells) {
 
-			for (typename boost::unordered_map<int, std::vector<UserData> >::const_iterator
+			for (typename boost::unordered_map<int, std::vector<Cell_Data> >::const_iterator
 				sender = this->incoming_data.begin();
 				sender != this->incoming_data.end();
 				sender++
@@ -8774,8 +8774,8 @@ private:
 		double *geom_vec,
 		int *error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -8800,8 +8800,8 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->cells.size());
 	}
@@ -8820,8 +8820,8 @@ private:
 		float* object_weights,
 		int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -8862,8 +8862,8 @@ private:
 		int* number_of_neighbors,
 		int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -8905,8 +8905,8 @@ private:
 		int number_of_weights_per_edge,
 		float* edge_weights, int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbor_number = 0;
@@ -8957,8 +8957,8 @@ private:
 		int* number_of_connections,
 		int* format, int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = int(dccrg_instance->cells.size());
@@ -8995,8 +8995,8 @@ private:
 		ZOLTAN_ID_PTR connections,
 		int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
@@ -9054,8 +9054,8 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = int(dccrg_instance->cells.size());
@@ -9077,8 +9077,8 @@ private:
 		float* hyperedge_weights,
 		int* error
 	) {
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
@@ -9120,8 +9120,8 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->processes_per_part.size());
 	}
@@ -9132,8 +9132,8 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
@@ -9174,8 +9174,8 @@ private:
 			return;
 		}
 
-		Dccrg<UserData, UserGeometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<UserData, UserGeometry> *>(data);
+		Dccrg<Cell_Data, Geometry>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
