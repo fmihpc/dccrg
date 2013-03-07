@@ -4932,7 +4932,7 @@ public:
 	/*!
 	Returns the cells that will be added to this process by load balancing.
 	*/
-	const boost::unordered_set<uint64_t>& get_balance_added_cells() const
+	const boost::unordered_set<uint64_t>& get_cells_added_by_balance_load() const
 	{
 		return this->added_cells;
 	}
@@ -4940,7 +4940,7 @@ public:
 	/*!
 	Returns the cells that will be removed from this process by load balancing.
 	*/
-	const boost::unordered_set<uint64_t>& get_balance_removed_cells() const
+	const boost::unordered_set<uint64_t>& get_cells_removed_by_balance_load() const
 	{
 		return this->removed_cells;
 	}

@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 
 	// cells that will be moved to this process
 	const boost::unordered_set<uint64_t>& added_cells
-		= grid.get_balance_added_cells();
+		= grid.get_cells_added_by_balance_load();
 	BOOST_FOREACH(const uint64_t cell, added_cells) {
 		Cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
 
 	// cells that will be moved from this process
 	const boost::unordered_set<uint64_t>& removed_cells
-		= grid.get_balance_removed_cells();
+		= grid.get_cells_removed_by_balance_load();
 
 	// allow going through all cells with one loop
 	vector<uint64_t> all_cells;
