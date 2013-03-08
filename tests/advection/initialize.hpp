@@ -91,7 +91,7 @@ public:
 			cell->density() = hump_density;
 		}
 
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 	}
 };
 

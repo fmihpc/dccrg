@@ -297,11 +297,11 @@ int main(int argc, char* argv[])
 		write_game_data(turn, comm, &game_grid);
 
 		// start updating cell data from other processes and calculate the next turn for cells without neighbors on other processes in the meantime
-		game_grid.start_remote_neighbor_data_updates();
+		game_grid.start_remote_neighbor_copy_updates();
 		get_live_neighbor_counts(&inner_cells, &game_grid);
 
 		// wait for neighbor data updates to finish and the calculate the next turn for rest of the cells on this process
-		game_grid.wait_neighbor_data_updates();
+		game_grid.wait_remote_neighbor_copy_updates();
 		get_live_neighbor_counts(&outer_cells, &game_grid);
 
 		// update the state of life for all local cells

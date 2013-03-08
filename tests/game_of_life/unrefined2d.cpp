@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
 		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, grid_size, step, comm_size);
 
 		game_grid.balance_load();
-		game_grid.update_remote_neighbor_data();
+		game_grid.update_copies_of_remote_neighbors();
 
 		if (verbose && rank == 0) {
 			cout << step << " ";

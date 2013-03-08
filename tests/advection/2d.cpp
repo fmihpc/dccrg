@@ -323,7 +323,7 @@ int main(int argc, char* argv[])
 			cout << "Simulation time: " << time << endl;
 		}
 
-		grid.start_remote_neighbor_data_updates();
+		grid.start_remote_neighbor_copy_updates();
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();
@@ -331,7 +331,7 @@ int main(int argc, char* argv[])
 		inner_solve_time += MPI_Wtime() - inner_solve_start;
 
 		// wait for remote neighbor data
-		grid.wait_neighbor_data_update_receives();
+		grid.wait_remote_neighbor_copy_update_receives();
 
 		// solve outer cells
 		const double outer_solve_start = MPI_Wtime();
@@ -339,7 +339,7 @@ int main(int argc, char* argv[])
 		outer_solve_time += MPI_Wtime() - outer_solve_start;
 
 		// wait until local data has been sent
-		grid.wait_neighbor_data_update_sends();
+		grid.wait_remote_neighbor_copy_update_sends();
 
 		neighbor_receive_size +=
 			4 * sizeof(double)

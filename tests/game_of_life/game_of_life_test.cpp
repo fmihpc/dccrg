@@ -376,8 +376,8 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < time_steps; step++) {
 
 		game_grid.balance_load();
-		game_grid.start_remote_neighbor_data_updates();
-		game_grid.wait_neighbor_data_updates();
+		game_grid.start_remote_neighbor_copy_updates();
+		game_grid.wait_remote_neighbor_copy_updates();
 		vector<uint64_t> cells = game_grid.get_cells();
 
 		int result = check_game_of_life_state(step, game_grid);

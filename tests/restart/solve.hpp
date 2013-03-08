@@ -210,7 +210,7 @@ public:
 			}
 
 		}
-		game_grid.update_remote_neighbor_data();
+		game_grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
 		for (boost::unordered_map<uint64_t, Cell>::const_iterator

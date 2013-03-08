@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
 	}
 
 	send_variables2 = true;
-	grid.update_remote_neighbor_data();
+	grid.update_copies_of_remote_neighbors();
 
 	// print cell variables1 and neighbor variables2
 	for (int proc = 0; proc < comm.size(); proc++) {
@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
 	grid.balance_load();
 	cells = grid.get_cells();
 
-	grid.update_remote_neighbor_data();
+	grid.update_copies_of_remote_neighbors();
 
 	if (comm.rank() == 0) {
 		cout << endl;
@@ -160,7 +160,7 @@ int main(int argc, char* argv[])
 	}
 
 	send_variables2 = false;
-	grid.update_remote_neighbor_data();
+	grid.update_copies_of_remote_neighbors();
 
 	// print cell data
 	for (int proc = 0; proc < comm.size(); proc++) {

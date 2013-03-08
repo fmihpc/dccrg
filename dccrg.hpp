@@ -2389,17 +2389,17 @@ public:
 	Must not be called while load balancing is underway.
 
 	\see
-	start_remote_neighbor_data_updates()
+	start_remote_neighbor_copy_updates()
 	add_remote_update_neighborhood()
 	get_remote_cells_on_process_boundary()
 	set_send_single_cells()
 	*/
-	bool update_remote_neighbor_data(
+	bool update_copies_of_remote_neighbors(
 		const int neighborhood_id = default_neighborhood_id
 	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " update_remote_neighbor_data(...) called while balancing load"
+				<< " update_copies_of_remote_neighbors(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
@@ -2410,11 +2410,11 @@ public:
 			ret_val = false;
 		}
 
-		if (!this->start_remote_neighbor_data_updates(neighborhood_id)) {
+		if (!this->start_remote_neighbor_copy_updates(neighborhood_id)) {
 			ret_val = false;
 		}
 
-		if (!this->wait_neighbor_data_updates(neighborhood_id)) {
+		if (!this->wait_remote_neighbor_copy_updates(neighborhood_id)) {
 			ret_val = false;
 		}
 
@@ -2423,15 +2423,15 @@ public:
 
 
 	/*!
-	An asynchronous version of update_remote_neighbor_data().
+	An asynchronous version of update_copies_of_remote_neighbors().
 
 	Starts remote neighbor data updates and returns immediately.
 
 	\see
-	update_remote_neighbor_data()
-	wait_neighbor_data_updates()
+	update_copies_of_remote_neighbors()
+	wait_remote_neighbor_copy_updates()
 	*/
-	bool start_remote_neighbor_data_updates(
+	bool start_remote_neighbor_copy_updates(
 		const int neighborhood_id = default_neighborhood_id
 	) {
 		if (this->balancing_load) {
@@ -2532,24 +2532,24 @@ public:
 	Finishes what start_remote_neighbor_data_update() started.
 
 	\see
-	start_remote_neighbor_data_updates()
+	start_remote_neighbor_copy_updates()
 	*/
-	bool wait_neighbor_data_updates(
+	bool wait_remote_neighbor_copy_updates(
 		const int neighborhood_id = default_neighborhood_id
 	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_neighbor_data_updates(...) called while balancing load"
+				<< " wait_remote_neighbor_copy_updates(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
 
 		bool ret_val = true;
 
-		if (!this->wait_neighbor_data_update_receives(neighborhood_id)) {
+		if (!this->wait_remote_neighbor_copy_update_receives(neighborhood_id)) {
 			ret_val = false;
 		}
-		if (!this->wait_neighbor_data_update_sends()) {
+		if (!this->wait_remote_neighbor_copy_update_sends()) {
 			ret_val = false;
 		}
 
@@ -2558,16 +2558,16 @@ public:
 
 
 	/*!
-	Waits for sends started by start_remote_neighbor_data_updates().
+	Waits for sends started by start_remote_neighbor_copy_updates().
 
 	\see
-	start_remote_neighbor_data_updates()
+	start_remote_neighbor_copy_updates()
 	*/
-	bool wait_neighbor_data_update_sends()
+	bool wait_remote_neighbor_copy_update_sends()
 	{
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_neighbor_data_update_sends() called while balancing load"
+				<< " wait_remote_neighbor_copy_update_sends() called while balancing load"
 				<< std::endl;
 			abort();
 		}
@@ -2577,17 +2577,17 @@ public:
 
 
 	/*!
-	Waits for receives started by start_remote_neighbor_data_updates().
+	Waits for receives started by start_remote_neighbor_copy_updates().
 
 	\see
-	start_remote_neighbor_data_updates()
+	start_remote_neighbor_copy_updates()
 	*/
-	bool wait_neighbor_data_update_receives(
+	bool wait_remote_neighbor_copy_update_receives(
 		const int neighborhood_id = default_neighborhood_id
 	) {
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_neighbor_data_update_receives(...) called while balancing load"
+				<< " wait_remote_neighbor_copy_update_receives(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
@@ -2629,7 +2629,7 @@ public:
 	Returns maximum uint64_t if given neighborhood id doesn't exist.
 
 	\see
-	update_remote_neighbor_data()
+	update_copies_of_remote_neighbors()
 	add_remote_update_neighborhood()
 	*/
 	uint64_t get_number_of_update_send_cells(
@@ -2732,7 +2732,7 @@ public:
 	neighbors that would be outside of the grid are error_cell.
 	Some neighbors might be on another process, but have a copy of their data on this process.
 	The local copy of remote neighbors' data is updated, for example, by calling
-	update_remote_neighbor_data().
+	update_copies_of_remote_neighbors().
 	Returns NULL if given cell doesn't exist or is on another process.
 
 	The neighbors are always in the following order:

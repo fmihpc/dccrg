@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
 		cell_data->data = comm.rank();
 	}
 
-	grid1.update_remote_neighbor_data();
+	grid1.update_copies_of_remote_neighbors();
 
 	const boost::unordered_set<uint64_t>& remote_neighbors1
 		= grid1.get_remote_cells_on_process_boundary_internal();
@@ -139,7 +139,7 @@ int main(int argc, char* argv[])
 		cell_data->data = 2 * comm.rank();
 	}
 
-	grid2.update_remote_neighbor_data();
+	grid2.update_copies_of_remote_neighbors();
 
 	const boost::unordered_set<uint64_t>& remote_neighbors2
 		= grid2.get_remote_cells_on_process_boundary_internal();

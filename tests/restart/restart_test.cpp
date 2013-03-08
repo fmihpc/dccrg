@@ -348,7 +348,7 @@ int main(int argc, char* argv[])
 		Refine<Cartesian_Geometry>::refine(game_grid, grid_size, step, comm_size);
 
 		game_grid.balance_load();
-		game_grid.update_remote_neighbor_data();
+		game_grid.update_copies_of_remote_neighbors();
 		const vector<uint64_t> cells = game_grid.get_cells();
 
 		Solve<Cartesian_Geometry>::solve(game_grid);

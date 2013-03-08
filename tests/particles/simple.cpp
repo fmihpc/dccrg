@@ -311,7 +311,7 @@ int main(int argc, char* argv[])
 
 		// reserve space for incoming particles in copies of remote neighbors
 		Cell::transfer_particles = false;
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 
 		const boost::unordered_set<uint64_t>& remote_neighbors
 			= grid.get_remote_cells_on_process_boundary_internal();
@@ -323,7 +323,7 @@ int main(int argc, char* argv[])
 
 		// update particle data between neighboring cells on different processes
 		Cell::transfer_particles = true;
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 
 		propagate_particles(grid);
 	}

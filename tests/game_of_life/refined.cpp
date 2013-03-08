@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		game_grid.balance_load();
-		game_grid.update_remote_neighbor_data();
+		game_grid.update_copies_of_remote_neighbors();
 		cells = game_grid.get_cells();
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());

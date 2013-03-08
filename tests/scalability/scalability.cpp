@@ -233,13 +233,13 @@ int main(int argc, char* argv[])
 		sends_size += get_traffic_size(sends);
 		receives_size += get_traffic_size(receives);
 
-		grid.start_remote_neighbor_data_updates();
+		grid.start_remote_neighbor_copy_updates();
 
 		total_solution_time += solve<Cell>(solution_time, inner_cells, grid);
-		grid.wait_neighbor_data_update_receives();
+		grid.wait_remote_neighbor_copy_update_receives();
 
 		total_solution_time += solve<Cell>(solution_time, outer_cells, grid);
-		grid.wait_neighbor_data_update_sends();
+		grid.wait_remote_neighbor_copy_update_sends();
 	}
 
 	for (int process = 0; process < comm.size(); process++) {

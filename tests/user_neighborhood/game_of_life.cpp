@@ -240,7 +240,7 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		game_grid.balance_load();
-		game_grid.update_remote_neighbor_data(neighborhood_id);
+		game_grid.update_copies_of_remote_neighbors(neighborhood_id);
 		vector<uint64_t> cells = game_grid.get_cells();
 
 		// check that the result is correct

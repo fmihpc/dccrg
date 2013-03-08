@@ -245,7 +245,7 @@ public:
 
 			// TODO: update only p0 for calculating alpha and only then p1?
 			Poisson_Cell::transfer_switch = Poisson_Cell::SOLVING;
-			grid.update_remote_neighbor_data();
+			grid.update_copies_of_remote_neighbors();
 
 			/*
 			Calculate alpha
@@ -515,7 +515,7 @@ private:
 	) {
 		// make sure copies of remote neighbors exist
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 
 		this->cell_info.clear();
 		this->cell_info.reserve(cells.size());
@@ -702,7 +702,7 @@ private:
 
 		// update scaling_factor between neighbors
 		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 			Poisson_Cell* data = info.first;
@@ -772,11 +772,11 @@ private:
 		}
 
 		// update (rest of) corrected scaling factors
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 
 		// update scaled solution
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 	}
 
 
@@ -790,7 +790,7 @@ private:
 	) {
 		// transfer user's guess for the solution to calculate residual
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
-		grid.update_remote_neighbor_data();
+		grid.update_copies_of_remote_neighbors();
 
 		// residual == r0 = rhs - A . solution
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {

@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 	#define TURNS 100
 	for (int turn = 0; turn < TURNS; turn++) {
 
-		game_grid.update_remote_neighbor_data();
+		game_grid.update_copies_of_remote_neighbors();
 
 		// get the neighbor counts for every local cell
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
