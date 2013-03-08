@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = grid.get_neighbors_of(*cell);
 			outfile << neighbors->size() << endl;
 		}
 

@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
 
 	for (vector<uint64_t>::const_iterator cell = inner_cells.begin(); cell != inner_cells.end(); cell++) {
 
-		const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+		const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 		avg_neighbors += double(neighbors->size()) / number_of_cells;
 
 		if (max_neighbors < int(neighbors->size())) {
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 	}
 	for (vector<uint64_t>::const_iterator cell = outer_cells.begin(); cell != outer_cells.end(); cell++) {
 
-		const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+		const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 		avg_neighbors += double(neighbors->size()) / number_of_cells;
 
 		if (max_neighbors < int(neighbors->size())) {
@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
 			game_of_life_cell* cell_data = game_grid[*cell];
 			cell_data->live_neighbor_count = 0;
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++, processed_neighbors++) {
 
 				if (*neighbor == 0) {
@@ -218,7 +218,7 @@ int main(int argc, char* argv[])
 			game_of_life_cell* cell_data = game_grid[*cell];
 			cell_data->live_neighbor_count = 0;
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++, processed_neighbors++) {
 
 				if (*neighbor == 0) {

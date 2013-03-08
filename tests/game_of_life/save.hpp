@@ -72,7 +72,7 @@ public:
 		outfile << "SCALARS neighbors int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
 		BOOST_FOREACH(uint64_t cell, cells) {
-			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << std::endl;
 		}
 

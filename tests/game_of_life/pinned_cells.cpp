@@ -307,7 +307,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -345,7 +345,7 @@ int main(int argc, char* argv[])
 				cell_data->child_of_processed[i] = 0;
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(*cell) == 0) {
 
@@ -498,7 +498,7 @@ int main(int argc, char* argv[])
 				current_live_unrefined_neighbors.insert(cell_data->live_unrefined_neighbors[i]);
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
 
 				if (*neighbor == 0) {

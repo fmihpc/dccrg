@@ -209,7 +209,7 @@ int main(int argc, char* argv[])
 			(boost::assign::list_of( 2)( 2)(0));
 
 	const int neighborhood_id = 1;
-	if (!game_grid.add_remote_update_neighborhood(neighborhood_id, neighborhood)) {
+	if (!game_grid.add_neighborhood(neighborhood_id, neighborhood)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set neighborhood"
 			<< std::endl;
@@ -325,7 +325,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		BOOST_FOREACH(const uint64_t cell, cells) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -352,7 +352,7 @@ int main(int argc, char* argv[])
 			}
 
 			cell_data->data[1] = 0;
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(cell, neighborhood_id);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell, neighborhood_id);
 			if (neighbors == NULL) {
 				cerr << "Process " << comm.rank() << ": No neighbor list for cell " << cell << endl;
 				abort();

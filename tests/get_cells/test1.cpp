@@ -86,19 +86,19 @@ int main(int argc, char* argv[])
 		neighborhood_id1 = 1,
 		neighborhood_id2 = 2;
 
-	if (!grid.add_remote_update_neighborhood(neighborhood_id0, neighborhood0)) {
+	if (!grid.add_neighborhood(neighborhood_id0, neighborhood0)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set neighborhood " << neighborhood_id0
 			<< std::endl;
 		abort();
 	}
-	if (!grid.add_remote_update_neighborhood(neighborhood_id1, neighborhood1)) {
+	if (!grid.add_neighborhood(neighborhood_id1, neighborhood1)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set neighborhood " << neighborhood_id1
 			<< std::endl;
 		abort();
 	}
-	if (!grid.add_remote_update_neighborhood(neighborhood_id2, neighborhood2)) {
+	if (!grid.add_neighborhood(neighborhood_id2, neighborhood2)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set neighborhood " << neighborhood_id2
 			<< std::endl;

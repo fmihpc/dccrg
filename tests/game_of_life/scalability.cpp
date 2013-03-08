@@ -187,7 +187,7 @@ int main(int argc, char* argv[])
 			cell_data->data[1] = 0;
 			#endif
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			for (vector<uint64_t>::const_iterator
 				neighbor = neighbors->begin();
 				neighbor != neighbors->end();
@@ -224,7 +224,7 @@ int main(int argc, char* argv[])
 			cell_data->data[1] = 0;
 			#endif
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			for (vector<uint64_t>::const_iterator
 				neighbor = neighbors->begin();
 				neighbor != neighbors->end();

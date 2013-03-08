@@ -181,7 +181,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
 			game_of_life_cell* cell_data = game_grid[*cell];
 
 			cell_data->live_neighbor_count = 0;
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 			if (neighbors == NULL) {
 				cout << "Process " << comm.rank() << ": neighbor list for cell " << *cell << " not available" << endl;
 				exit(EXIT_FAILURE);

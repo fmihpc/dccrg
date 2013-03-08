@@ -60,7 +60,7 @@ public:
 				cell_data->data[1 + i] = 0;
 			}
 
-			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(cell) == 0) {
 
@@ -230,7 +230,7 @@ public:
 				current_live_unrefined_neighbors.insert(cell_data->data[2 + i]);
 			}
 
-			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors(cell);
+			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			for (std::vector<uint64_t>::const_iterator
 				neighbor = neighbors->begin();
 				neighbor != neighbors->end();

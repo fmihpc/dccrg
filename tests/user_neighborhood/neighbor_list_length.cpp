@@ -84,7 +84,7 @@ int main(int argc, char* argv[])
 
 	// default neighbor lists should have 5^3 - 1 = 124 neighbors
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors(cell);
+		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell);
 		if (neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors2(cell);
+		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell);
 		if (neighbors_to->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -109,14 +109,14 @@ int main(int argc, char* argv[])
 	const int hood_id = 1;
 	const std::vector<neigh_t> neighborhood
 		= boost::assign::list_of<neigh_t>(boost::assign::list_of(-2)(-2)(-2));
-	if (!grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood failed"
+				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors(cell, hood_id);
+		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors2(cell, hood_id);
+		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -135,7 +135,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-	grid.remove_remote_update_neighborhood(hood_id);
+	grid.remove_neighborhood(hood_id);
 	}
 
 	// create a neighborhood of two cells at (-1, -1, -1) and (2, 2, 2)
@@ -145,14 +145,14 @@ int main(int argc, char* argv[])
 		= boost::assign::list_of<neigh_t>
 			(boost::assign::list_of(-1)(-1)(-1))
 			(boost::assign::list_of( 2)( 2)( 2));
-	if (!grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood failed"
+				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors(cell, hood_id);
+		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -161,7 +161,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors2(cell, hood_id);
+		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-	grid.remove_remote_update_neighborhood(hood_id);
+	grid.remove_neighborhood(hood_id);
 	}
 
 	// create a neighborhood of 24 cells at z offset == 0
@@ -186,14 +186,14 @@ int main(int argc, char* argv[])
 		neigh_t temp = {{i, j, 0}};
 		neighborhood.push_back(temp);
 	}
-	if (!grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood failed"
+				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors(cell, hood_id);
+		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -202,7 +202,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors2(cell, hood_id);
+		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -212,7 +212,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-	grid.remove_remote_update_neighborhood(hood_id);
+	grid.remove_neighborhood(hood_id);
 	}
 
 	// create a neighborhood of 24 cells at x offset == 0
@@ -227,14 +227,14 @@ int main(int argc, char* argv[])
 		neigh_t temp = {{0, j, k}};
 		neighborhood.push_back(temp);
 	}
-	if (!grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood failed"
+				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors(cell, hood_id);
+		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -243,7 +243,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors2(cell, hood_id);
+		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -253,7 +253,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-	grid.remove_remote_update_neighborhood(hood_id);
+	grid.remove_neighborhood(hood_id);
 	}
 
 	// create a full neighborhood identical to the default one
@@ -269,15 +269,15 @@ int main(int argc, char* argv[])
 		neigh_t temp = {{i, j, k}};
 		neighborhood.push_back(temp);
 	}
-	if (!grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood failed"
+				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// check number of neighbors
-		const vector<uint64_t>* neighbors = grid.get_neighbors(cell, hood_id);
+		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -286,7 +286,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors2(cell, hood_id);
+		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -296,7 +296,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 		// check ids and ordering of neighbors_of
-		const vector<uint64_t>* default_neighbors = grid.get_neighbors(cell);
+		const vector<uint64_t>* default_neighbors = grid.get_neighbors_of(cell);
 		if (default_neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -331,9 +331,9 @@ int main(int argc, char* argv[])
 	const int hood_id = 5;
 	const std::vector<neigh_t> neighborhood
 		= boost::assign::list_of<neigh_t>(boost::assign::list_of(-1)(2)(-3));
-	if (grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood succeeded"
+				<< " add_neighborhood succeeded"
 				<< std::endl;
 			abort();
 	}
@@ -344,9 +344,9 @@ int main(int argc, char* argv[])
 	const int hood_id = 0;
 	const std::vector<neigh_t> neighborhood
 		= boost::assign::list_of<neigh_t>(boost::assign::list_of(1)(2)(-2));
-	if (grid.add_remote_update_neighborhood(hood_id, neighborhood)) {
+	if (grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " add_remote_update_neighborhood succeeded"
+				<< " add_neighborhood succeeded"
 				<< std::endl;
 			abort();
 	}

@@ -83,7 +83,7 @@ static const int
 
 	/*!
 	Id of the default neighborhood created when dccrg is initialized
-	\see Dccrg::initialize() Dccrg::add_remote_update_neighborhood()
+	\see Dccrg::initialize() Dccrg::add_neighborhood()
 	*/
 	default_neighborhood_id = -0xdcc,
 
@@ -192,9 +192,9 @@ public:
 		neighborhood_to(other.get_neighborhood_to()),
 		user_hood_of(other.get_user_hood_of()),
 		user_hood_to(other.get_user_hood_to()),
-		neighbors_to(other.get_neighbors_to()),
-		user_neigh_of(other.get_user_neigh_of()),
-		user_neigh_to(other.get_user_neigh_to()),
+		neighbors_to(other.get_all_neighbors_to()),
+		user_neigh_of(other.get_all_user_neigh_of()),
+		user_neigh_to(other.get_all_user_neigh_to()),
 		cell_process(other.get_cell_process()),
 		local_cells_on_process_boundary(other.get_local_cells_on_process_boundary_internal()),
 		remote_cells_on_process_boundary(other.get_remote_cells_on_process_boundary_internal()),
@@ -2390,7 +2390,7 @@ public:
 
 	\see
 	start_remote_neighbor_copy_updates()
-	add_remote_update_neighborhood()
+	add_neighborhood()
 	get_remote_cells_on_process_boundary()
 	set_send_single_cells()
 	*/
@@ -2630,7 +2630,7 @@ public:
 
 	\see
 	update_copies_of_remote_neighbors()
-	add_remote_update_neighborhood()
+	add_neighborhood()
 	*/
 	uint64_t get_number_of_update_send_cells(
 		const int neighborhood_id = default_neighborhood_id
@@ -2733,7 +2733,6 @@ public:
 	Some neighbors might be on another process, but have a copy of their data on this process.
 	The local copy of remote neighbors' data is updated, for example, by calling
 	update_copies_of_remote_neighbors().
-	Returns NULL if given cell doesn't exist or is on another process.
 
 	The neighbors are always in the following order:
 		- if all neighbors are of the same size then they are in z order, e.g.
@@ -2753,9 +2752,17 @@ public:
 	If given a non-default neighborhood neighbors are in the same order as
 	the offsets in the given neighborhood.
 
-	Returns NULL if neighborhood with given id doesn't exist.
+	Returns NULL if:
+		- neighborhood with given id doesn't exist
+		- given cell doesn't exist
+		- given cell is on another process
+
+	\see
+	get_neighbors_to()
+	get_neighbors_of_at_offset()
+	add_neighborhood()
 	*/
-	const std::vector<uint64_t>* get_neighbors(
+	const std::vector<uint64_t>* get_neighbors_of(
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
@@ -2804,7 +2811,7 @@ public:
 
 	Returns NULL if neighborhood with given id doesn't exist.
 	*/
-	const std::vector<uint64_t>* get_neighbors2(
+	const std::vector<uint64_t>* get_neighbors_to(
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
@@ -2848,7 +2855,7 @@ public:
 	by given cell.
 	Uses the default neighborhood.
 	Does not return error_cell as a face neighbor.
-	Returns nothing in the same cases as get_neighbors(uint64_t).
+	Returns nothing in the same cases as get_neighbors_of().
 
 	uint64_t == neighbor id, int == neighbor direction.
 	Directions are +N or -N where N is the Nth dimension and
@@ -2857,7 +2864,9 @@ public:
 
 	TODO:
 	By default uses neighborhood with which this dccrg was initialized,
-	\see default_neighborhood_id
+	\see
+	default_neighborhood_id()
+	get_neighbors_of()
 	*/
 	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
 		const uint64_t cell/*,
@@ -3027,16 +3036,20 @@ public:
 
 
 	/*!
-	Returns all neighbors of given cell that are at given offsets from it.
+	Returns all neighbors of given cell that are at given offset from it.
 
+	Offset is in units of size of the given cell
 	Returns nothing in the following cases:
 		- given cell doesn't exist
 		- given cell is on another process
 		- any of given offsets is larger in absolute value than the neighborhood
 		  size or larger than 1 if neihgborhood size == 0
 		- i == 0 && j == 0 && k == 0
+
+	\see
+	get_neighbors_of()
 	*/
-	std::vector<uint64_t> get_neighbors_of(
+	std::vector<uint64_t> get_neighbors_of_at_offset(
 		const uint64_t cell,
 		const int i,
 		const int j,
@@ -5063,18 +5076,22 @@ public:
 
 
 	/*!
-	Adds a new neighborhood for remote neighbor updates.
+	Adds a new neighborhood for updating Cell_Data between neighbors on different processes.
 
 	Must be called with identical parameters on all processes.
 	No neighborhood_item_t should have all offsets equal to 0.
 	Returns true on success and false in any of the following cases:
-		- given id already exists, use remove_remote_... before calling this
+		- given id already exists, use remove_neighborhood() before calling this
 		- (part of) given neighborhood is outside of initial neighborhood size
 
-	Use this to reduce data transfers between processes when the full
-	neighborhood doesn't have to be used.
+	Can be used to reduce the amount of data transferred between
+	processes if Cell_Data from the full neighborhood isn't needed.
+
+	\see
+	initialize()
+	remove_neighborhood()
 	*/
-	bool add_remote_update_neighborhood(
+	bool add_neighborhood(
 		const int neighborhood_id,
 		const std::vector<Types<3>::neighborhood_item_t>& given_neigh
 	) {
@@ -5207,13 +5224,16 @@ public:
 
 
 	/*!
-	Removes the given neighborhood from remote neighbor updates.
+	Removes the given neighborhood.
 
 	Must be called with identical id on all processes.
 	Frees local neighbor lists and other resources associated
 	with given neighborhood.
+
+	\see
+	add_neighborhood()
 	*/
-	void remove_remote_update_neighborhood(const int neighborhood_id)
+	void remove_neighborhood(const int neighborhood_id)
 	{
 		if (neighborhood_id == default_neighborhood_id) {
 			return;
@@ -5383,7 +5403,7 @@ public:
 	/*!
 	Returns cells (2nd value) which consider a cell (1st value) as neighbor
 	*/
-	const boost::unordered_map<uint64_t, std::vector<uint64_t> >& get_neighbors_to() const
+	const boost::unordered_map<uint64_t, std::vector<uint64_t> >& get_all_neighbors_to() const
 	{
 		return this->neighbors_to;
 	}
@@ -5394,18 +5414,18 @@ public:
 	const boost::unordered_map<
 		int,
 		boost::unordered_map<uint64_t, std::vector<uint64_t> >
-	>& get_user_neigh_of() const
+	>& get_all_user_neigh_of() const
 	{
 		return this->user_neigh_of;
 	}
 
 	/*!
-	User defined neighborhood version of get_neighbors_to().
+	User defined neighborhood version of get_all_neighbors_to().
 	*/
 	const boost::unordered_map<
 		int,
 		boost::unordered_map<uint64_t, std::vector<uint64_t> >
-	>& get_user_neigh_to() const
+	>& get_all_user_neigh_to() const
 	{
 		return this->user_neigh_to;
 	}
@@ -6436,7 +6456,7 @@ private:
 		this->user_neigh_of[neighborhood_id][cell].clear();
 		BOOST_FOREACH(const Types<3>::neighborhood_item_t& item, this->user_hood_of[neighborhood_id]) {
 			std::vector<uint64_t> cells_at_offset
-				= this->get_neighbors_of(cell, item[0], item[1], item[2]);
+				= this->get_neighbors_of_at_offset(cell, item[0], item[1], item[2]);
 			this->user_neigh_of[neighborhood_id][cell].insert(
 				this->user_neigh_of[neighborhood_id][cell].end(),
 				cells_at_offset.begin(),

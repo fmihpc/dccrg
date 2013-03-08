@@ -246,7 +246,7 @@ int main(int argc, char* argv[])
 			(boost::assign::list_of( 0)( 1)( 0))
 			(boost::assign::list_of( 0)( 0)( 1));
 
-	if (!grid.add_remote_update_neighborhood(NEIGHBORHOOD_ID, neighborhood)) {
+	if (!grid.add_neighborhood(NEIGHBORHOOD_ID, neighborhood)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set neighborhood"
 			<< std::endl;
