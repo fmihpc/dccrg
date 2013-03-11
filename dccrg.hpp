@@ -146,7 +146,13 @@ template <
 
 public:
 
-	//! helper type for iterating over local cells and their data using BOOST_FOREACH
+	/*!
+	Helper type for iterating over local cells and their data using BOOST_FOREACH
+	\see
+	operator[]()
+	begin()
+	get_cells()
+	*/
 	typedef typename std::pair<const uint64_t&, const Cell_Data&> cell_and_data_pair_t;
 
 	/*!
