@@ -5075,9 +5075,12 @@ public:
 	}
 
 
-	boost::unordered_map<uint64_t, double>::size_type get_number_of_cell_weights() const
+	/*!
+	Returns cell weights that have been set.
+	*/
+	const boost::unordered_map<uint64_t, double>& get_cell_weights() const
 	{
-		return this->cell_weights.size();
+		return this->cell_weights;
 	}
 
 
@@ -5256,6 +5259,9 @@ public:
 	}
 
 
+	/*!
+	Returns whether this dccrg instance has been initialized.
+	*/
 	bool get_initialized() const
 	{
 		return this->initialized;
