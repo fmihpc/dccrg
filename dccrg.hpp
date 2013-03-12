@@ -177,8 +177,7 @@ public:
 	must be the same.
 	The following data is not included in the new dccrg instance:
 		- refined/unrefined cells and their Cell_Data
-		- cell weights
-		- user data of remote neighbors
+		- Cell_Data of copies of remote neighbors
 		- everything related to load balancing or remote neighbor updates
 	*/
 	template<class Other_Cell_Data> Dccrg(const Dccrg<Other_Cell_Data, Geometry>& other) :
@@ -216,6 +215,7 @@ public:
 		partitioning_options(other.get_partitioning_options()),
 		no_load_balancing(other.get_no_load_balancing()),
 		reserved_options(other.get_reserved_options()),
+		cell_weights(other.get_cell_weights()),
 		neighbor_processes(other.get_neighbor_processes()),
 		balancing_load(other.get_balancing_load())
 	{
