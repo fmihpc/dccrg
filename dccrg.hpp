@@ -1856,7 +1856,7 @@ public:
 	local cell with refinement level 0.
 	Returns false otherwise.
 	*/
-	bool cell_overlaps_local(const uint64_t cell)
+	bool cell_overlaps_local(const uint64_t cell) const
 	{
 		const uint64_t parent = this->get_level_0_parent(cell);
 
@@ -1874,7 +1874,7 @@ public:
 
 	Assumes local cells are of refinement level 0.
 	*/
-	boost::unordered_set<uint64_t> get_cells_overlapping_local(const std::vector<uint64_t>& given_cells)
+	boost::unordered_set<uint64_t> get_cells_overlapping_local(const std::vector<uint64_t>& given_cells) const
 	{
 		boost::unordered_set<uint64_t> result;
 
@@ -4424,7 +4424,10 @@ public:
 
 
 	/*!
-	Removes user data of refined and unrefined cells from this process.
+	Removes Cell_Data of refined and unrefined cells from this process.
+
+	\see
+	refine_completely()
 	*/
 	void clear_refined_unrefined_data()
 	{
