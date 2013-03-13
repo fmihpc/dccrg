@@ -139,9 +139,36 @@ static const int
 /*!
 \brief Main class of dccrg, instantiate this to create a parallel grid for simulations.
 
+Cell_Data is stored in all local cells and must provide a way for dccrg to
+query what data to send between processes using MPI-2.2
+(http://www.mpi-forum.org/docs/), by default is must have the following method:
+\verbatim
+void mpi_datatype(
+	void*& address,
+	int& count,
+	MPI_Datatype& datatype,
+	const uint64_t cell_id,
+	const int sender,
+	const int receiver,
+	const bool receiving
+);
+\endverbatim
+where the first three arguments must be set by the method and the rest provide
+additional information for the method. If DCCRG_TRANSFER_USING_BOOST_MPI is
+defined when compiling then Cell_Data must have the following method:
+\verbatim
+template<typename Archiver> void serialize(
+	Archiver& ar,
+	const unsigned int version
+);
+\endverbatim
+for boost::mpi, see User-defined data types in boost::mpi tutorial:
+http://www.boost.org/doc/libs/release/doc/html/mpi/tutorial.html
+
+Geometry class decides the physical and logical size, shape, etc of the grid.
+
 \see
-Dccrg()
-initialize()
+Dccrg() to get started with the %dccrg API.
 */
 template <
 	class Cell_Data,
@@ -300,8 +327,9 @@ public:
 
 	load_balancing_method:
 		- The method that Zoltan will use for load balancing, given as a string.
-		- All methods except REFTREE are supported, see this page for a list of available methods:
-		- http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
+		- All methods except REFTREE are supported, see
+		  http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
+		  for a list of available methods:
 
 	neighborhood_length:
 		- Determines which cells are considered neighbors.
