@@ -24,10 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*!
 \mainpage Distributed Cartesian Cell-Refinable Grid.
 
-\section intro_sec Introduction
-dccrg is a grid library for simulations using the finite volume method.
-See the examples directory for some simple examples and the tests directory
-for more advanced usage of dccrg.
+See https://gitorious.org/dccrg/pages/Basics for the basics and
+dccrg::Dccrg::Dccrg() for a starting point in the API.
 */
 
 
@@ -138,6 +136,13 @@ static const int
 
 
 
+/*!
+\brief Main class of dccrg, instantiate this to create a parallel grid for simulations.
+
+\see
+Dccrg()
+initialize()
+*/
 template <
 	class Cell_Data,
 	class Geometry = Cartesian_Geometry
@@ -156,10 +161,19 @@ public:
 	typedef typename std::pair<const uint64_t&, const Cell_Data&> cell_and_data_pair_t;
 
 	/*!
-	Creates an uninitialized instance of the grid.
+	Creates an uninitialized instance of dccrg.
 
-	The instance's set_geometry and initialize functions must be called
-	before doing anything else, otherwise the results will be undefined.
+	The instance's set_geometry (inherited from the given geometry class)
+	and initialize functions must be called before doing anything else with
+	the instance, otherwise the result is undefined.
+
+	\see
+	Available geometries:
+		- Cartesian_Geometry::set_geometry()
+		- Stretched_Cartesian_Geometry::set_geometry()
+		.
+	initialize()
+	Dccrg(const Dccrg<Other_Cell_Data, Geometry>& other)
 	*/
 	Dccrg()
 	{
@@ -179,6 +193,8 @@ public:
 		- refined/unrefined cells and their Cell_Data
 		- Cell_Data of copies of remote neighbors
 		- everything related to load balancing or remote neighbor updates
+
+	A dccrg instance created this way is already initialized.
 	*/
 	template<class Other_Cell_Data> Dccrg(const Dccrg<Other_Cell_Data, Geometry>& other) :
 		initialized(other.get_initialized()),
@@ -304,6 +320,18 @@ public:
 	periodic_in_x, y and z:
 		- The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
 		  direction cells on the opposite sides of the grid in that direction can be neighbors.
+
+	\see
+	Dccrg()
+	get_cells()
+	operator[]()
+	get_neighbors_of()
+	update_copies_of_remote_neighbors()
+	balance_load()
+	add_neighborhood()
+	refine_completely()
+	is_local()
+	set_send_single_cells()
 	*/
 	void initialize(
 		const MPI_Comm& given_comm,
@@ -895,6 +923,7 @@ public:
 		- given neighborhood doesn't exist
 
 	\see
+	begin()
 	get_local_cells_on_process_boundary()
 	get_local_cells_not_on_process_boundary()
 	get_remote_cells_on_process_boundary()
@@ -999,6 +1028,9 @@ public:
 
 	During this function the receiving process given to the cells'
 	mpi_datatype function is -1 and receiving == false.
+
+	\see
+	read_grid()
 	*/
 	bool write_grid(const std::string& name, MPI_Offset& start_offset)
 	{
@@ -1436,6 +1468,10 @@ public:
 
 	TODO: Reads at most number_of_cells number of cell data offsets at a time,
 	give a smaller number if all cell ids won't fit	into memory at once.
+
+	\see
+	load()
+	write_grid()
 	*/
 	bool read_grid(
 		const std::string& name,
@@ -1764,6 +1800,10 @@ public:
 
 	/*!
 	Returns a begin const_iterator to the internal storage of local cells and their data.
+
+	\see
+	end()
+	get_cells()
 	*/
 	typename boost::unordered_map<uint64_t, Cell_Data>::const_iterator begin() const
 	{
@@ -1781,6 +1821,9 @@ public:
 
 	/*!
 	Returns the number of local cells without children, e.g. leaf cells.
+
+	\see
+	get_cells()
 	*/
 	size_t size() const
 	{
@@ -1796,6 +1839,9 @@ public:
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
+
+	\see
+	get_cells()
 	*/
 	std::vector<uint64_t> get_all_cells(const bool sorted = false) const
 	{
@@ -1831,6 +1877,9 @@ public:
 	The data of cells which are on other processes can also be available if:
 		- the cells are neighbors to a local cell and remote neighbor data has been updated
 		- the cells were unrefined and their parent is now a local cell
+
+	\see
+	get_cells()
 	*/
 	Cell_Data* operator [] (const uint64_t cell) const
 	{
@@ -1897,6 +1946,9 @@ public:
 	Ignores cells in given list that aren't a (grand...)
 	child of a local cell.
 	Returns true on success and false otherwise.
+
+	\see
+	read_grid()
 	*/
 	bool load(const std::vector<uint64_t>& given_cells)
 	{
@@ -3355,7 +3407,13 @@ public:
 	Children are created on their parent's process.
 
 	If given cell is at maximum refinement level dont_unrefine will be invoked instead.
-	 */
+
+	\see
+	unrefine_completely()
+	stop_refining()
+	clear_refined_unrefined_data()
+	get_removed_cells()
+	*/
 	void refine_completely(const uint64_t cell)
 	{
 		if (cell == error_cell) {
@@ -3629,7 +3687,7 @@ public:
 
 	Must be called simultaneously on all processes.
 	Returns cells that were created by refinement on this process.
-	Moves user data of unrefined cells to the process of their parent.
+	Moves user data of unrefined cells to the current process of their parent.
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
@@ -3655,8 +3713,10 @@ public:
 
 
 	/*!
-	Returns cells that were removed by unrefinement whose parent is on this process
-	Removed cells data is also on this process, but only until balance_load() is called
+	Returns cells that were removed by unrefinement and whose parent is currently a local cell.
+
+	Removed cells' data is currently also on this process,
+	but only until balance_load() is called.
 
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
@@ -5293,6 +5353,9 @@ public:
 
 	If true then one MPI message per cell is used, otherwise all cells
 	are transferred in one message.
+
+	\see
+	set_send_single_cells()
 	*/
 	bool get_send_single_cells() const
 	{
@@ -5304,7 +5367,9 @@ public:
 
 	Do not switch sending type while data transfers are going on,
 	for example with start_remote_neighbor_data_update(...).
-	See get_send_single_cells() for more info.
+
+	\see
+	get_send_single_cells()
 	*/
 	void set_send_single_cells(const bool given)
 	{

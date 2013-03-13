@@ -35,6 +35,8 @@ along with this dccrg. If not, see <http://www.gnu.org/licenses/>.
 namespace dccrg {
 
 /*!
+\brief Geometry class for dccrg with cubic cells
+
 A geometry class in which the sizes of unrefined cells are given
 by three floating points numbers.
 */
@@ -77,7 +79,7 @@ public:
 
 
 	/*!
-	Sets the grid's geometry to given values.
+	Sets the grid's length in cells and its geometry to given values.
 
 	- x, y and length_z set the number of unrefined cells in the grid in x, y and z direction.
 	- x, y and start_z set the starting corner of the grid, e.g. the first face

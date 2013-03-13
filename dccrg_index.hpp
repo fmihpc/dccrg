@@ -34,13 +34,26 @@ static const uint64_t error_cell = 0;
 static const uint64_t error_index = std::numeric_limits<uint64_t>::max();
 
 
+/*!
+\brief Mapping between cell ids and their indices.
+
+Length of the grid in unrefined cells in each dimension must be known
+in order to calculate a cell's id based on its location and size (in
+indices).
+
+\see
+Figure 2 and related text in http://dx.doi.org/10.1016/j.cpc.2012.12.017
+(unofficial version: http://arxiv.org/abs/1212.3496).
+*/
 class Index
 {
 
 public:
 
 	/*!
-	Creates and sets the grid to a default length of 1 cell with maximum refinement level 0.
+	Creates a grid with size of 1 cell and maximum refinement level 0.
+
+	Length of the grid is 1 cell in each dimension.
 	*/
 	Index()
 	{
@@ -50,7 +63,7 @@ public:
 	}
 
 	/*!
-	Sets the grid to a default length of 1 cell with maximum refinement level 0.
+	Sets the grid to a default constructed state.
 	*/
 	~Index()
 	{
@@ -394,14 +407,18 @@ public:
 
 protected:
 
-	// length of the grid in unrefined cells
-	// TODO: switch to boost::array<uint64_t, Dimensions> length
-	uint64_t length_x, length_y, length_z;
+	uint64_t
+		//! length of the grid in unrefined cells in x dimension
+		length_x,
+		//! length of the grid in unrefined cells in y dimension
+		length_y,
+		//! length of the grid in unrefined cells in z dimension
+		length_z;
 
-	// maximum refinemet level of any cell in the grid, 0 means unrefined
+	//! maximum refinemet level of any cell in the grid, 0 means unrefined
 	int max_refinement_level;
 
-	// last valid cell with these lengths and maximum_refinement_level
+	//! last valid cell id based on lengths and maximum_refinement_level
 	uint64_t last_cell;
 
 

@@ -35,7 +35,7 @@ template <unsigned int Dimensions> class Types
 public:
 
 /*!
-\Defines the indices of a cell in the grid.
+Defines the indices of a cell in the grid.
 
 First value is the cell's index in x direction, second in the y direction, etc.
 Indices start from 0 and the index of a cell is the one closest to the starting

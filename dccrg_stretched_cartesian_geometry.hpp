@@ -35,6 +35,8 @@ along with this dccrg. If not, see <http://www.gnu.org/licenses/>.
 namespace dccrg {
 
 /*!
+\brief Geometry class for dccrg with rectangular cuboid cells
+
 A geometry class in which the coordinates of unrefined cells are given
 by three vectors of floating points numbers.
 */
@@ -96,10 +98,12 @@ public:
 	}
 
 	/*!
-	Sets the coordinates of unrefined cells in the grid.
+	Sets the grid's length in cells and its geometry to given values.
 
+	Length of the grid in unrefined cells in a dimension is the number
+	of coordinates given minus one in that dimension.
 	First coordinate is the starting point of the grid and the following
-	ith value is the endpoint of the ith unrefined cell
+	ith value is the endpoint of the ith unrefined cell.
 	At least two values must be given for each direction and all values
 	must be strictly increasing.
 	Returns true if successful, probably invalidating all previous cell

@@ -36,12 +36,15 @@ namespace dccrg {
 
 
 /*!
-Returns the error string of given MPI error.
+\brief Returns the error string of given MPI error.
 */
 class Error_String
 {
 public:
 
+	/*!
+	mpi_return_value is the value returned by a failed MPI function.
+	*/
 	std::string operator()(int mpi_return_value)
 	{
 		char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
@@ -56,12 +59,15 @@ public:
 
 
 /*!
-Returns whether the given type is a named predefined datatype.
+\brief Returns whether the given type is a named predefined datatype.
 */
 class Is_Named_Datatype
 {
 public:
 
+	/*!
+	type is the MPI_Datatype to check.
+	*/
 	bool operator()(MPI_Datatype& type) const
 	{
 		int num_integers = -1, num_addresses = -1, num_datatypes = -1, combiner = -1;
@@ -88,15 +94,17 @@ public:
 
 
 /*!
-Wrapper for MPI_Allgatherv(..., uint64_t, ...).
-
-Result is cleared before use.
+\brief Wrapper for MPI_Allgatherv(..., uint64_t, ...).
 */
 class All_Gather
 {
 public:
 
-	// TODO: make this const correct once MPI is.
+	/*!
+	result is cleared before use, values and comm are not changed.
+
+	values and comm will be const when MPI is const correct.
+	*/
 	void operator()(
 		std::vector<uint64_t>& values,
 		std::vector<std::vector<uint64_t> >& result,
@@ -225,12 +233,15 @@ public:
 
 
 /*!
-Wrapper for MPI_Allreduce(uint64_t, ..., MPI_SUM).
+\brief Wrapper for MPI_Allreduce(uint64_t, ..., MPI_SUM).
 */
 class All_Reduce
 {
 public:
 
+	/*!
+	value and comm are not changed, will be const when MPI is const correct.
+	*/
 	uint64_t operator()(
 		uint64_t value,
 		MPI_Comm& comm
@@ -257,7 +268,7 @@ public:
 
 
 /*!
-Similar to MPI_Allreduce but communicates only with processes given in neighbors.
+\brief Similar to MPI_Allreduce but communicates only with processes given in neighbors.
 
 Given neighbors must not include the process itself.
 Any pair of processes in the given communicator either must or must not have each
@@ -273,6 +284,9 @@ class Some_Reduce
 {
 public:
 
+	/*!
+	value and comm are not changed, will be const when MPI is const correct.
+	*/
 	uint64_t operator()(
 		uint64_t value,
 		const boost::unordered_set<int>& neighbors,
