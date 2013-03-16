@@ -352,6 +352,7 @@ public:
 	\see
 	Dccrg()
 	get_cells()
+	get_existing_cell()
 	operator[]()
 	get_neighbors_of()
 	update_copies_of_remote_neighbors()
