@@ -5060,7 +5060,8 @@ public:
 	/*!
 	Returns the smallest existing cell at the given coordinate.
 
-	Returns error_cell if the coordinate is outside of the grid or the cell is on another process.
+	Returns error_cell if the coordinate is outside of the grid
+	or this process doesn't know which remote cells exist at given (x, y, z).
 	*/
 	uint64_t get_existing_cell(const double x, const double y, const double z) const
 	{
