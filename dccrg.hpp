@@ -1498,7 +1498,7 @@ public:
 	give a smaller number if all cell ids won't fit	into memory at once.
 
 	\see
-	load()
+	load_cells()
 	write_grid()
 	*/
 	bool read_grid(
@@ -1609,7 +1609,7 @@ public:
 			final_cells.push_back(item->first);
 		}
 
-		if (!this->load(final_cells)) {
+		if (!this->load_cells(final_cells)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't load grid"
 				<< std::endl;
@@ -1932,6 +1932,9 @@ public:
 	refinement level 0 or is a (grandgrand...)child of a
 	local cell with refinement level 0.
 	Returns false otherwise.
+
+	\see
+	get_cells_overlapping_local()
 	*/
 	bool cell_overlaps_local(const uint64_t cell) const
 	{
@@ -1967,18 +1970,21 @@ public:
 
 
 	/*!
-	Refines the current grid so that the given cells exist.
+	Refines the grid so that the given cells exist.
 
-	Must be called by all processes and only cells of
-	refinement level 0 must exist in the grid at that time.
+	When calling this function only cells of refinement
+	level 0 must exist in the grid.
+	Must be called by all processes.
 	Ignores cells in given list that aren't a (grand...)
-	child of a local cell.
+	child of a local cell (i.e. these cells can be left
+	out of given_cells if they wouldn't fit into memory).
 	Returns true on success and false otherwise.
 
 	\see
 	read_grid()
+	cell_overlaps_local()
 	*/
-	bool load(const std::vector<uint64_t>& given_cells)
+	bool load_cells(const std::vector<uint64_t>& given_cells)
 	{
 		// get the global maximum refinement level of cells to be loaded
 		boost::unordered_set<uint64_t> overlapping

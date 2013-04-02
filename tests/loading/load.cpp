@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 		(37449000 + 1000000)
 		(37449000 + 100000000);
 
-	grid.load(cells_to_load);
+	grid.load_cells(cells_to_load);
 
 	// save the grid
 	const std::string
