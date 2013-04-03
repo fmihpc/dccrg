@@ -799,100 +799,6 @@ public:
 
 
 	/*!
-	Returns true if given cell's neighbor types match given criterion, false otherwise.
-
-	Returns false if:
-		- given neighborhood doesn't exist
-		- given cell doesn't exist
-		- given cell is on another process
-
-	\see get_cells()
-	*/
-	bool is_neighbor_type_match(
-		const uint64_t cell,
-		const std::vector<int>& criteria,
-		const bool exact_match,
-		const int neighborhood_id
-	) const {
-
-		if (cell == error_cell) {
-			return false;
-		}
-
-		if (this->cell_process.count(cell) == 0) {
-			return false;
-		}
-
-		if (this->cell_process.at(cell) != this->rank) {
-			return false;
-		}
-
-		if (neighborhood_id != default_neighborhood_id
-		&& this->user_hood_of.count(neighborhood_id) == 0) {
-			return false;
-		}
-
-
-		int neighbor_types = 0;
-
-		const std::vector<uint64_t>& neighs_of
-			= (neighborhood_id == default_neighborhood_id)
-			? this->neighbors.at(cell)
-			: this->user_neigh_of.at(neighborhood_id).at(cell);
-
-		BOOST_FOREACH(const uint64_t neighbor, neighs_of) {
-			if (neighbor == error_cell) {
-				continue;
-			}
-
-			if (this->is_local(neighbor)) {
-				neighbor_types |= has_local_neighbor_of;
-			} else {
-				neighbor_types |= has_remote_neighbor_of;
-			}
-		}
-
-		const std::vector<uint64_t>& neighs_to
-			= (neighborhood_id == default_neighborhood_id)
-			? this->neighbors_to.at(cell)
-			: this->user_neigh_to.at(neighborhood_id).at(cell);
-
-		BOOST_FOREACH(const uint64_t neighbor, neighs_to) {
-			if (neighbor == error_cell) {
-				continue;
-			}
-
-			if (this->is_local(neighbor)) {
-				neighbor_types |= has_local_neighbor_to;
-			} else {
-				neighbor_types |= has_remote_neighbor_to;
-			}
-		}
-
-
-		if (exact_match) {
-			BOOST_FOREACH(const int criterion, criteria) {
-				if (neighbor_types == criterion) {
-					return true;
-				}
-			}
-		} else {
-			// with inexact matching all criteria can be merged into one
-			int merged_criteria = 0;
-			BOOST_FOREACH(const int criterion, criteria) {
-				merged_criteria |= criterion;
-			}
-
-			if ((neighbor_types & merged_criteria) > 0) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-
-	/*!
 	Returns cells without children on this process fulfilling given criteria.
 
 	By default returns all local cells.	Otherwise only those local cells are
@@ -1030,6 +936,1182 @@ public:
 			)) {
 				ret_val.push_back(cell);
 			}
+		}
+
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Returns a pointer to the user supplied data of given cell.
+
+	The data of local cells is always available, including refined cells
+	before the next call to stop_refining.
+	The data of cells which are on other processes can also be available if:
+		- the cells are neighbors to a local cell and remote neighbor data has been updated
+		- the cells were unrefined and their parent is now a local cell
+
+	\see
+	get_cells()
+	*/
+	Cell_Data* operator [] (const uint64_t cell) const
+	{
+		if (this->cells.count(cell) > 0) {
+			return (Cell_Data*) &(this->cells.at(cell));
+		} else if (this->remote_neighbors.count(cell) > 0) {
+			return (Cell_Data*) &(this->remote_neighbors.at(cell));
+		} else if (this->refined_cell_data.count(cell) > 0) {
+			return (Cell_Data*) &(this->refined_cell_data.at(cell));
+		} else if (this->unrefined_cell_data.count(cell) > 0) {
+			return (Cell_Data*) &(this->unrefined_cell_data.at(cell));
+		} else {
+			return NULL;
+		}
+	}
+
+
+	/*!
+	Returns a pointer to the neighbors of given cell.
+
+	In case the grid is not periodic in one or more directions,
+	neighbors that would be outside of the grid are error_cell.
+	Some neighbors might be on another process, but have a copy of their data on this process.
+	The local copy of remote neighbors' data is updated, for example, by calling
+	update_copies_of_remote_neighbors().
+
+	The neighbors are always in the following order:
+		- if all neighbors are of the same size then they are in z order, e.g.
+		  with a neighborhood size of 2 the first neighbor is at offset (-2, -2, -2)
+		  from the given cell, the second one is at (-1, -2, -2), etc, in size units
+		  of the given cell.
+		- if one or more of the cells in 1) is refined then instead of one cell
+		  there are 8 which are again in z order.
+	For example with maximum refinement level 1 and neighborhood size of 1
+	the neighbors of a cell of refinement level 0 at indices (2, 2, 2) could
+	be in the following order: (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0),
+	rest of refined cells..., (2, 0, 0), (3, 0, 0), (0, 2, 0), (2, 2, 0), ...
+
+	Offset (0, 0, 0) is skipped in all neighbor lists, so with a neighborhood
+	size of 2 the minimum length of neighbors lists is 124 and not 5^3 = 125.
+
+	If given a non-default neighborhood neighbors are in the same order as
+	the offsets in the given neighborhood.
+
+	Returns NULL if:
+		- neighborhood with given id doesn't exist
+		- given cell doesn't exist
+		- given cell is on another process
+
+	\see
+	get_neighbors_to()
+	update_copies_of_remote_neighbors()
+	get_neighbors_of_at_offset()
+	add_neighborhood()
+	*/
+	const std::vector<uint64_t>* get_neighbors_of(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (this->cells.count(cell) > 0) {
+			if (neighborhood_id == default_neighborhood_id) {
+				#ifdef DEBUG
+				if (this->neighbors.count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Neighbor list for cell " << cell
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+				#endif
+
+				return &(this->neighbors.at(cell));
+
+			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+
+				#ifdef DEBUG
+				if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< ": Neighbor list for cell " << cell
+						<< " doesn't exist for neighborhood id " << neighborhood_id
+						<< std::endl;
+					abort();
+				}
+				#endif
+
+				return &(this->user_neigh_of.at(neighborhood_id).at(cell));
+			}
+		}
+
+		return NULL;
+	}
+
+
+	/*!
+	Returns a pointer to the cells that consider given cell as a neighbor.
+
+	This list doesn't include 0s even if the grid isn't periodic in some direction.
+	Returns NULL if given cell doesn't exist or is on another process.
+	Neighbors returned by this function are in no particular order.
+
+	Returns NULL if neighborhood with given id doesn't exist.
+	*/
+	const std::vector<uint64_t>* get_neighbors_to(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (this->cells.count(cell) > 0) {
+
+			if (neighborhood_id == default_neighborhood_id) {
+				#ifdef DEBUG
+				if (this->neighbors_to.count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbors_to list for cell " << cell
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+				#endif
+				return &(this->neighbors_to.at(cell));
+
+			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
+
+				#ifdef DEBUG
+				if (this->user_neigh_to.at(neighborhood_id).count(cell) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbors_to list for cell " << cell
+						<< " doesn't exist for neighborhood id " << neighborhood_id
+						<< std::endl;
+					abort();
+				}
+				#endif
+				return &(this->user_neigh_to.at(neighborhood_id).at(cell));
+			}
+		}
+
+		return NULL;
+	}
+
+
+	/*!
+	Updates the cell data of neighboring cells between processes.
+
+	Cell data of any local cell that a cell on another process
+	considers as a neighbor is sent to that process.
+	Cell data of any cell on another process that a local cell
+	considers as a neighbor is received from that process.
+	Afterwards a copy of the remote cells' data is available
+	through operator[].
+
+	Data of any cell is only exchanged between any two processes
+	once, even if a cell the neighbor of more than one cell on
+	another process.
+
+	The decision of which cells are neighbors is controlled by
+	the neighborhood. By default the neighborhood with which
+	this instance of dccrg was initialized is used.
+
+	Returns true if successful and false otherwise (on one or more
+	processes), for example if a neighborhood with the given id
+	has not been set.
+
+	Must be called simultaneously on all processes and with
+	identical neigbhorhood_id.
+	Must not be called while load balancing is underway.
+
+	\see
+	start_remote_neighbor_copy_updates()
+	add_neighborhood()
+	get_remote_cells_on_process_boundary()
+	set_send_single_cells()
+	*/
+	bool update_copies_of_remote_neighbors(
+		const int neighborhood_id = default_neighborhood_id
+	) {
+		if (this->balancing_load) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " update_copies_of_remote_neighbors(...) called while balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		bool ret_val = true;
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			ret_val = false;
+		}
+
+		if (!this->start_remote_neighbor_copy_updates(neighborhood_id)) {
+			ret_val = false;
+		}
+
+		if (!this->wait_remote_neighbor_copy_updates(neighborhood_id)) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Load balances the grid's cells among processes.
+
+	Must be called by all processes.
+	Creates a new cell partition, in other words decides which
+	cells should be moved to which processes, and then moves
+	the cells' data accordingly.
+
+	If use_zoltan == true Zoltan will be used to create the new partition,
+	otherwise only pin requests will move local cells to other processes.
+	If Zoltan is used pin requests override decisions made by Zoltan.
+
+	The following items are discarded after a call to this function:
+		- cell weights
+		- refines/unrefines after the last call to stop_refining()
+		- the data of local copies of remote neighbors of local cells
+
+	\see
+	initialize_balance_load()
+	*/
+	void balance_load(const bool use_zoltan = true)
+	{
+		this->initialize_balance_load(use_zoltan);
+		this->continue_balance_load();
+		this->finish_balance_load();
+	}
+
+
+	/*!
+	Creates all children of given cell (and possibly of other cells due to induced refinement).
+
+	Takes priority over unrefining.
+	Refines / unrefines take effect only after a call to stop_refining() and are lost
+	after a call to balance_load().
+	Does nothing in any of the following cases:
+		- given cell has already been refined (including induced refinement)
+		  and stop_refining() has not been called afterwards
+		- given cell doesn't exist on this process
+		- given cell's children already exist
+	Children are created on their parent's process.
+
+	If given cell is at maximum refinement level dont_unrefine will be invoked instead.
+
+	\see
+	refine_completely_at()
+	unrefine_completely()
+	stop_refining()
+	clear_refined_unrefined_data()
+	get_removed_cells()
+	*/
+	void refine_completely(const uint64_t cell)
+	{
+		if (cell == error_cell) {
+			return;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
+
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (refinement_level > this->max_refinement_level) {
+			return;
+		}
+
+		// not if cell has children
+		if (cell != this->get_child(cell)) {
+			return;
+		}
+
+		if (refinement_level == this->max_refinement_level) {
+			this->dont_unrefine(cell);
+			return;
+		}
+
+		this->cells_to_refine.insert(cell);
+
+		// override local unrefines
+		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
+		BOOST_FOREACH(const uint64_t& sibling, siblings) {
+			this->cells_to_unrefine.erase(sibling);
+		}
+
+		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
+
+			if (this->get_refinement_level(neighbor) <= refinement_level) {
+				const std::vector<uint64_t> neighbor_siblings
+					= this->get_all_children(this->get_parent(neighbor));
+
+				BOOST_FOREACH(const uint64_t& sibling, neighbor_siblings) {
+					this->cells_to_unrefine.erase(sibling);
+				}
+			}
+		}
+
+		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors_to.at(cell)) {
+
+			if (this->get_refinement_level(neighbor) <= refinement_level) {
+				const std::vector<uint64_t> neighbor_siblings
+					= this->get_all_children(this->get_parent(neighbor));
+
+				BOOST_FOREACH(const uint64_t& sibling, neighbor_siblings) {
+					this->cells_to_unrefine.erase(sibling);
+				}
+			}
+		}
+	}
+
+
+	/*!
+	Removes the given cell and its siblings from the grid.
+
+	Refining (including induced refining) takes priority over unrefining.
+	Refines / unrefines take effect only after a call to stop_refining()
+	and are lost after a call to balance_load().
+	Does nothing in any of the following cases:
+		- dont_unrefine was called previously for given cell or its siblings
+		- given cell or one of its siblings has already been unrefined
+		  and stop_refining() has not been called
+		- given cell doesn't exist on this process
+		- given cell has children
+		- given cells refinement level is 0
+
+	After a cell and its siblings have been unrefined, their data has been moved
+	to their parent's process.
+	When no longer needed that data can be freed using clear_refined_unrefined_data.
+
+	\see
+	refine_completely()
+	unrefine_completely()
+	*/
+	void unrefine_completely(const uint64_t cell)
+	{
+		if (cell == error_cell) {
+			return;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
+
+		if (this->get_refinement_level(cell) == 0) {
+			return;
+		}
+
+		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
+
+		// don't unrefine if any sibling...
+		BOOST_FOREACH(const uint64_t& sibling, siblings) {
+
+			// ...has children
+			if (sibling != this->get_child(sibling)) {
+				return;
+			}
+
+			// ...cannot be unrefined
+			if (this->cells_to_refine.count(sibling) > 0
+			|| this->cells_not_to_unrefine.count(sibling) > 0) {
+				return;
+			}
+		}
+
+		// unrefinement succeeds if parent of unrefined will fulfill requirements
+		const uint64_t parent = this->get_parent(cell);
+		const int refinement_level = this->get_refinement_level(parent);
+
+		#ifdef DEBUG
+		if (parent == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
+			abort();
+		}
+
+		if (refinement_level < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid refinement level for parent"
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		const std::vector<uint64_t> neighbors
+			= this->find_neighbors_of(
+				parent,
+				this->neighborhood_of,
+				2 * this->max_ref_lvl_diff,
+				true
+			);
+
+		BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
+
+			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+
+			if (neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) {
+				return;
+			}
+
+			if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
+			&& this->cells_to_refine.count(neighbor) > 0) {
+				return;
+			}
+		}
+
+		// record only one sibling to unrefine / process
+		BOOST_FOREACH(const uint64_t& sibling, siblings) {
+			if (this->cells_to_unrefine.count(sibling) > 0) {
+				return;
+			}
+		}
+
+		this->cells_to_unrefine.insert(cell);
+	}
+
+
+	/*!
+	Prevents the given cell or its siblings from being unrefined.
+
+	Has an effect only during the next call to stop_refining().
+	Has no effect if balance_load() is called before stop_refining().
+	Does nothing in any of the following cases:
+		- given cell doesn't exist on this process
+		- given cell has children
+		- given cell's refinement level is 0
+
+	\see
+	dont_unrefine_at()
+	refine_completely()
+	*/
+	void dont_unrefine(const uint64_t cell)
+	{
+		if (cell == error_cell) {
+			return;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+
+		if (this->cells.count(cell) == 0) {
+			return;
+		}
+
+		if (this->get_refinement_level(cell) == 0) {
+			return;
+		}
+
+		if (cell != this->get_child(cell)) {
+			// cell already has children
+			return;
+		}
+
+		// record only one sibling / process
+		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
+		BOOST_FOREACH(const uint64_t& sibling, siblings) {
+			if (this->cells_not_to_unrefine.count(sibling) > 0) {
+				return;
+			}
+		}
+
+		// override local unrefines
+		BOOST_FOREACH(const uint64_t& sibling, siblings) {
+			this->cells_to_unrefine.erase(sibling);
+		}
+
+		this->cells_not_to_unrefine.insert(cell);
+	}
+
+
+	/*!
+	Returns cells which share a face with the given cell.
+
+	Only those cells are returned which are considered as neighbors
+	by given cell.
+	Uses the default neighborhood.
+	Does not return error_cell as a face neighbor.
+	Returns nothing in the same cases as get_neighbors_of().
+
+	uint64_t == neighbor id, int == neighbor direction.
+	Directions are +N or -N where N is the Nth dimension and
+	+ means positive direction and - negative in that dimension,
+	e.g. +1 is positive x direction, -3 negative z.
+
+	TODO:
+	By default uses neighborhood with which this dccrg was initialized,
+	\see
+	default_neighborhood_id()
+	get_neighbors_of()
+	*/
+	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
+		const uint64_t cell/*,
+		const int neighborhood_id = default_neighborhood_id*/
+	) const {
+		std::vector<std::pair<uint64_t, int> > ret_val;
+
+		if (this->cells.count(cell) == 0) {
+			return ret_val;
+		}
+
+		// get location of face neighbors' offsets in neighborhood_of
+		boost::array<size_t, 2 * 3> neighborhood_of_indices = {{0, 0, 0, 0, 0, 0}};
+		for (int direction = -1; direction <= 1; direction += 2)
+		for (size_t dimension = 0; dimension < 3; dimension++) {
+
+			// neigh_of_indices[n] == negative direction in dimension n,
+			// n + 1 positive direction
+			const size_t neigh_of_indices_index
+				= 2 * dimension + ((direction > 0) ? 1 : 0);
+
+			for (size_t i = 0; i <= this->neighborhood_of.size(); i++) {
+				if (i == this->neighborhood_of.size()) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighborhood_of offsets not found for face neighbors in dimension: "
+						<< dimension << ", direction: " << direction
+						<< std::endl;
+					abort();
+				}
+
+				bool found = true;
+				for (size_t other_dims = 0; other_dims < 3; other_dims++) {
+					if (other_dims != dimension
+					&& this->neighborhood_of[i][other_dims] != 0) {
+						found = false;
+						break;
+					}
+				}
+
+				if (this->neighborhood_of[i][dimension] != direction) {
+					found = false;
+				}
+
+				if (found) {
+					neighborhood_of_indices[neigh_of_indices_index] = i;
+					break;
+				}
+			}
+		}
+
+		// gather cells in given cell's neighbor_of list at indices found above
+		boost::array<size_t, 2 * 3> current_index = {{0, 0, 0, 0, 0, 0}};
+		const int refinement_level = this->get_refinement_level(cell);
+
+		for (size_t
+			neighbor_i = 0;
+			neighbor_i < this->neighbors.at(cell).size();
+			neighbor_i++
+		) {
+
+			const uint64_t neighbor = this->neighbors.at(cell)[neighbor_i];
+
+			if (neighbor == error_cell) {
+				for (size_t i = 0; i < current_index.size(); i++) {
+					current_index[i]++;
+				}
+				continue;
+			}
+
+			const int neigh_ref_lvl = this->get_refinement_level(neighbor);
+
+			for (int direction = -1; direction <= 1; direction += 2)
+			for (size_t dimension = 0; dimension < 3; dimension++) {
+
+				// neigh_of_indices[n] == negative direction, n + 1 positive
+				const size_t neigh_of_indices_index
+					= 2 * dimension + ((direction > 0) ? 1 : 0);
+
+				// at correct index in neighbors_of for current dim & dir
+				if (current_index[neigh_of_indices_index]
+				== neighborhood_of_indices[neigh_of_indices_index]) {
+
+					int final_dir = int(dimension) + 1;
+					if (direction < 0) {
+						final_dir *= -1;
+					}
+
+					// add one neighbor not smaller than given cell
+					if (neigh_ref_lvl <= refinement_level) {
+
+						ret_val.push_back(std::make_pair(neighbor, final_dir));
+
+					// add only face neighbors in current dim & dir
+					} else {
+
+						const uint64_t neighs_in_offset = uint64_t(1) << 3;
+
+						#ifdef DEBUG
+						if (this->neighbors.at(cell).size() < neighbor_i + neighs_in_offset) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " Invalid number of neighbors for cell " << cell
+								<< " while processing dimension " << dimension
+								<< " and direction " << direction
+								<< " starting at index " << neighbor_i
+								<< std::endl;
+							abort();
+						}
+						#endif
+
+						// see find_neighbors_of(...) for the order of these
+						const std::vector<uint64_t> dir_neighs(
+							this->neighbors.at(cell).begin() + neighbor_i,
+							this->neighbors.at(cell).begin() + neighbor_i + neighs_in_offset
+						);
+
+						// neighbor at offset    0, 1, 2, 3, 4, 5, 6, 7 is
+						// face neighbor of given cell when neighbors are in
+						// dim = 0, dir = -1      , y,  , y,  , y,  , y
+						// dim = 0, dir = +1     y,  , y,  , y,  , y,
+						// dim = 1, dir = -1      ,  , y, y,  ,  , y, y
+						// dim = 1, dir = +1     y, y,  ,  , y, y,  ,
+						// dim = 2, dir = -1      ,  ,  ,  , y, y, y, y
+						// dim = 2, dir = +1     y, y, y, y,  ,  ,  ,
+						const size_t
+							batch_size = size_t(1) << dimension,
+							mod_target = (direction < 0) ? 1 : 0;
+
+						for (size_t i = 0; i < neighs_in_offset; i++) {
+
+							#ifdef DEBUG
+							if (dir_neighs[i] == error_cell) {
+							std::cerr << __FILE__ << ":" << __LINE__
+								<< " Invalid neighbor of cell " << cell
+								<< " at index " << neighbor_i + i
+								<< std::endl;
+							abort();
+							}
+							#endif
+
+							if ((i / batch_size) % 2 == mod_target) {
+								ret_val.push_back(std::make_pair(dir_neighs[i], final_dir));
+							}
+						}
+					}
+				}
+
+				current_index[neigh_of_indices_index]++;
+			}
+
+			// skip all cells in this neighborhood offset
+			if (neigh_ref_lvl > refinement_level) {
+				neighbor_i += 7;
+			}
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Returns true if given cell's neighbor types match given criterion, false otherwise.
+
+	Returns false if:
+		- given neighborhood doesn't exist
+		- given cell doesn't exist
+		- given cell is on another process
+
+	\see get_cells()
+	*/
+	bool is_neighbor_type_match(
+		const uint64_t cell,
+		const std::vector<int>& criteria,
+		const bool exact_match,
+		const int neighborhood_id
+	) const {
+
+		if (cell == error_cell) {
+			return false;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return false;
+		}
+
+		if (this->cell_process.at(cell) != this->rank) {
+			return false;
+		}
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return false;
+		}
+
+
+		int neighbor_types = 0;
+
+		const std::vector<uint64_t>& neighs_of
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors.at(cell)
+			: this->user_neigh_of.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighs_of) {
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->is_local(neighbor)) {
+				neighbor_types |= has_local_neighbor_of;
+			} else {
+				neighbor_types |= has_remote_neighbor_of;
+			}
+		}
+
+		const std::vector<uint64_t>& neighs_to
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors_to.at(cell)
+			: this->user_neigh_to.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighs_to) {
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->is_local(neighbor)) {
+				neighbor_types |= has_local_neighbor_to;
+			} else {
+				neighbor_types |= has_remote_neighbor_to;
+			}
+		}
+
+
+		if (exact_match) {
+			BOOST_FOREACH(const int criterion, criteria) {
+				if (neighbor_types == criterion) {
+					return true;
+				}
+			}
+		} else {
+			// with inexact matching all criteria can be merged into one
+			int merged_criteria = 0;
+			BOOST_FOREACH(const int criterion, criteria) {
+				merged_criteria |= criterion;
+			}
+
+			if ((neighbor_types & merged_criteria) > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+
+	/*!
+	Returns the size of cells' neihgbourhood in every direction.
+	*/
+	unsigned int get_neighborhood_length() const
+	{
+		return this->neighborhood_length;
+	}
+
+
+	/*!
+	Returns all neighbors of given cell that are at given offset from it.
+
+	Offset is in units of size of the given cell
+	Returns nothing in the following cases:
+		- given cell doesn't exist
+		- given cell is on another process
+		- any of given offsets is larger in absolute value than the neighborhood
+		  size or larger than 1 if neihgborhood size == 0
+		- i == 0 && j == 0 && k == 0
+
+	\see
+	get_neighbors_of()
+	*/
+	std::vector<uint64_t> get_neighbors_of_at_offset(
+		const uint64_t cell,
+		const int i,
+		const int j,
+		const int k
+	) const {
+		std::vector<uint64_t> return_neighbors;
+		if (this->cell_process.count(cell) == 0
+		|| this->cell_process.at(cell) != this->rank
+		|| (i == 0 && j == 0 && k == 0)) {
+			return return_neighbors;
+		}
+
+		const int refinement_level = this->get_refinement_level(cell);
+
+		// find cell(s) at given indices in the stored neighbor list
+		const int last_offset
+			= (this->neighborhood_length > 0)
+			? int(this->neighborhood_length)
+			: 1;
+
+		int index = 0;
+		for (int
+			current_k = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
+			current_k <= last_offset;
+			current_k++
+		)
+		for (int
+			current_j = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
+			current_j <= last_offset;
+			current_j++
+		)
+		for (int
+			current_i = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
+			current_i <= last_offset;
+			current_i++
+		) {
+			if (current_i == 0 && current_j == 0 && current_k == 0) {
+				continue;
+			}
+
+			if (this->neighborhood_length == 0) {
+				// skip diagonal offsets
+				const int zero_offsets_in_current =
+					  ((current_i == 0) ? 1 : 0)
+					+ ((current_j == 0) ? 1 : 0)
+					+ ((current_k == 0) ? 1 : 0);
+				if (zero_offsets_in_current != 2) {
+					continue;
+				}
+			}
+
+			const int current_refinement_level
+				= this->get_refinement_level(this->neighbors.at(cell)[index]);
+
+			if (i == current_i && j == current_j && k == current_k) {
+
+				// TODO check for 0 neighbor instead of error from get_refinement_level
+				if (current_refinement_level == -1) {
+					return_neighbors.push_back(0);
+				} else {
+					return_neighbors.push_back(this->neighbors.at(cell)[index]);
+
+					if (current_refinement_level > refinement_level) {
+						return_neighbors.reserve(8);
+						for (int i = 1; i < 8; i++) {
+							index++;
+							return_neighbors.push_back(this->neighbors.at(cell)[index]);
+						}
+					}
+				}
+
+				current_i = current_j = current_k = last_offset + 1;
+
+			} else {
+				if (current_refinement_level > refinement_level) {
+					index += 7;
+				}
+			}
+
+			index++;
+		}
+
+		return return_neighbors;
+	}
+
+
+	/*!
+	Returns neighbors of given local cell that are on another process.
+
+	Returns nothing if:
+		- given cell doesn't exist
+		- given cell is on another process
+		- given cell doesn't have remote neighbors
+		- given neighborhood doesn't exist
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
+	*/
+	std::vector<uint64_t> get_remote_neighbors_of(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id,
+		const bool sorted = false
+	) const {
+		std::vector<uint64_t> ret_val;
+
+		if (this->cell_process.count(cell) == 0) {
+			return ret_val;
+		}
+
+		if (this->cell_process.at(cell) != this->rank) {
+			return ret_val;
+		}
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return ret_val;
+		}
+
+		const std::vector<uint64_t>& neighbors_ref
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors.at(cell)
+			: this->user_neigh_of.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighbors_ref) {
+
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->cell_process.at(neighbor) != this->rank) {
+				ret_val.push_back(neighbor);
+			}
+		}
+
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
+		}
+
+		return ret_val;
+	}
+
+	/*!
+	Returns remote cells that consider given local cell as a neighbor.
+
+	Returns nothing if given cell doesn't exist or is on another process
+	or doesn't have remote neighbors.
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
+	*/
+	std::vector<uint64_t> get_remote_neighbors_to(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id,
+		const bool sorted = false
+	) const {
+		std::vector<uint64_t> ret_val;
+
+		if (this->cell_process.count(cell) == 0) {
+			return ret_val;
+		}
+
+		if (this->cell_process.at(cell) != this->rank) {
+			return ret_val;
+		}
+
+		if (neighborhood_id != default_neighborhood_id
+		&& this->user_hood_of.count(neighborhood_id) == 0) {
+			return ret_val;
+		}
+
+		const std::vector<uint64_t>& neighbors_ref
+			= (neighborhood_id == default_neighborhood_id)
+			? this->neighbors_to.at(cell)
+			: this->user_neigh_to.at(neighborhood_id).at(cell);
+
+		BOOST_FOREACH(const uint64_t neighbor, neighbors_ref) {
+
+			if (neighbor == error_cell) {
+				continue;
+			}
+
+			if (this->cell_process.at(neighbor) != this->rank) {
+				ret_val.push_back(neighbor);
+			}
+		}
+
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Returns true if given cell is on this process and false otherwise.
+	*/
+	bool is_local(const uint64_t cell) const
+	{
+		if (this->cell_process.count(cell) > 0
+		&& this->cell_process.at(cell) == this->rank) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+
+	/*!
+	Writes the cells on this process into a vtk file with given name in ASCII format.
+
+	The cells are written in ascending order.
+	Must be called simultaneously on all processes.
+	*/
+	void write_vtk_file(const char* file_name) const
+	{
+		std::ofstream outfile(file_name);
+		if (!outfile.is_open()) {
+			std::cerr << "Couldn't open file " << file_name << std::endl;
+			// TODO: throw an exception instead
+			exit(1);
+		}
+
+		std::vector<uint64_t> leaf_cells = this->get_cells();
+		std::sort(leaf_cells.begin(), leaf_cells.end());
+		outfile << "# vtk DataFile Version 2.0" << std::endl;
+		outfile << "Cartesian cell refinable grid" << std::endl;
+		outfile << "ASCII" << std::endl;
+		outfile << "DATASET UNSTRUCTURED_GRID" << std::endl;
+
+		// write separate points for every cells corners
+		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
+		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_min(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
+				<< this->get_cell_y_max(leaf_cells[i]) << " "
+				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+		}
+
+		// map cells to written points
+		outfile << "CELLS " << leaf_cells.size() << " " << leaf_cells.size() * 9 << std::endl;
+		for (unsigned int j = 0; j < leaf_cells.size(); j++) {
+			outfile << "8 ";
+			for (int i = 0; i < 8; i++) {
+				 outfile << j * 8 + i << " ";
+			}
+			outfile << std::endl;
+		}
+
+		// cell types
+		outfile << "CELL_TYPES " << leaf_cells.size() << std::endl;
+		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
+			outfile << 11 << std::endl;
+		}
+
+		if (!outfile.good()) {
+			std::cerr << "Writing of vtk file probably failed" << std::endl;
+			// TODO: throw an exception instead
+			exit(EXIT_FAILURE);
+		}
+
+		outfile.close();
+	}
+
+
+	/*!
+	As refine_completely, but uses the smallest existing cell at given coordinates.
+
+	Does nothing in the same cases as refine_completely and additionally
+	if the coordinate is outside of the grid.
+	*/
+	void refine_completely_at(const double x, const double y, const double z)
+	{
+		const uint64_t cell = this->get_existing_cell(x, y, z);
+		if (cell == 0) {
+			return;
+		}
+
+		this->refine_completely(cell);
+	}
+
+
+	/*!
+	As unrefine_completely, but uses the smallest existing cell at given coordinates.
+
+	Does nothing in the same cases as unrefine_completely and additionally
+	if the coordinate is outside of the grid.
+	*/
+	void unrefine_completely_at(const double x, const double y, const double z)
+	{
+		const uint64_t cell = this->get_existing_cell(x, y, z);
+		if (cell == 0) {
+			return;
+		}
+
+		this->unrefine_completely(cell);
+	}
+
+
+	/*!
+	As dont_unrefine but uses the smallest existing cell at given coordinates.
+
+	Does nothing in the same cases as dont_unrefine and additionally if the
+	coordinate is outside of the grid.
+	*/
+	void dont_unrefine_at(const double x, const double y, const double z)
+	{
+		const uint64_t cell = this->get_existing_cell(x, y, z);
+		if (cell == error_cell) {
+			return;
+		}
+
+		this->dont_unrefine(cell);
+	}
+
+
+	/*!
+	Executes refines / unrefines that have been requested so far.
+
+	Must be called simultaneously on all processes.
+	Returns cells that were created by refinement on this process.
+	Moves user data of unrefined cells to the current process of their parent.
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
+	*/
+	std::vector<uint64_t> stop_refining(const bool sorted = false)
+	{
+		this->induce_refines();
+
+		// update dont_refines between processes
+		this->all_to_all_set(this->cells_not_to_unrefine);
+
+		this->override_unrefines();
+		this->cells_not_to_unrefine.clear();
+
+		std::vector<uint64_t> ret_val = this->execute_refines();
+
+		if (sorted && ret_val.size() > 0) {
+			std::sort(ret_val.begin(), ret_val.end());
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Returns cells that were removed by unrefinement and whose parent is currently a local cell.
+
+	Removed cells' data is currently also on this process,
+	but only until balance_load() is called.
+
+	By default returned cells are in random order but if sorted == true
+	they are sorted using std::sort before returning.
+	*/
+	std::vector<uint64_t> get_removed_cells(const bool sorted = false) const
+	{
+		std::vector<uint64_t> ret_val;
+		ret_val.reserve(this->unrefined_cell_data.size());
+
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->unrefined_cell_data) {
+			ret_val.push_back(item.first);
 		}
 
 		if (sorted && ret_val.size() > 0) {
@@ -1897,34 +2979,6 @@ public:
 
 
 	/*!
-	Returns a pointer to the user supplied data of given cell.
-
-	The data of local cells is always available, including refined cells
-	before the next call to stop_refining.
-	The data of cells which are on other processes can also be available if:
-		- the cells are neighbors to a local cell and remote neighbor data has been updated
-		- the cells were unrefined and their parent is now a local cell
-
-	\see
-	get_cells()
-	*/
-	Cell_Data* operator [] (const uint64_t cell) const
-	{
-		if (this->cells.count(cell) > 0) {
-			return (Cell_Data*) &(this->cells.at(cell));
-		} else if (this->remote_neighbors.count(cell) > 0) {
-			return (Cell_Data*) &(this->remote_neighbors.at(cell));
-		} else if (this->refined_cell_data.count(cell) > 0) {
-			return (Cell_Data*) &(this->refined_cell_data.at(cell));
-		} else if (this->unrefined_cell_data.count(cell) > 0) {
-			return (Cell_Data*) &(this->unrefined_cell_data.at(cell));
-		} else {
-			return NULL;
-		}
-	}
-
-
-	/*!
 	Returns true if given cell overlaps a local cell.
 
 	Returns true if given cell is either a local cell of
@@ -2045,33 +3099,6 @@ public:
 		return true;
 	}
 
-
-	/*!
-	Load balances the grid's cells among processes.
-
-	Must be called by all processes.
-	Creates a new cell partition, in other words decides which
-	cells should be moved to which processes, and then moves
-	the cells' data accordingly.
-
-	If use_zoltan == true Zoltan will be used to create the new partition,
-	otherwise only pin requests will move local cells to other processes.
-	If Zoltan is used pin requests override decisions made by Zoltan.
-
-	The following items are discarded after a call to this function:
-		- cell weights
-		- refines/unrefines after the last call to stop_refining()
-		- the data of local copies of remote neighbors of local cells
-
-	\see
-	initialize_balance_load()
-	*/
-	void balance_load(const bool use_zoltan = true)
-	{
-		this->initialize_balance_load(use_zoltan);
-		this->continue_balance_load();
-		this->finish_balance_load();
-	}
 
 	/*!
 	Starts the procedure of moving cells between processes.
@@ -2460,1324 +3487,6 @@ public:
 		this->added_cells.clear();
 		this->removed_cells.clear();
 		this->balancing_load = false;
-	}
-
-
-	/*!
-	Updates the cell data of neighboring cells between processes.
-
-	Cell data of any local cell that a cell on another process
-	considers as a neighbor is sent to that process.
-	Cell data of any cell on another process that a local cell
-	considers as a neighbor is received from that process.
-	Afterwards a copy of the remote cells' data is available
-	through operator[].
-
-	Data of any cell is only exchanged between any two processes
-	once, even if a cell the neighbor of more than one cell on
-	another process.
-
-	The decision of which cells are neighbors is controlled by
-	the neighborhood. By default the neighborhood with which
-	this instance of dccrg was initialized is used.
-
-	Returns true if successful and false otherwise (on one or more
-	processes), for example if a neighborhood with the given id
-	has not been set.
-
-	Must be called simultaneously on all processes and with
-	identical neigbhorhood_id.
-	Must not be called while load balancing is underway.
-
-	\see
-	start_remote_neighbor_copy_updates()
-	add_neighborhood()
-	get_remote_cells_on_process_boundary()
-	set_send_single_cells()
-	*/
-	bool update_copies_of_remote_neighbors(
-		const int neighborhood_id = default_neighborhood_id
-	) {
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " update_copies_of_remote_neighbors(...) called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		bool ret_val = true;
-
-		if (this->user_hood_of.count(neighborhood_id) == 0) {
-			ret_val = false;
-		}
-
-		if (!this->start_remote_neighbor_copy_updates(neighborhood_id)) {
-			ret_val = false;
-		}
-
-		if (!this->wait_remote_neighbor_copy_updates(neighborhood_id)) {
-			ret_val = false;
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	An asynchronous version of update_copies_of_remote_neighbors().
-
-	Starts remote neighbor data updates and returns immediately.
-
-	\see
-	update_copies_of_remote_neighbors()
-	wait_remote_neighbor_copy_updates()
-	*/
-	bool start_remote_neighbor_copy_updates(
-		const int neighborhood_id = default_neighborhood_id
-	) {
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " start_remote_neighbor_data_update(...) called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		bool ret_val = true;
-
-		if (neighborhood_id == default_neighborhood_id) {
-			return this->start_user_data_transfers(
-				this->remote_neighbors,
-				this->cells_to_receive,
-				this->cells_to_send
-			);
-		}
-
-		if (this->user_hood_of.count(neighborhood_id) == 0) {
-
-			#ifdef DEBUG
-			if (this->user_hood_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			ret_val = false;
-		}
-
-		#ifdef DEBUG
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		if (!this->start_user_data_transfers(
-			this->remote_neighbors,
-			this->user_neigh_cells_to_receive.at(neighborhood_id),
-			this->user_neigh_cells_to_send.at(neighborhood_id)
-		)) {
-			ret_val = false;
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Finishes what start_remote_neighbor_data_update() started.
-
-	\see
-	start_remote_neighbor_copy_updates()
-	*/
-	bool wait_remote_neighbor_copy_updates(
-		const int neighborhood_id = default_neighborhood_id
-	) {
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_remote_neighbor_copy_updates(...) called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		bool ret_val = true;
-
-		if (!this->wait_remote_neighbor_copy_update_receives(neighborhood_id)) {
-			ret_val = false;
-		}
-		if (!this->wait_remote_neighbor_copy_update_sends()) {
-			ret_val = false;
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Waits for sends started by start_remote_neighbor_copy_updates().
-
-	\see
-	start_remote_neighbor_copy_updates()
-	*/
-	bool wait_remote_neighbor_copy_update_sends()
-	{
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_remote_neighbor_copy_update_sends() called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		return this->wait_user_data_transfer_sends();
-	}
-
-
-	/*!
-	Waits for receives started by start_remote_neighbor_copy_updates().
-
-	\see
-	start_remote_neighbor_copy_updates()
-	*/
-	bool wait_remote_neighbor_copy_update_receives(
-		const int neighborhood_id = default_neighborhood_id
-	) {
-		if (this->balancing_load) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " wait_remote_neighbor_copy_update_receives(...) called while balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		bool ret_val = true;
-
-		if (neighborhood_id == default_neighborhood_id) {
-			return this->wait_user_data_transfer_receives(
-				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-				this->remote_neighbors,
-				this->cells_to_receive
-				#endif
-			);
-		}
-
-		if (this->user_hood_of.count(neighborhood_id) == 0) {
-			ret_val = false;
-		}
-
-		if (!this->wait_user_data_transfer_receives(
-			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-			this->remote_neighbors,
-			this->user_neigh_cells_to_receive.at(neighborhood_id)
-			#endif
-		)) {
-			ret_val = false;
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Returns number of cells that will be sent in a remote neighbor data update.
-
-	The total amount of cells to be sent is returned so if one cell's data
-	is sent to N processes it is counted N times.
-
-	Returns maximum uint64_t if given neighborhood id doesn't exist.
-
-	\see
-	update_copies_of_remote_neighbors()
-	add_neighborhood()
-	*/
-	uint64_t get_number_of_update_send_cells(
-		const int neighborhood_id = default_neighborhood_id
-	) const {
-		uint64_t ret_val = 0;
-
-		if (neighborhood_id == default_neighborhood_id) {
-			for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-				receiver = cells_to_send.begin();
-				receiver != cells_to_send.end();
-				receiver++
-			) {
-				ret_val += receiver->second.size();
-			}
-			return ret_val;
-		}
-
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			return std::numeric_limits<uint64_t>::max();
-		}
-
-		#ifdef DEBUG
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			receiver_item = this->user_neigh_cells_to_send.at(neighborhood_id).begin();
-			receiver_item != this->user_neigh_cells_to_send.at(neighborhood_id).end();
-			receiver_item++
-		) {
-			ret_val += receiver_item->second.size();
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Returns the number of cells whose data this process has to receive during a neighbor data update.
-
-
-	Same as get_number_of_update_receive_cells() but for given neighborhood id.
-
-	Returns maximum uint64_t if given neighborhood id doesn't exist.
-
-	\see
-	get_number_of_update_send_cells()
-	*/
-	uint64_t get_number_of_update_receive_cells(
-		const int neighborhood_id = default_neighborhood_id
-	) const {
-		uint64_t ret_val = 0;
-
-		if (neighborhood_id == default_neighborhood_id) {
-			for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-				sender = this->cells_to_receive.begin();
-				sender != this->cells_to_receive.end();
-				sender++
-			) {
-				ret_val += sender->second.size();
-			}
-			return ret_val;
-		}
-
-		if (this->user_hood_of.count(neighborhood_id) == 0) {
-			return std::numeric_limits<uint64_t>::max();
-		}
-
-		#ifdef DEBUG
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-			sender_item = this->user_neigh_cells_to_receive.at(neighborhood_id).begin();
-			sender_item != this->user_neigh_cells_to_receive.at(neighborhood_id).end();
-			sender_item++
-		) {
-			ret_val += sender_item->second.size();
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Returns a pointer to the neighbors of given cell.
-
-	In case the grid is not periodic in one or more directions,
-	neighbors that would be outside of the grid are error_cell.
-	Some neighbors might be on another process, but have a copy of their data on this process.
-	The local copy of remote neighbors' data is updated, for example, by calling
-	update_copies_of_remote_neighbors().
-
-	The neighbors are always in the following order:
-		- if all neighbors are of the same size then they are in z order, e.g.
-		  with a neighborhood size of 2 the first neighbor is at offset (-2, -2, -2)
-		  from the given cell, the second one is at (-1, -2, -2), etc, in size units
-		  of the given cell.
-		- if one or more of the cells in 1) is refined then instead of one cell
-		  there are 8 which are again in z order.
-	For example with maximum refinement level 1 and neighborhood size of 1
-	the neighbors of a cell of refinement level 0 at indices (2, 2, 2) could
-	be in the following order: (0, 0, 0), (1, 0, 0), (0, 1, 0), (1, 1, 0),
-	rest of refined cells..., (2, 0, 0), (3, 0, 0), (0, 2, 0), (2, 2, 0), ...
-
-	Offset (0, 0, 0) is skipped in all neighbor lists, so with a neighborhood
-	size of 2 the minimum length of neighbors lists is 124 and not 5^3 = 125.
-
-	If given a non-default neighborhood neighbors are in the same order as
-	the offsets in the given neighborhood.
-
-	Returns NULL if:
-		- neighborhood with given id doesn't exist
-		- given cell doesn't exist
-		- given cell is on another process
-
-	\see
-	get_neighbors_to()
-	get_neighbors_of_at_offset()
-	add_neighborhood()
-	*/
-	const std::vector<uint64_t>* get_neighbors_of(
-		const uint64_t cell,
-		const int neighborhood_id = default_neighborhood_id
-	) const {
-		if (this->cells.count(cell) > 0) {
-			if (neighborhood_id == default_neighborhood_id) {
-				#ifdef DEBUG
-				if (this->neighbors.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << this->rank
-						<< ": Neighbor list for cell " << cell
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-				#endif
-
-				return &(this->neighbors.at(cell));
-
-			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
-
-				#ifdef DEBUG
-				if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << this->rank
-						<< ": Neighbor list for cell " << cell
-						<< " doesn't exist for neighborhood id " << neighborhood_id
-						<< std::endl;
-					abort();
-				}
-				#endif
-
-				return &(this->user_neigh_of.at(neighborhood_id).at(cell));
-			}
-		}
-
-		return NULL;
-	}
-
-
-	/*!
-	Returns a pointer to the cells that consider given cell as a neighbor.
-
-	This list doesn't include 0s even if the grid isn't periodic in some direction.
-	Returns NULL if given cell doesn't exist or is on another process.
-	Neighbors returned by this function are in no particular order.
-
-	Returns NULL if neighborhood with given id doesn't exist.
-	*/
-	const std::vector<uint64_t>* get_neighbors_to(
-		const uint64_t cell,
-		const int neighborhood_id = default_neighborhood_id
-	) const {
-		if (this->cells.count(cell) > 0) {
-
-			if (neighborhood_id == default_neighborhood_id) {
-				#ifdef DEBUG
-				if (this->neighbors_to.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbors_to list for cell " << cell
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-				#endif
-				return &(this->neighbors_to.at(cell));
-
-			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
-
-				#ifdef DEBUG
-				if (this->user_neigh_to.at(neighborhood_id).count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbors_to list for cell " << cell
-						<< " doesn't exist for neighborhood id " << neighborhood_id
-						<< std::endl;
-					abort();
-				}
-				#endif
-				return &(this->user_neigh_to.at(neighborhood_id).at(cell));
-			}
-		}
-
-		return NULL;
-	}
-
-
-	/*!
-	Returns cells which share a face with the given cell.
-
-	Only those cells are returned which are considered as neighbors
-	by given cell.
-	Uses the default neighborhood.
-	Does not return error_cell as a face neighbor.
-	Returns nothing in the same cases as get_neighbors_of().
-
-	uint64_t == neighbor id, int == neighbor direction.
-	Directions are +N or -N where N is the Nth dimension and
-	+ means positive direction and - negative in that dimension,
-	e.g. +1 is positive x direction, -3 negative z.
-
-	TODO:
-	By default uses neighborhood with which this dccrg was initialized,
-	\see
-	default_neighborhood_id()
-	get_neighbors_of()
-	*/
-	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
-		const uint64_t cell/*,
-		const int neighborhood_id = default_neighborhood_id*/
-	) const {
-		std::vector<std::pair<uint64_t, int> > ret_val;
-
-		if (this->cells.count(cell) == 0) {
-			return ret_val;
-		}
-
-		// get location of face neighbors' offsets in neighborhood_of
-		boost::array<size_t, 2 * 3> neighborhood_of_indices = {{0, 0, 0, 0, 0, 0}};
-		for (int direction = -1; direction <= 1; direction += 2)
-		for (size_t dimension = 0; dimension < 3; dimension++) {
-
-			// neigh_of_indices[n] == negative direction in dimension n,
-			// n + 1 positive direction
-			const size_t neigh_of_indices_index
-				= 2 * dimension + ((direction > 0) ? 1 : 0);
-
-			for (size_t i = 0; i <= this->neighborhood_of.size(); i++) {
-				if (i == this->neighborhood_of.size()) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighborhood_of offsets not found for face neighbors in dimension: "
-						<< dimension << ", direction: " << direction
-						<< std::endl;
-					abort();
-				}
-
-				bool found = true;
-				for (size_t other_dims = 0; other_dims < 3; other_dims++) {
-					if (other_dims != dimension
-					&& this->neighborhood_of[i][other_dims] != 0) {
-						found = false;
-						break;
-					}
-				}
-
-				if (this->neighborhood_of[i][dimension] != direction) {
-					found = false;
-				}
-
-				if (found) {
-					neighborhood_of_indices[neigh_of_indices_index] = i;
-					break;
-				}
-			}
-		}
-
-		// gather cells in given cell's neighbor_of list at indices found above
-		boost::array<size_t, 2 * 3> current_index = {{0, 0, 0, 0, 0, 0}};
-		const int refinement_level = this->get_refinement_level(cell);
-
-		for (size_t
-			neighbor_i = 0;
-			neighbor_i < this->neighbors.at(cell).size();
-			neighbor_i++
-		) {
-
-			const uint64_t neighbor = this->neighbors.at(cell)[neighbor_i];
-
-			if (neighbor == error_cell) {
-				for (size_t i = 0; i < current_index.size(); i++) {
-					current_index[i]++;
-				}
-				continue;
-			}
-
-			const int neigh_ref_lvl = this->get_refinement_level(neighbor);
-
-			for (int direction = -1; direction <= 1; direction += 2)
-			for (size_t dimension = 0; dimension < 3; dimension++) {
-
-				// neigh_of_indices[n] == negative direction, n + 1 positive
-				const size_t neigh_of_indices_index
-					= 2 * dimension + ((direction > 0) ? 1 : 0);
-
-				// at correct index in neighbors_of for current dim & dir
-				if (current_index[neigh_of_indices_index]
-				== neighborhood_of_indices[neigh_of_indices_index]) {
-
-					int final_dir = int(dimension) + 1;
-					if (direction < 0) {
-						final_dir *= -1;
-					}
-
-					// add one neighbor not smaller than given cell
-					if (neigh_ref_lvl <= refinement_level) {
-
-						ret_val.push_back(std::make_pair(neighbor, final_dir));
-
-					// add only face neighbors in current dim & dir
-					} else {
-
-						const uint64_t neighs_in_offset = uint64_t(1) << 3;
-
-						#ifdef DEBUG
-						if (this->neighbors.at(cell).size() < neighbor_i + neighs_in_offset) {
-							std::cerr << __FILE__ << ":" << __LINE__
-								<< " Invalid number of neighbors for cell " << cell
-								<< " while processing dimension " << dimension
-								<< " and direction " << direction
-								<< " starting at index " << neighbor_i
-								<< std::endl;
-							abort();
-						}
-						#endif
-
-						// see find_neighbors_of(...) for the order of these
-						const std::vector<uint64_t> dir_neighs(
-							this->neighbors.at(cell).begin() + neighbor_i,
-							this->neighbors.at(cell).begin() + neighbor_i + neighs_in_offset
-						);
-
-						// neighbor at offset    0, 1, 2, 3, 4, 5, 6, 7 is
-						// face neighbor of given cell when neighbors are in
-						// dim = 0, dir = -1      , y,  , y,  , y,  , y
-						// dim = 0, dir = +1     y,  , y,  , y,  , y,
-						// dim = 1, dir = -1      ,  , y, y,  ,  , y, y
-						// dim = 1, dir = +1     y, y,  ,  , y, y,  ,
-						// dim = 2, dir = -1      ,  ,  ,  , y, y, y, y
-						// dim = 2, dir = +1     y, y, y, y,  ,  ,  ,
-						const size_t
-							batch_size = size_t(1) << dimension,
-							mod_target = (direction < 0) ? 1 : 0;
-
-						for (size_t i = 0; i < neighs_in_offset; i++) {
-
-							#ifdef DEBUG
-							if (dir_neighs[i] == error_cell) {
-							std::cerr << __FILE__ << ":" << __LINE__
-								<< " Invalid neighbor of cell " << cell
-								<< " at index " << neighbor_i + i
-								<< std::endl;
-							abort();
-							}
-							#endif
-
-							if ((i / batch_size) % 2 == mod_target) {
-								ret_val.push_back(std::make_pair(dir_neighs[i], final_dir));
-							}
-						}
-					}
-				}
-
-				current_index[neigh_of_indices_index]++;
-			}
-
-			// skip all cells in this neighborhood offset
-			if (neigh_ref_lvl > refinement_level) {
-				neighbor_i += 7;
-			}
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Returns the size of cells' neihgbourhood in every direction.
-	*/
-	unsigned int get_neighborhood_length() const
-	{
-		return this->neighborhood_length;
-	}
-
-
-	/*!
-	Returns all neighbors of given cell that are at given offset from it.
-
-	Offset is in units of size of the given cell
-	Returns nothing in the following cases:
-		- given cell doesn't exist
-		- given cell is on another process
-		- any of given offsets is larger in absolute value than the neighborhood
-		  size or larger than 1 if neihgborhood size == 0
-		- i == 0 && j == 0 && k == 0
-
-	\see
-	get_neighbors_of()
-	*/
-	std::vector<uint64_t> get_neighbors_of_at_offset(
-		const uint64_t cell,
-		const int i,
-		const int j,
-		const int k
-	) const {
-		std::vector<uint64_t> return_neighbors;
-		if (this->cell_process.count(cell) == 0
-		|| this->cell_process.at(cell) != this->rank
-		|| (i == 0 && j == 0 && k == 0)) {
-			return return_neighbors;
-		}
-
-		const int refinement_level = this->get_refinement_level(cell);
-
-		// find cell(s) at given indices in the stored neighbor list
-		const int last_offset
-			= (this->neighborhood_length > 0)
-			? int(this->neighborhood_length)
-			: 1;
-
-		int index = 0;
-		for (int
-			current_k = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
-			current_k <= last_offset;
-			current_k++
-		)
-		for (int
-			current_j = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
-			current_j <= last_offset;
-			current_j++
-		)
-		for (int
-			current_i = (this->neighborhood_length > 0) ? -int(this->neighborhood_length) : -1;
-			current_i <= last_offset;
-			current_i++
-		) {
-			if (current_i == 0 && current_j == 0 && current_k == 0) {
-				continue;
-			}
-
-			if (this->neighborhood_length == 0) {
-				// skip diagonal offsets
-				const int zero_offsets_in_current =
-					  ((current_i == 0) ? 1 : 0)
-					+ ((current_j == 0) ? 1 : 0)
-					+ ((current_k == 0) ? 1 : 0);
-				if (zero_offsets_in_current != 2) {
-					continue;
-				}
-			}
-
-			const int current_refinement_level
-				= this->get_refinement_level(this->neighbors.at(cell)[index]);
-
-			if (i == current_i && j == current_j && k == current_k) {
-
-				// TODO check for 0 neighbor instead of error from get_refinement_level
-				if (current_refinement_level == -1) {
-					return_neighbors.push_back(0);
-				} else {
-					return_neighbors.push_back(this->neighbors.at(cell)[index]);
-
-					if (current_refinement_level > refinement_level) {
-						return_neighbors.reserve(8);
-						for (int i = 1; i < 8; i++) {
-							index++;
-							return_neighbors.push_back(this->neighbors.at(cell)[index]);
-						}
-					}
-				}
-
-				current_i = current_j = current_k = last_offset + 1;
-
-			} else {
-				if (current_refinement_level > refinement_level) {
-					index += 7;
-				}
-			}
-
-			index++;
-		}
-
-		return return_neighbors;
-	}
-
-
-	/*!
-	Returns neighbors of given local cell that are on another process.
-
-	Returns nothing if:
-		- given cell doesn't exist
-		- given cell is on another process
-		- given cell doesn't have remote neighbors
-		- given neighborhood doesn't exist
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_remote_neighbors_of(
-		const uint64_t cell,
-		const int neighborhood_id = default_neighborhood_id,
-		const bool sorted = false
-	) const {
-		std::vector<uint64_t> ret_val;
-
-		if (this->cell_process.count(cell) == 0) {
-			return ret_val;
-		}
-
-		if (this->cell_process.at(cell) != this->rank) {
-			return ret_val;
-		}
-
-		if (neighborhood_id != default_neighborhood_id
-		&& this->user_hood_of.count(neighborhood_id) == 0) {
-			return ret_val;
-		}
-
-		const std::vector<uint64_t>& neighbors_ref
-			= (neighborhood_id == default_neighborhood_id)
-			? this->neighbors.at(cell)
-			: this->user_neigh_of.at(neighborhood_id).at(cell);
-
-		BOOST_FOREACH(const uint64_t neighbor, neighbors_ref) {
-
-			if (neighbor == error_cell) {
-				continue;
-			}
-
-			if (this->cell_process.at(neighbor) != this->rank) {
-				ret_val.push_back(neighbor);
-			}
-		}
-
-		if (sorted && ret_val.size() > 0) {
-			std::sort(ret_val.begin(), ret_val.end());
-		}
-
-		return ret_val;
-	}
-
-	/*!
-	Returns remote cells that consider given local cell as a neighbor.
-
-	Returns nothing if given cell doesn't exist or is on another process
-	or doesn't have remote neighbors.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_remote_neighbors_to(
-		const uint64_t cell,
-		const int neighborhood_id = default_neighborhood_id,
-		const bool sorted = false
-	) const {
-		std::vector<uint64_t> ret_val;
-
-		if (this->cell_process.count(cell) == 0) {
-			return ret_val;
-		}
-
-		if (this->cell_process.at(cell) != this->rank) {
-			return ret_val;
-		}
-
-		if (neighborhood_id != default_neighborhood_id
-		&& this->user_hood_of.count(neighborhood_id) == 0) {
-			return ret_val;
-		}
-
-		const std::vector<uint64_t>& neighbors_ref
-			= (neighborhood_id == default_neighborhood_id)
-			? this->neighbors_to.at(cell)
-			: this->user_neigh_to.at(neighborhood_id).at(cell);
-
-		BOOST_FOREACH(const uint64_t neighbor, neighbors_ref) {
-
-			if (neighbor == error_cell) {
-				continue;
-			}
-
-			if (this->cell_process.at(neighbor) != this->rank) {
-				ret_val.push_back(neighbor);
-			}
-		}
-
-		if (sorted && ret_val.size() > 0) {
-			std::sort(ret_val.begin(), ret_val.end());
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Returns true if given cell is on this process and false otherwise.
-	*/
-	bool is_local(const uint64_t cell) const
-	{
-		if (this->cell_process.count(cell) > 0
-		&& this->cell_process.at(cell) == this->rank) {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
-
-	/*!
-	Writes the cells on this process into a vtk file with given name in ASCII format.
-
-	The cells are written in ascending order.
-	Must be called simultaneously on all processes.
-	*/
-	void write_vtk_file(const char* file_name) const
-	{
-		std::ofstream outfile(file_name);
-		if (!outfile.is_open()) {
-			std::cerr << "Couldn't open file " << file_name << std::endl;
-			// TODO: throw an exception instead
-			exit(1);
-		}
-
-		std::vector<uint64_t> leaf_cells = this->get_cells();
-		std::sort(leaf_cells.begin(), leaf_cells.end());
-		outfile << "# vtk DataFile Version 2.0" << std::endl;
-		outfile << "Cartesian cell refinable grid" << std::endl;
-		outfile << "ASCII" << std::endl;
-		outfile << "DATASET UNSTRUCTURED_GRID" << std::endl;
-
-		// write separate points for every cells corners
-		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
-		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-		}
-
-		// map cells to written points
-		outfile << "CELLS " << leaf_cells.size() << " " << leaf_cells.size() * 9 << std::endl;
-		for (unsigned int j = 0; j < leaf_cells.size(); j++) {
-			outfile << "8 ";
-			for (int i = 0; i < 8; i++) {
-				 outfile << j * 8 + i << " ";
-			}
-			outfile << std::endl;
-		}
-
-		// cell types
-		outfile << "CELL_TYPES " << leaf_cells.size() << std::endl;
-		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << 11 << std::endl;
-		}
-
-		if (!outfile.good()) {
-			std::cerr << "Writing of vtk file probably failed" << std::endl;
-			// TODO: throw an exception instead
-			exit(EXIT_FAILURE);
-		}
-
-		outfile.close();
-	}
-
-
-	/*!
-	Creates all children of given cell (and possibly of other cells due to induced refinement).
-
-	Takes priority over unrefining.
-	Refines / unrefines take effect only after a call to stop_refining() and are lost
-	after a call to balance_load().
-	Does nothing in any of the following cases:
-		- given cell has already been refined (including induced refinement)
-		  and stop_refining() has not been called afterwards
-		- given cell doesn't exist on this process
-		- given cell's children already exist
-	Children are created on their parent's process.
-
-	If given cell is at maximum refinement level dont_unrefine will be invoked instead.
-
-	\see
-	unrefine_completely()
-	stop_refining()
-	clear_refined_unrefined_data()
-	get_removed_cells()
-	*/
-	void refine_completely(const uint64_t cell)
-	{
-		if (cell == error_cell) {
-			return;
-		}
-
-		if (this->cell_process.count(cell) == 0) {
-			return;
-		}
-
-		if (this->cells.count(cell) == 0) {
-			return;
-		}
-
-		const int refinement_level = this->get_refinement_level(cell);
-
-		if (refinement_level > this->max_refinement_level) {
-			return;
-		}
-
-		// not if cell has children
-		if (cell != this->get_child(cell)) {
-			return;
-		}
-
-		if (refinement_level == this->max_refinement_level) {
-			this->dont_unrefine(cell);
-			return;
-		}
-
-		this->cells_to_refine.insert(cell);
-
-		// override local unrefines
-		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
-		BOOST_FOREACH(const uint64_t& sibling, siblings) {
-			this->cells_to_unrefine.erase(sibling);
-		}
-
-		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
-
-			if (this->get_refinement_level(neighbor) <= refinement_level) {
-				const std::vector<uint64_t> neighbor_siblings
-					= this->get_all_children(this->get_parent(neighbor));
-
-				BOOST_FOREACH(const uint64_t& sibling, neighbor_siblings) {
-					this->cells_to_unrefine.erase(sibling);
-				}
-			}
-		}
-
-		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors_to.at(cell)) {
-
-			if (this->get_refinement_level(neighbor) <= refinement_level) {
-				const std::vector<uint64_t> neighbor_siblings
-					= this->get_all_children(this->get_parent(neighbor));
-
-				BOOST_FOREACH(const uint64_t& sibling, neighbor_siblings) {
-					this->cells_to_unrefine.erase(sibling);
-				}
-			}
-		}
-	}
-
-	/*!
-	As refine_completely, but uses the smallest existing cell at given coordinates.
-
-	Does nothing in the same cases as refine_completely and additionally
-	if the coordinate is outside of the grid.
-	*/
-	void refine_completely_at(const double x, const double y, const double z)
-	{
-		const uint64_t cell = this->get_existing_cell(x, y, z);
-		if (cell == 0) {
-			return;
-		}
-
-		this->refine_completely(cell);
-	}
-
-
-	/*!
-	Removes the given cell and its siblings from the grid.
-
-	Refining (including induced refining) takes priority over unrefining.
-	Refines / unrefines take effect only after a call to stop_refining()
-	and are lost after a call to balance_load().
-	Does nothing in any of the following cases:
-		- dont_unrefine was called previously for given cell or its siblings
-		- given cell or one of its siblings has already been unrefined
-		  and stop_refining() has not been called
-		- given cell doesn't exist on this process
-		- given cell has children
-		- given cells refinement level is 0
-
-	After a cell and its siblings have been unrefined, their data has been moved
-	to their parent's process.
-	When no longer needed that data can be freed using clear_refined_unrefined_data.
-	*/
-	void unrefine_completely(const uint64_t cell)
-	{
-		if (cell == error_cell) {
-			return;
-		}
-
-		if (this->cell_process.count(cell) == 0) {
-			return;
-		}
-
-		if (this->cells.count(cell) == 0) {
-			return;
-		}
-
-		if (this->get_refinement_level(cell) == 0) {
-			return;
-		}
-
-		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
-
-		// don't unrefine if any sibling...
-		BOOST_FOREACH(const uint64_t& sibling, siblings) {
-
-			// ...has children
-			if (sibling != this->get_child(sibling)) {
-				return;
-			}
-
-			// ...cannot be unrefined
-			if (this->cells_to_refine.count(sibling) > 0
-			|| this->cells_not_to_unrefine.count(sibling) > 0) {
-				return;
-			}
-		}
-
-		// unrefinement succeeds if parent of unrefined will fulfill requirements
-		const uint64_t parent = this->get_parent(cell);
-		const int refinement_level = this->get_refinement_level(parent);
-
-		#ifdef DEBUG
-		if (parent == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Invalid refinement level for parent"
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		const std::vector<uint64_t> neighbors
-			= this->find_neighbors_of(
-				parent,
-				this->neighborhood_of,
-				2 * this->max_ref_lvl_diff,
-				true
-			);
-
-		BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
-
-			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
-
-			if (neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) {
-				return;
-			}
-
-			if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
-			&& this->cells_to_refine.count(neighbor) > 0) {
-				return;
-			}
-		}
-
-		// record only one sibling to unrefine / process
-		BOOST_FOREACH(const uint64_t& sibling, siblings) {
-			if (this->cells_to_unrefine.count(sibling) > 0) {
-				return;
-			}
-		}
-
-		this->cells_to_unrefine.insert(cell);
-	}
-
-
-	/*!
-	As unrefine_completely, but uses the smallest existing cell at given coordinates.
-
-	Does nothing in the same cases as unrefine_completely and additionally
-	if the coordinate is outside of the grid.
-	*/
-	void unrefine_completely_at(const double x, const double y, const double z)
-	{
-		const uint64_t cell = this->get_existing_cell(x, y, z);
-		if (cell == 0) {
-			return;
-		}
-
-		this->unrefine_completely(cell);
-	}
-
-
-	/*!
-	Prevents the given cell or its siblings from being unrefined.
-
-	Has an effect only during the next call to stop_refining().
-	Has no effect if balance_load() is called before stop_refining().
-	Does nothing in any of the following cases:
-		- given cell doesn't exist on this process
-		- given cell has children
-		- given cell's refinement level is 0
-	*/
-	void dont_unrefine(const uint64_t cell)
-	{
-		if (cell == error_cell) {
-			return;
-		}
-
-		if (this->cell_process.count(cell) == 0) {
-			return;
-		}
-
-		if (this->cells.count(cell) == 0) {
-			return;
-		}
-
-		if (this->get_refinement_level(cell) == 0) {
-			return;
-		}
-
-		if (cell != this->get_child(cell)) {
-			// cell already has children
-			return;
-		}
-
-		// record only one sibling / process
-		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
-		BOOST_FOREACH(const uint64_t& sibling, siblings) {
-			if (this->cells_not_to_unrefine.count(sibling) > 0) {
-				return;
-			}
-		}
-
-		// override local unrefines
-		BOOST_FOREACH(const uint64_t& sibling, siblings) {
-			this->cells_to_unrefine.erase(sibling);
-		}
-
-		this->cells_not_to_unrefine.insert(cell);
-	}
-
-
-	/*!
-	As dont_unrefine but uses the smallest existing cell at given coordinates.
-
-	Does nothing in the same cases as dont_unrefine and additionally if the
-	coordinate is outside of the grid.
-	*/
-	void dont_unrefine_at(const double x, const double y, const double z)
-	{
-		const uint64_t cell = this->get_existing_cell(x, y, z);
-		if (cell == error_cell) {
-			return;
-		}
-
-		this->dont_unrefine(cell);
-	}
-
-
-	/*!
-	Executes refines / unrefines that have been requested so far.
-
-	Must be called simultaneously on all processes.
-	Returns cells that were created by refinement on this process.
-	Moves user data of unrefined cells to the current process of their parent.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> stop_refining(const bool sorted = false)
-	{
-		this->induce_refines();
-
-		// update dont_refines between processes
-		this->all_to_all_set(this->cells_not_to_unrefine);
-
-		this->override_unrefines();
-		this->cells_not_to_unrefine.clear();
-
-		std::vector<uint64_t> ret_val = this->execute_refines();
-
-		if (sorted && ret_val.size() > 0) {
-			std::sort(ret_val.begin(), ret_val.end());
-		}
-
-		return ret_val;
-	}
-
-
-	/*!
-	Returns cells that were removed by unrefinement and whose parent is currently a local cell.
-
-	Removed cells' data is currently also on this process,
-	but only until balance_load() is called.
-
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
-	*/
-	std::vector<uint64_t> get_removed_cells(const bool sorted = false) const
-	{
-		std::vector<uint64_t> ret_val;
-		ret_val.reserve(this->unrefined_cell_data.size());
-
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->unrefined_cell_data) {
-			ret_val.push_back(item.first);
-		}
-
-		if (sorted && ret_val.size() > 0) {
-			std::sort(ret_val.begin(), ret_val.end());
-		}
-
-		return ret_val;
 	}
 
 
@@ -4527,6 +4236,309 @@ public:
 
 
 	/*!
+	An asynchronous version of update_copies_of_remote_neighbors().
+
+	Starts remote neighbor data updates and returns immediately.
+
+	\see
+	update_copies_of_remote_neighbors()
+	wait_remote_neighbor_copy_updates()
+	*/
+	bool start_remote_neighbor_copy_updates(
+		const int neighborhood_id = default_neighborhood_id
+	) {
+		if (this->balancing_load) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " start_remote_neighbor_data_update(...) called while balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		bool ret_val = true;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->start_user_data_transfers(
+				this->remote_neighbors,
+				this->cells_to_receive,
+				this->cells_to_send
+			);
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+
+			#ifdef DEBUG
+			if (this->user_hood_to.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_to.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			ret_val = false;
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		if (!this->start_user_data_transfers(
+			this->remote_neighbors,
+			this->user_neigh_cells_to_receive.at(neighborhood_id),
+			this->user_neigh_cells_to_send.at(neighborhood_id)
+		)) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Finishes what start_remote_neighbor_data_update() started.
+
+	\see
+	start_remote_neighbor_copy_updates()
+	*/
+	bool wait_remote_neighbor_copy_updates(
+		const int neighborhood_id = default_neighborhood_id
+	) {
+		if (this->balancing_load) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " wait_remote_neighbor_copy_updates(...) called while balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		bool ret_val = true;
+
+		if (!this->wait_remote_neighbor_copy_update_receives(neighborhood_id)) {
+			ret_val = false;
+		}
+		if (!this->wait_remote_neighbor_copy_update_sends()) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Waits for sends started by start_remote_neighbor_copy_updates().
+
+	\see
+	start_remote_neighbor_copy_updates()
+	*/
+	bool wait_remote_neighbor_copy_update_sends()
+	{
+		if (this->balancing_load) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " wait_remote_neighbor_copy_update_sends() called while balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		return this->wait_user_data_transfer_sends();
+	}
+
+
+	/*!
+	Waits for receives started by start_remote_neighbor_copy_updates().
+
+	\see
+	start_remote_neighbor_copy_updates()
+	*/
+	bool wait_remote_neighbor_copy_update_receives(
+		const int neighborhood_id = default_neighborhood_id
+	) {
+		if (this->balancing_load) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " wait_remote_neighbor_copy_update_receives(...) called while balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		bool ret_val = true;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->wait_user_data_transfer_receives(
+				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+				this->remote_neighbors,
+				this->cells_to_receive
+				#endif
+			);
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			ret_val = false;
+		}
+
+		if (!this->wait_user_data_transfer_receives(
+			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+			this->remote_neighbors,
+			this->user_neigh_cells_to_receive.at(neighborhood_id)
+			#endif
+		)) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Returns number of cells that will be sent in a remote neighbor data update.
+
+	The total amount of cells to be sent is returned so if one cell's data
+	is sent to N processes it is counted N times.
+
+	Returns maximum uint64_t if given neighborhood id doesn't exist.
+
+	\see
+	update_copies_of_remote_neighbors()
+	add_neighborhood()
+	*/
+	uint64_t get_number_of_update_send_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		uint64_t ret_val = 0;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+				receiver = cells_to_send.begin();
+				receiver != cells_to_send.end();
+				receiver++
+			) {
+				ret_val += receiver->second.size();
+			}
+			return ret_val;
+		}
+
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
+			return std::numeric_limits<uint64_t>::max();
+		}
+
+		#ifdef DEBUG
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			receiver_item = this->user_neigh_cells_to_send.at(neighborhood_id).begin();
+			receiver_item != this->user_neigh_cells_to_send.at(neighborhood_id).end();
+			receiver_item++
+		) {
+			ret_val += receiver_item->second.size();
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Returns the number of cells whose data this process has to receive during a neighbor data update.
+
+
+	Same as get_number_of_update_receive_cells() but for given neighborhood id.
+
+	Returns maximum uint64_t if given neighborhood id doesn't exist.
+
+	\see
+	get_number_of_update_send_cells()
+	*/
+	uint64_t get_number_of_update_receive_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		uint64_t ret_val = 0;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+				sender = this->cells_to_receive.begin();
+				sender != this->cells_to_receive.end();
+				sender++
+			) {
+				ret_val += sender->second.size();
+			}
+			return ret_val;
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			return std::numeric_limits<uint64_t>::max();
+		}
+
+		#ifdef DEBUG
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No neighborhood with id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+			sender_item = this->user_neigh_cells_to_receive.at(neighborhood_id).begin();
+			sender_item != this->user_neigh_cells_to_receive.at(neighborhood_id).end();
+			sender_item++
+		) {
+			ret_val += sender_item->second.size();
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
 	Removes Cell_Data of refined and unrefined cells from this process.
 
 	\see
@@ -4540,15 +4552,20 @@ public:
 
 
 	/*!
-	Sets the given option for non-hierarchial partitioning.
+	Sets the given option of non-hierarchial partitioning to given value.
 
 	Does nothing if option name is one of:
 		- RETURN_LISTS
 		- EDGE_WEIGHT_DIM
 		- NUM_GID_ENTRIES
 		- OBJ_WEIGHT_DIM
+
 	Call this with name = LB_METHOD and value = HIER to use hierarchial
-	partitioning and set those options using the other function with this name.
+	partitioning.
+
+	\see
+	get_partitioning_option_value()
+	add_partitioning_level()
 	*/
 	void set_partitioning_option(const std::string name, const std::string value)
 	{
@@ -4571,6 +4588,11 @@ public:
 
 	Assigns default partitioning options for the added level.
 	Does nothing if processes_per_part < 1.
+
+	\see
+	add_partitioning_option()
+	remove_partitioning_level()
+	set_partitioning_option()
 	*/
 	void add_partitioning_level(const int processes)
 	{
@@ -4599,6 +4621,9 @@ public:
 
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
+
+	\see
+	add_partitioning_level()
 	*/
 	void remove_partitioning_level(const int hierarchial_partitioning_level)
 	{
@@ -4624,6 +4649,10 @@ public:
 	Does nothing in the following cases:
 		- option name is one of: RETURN_LISTS, ...
 		- given level doesn't exist
+
+	\see
+	remove_partitioning_option()
+	add_partitioning_level()
 	*/
 	void add_partitioning_option(
 		const int hierarchial_partitioning_level,
@@ -4656,6 +4685,9 @@ public:
 
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
+
+	\see
+	add_partitioning_option()
 	*/
 	void remove_partitioning_option(
 		const int hierarchial_partitioning_level,
