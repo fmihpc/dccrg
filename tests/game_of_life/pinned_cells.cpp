@@ -250,15 +250,35 @@ int main(int argc, char* argv[])
 
 			if (step % 2 == 0) {
 				if (distance <= 0.3 * 0.3) {
-					game_grid.pin(*cell, 0);
+					if (!game_grid.pin(*cell, 0)) {
+						cout << __FILE__ << ":" << __LINE__
+							<< " Couldn't pin cell " << *cell
+							<< endl;
+						abort();
+					}
 				} else {
-					game_grid.unpin(*cell);
+					if (!game_grid.unpin(*cell)) {
+						cout << __FILE__ << ":" << __LINE__
+							<< " Couldn't unpin cell " << *cell
+							<< endl;
+						abort();
+					}
 				}
 			} else {
 				if (distance <= 0.3 * 0.3) {
-					game_grid.unpin(*cell);
+					if (!game_grid.unpin(*cell)) {
+						cout << __FILE__ << ":" << __LINE__
+							<< " Couldn't unpin cell " << *cell
+							<< endl;
+						abort();
+					}
 				} else {
-					game_grid.pin(*cell, 0);
+					if (!game_grid.pin(*cell, 0)) {
+						cout << __FILE__ << ":" << __LINE__
+							<< " Couldn't pin cell " << *cell
+							<< endl;
+						abort();
+					}
 				}
 			}
 		}

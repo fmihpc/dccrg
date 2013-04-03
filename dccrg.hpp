@@ -4785,69 +4785,80 @@ public:
 	/*!
 	Given cell is kept on this process during subsequent load balancing.
 
-	Does nothing in the same cases as pin(cell, process).
+	\see
+	pin(const uint64_t cell, const int process)
 	*/
-	void pin(const uint64_t cell)
+	bool pin(const uint64_t cell)
 	{
-		this->pin(cell, this->rank);
+		return this->pin(cell, this->rank);
 	}
 
 	/*!
 	Given cell is sent to the given process and kept there during subsequent load balancing.
 
-	Does nothing in the following cases:
+	Returns true on success, does nothing and returns false in the following cases:
 		- given cell doesn't exist
 		- given cell exists on another process
 		- given cell has children
 		- given process doesn't exist
+
+	\see
+	unpin()
+	pin(const uint64_t cell)
 	*/
-	void pin(const uint64_t cell, const int process)
+	bool pin(const uint64_t cell, const int process)
 	{
 		if (this->cell_process.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->cell_process.at(cell) != this->rank) {
-			return;
+			return false;
 		}
 
 		if (cell != this->get_child(cell)) {
-			return;
+			return false;
 		}
 
 		if (process < 0 || process >= (int) this->comm_size) {
-			return;
+			return false;
 		}
 
 		// do nothing if the request already exists
 		if (this->pin_requests.count(cell) > 0
 		&& (int) this->pin_requests.at(cell) == process) {
-			return;
+			return true;
 		}
 
 		this->new_pin_requests[cell] = (uint64_t) process;
+
+		return true;
 	}
 
 	/*!
 	Allows the given cell to be moved to another process during subsequent load balancing.
 
-	Does nothing in the following cases:
+	Returns true on success, does nothing and returns false in the following cases:
 		- given cell has children
 		- given cell doesn't exist
 		- given cell exists on another process
+
+	\see
+	unpin_local_cells()
+	pin(const uint64_t cell)
 	*/
-	void unpin(const uint64_t cell)
+	bool unpin(const uint64_t cell)
 	{
 		if (this->cell_process.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->cell_process.at(cell) != this->rank) {
-			return;
+			return false;
 		}
 
 		if (cell != this->get_child(cell)) {
-			return;
+			return false;
 		}
 
 		if (this->pin_requests.count(cell) > 0) {
@@ -4856,14 +4867,21 @@ public:
 		} else {
 			this->new_pin_requests.erase(cell);
 		}
+
+		return true;
 	}
 
 	/*!
 	Executes unpin(cell) for all cells on this process.
 
+	Returns true if all unpins succeeded, false otherwise.
+
 	TODO: only execute for cells that are pinned
+
+	\see
+	unpin()
 	*/
-	void unpin_local_cells()
+	bool unpin_local_cells()
 	{
 		#ifdef DEBUG
 		// check that all child cells on this process are also in this->cells.
@@ -4898,15 +4916,23 @@ public:
 		}
 		#endif
 
+		bool ret_val = true;
 		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			this->unpin(item.first);
+			if (!this->unpin(item.first)) {
+				ret_val = false;
+			}
 		}
+
+		return ret_val;
 	}
 
 	/*!
 	All cells in the grid are free to move between processes.
 
 	Must be called simultaneously on all processes.
+
+	\see
+	unpin()
 	*/
 	void unpin_all_cells()
 	{
