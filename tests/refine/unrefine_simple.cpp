@@ -126,26 +126,33 @@ int main(int argc, char* argv[])
 
 		// refine / unrefine the smallest cell that is closest to the grid starting corner
 		if (step < 4) {
-			/*// unrefine all cells in the grid
-			for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-				grid.unrefine_completely(*cell);
+			if (!grid.refine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't refine cell at " << 0.0001 * CELL_SIZE
+					<< ", " << 0.0001 * CELL_SIZE
+					<< ", " << 0.0001 * CELL_SIZE
+					<< std::endl;
+				abort();
 			}
-			cout << "unrefined 1" << endl;*/
-
-			grid.refine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE);
-
-			/*for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-				grid.unrefine_completely(*cell);
-			}
-			cout << "unrefined 2" << endl;*/
 		} else {
-			grid.unrefine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE);
+			if (!grid.unrefine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't unrefine cell at " << 0.0001 * CELL_SIZE
+					<< ", " << 0.0001 * CELL_SIZE
+					<< ", " << 0.0001 * CELL_SIZE
+					<< std::endl;
+				abort();
+			}
 		}
 
 		vector<uint64_t> new_cells = grid.stop_refining();
 
 		after = clock();
-		cout << "Process " << comm.rank() <<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC << " seconds, " << new_cells.size() << " new cells created" << endl;
+		cout << "Process " << comm.rank()
+			<<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC
+			<< " seconds, " << new_cells.size()
+			<< " new cells created"
+			<< endl;
 	}
 
 	if (comm.rank() == 0) {

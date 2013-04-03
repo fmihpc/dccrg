@@ -349,6 +349,8 @@ public:
 		- The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
 		  direction cells on the opposite sides of the grid in that direction can be neighbors.
 
+	Returns true on success, false otherwise (on one or more processes).
+
 	\see
 	Dccrg()
 	get_cells()
@@ -362,7 +364,7 @@ public:
 	is_local()
 	set_send_single_cells()
 	*/
-	void initialize(
+	bool initialize(
 		const MPI_Comm& given_comm,
 		const char* load_balancing_method,
 		const unsigned int given_neighborhood_length,
@@ -374,8 +376,7 @@ public:
 	) {
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
-			// TODO: throw an exception instead?
-			abort();
+			return false;
 		}
 
 		this->balancing_load = false;
@@ -383,7 +384,7 @@ public:
 
 		if (sfc_caching_batches == 0) {
 			std::cerr << "sfc_caching_batches must be > 0" << std::endl;
-			abort();
+			return false;
 		}
 
 		int ret_val = -1;
@@ -795,6 +796,8 @@ public:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->initialized = true;
+
+		return true;
 	}
 
 
@@ -1192,7 +1195,8 @@ public:
 	Takes priority over unrefining.
 	Refines / unrefines take effect only after a call to stop_refining() and are lost
 	after a call to balance_load().
-	Does nothing in any of the following cases:
+	Returns true on success.
+	Does nothing and returns false in any of the following cases:
 		- given cell has already been refined (including induced refinement)
 		  and stop_refining() has not been called afterwards
 		- given cell doesn't exist on this process
@@ -1208,34 +1212,34 @@ public:
 	clear_refined_unrefined_data()
 	get_removed_cells()
 	*/
-	void refine_completely(const uint64_t cell)
+	bool refine_completely(const uint64_t cell)
 	{
 		if (cell == error_cell) {
-			return;
+			return false;
 		}
 
 		if (this->cell_process.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->cells.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		const int refinement_level = this->get_refinement_level(cell);
 
 		if (refinement_level > this->max_refinement_level) {
-			return;
+			return false;
 		}
 
 		// not if cell has children
 		if (cell != this->get_child(cell)) {
-			return;
+			return false;
 		}
 
 		if (refinement_level == this->max_refinement_level) {
 			this->dont_unrefine(cell);
-			return;
+			return false;
 		}
 
 		this->cells_to_refine.insert(cell);
@@ -1269,6 +1273,8 @@ public:
 				}
 			}
 		}
+
+		return true;
 	}
 
 
@@ -1278,13 +1284,16 @@ public:
 	Refining (including induced refining) takes priority over unrefining.
 	Refines / unrefines take effect only after a call to stop_refining()
 	and are lost after a call to balance_load().
-	Does nothing in any of the following cases:
+	Returns true on success.
+	Does nothing and returns true in at least the following cases:
 		- dont_unrefine was called previously for given cell or its siblings
 		- given cell or one of its siblings has already been unrefined
 		  and stop_refining() has not been called
-		- given cell doesn't exist on this process
-		- given cell has children
 		- given cells refinement level is 0
+	Does nothing and returns false in the following cases:
+		- given error_cell
+		- given cell doesn't exist on this process
+		- given cell or its siblings have children
 
 	After a cell and its siblings have been unrefined, their data has been moved
 	to their parent's process.
@@ -1294,22 +1303,22 @@ public:
 	refine_completely()
 	unrefine_completely()
 	*/
-	void unrefine_completely(const uint64_t cell)
+	bool unrefine_completely(const uint64_t cell)
 	{
 		if (cell == error_cell) {
-			return;
+			return false;
 		}
 
 		if (this->cell_process.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->cells.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->get_refinement_level(cell) == 0) {
-			return;
+			return true;
 		}
 
 		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
@@ -1319,13 +1328,13 @@ public:
 
 			// ...has children
 			if (sibling != this->get_child(sibling)) {
-				return;
+				return false;
 			}
 
 			// ...cannot be unrefined
 			if (this->cells_to_refine.count(sibling) > 0
 			|| this->cells_not_to_unrefine.count(sibling) > 0) {
-				return;
+				return true;
 			}
 		}
 
@@ -1360,23 +1369,25 @@ public:
 			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
 
 			if (neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) {
-				return;
+				return true;
 			}
 
 			if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
 			&& this->cells_to_refine.count(neighbor) > 0) {
-				return;
+				return true;
 			}
 		}
 
 		// record only one sibling to unrefine / process
 		BOOST_FOREACH(const uint64_t& sibling, siblings) {
 			if (this->cells_to_unrefine.count(sibling) > 0) {
-				return;
+				return true;
 			}
 		}
 
 		this->cells_to_unrefine.insert(cell);
+
+		return true;
 	}
 
 
@@ -1385,7 +1396,11 @@ public:
 
 	Has an effect only during the next call to stop_refining().
 	Has no effect if balance_load() is called before stop_refining().
-	Does nothing in any of the following cases:
+	Returns true on success.
+	Does nothing and returns true in at least the following cases:
+		- given cell's refinement level is 0
+	Does nothing and returns false in the following cases:
+		- given error_cell
 		- given cell doesn't exist on this process
 		- given cell has children
 		- given cell's refinement level is 0
@@ -1394,34 +1409,34 @@ public:
 	dont_unrefine_at()
 	refine_completely()
 	*/
-	void dont_unrefine(const uint64_t cell)
+	bool dont_unrefine(const uint64_t cell)
 	{
 		if (cell == error_cell) {
-			return;
+			return false;
 		}
 
 		if (this->cell_process.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->cells.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->get_refinement_level(cell) == 0) {
-			return;
+			return true;
 		}
 
 		if (cell != this->get_child(cell)) {
 			// cell already has children
-			return;
+			return false;
 		}
 
 		// record only one sibling / process
 		const std::vector<uint64_t> siblings = this->get_all_children(this->get_parent(cell));
 		BOOST_FOREACH(const uint64_t& sibling, siblings) {
 			if (this->cells_not_to_unrefine.count(sibling) > 0) {
-				return;
+				return true;
 			}
 		}
 
@@ -1431,6 +1446,8 @@ public:
 		}
 
 		this->cells_not_to_unrefine.insert(cell);
+
+		return true;
 	}
 
 
@@ -2016,53 +2033,53 @@ public:
 
 
 	/*!
-	As refine_completely, but uses the smallest existing cell at given coordinates.
+	As refine_completely(), but uses the smallest existing cell at given coordinates.
 
 	Does nothing in the same cases as refine_completely and additionally
 	if the coordinate is outside of the grid.
 	*/
-	void refine_completely_at(const double x, const double y, const double z)
+	bool refine_completely_at(const double x, const double y, const double z)
 	{
 		const uint64_t cell = this->get_existing_cell(x, y, z);
-		if (cell == 0) {
-			return;
+		if (cell == error_cell) {
+			return false;
 		}
 
-		this->refine_completely(cell);
+		return this->refine_completely(cell);
 	}
 
 
 	/*!
-	As unrefine_completely, but uses the smallest existing cell at given coordinates.
+	As unrefine_completely(), but uses the smallest existing cell at given coordinates.
 
 	Does nothing in the same cases as unrefine_completely and additionally
 	if the coordinate is outside of the grid.
 	*/
-	void unrefine_completely_at(const double x, const double y, const double z)
+	bool unrefine_completely_at(const double x, const double y, const double z)
 	{
 		const uint64_t cell = this->get_existing_cell(x, y, z);
-		if (cell == 0) {
-			return;
+		if (cell == error_cell) {
+			return false;
 		}
 
-		this->unrefine_completely(cell);
+		return this->unrefine_completely(cell);
 	}
 
 
 	/*!
-	As dont_unrefine but uses the smallest existing cell at given coordinates.
+	As dont_unrefine() but uses the smallest existing cell at given coordinates.
 
 	Does nothing in the same cases as dont_unrefine and additionally if the
 	coordinate is outside of the grid.
 	*/
-	void dont_unrefine_at(const double x, const double y, const double z)
+	bool dont_unrefine_at(const double x, const double y, const double z)
 	{
 		const uint64_t cell = this->get_existing_cell(x, y, z);
 		if (cell == error_cell) {
-			return;
+			return false;
 		}
 
-		this->dont_unrefine(cell);
+		return this->dont_unrefine(cell);
 	}
 
 

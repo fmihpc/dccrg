@@ -29,6 +29,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 /*!
 Refines and unrefines given grid randomly.
+FIXME: this is identical to the one in ../game_of_life/
 */
 template<class UserGeometry> class Refine
 {
@@ -51,7 +52,12 @@ public:
 				i++
 			) {
 				if (grid.get_refinement_level(cells[i]) == 0) {
-					grid.refine_completely(cells[i]);
+					if (!grid.refine_completely(cells[i])) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Couldn't refine cell " << cells[i]
+							<< std::endl;
+						abort();
+					}
 					refined++;
 				}
 			}
@@ -63,7 +69,12 @@ public:
 				i++
 			) {
 				if (grid.get_refinement_level(cells[i]) > 0) {
-					grid.unrefine_completely(cells[i]);
+					if (!grid.unrefine_completely(cells[i])) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Couldn't unrefine cell " << cells[i]
+							<< std::endl;
+						abort();
+					}
 					unrefined++;
 				}
 			}

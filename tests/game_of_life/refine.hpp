@@ -28,7 +28,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "cell.hpp"
 
 /*!
-Initializes given grid with given size in the first game coordinate with some game of life patterns.
+Refines and unrefines given grid randomly.
 */
 template<class UserGeometry> class Refine
 {
@@ -51,7 +51,12 @@ public:
 				i++
 			) {
 				if (grid.get_refinement_level(cells[i]) == 0) {
-					grid.refine_completely(cells[i]);
+					if (!grid.refine_completely(cells[i])) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Couldn't refine cell " << cells[i]
+							<< std::endl;
+						abort();
+					}
 					refined++;
 				}
 			}
@@ -63,7 +68,12 @@ public:
 				i++
 			) {
 				if (grid.get_refinement_level(cells[i]) > 0) {
-					grid.unrefine_completely(cells[i]);
+					if (!grid.unrefine_completely(cells[i])) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Couldn't unrefine cell " << cells[i]
+							<< std::endl;
+						abort();
+					}
 					unrefined++;
 				}
 			}

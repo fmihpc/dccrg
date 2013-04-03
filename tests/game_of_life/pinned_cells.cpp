@@ -156,23 +156,40 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		// refine random unrefined cells and unrefine random refined cells
+		// TODO merge with identical code in unrefine2d, ...
 		vector<uint64_t> cells = game_grid.get_cells();
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
 
-			for (int i = 0, refined = 0; i < int(cells.size()) && refined <= GRID_SIZE * GRID_SIZE / (5 * comm.size()); i++) {
+			for (int i = 0, refined = 0;
+				i < int(cells.size()) && refined <= GRID_SIZE * GRID_SIZE / (5 * comm.size());
+				i++
+			) {
 				if (game_grid.get_refinement_level(cells[i]) == 0) {
-					game_grid.refine_completely(cells[i]);
+					if (!game_grid.refine_completely(cells[i])) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Couldn't refine cell " << cells[i]
+							<< std::endl;
+						abort();
+					}
 					refined++;
 				}
 			}
 
 		} else {
 
-			for (int i = 0, unrefined = 0; i < int(cells.size()) && unrefined <= GRID_SIZE * GRID_SIZE / (4 * comm.size()); i++) {
+			for (int i = 0, unrefined = 0;
+				i < int(cells.size()) && unrefined <= GRID_SIZE * GRID_SIZE / (4 * comm.size());
+				i++
+			) {
 				if (game_grid.get_refinement_level(cells[i]) > 0) {
-					game_grid.unrefine_completely(cells[i]);
+					if (!game_grid.unrefine_completely(cells[i])) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Couldn't unrefine cell " << cells[i]
+							<< std::endl;
+						abort();
+					}
 					unrefined++;
 				}
 			}
@@ -184,13 +201,17 @@ int main(int argc, char* argv[])
 		for (vector<uint64_t>::const_iterator new_cell = new_cells.begin(); new_cell != new_cells.end(); new_cell++) {
 			game_of_life_cell* new_cell_data = game_grid[*new_cell];
 			if (new_cell_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for created cell " << *new_cell << endl;
-				exit(EXIT_FAILURE);
+				cout << __FILE__ << ":" << __LINE__
+					<< " No data for created cell " << *new_cell
+					<< endl;
+				abort();
 			}
 			game_of_life_cell* parent_data = game_grid[game_grid.get_parent(*new_cell)];
 			if (parent_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for parent cell " << game_grid.get_parent(*new_cell) << endl;
-				exit(EXIT_FAILURE);
+				cout << __FILE__ << ":" << __LINE__
+					<< " No data for parent cell " << game_grid.get_parent(*new_cell)
+					<< endl;
+				abort();
 			}
 			new_cell_data->is_alive = parent_data->is_alive;
 		}

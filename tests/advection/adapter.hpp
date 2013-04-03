@@ -208,17 +208,32 @@ public:
 		}
 
 		BOOST_FOREACH(const uint64_t& cell, cells_to_refine) {
-			grid.refine_completely(cell);
+			if (!grid.refine_completely(cell)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't refine cell " << cell
+					<< std::endl;
+				abort();
+			}
 		}
 		cells_to_refine.clear();
 
 		BOOST_FOREACH(const uint64_t& cell, cells_not_to_unrefine) {
-			grid.dont_unrefine(cell);
+			if (!grid.dont_unrefine(cell)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't prevent unrefinement of cell " << cell
+					<< std::endl;
+				abort();
+			}
 		}
 		cells_not_to_unrefine.clear();
 
 		BOOST_FOREACH(const uint64_t& cell, cells_to_unrefine) {
-			grid.unrefine_completely(cell);
+			if (!grid.unrefine_completely(cell)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't unrefine cell " << cell
+					<< std::endl;
+				abort();
+			}
 		}
 		cells_to_unrefine.clear();
 
