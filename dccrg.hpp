@@ -1041,7 +1041,7 @@ public:
 
 
 	/*!
-	Writes the current cells and their data into given file.
+	Writes cells and their data into given file.
 
 	Returns true on success, false otherwise (one one or more processes)
 	The file is written in parallel using MPI_IO.
@@ -2062,6 +2062,9 @@ public:
 		- cell weights
 		- refines/unrefines after the last call to stop_refining()
 		- the data of local copies of remote neighbors of local cells
+
+	\see
+	initialize_balance_load()
 	*/
 	void balance_load(const bool use_zoltan = true)
 	{
@@ -2087,6 +2090,10 @@ public:
 	or finish_balance_load(). Information related to the other functions
 	must not be queried after calling this, for example the remote neighbors
 	of local cells, local cells, etc.
+
+	\see
+	balance_load()
+	continue_balance_load()
 	*/
 	void initialize_balance_load(const bool use_zoltan)
 	{
@@ -2226,6 +2233,9 @@ public:
 	The next function to be called after this one (from those that
 	must be called by all processes) must be either this again or
 	finish_balance_load().
+
+	\see
+	finish_balance_load()
 	*/
 	void continue_balance_load()
 	{
