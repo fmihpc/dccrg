@@ -176,7 +176,7 @@ public:
 
 		MPI_File_close(&outfile);
 
-		if (!game_grid.write_grid(name, header_size)) {
+		if (!game_grid.save_grid_data(name, header_size)) {
 			std::cerr << "Process " << rank
 				<< " Writing grid to file " << name << " failed"
 				<< std::endl;
@@ -237,7 +237,7 @@ public:
 		MPI_File_close(&infile);
 
 		MPI_Offset header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
-		game_grid.read_grid(name, header_size);
+		game_grid.load_grid_data(name, header_size);
 
 		Cell::transfer_only_life = false;
 	}

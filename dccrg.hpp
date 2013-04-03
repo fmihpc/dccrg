@@ -1041,17 +1041,15 @@ public:
 
 
 	/*!
-	Writes the current grid data into a file with given name.
+	Writes the current cells and their data into given file.
 
 	Returns true on success, false otherwise (one one or more processes)
-	Data stored in local cells is also written.
 	The file is written in parallel using MPI_IO.
 	Must be called by all processes.
 	Data is written starting at start_offset given in bytes
 	(e.g. write global simulation data yourself into the
 	beginning of the file).
 	Data is written in native endian format.
-	Requires at least as much additional memory as local cell data.
 	Does nothing if DCCRG_TRANSFER_USING_BOOST_MPI was defined when
 	compiling and returns false.
 
@@ -1059,9 +1057,9 @@ public:
 	mpi_datatype function is -1 and receiving == false.
 
 	\see
-	read_grid()
+	load_grid_data()
 	*/
-	bool write_grid(const std::string& name, MPI_Offset& start_offset)
+	bool save_grid_data(const std::string& name, MPI_Offset& start_offset)
 	{
 		// TODO: use nonblocking versions of ...write_at_all
 		/*
@@ -1479,7 +1477,7 @@ public:
 
 
 	/*!
-	Reads data of local cells from given file.
+	Restores cells and their data from given file.
 
 	Returns true on success, false otherwise (one one or more processes)
 	The file is read in parallel using MPI_IO.
@@ -1487,7 +1485,7 @@ public:
 	refinement level 0 prior to calling this function.
 	Data is read starting at start_offset given in bytes
 	(e.g. read global simulation data yourself from the
-	beginning of the file).
+	beginning of the file to initialize dccrg before calling this).
 
 	Does nothing and returns false if DCCRG_TRANSFER_USING_BOOST_MPI
 	was defined when compiling.
@@ -1500,9 +1498,9 @@ public:
 
 	\see
 	load_cells()
-	write_grid()
+	save_grid_data()
 	*/
-	bool read_grid(
+	bool load_grid_data(
 		const std::string& name,
 		const MPI_Offset start_offset,
 		const uint64_t /*number_of_cells*/ = ~uint64_t(0)
@@ -1982,7 +1980,7 @@ public:
 	Returns true on success and false otherwise.
 
 	\see
-	read_grid()
+	load_grid_data()
 	cell_overlaps_local()
 	*/
 	bool load_cells(const std::vector<uint64_t>& given_cells)
