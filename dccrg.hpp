@@ -5086,22 +5086,26 @@ public:
 	User set cell weights are removed when balance_load is called.
 	Children of refined cells inherit their parent's weight.
 	Parents of unrefined cells do not inherit the moved cells' weights.
+
+	Returns true on success, does nothing and returns false otherwise.
 	*/
-	void set_cell_weight(const uint64_t cell, const double weight)
+	bool set_cell_weight(const uint64_t cell, const double weight)
 	{
 		if (this->cell_process.count(cell) == 0) {
-			return;
+			return false;
 		}
 
 		if (this->cell_process.at(cell) != this->rank) {
-			return;
+			return false;
 		}
 
 		if (cell != this->get_child(cell)) {
-			return;
+			return false;
 		}
 
 		this->cell_weights[cell] = weight;
+
+		return true;
 	}
 
 	/*!
