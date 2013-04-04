@@ -1960,14 +1960,15 @@ public:
 
 	The cells are written in ascending order.
 	Must be called simultaneously on all processes.
+
+	Returns true on success, false otherwise.
 	*/
-	void write_vtk_file(const char* file_name) const
+	bool write_vtk_file(const char* file_name) const
 	{
 		std::ofstream outfile(file_name);
 		if (!outfile.is_open()) {
 			std::cerr << "Couldn't open file " << file_name << std::endl;
-			// TODO: throw an exception instead
-			exit(1);
+			return false;
 		}
 
 		std::vector<uint64_t> leaf_cells = this->get_cells();
@@ -2029,6 +2030,8 @@ public:
 		}
 
 		outfile.close();
+
+		return true;
 	}
 
 
