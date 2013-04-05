@@ -141,7 +141,7 @@ static const int
 
 Cell_Data is stored in all local cells and must provide a way for dccrg to
 query what data to send between processes using MPI-2.2
-(http://www.mpi-forum.org/docs/), by default is must have the following method:
+(http://www.mpi-forum.org/docs/), by default it must have the following method:
 \verbatim
 void mpi_datatype(
 	void*& address,
