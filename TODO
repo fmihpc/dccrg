@@ -1,5 +1,7 @@
 Add more documentation
 
+Use get_real_x,y,z in get_x,y,z_index_of_coord
+
 Make dccrg even more modular:
 -separate stateless logic (doesn't consider whether cells exist or not)
  into dccrg_index.hpp or similar with function names starting with get_.
