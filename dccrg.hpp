@@ -32,6 +32,7 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "algorithm"
 #include "boost/array.hpp"
 #include "boost/foreach.hpp"
+#include "boost/iterator/filter_iterator.hpp"
 #ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 #include "boost/mpi.hpp"
 #endif
@@ -64,6 +65,7 @@ MPI_UNSIGNED_LONG in the following:
 
 
 #include "dccrg_index.hpp"
+#include "dccrg_iterator_support.hpp"
 #include "dccrg_mpi_support.hpp"
 #include "dccrg_types.hpp"
 #include "dccrg_cartesian_geometry.hpp"
@@ -2931,6 +2933,8 @@ public:
 	Returns a begin const_iterator to the internal storage of local cells and their data.
 
 	\see
+	begin_inner()
+	begin_outer()
 	end()
 	get_cells()
 	*/
@@ -2941,10 +2945,93 @@ public:
 
 	/*!
 	Returns an end const_iterator to the internal storage of local cells and their data.
+
+	\see
+	end_inner()
+	end_outer()
 	*/
 	typename boost::unordered_map<uint64_t, Cell_Data>::const_iterator end() const
 	{
 		return this->cells.end();
+	}
+
+
+	/*!
+	Type of the iterator for inner cells of the process.
+	*/
+	typedef boost::filter_iterator<
+		Is_Inner_Cell<Cell_Data, Geometry>,
+		typename boost::unordered_map<uint64_t, Cell_Data>::const_iterator
+	> inner_iterator;
+
+	/*!
+	Same as begin() but for local cells not on the process boundary.
+
+	\see
+	end_inner()
+	get_local_cells_not_on_process_boundary()
+	*/
+	inner_iterator begin_inner() const
+	{
+		return boost::make_filter_iterator(
+			Is_Inner_Cell<Cell_Data, Geometry>(*this),
+			this->cells.begin(),
+			this->cells.end()
+		);
+	}
+
+	/*!
+	Same as end() but for local cells not on the process boundary.
+
+	\see
+	begin_inner()
+	*/
+	inner_iterator end_inner() const
+	{
+		return boost::make_filter_iterator(
+			Is_Inner_Cell<Cell_Data, Geometry>(*this),
+			this->cells.end(),
+			this->cells.end()
+		);
+	}
+
+	/*!
+	Type of the iterator for outer cells of the process.
+	*/
+	typedef boost::filter_iterator<
+		Is_Outer_Cell<Cell_Data, Geometry>,
+		typename boost::unordered_map<uint64_t, Cell_Data>::const_iterator
+	> outer_iterator;
+
+	/*!
+	Same as begin() but for local cells on the process boundary.
+
+	\see
+	end_outer()
+	get_local_cells_on_process_boundary()
+	*/
+	outer_iterator begin_outer() const
+	{
+		return boost::make_filter_iterator(
+			Is_Outer_Cell<Cell_Data, Geometry>(*this),
+			this->cells.begin(),
+			this->cells.end()
+		);
+	}
+
+	/*!
+	Same as end() but for local cells on the process boundary.
+
+	\see
+	begin_outer()
+	*/
+	outer_iterator end_outer() const
+	{
+		return boost::make_filter_iterator(
+			Is_Outer_Cell<Cell_Data, Geometry>(*this),
+			this->cells.end(),
+			this->cells.end()
+		);
 	}
 
 
