@@ -234,9 +234,9 @@ public:
 		comm(other.get_communicator()),
 		rank(other.get_rank()),
 		comm_size(other.get_comm_size()),
-        #ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-        boost_comm(other.get_boost_comm()),
-        #endif
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+		boost_comm(other.get_boost_comm()),
+		#endif
 		neighbors(other.get_cell_neighbor()),
 		neighborhood_of(other.get_neighborhood_of()),
 		neighborhood_to(other.get_neighborhood_to()),
