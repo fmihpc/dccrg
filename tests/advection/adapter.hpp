@@ -207,32 +207,29 @@ public:
 			return std::make_pair(0, 0);
 		}
 
+		// record the number of adaptivity failures
+		uint64_t
+			failed_refines = 0,
+			failed_unrefines = 0,
+			failed_dont_unrefines = 0;
+
 		BOOST_FOREACH(const uint64_t& cell, cells_to_refine) {
 			if (!grid.refine_completely(cell)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't refine cell " << cell
-					<< std::endl;
-				abort();
+				failed_refines++;
 			}
 		}
 		cells_to_refine.clear();
 
 		BOOST_FOREACH(const uint64_t& cell, cells_not_to_unrefine) {
 			if (!grid.dont_unrefine(cell)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't prevent unrefinement of cell " << cell
-					<< std::endl;
-				abort();
+				failed_dont_unrefines++;
 			}
 		}
 		cells_not_to_unrefine.clear();
 
 		BOOST_FOREACH(const uint64_t& cell, cells_to_unrefine) {
 			if (!grid.unrefine_completely(cell)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't unrefine cell " << cell
-					<< std::endl;
-				abort();
+				failed_unrefines++;
 			}
 		}
 		cells_to_unrefine.clear();

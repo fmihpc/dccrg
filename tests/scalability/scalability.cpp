@@ -19,6 +19,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "fstream"
@@ -60,18 +61,17 @@ public:
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data[0]);
-		count = this->data.size();
-		datatype = MPI_UINT8_T;
+		return boost::make_tuple(&(this->data[0]), this->data.size(), MPI_UINT8_T);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI

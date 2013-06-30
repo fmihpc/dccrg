@@ -36,6 +36,7 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 #include "boost/mpi.hpp"
 #endif
+#include "boost/tuple/tuple.hpp"
 #include "boost/unordered_map.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdio"
@@ -1311,10 +1312,12 @@ public:
 
 		for (size_t i = 0; i < number_of_cells; i++) {
 			const uint64_t cell = cells_to_write[i];
-			this->cells.at(cell).mpi_datatype(
+
+			boost::tie(
 				addresses[i],
 				counts[i],
-				datatypes[i],
+				datatypes[i]
+			) = this->cells.at(cell).get_mpi_datatype(
 				cell,
 				(int) this->rank,
 				-1,
@@ -1801,10 +1804,12 @@ public:
 			// get datatype info from local cells in memory
 			for (uint64_t i = 0; i < number_of_cells; i++) {
 				const uint64_t cell = cells_and_data_displacements[i].first;
-				this->cells.at(cell).mpi_datatype(
+
+				boost::tie(
 					addresses[i],
 					counts[i],
-					datatypes[i],
+					datatypes[i]
+				) = this->cells.at(cell).get_mpi_datatype(
 					cell,
 					-1,
 					(int) this->rank,
@@ -8247,10 +8252,12 @@ private:
 					void* address = NULL;
 					int count = -1;
 					MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
-					destination.at(cell).mpi_datatype(
+
+					boost::tie(
 						address,
 						count,
-						user_datatype,
+						user_datatype
+					) = destination.at(cell).get_mpi_datatype(
 						cell,
 						sending_process,
 						(int) this->rank,
@@ -8338,10 +8345,12 @@ private:
 
 				for (size_t i = 0; i < number_of_receives; i++) {
 					const uint64_t cell = sender->second[i].first;
-					destination.at(cell).mpi_datatype(
+
+					boost::tie(
 						addresses[i],
 						counts[i],
-						datatypes[i],
+						datatypes[i]
+					) = destination.at(cell).get_mpi_datatype(
 						cell,
 						sending_process,
 						(int) this->rank,
@@ -8467,10 +8476,11 @@ private:
 					int count = -1;
 					MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
 
-					this->cells.at(cell).mpi_datatype(
+					boost::tie(
 						address,
 						count,
-						user_datatype,
+						user_datatype
+					) = this->cells.at(cell).get_mpi_datatype(
 						cell,
 						(int) this->rank,
 						receiving_process,
@@ -8568,10 +8578,12 @@ private:
 
 				for (size_t i = 0; i < number_of_sends; i++) {
 					const uint64_t cell = receiver->second[i].first;
-					this->cells.at(cell).mpi_datatype(
+
+					boost::tie(
 						addresses[i],
 						counts[i],
-						datatypes[i],
+						datatypes[i]
+					) = this->cells.at(cell).get_mpi_datatype(
 						cell,
 						(int) this->rank,
 						receiving_process,

@@ -25,18 +25,17 @@ struct game_of_life_cell {
 
 	#else
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data[0]);
-		count = 1;
-		datatype = MPI_UNSIGNED;
+		return boost::make_tuple(&(this->data[0]), 1, MPI_UNSIGNED);
 	}
 
 	#endif

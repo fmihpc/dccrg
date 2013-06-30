@@ -4,6 +4,7 @@ Tests copy construction of dccrg.
 
 #include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "iostream"
@@ -23,18 +24,17 @@ struct Cell1 {
 
 	Cell1() { data = -1; }
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data);
-		count = 1;
-		datatype = MPI_INT;
+		return boost::make_tuple(&(this->data), 1, MPI_INT);
 	}
 };
 
@@ -46,18 +46,17 @@ struct Cell2 {
 
 	Cell2() { data = -2; }
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data);
-		count = 1;
-		datatype = MPI_DOUBLE;
+		return boost::make_tuple(&(this->data), 1, MPI_DOUBLE);
 	}
 };
 

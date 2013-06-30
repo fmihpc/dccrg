@@ -20,6 +20,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define CELL_HPP
 
 #include "boost/array.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "mpi.h"
 #include "stdint.h"
 
@@ -51,18 +52,17 @@ public:
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data);
-		count = 13;
-		datatype = MPI_UINT64_T;
+		return boost::make_tuple(&(this->data), 13, MPI_UINT64_T);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI

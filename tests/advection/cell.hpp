@@ -51,20 +51,19 @@ public:
 	#else
 
 	// returns MPI_Datatype corresponding to cell data to transfer
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data[0]);
 		// transfer cell density and velocities to other processes
 		// TODO: only transfer velocities after they have changed
-		count = 4;
-		datatype = MPI_DOUBLE;
+		return boost::make_tuple(&(this->data[0]), 4, MPI_DOUBLE);
 	}
 
 	#endif

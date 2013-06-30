@@ -20,6 +20,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define CELL_HPP
 
 #include "boost/array.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "mpi.h"
 #include "vector"
 #include "iostream"
@@ -56,15 +57,20 @@ public:
 	}
 
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
+		void* address = NULL;
+		int count = -1;
+		MPI_Datatype datatype = MPI_DATATYPE_NULL;
+
 		if (Cell::transfer_particles) {
 
 			if (this->particles.size() > 0) {
@@ -84,6 +90,8 @@ public:
 			datatype = MPI_UNSIGNED;
 
 		}
+
+		return boost::make_tuple(address, count, datatype);
 	}
 
 

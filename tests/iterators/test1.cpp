@@ -16,6 +16,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "boost/tuple/tuple.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "iostream"
@@ -45,18 +46,17 @@ public:
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->unused);
-		count = 1;
-		datatype = MPI_INT;
+		return boost::make_tuple(&(this->unused), 1, MPI_INT);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -76,17 +76,6 @@ struct is_larger {
 
 int main(int argc, char* argv[])
 {
-  /*int numbers_[] = { 0, -1, 4, -3, 5, 8, -2 };
-  const int N = sizeof(numbers_)/sizeof(int);
-  
-  typedef int* base_iterator;
-  base_iterator numbers(numbers_);
-  
-  // Example using make_filter_iterator()
-  std::copy(boost::make_filter_iterator(is_larger(-1), numbers, numbers + N),
-            boost::make_filter_iterator(is_larger(-1), numbers + N, numbers + N),
-            std::ostream_iterator<int>(std::cout, " "));
-  std::cout << std::endl;*/
 	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
 		cerr << "Coudln't initialize MPI." << endl;
 		abort();

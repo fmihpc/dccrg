@@ -4,6 +4,7 @@ Tests the scalability of the grid in 2 D
 
 #include "algorithm"
 #include "boost/mpi.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
@@ -32,18 +33,17 @@ struct game_of_life_cell {
 	// data[0] == 1 if cell is alive, data[1] holds the number of live neighbors
 	unsigned int data[2];
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data);
-		count = 1;
-		datatype = MPI_INT;
+		return boost::make_tuple(&(this->data), 1, MPI_INT);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI

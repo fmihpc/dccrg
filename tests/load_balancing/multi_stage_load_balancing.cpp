@@ -34,18 +34,17 @@ public:
 	// load balancing stage currently in progress
 	static size_t stage;
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
-		address = &(this->data[Cell::stage]);
-		count = 1;
-		datatype = MPI_INT;
+		return boost::make_tuple(&(this->data[Cell::stage]), 1, MPI_INT);
 	}
 };
 

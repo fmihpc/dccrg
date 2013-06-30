@@ -24,6 +24,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "boost/static_assert.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
@@ -101,15 +102,20 @@ public:
 		INIT      = 2;
 
 	// tells dccrg what to transfer, assumes no padding between variables
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
 		const bool /*receiving*/
 	) {
+		void* address = NULL;
+		int count = -1;
+		MPI_Datatype datatype = MPI_DATATYPE_NULL;
+
 		switch(Poisson_Cell::transfer_switch) {
 		case Poisson_Cell::SOLVING:
 			address = &(this->p0);
@@ -133,6 +139,8 @@ public:
 			abort();
 			break;
 		}
+
+		return boost::make_tuple(address, count, datatype);
 	}
 };
 
