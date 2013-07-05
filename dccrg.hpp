@@ -4351,10 +4351,14 @@ public:
 	An asynchronous version of update_copies_of_remote_neighbors().
 
 	Starts remote neighbor data updates and returns immediately.
+	Use e.g. wait_remote_neighbors_copy_updates() to make sure cell
+	data has been transferred.
 
 	\see
-	update_copies_of_remote_neighbors()
 	wait_remote_neighbor_copy_updates()
+	start_remote_neighbor_copy_receives()
+	start_remote_neighbor_copy_sends()
+	update_copies_of_remote_neighbors()
 	*/
 	bool start_remote_neighbor_copy_updates(
 		const int neighborhood_id = default_neighborhood_id
@@ -4446,6 +4450,198 @@ public:
 			this->user_neigh_cells_to_receive.at(neighborhood_id),
 			this->user_neigh_cells_to_send.at(neighborhood_id)
 		)) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+	/*!
+	Starts receiving updates for local copies of remote neighbor cells.
+
+	\see
+	wait_remote_neighbor_copy_update_receives()
+	start_remote_neighbor_copy_sends()
+	start_remote_neighbor_copy_updates()
+	*/
+	bool start_remote_neighbor_copy_receives(
+		const int neighborhood_id = default_neighborhood_id
+	) {
+		bool ret_val = true;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->start_user_data_receives(
+				this->remote_neighbors,
+				this->cells_to_receive
+			);
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+
+			#ifdef DEBUG
+			// TODO: merge debugging code with original
+			if (this->user_hood_to.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_to.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			ret_val = false;
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		if (!this->start_user_data_receives(
+			this->remote_neighbors,
+			this->user_neigh_cells_to_receive.at(neighborhood_id)
+		)) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+	/*!
+	Starts sending updates to remote copies of local neighboring cells.
+
+	\see
+	wait_remote_neighbor_copy_update_sends()
+	start_remote_neighbor_copy_receives()
+	start_remote_neighbor_copy_updates()
+	*/
+	bool start_remote_neighbor_copy_sends(
+		const int neighborhood_id = default_neighborhood_id
+	) {
+		if (this->balancing_load) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " start_remote_neighbor_data_update(...) called while balancing load"
+				<< std::endl;
+			abort();
+		}
+
+		bool ret_val = true;
+
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->start_user_data_sends(this->cells_to_send);
+		}
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+
+			#ifdef DEBUG
+			if (this->user_hood_to.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_of.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+
+			if (this->user_neigh_to.count(neighborhood_id) > 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Should not have id " << neighborhood_id
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			ret_val = false;
+		}
+
+		#ifdef DEBUG
+		if (this->user_hood_to.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_of.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_to.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+
+		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Should have id " << neighborhood_id
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		if (!this->start_user_data_sends(this->user_neigh_cells_to_send.at(neighborhood_id))) {
 			ret_val = false;
 		}
 
@@ -8194,12 +8390,31 @@ private:
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
 	) {
+		bool ret_val = true;
 
+		if (!this->start_user_data_receives(destination, receive_item)) {
+			ret_val = false;
+		}
+
+		if (!this->start_user_data_sends(send_item)) {
+			ret_val = false;
+		}
+
+		return ret_val;
+	}
+
+
+	/*!
+	Posts MPI_Irecvs for start_user_data_transfers().
+	*/
+	bool start_user_data_receives(
+		boost::unordered_map<uint64_t, Cell_Data>& destination,
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item
+	) {
 		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
 		int ret_val = -1;
 		#endif
 
-		// post receives
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			sender = receive_item.begin();
 			sender != receive_item.end();
@@ -8427,7 +8642,20 @@ private:
 			}
 		}
 
-		// post sends
+		return true;
+	}
+
+
+	/*!
+	Posts MPI_Isends for start_user_data_transfers().
+	*/
+	bool start_user_data_sends(
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
+	) {
+		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
+		int ret_val = -1;
+		#endif
+
 		for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 			receiver = send_item.begin();
 			receiver != send_item.end();
