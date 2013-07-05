@@ -146,18 +146,19 @@ Cell_Data is stored in all local cells and must provide a way for dccrg to
 query what data to send between processes using MPI-2.2
 (http://www.mpi-forum.org/docs/), by default it must have the following method:
 \verbatim
-void mpi_datatype(
-	void*& address,
-	int& count,
-	MPI_Datatype& datatype,
+boost::tuple<
+	void*,
+	int,
+	MPI_Datatype
+> get_mpi_datatype(
 	const uint64_t cell_id,
 	const int sender,
 	const int receiver,
 	const bool receiving
 );
 \endverbatim
-where the first three arguments must be set by the method and the rest provide
-additional information for the method. If DCCRG_TRANSFER_USING_BOOST_MPI is
+where the return value is passed as is to MPI functions and  the arguments
+provide additional information for the method. If DCCRG_TRANSFER_USING_BOOST_MPI is
 defined when compiling then Cell_Data must have the following method:
 \verbatim
 template<typename Archiver> void serialize(
@@ -167,6 +168,9 @@ template<typename Archiver> void serialize(
 \endverbatim
 for boost::mpi, see User-defined data types in boost::mpi tutorial:
 http://www.boost.org/doc/libs/release/doc/html/mpi/tutorial.html
+
+The get_mpi_datatype() function decides what data to transfer whenever data
+is transferred e.g. between processes or when grid data is written/read from a file.
 
 Geometry class decides the physical and logical size, shape, etc of the grid.
 
