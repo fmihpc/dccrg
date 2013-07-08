@@ -237,8 +237,8 @@ public:
 		max_ref_lvl_diff(other.get_max_ref_lvl_diff()),
 		send_single_cells(other.get_send_single_cells()),
 		comm(other.get_communicator()),
-		rank(other.get_rank()),
-		comm_size(other.get_comm_size()),
+		rank(uint64_t(other.get_rank())),
+		comm_size(uint64_t(other.get_comm_size())),
 		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 		boost_comm(other.get_boost_comm()),
 		#endif
@@ -5816,17 +5816,17 @@ public:
 	/*!
 	Returns the MPI process number, i.e. rank, of this process.
 	*/
-	uint64_t get_rank() const
+	int get_rank() const
 	{
-		return this->rank;
+		return int(this->rank);
 	}
 
 	/*!
 	Returns the number of MPI processes participating in this dccrg instance.
 	*/
-	uint64_t get_comm_size() const
+	int get_comm_size() const
 	{
-		return this->comm_size;
+		return int(this->comm_size);
 	}
 
 	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
