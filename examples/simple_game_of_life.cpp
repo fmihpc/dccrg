@@ -42,22 +42,25 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	#define X_LENGTH 10	// in unrefined cells
-	#define Y_LENGTH 10
-	#define Z_LENGTH 1
-	#define CELL_SIZE 1.0
-	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE);
-
 	// the cells that share a vertex are considered neighbors
 	#define NEIGHBORHOOD_SIZE 1
+	// don't allow refining cells into 8 smaller ones
 	#define MAX_REFINEMENT_LEVEL 0
-	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
-	game_grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
+	// length of grid in cells of refinement level 0 (largest possible)
+	const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
+	// use the recursive coordinate bisection method for load
+	// balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
+	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
-	// since the grid doesn't change (isn't refined / unrefined) during the game, workload can be balanced just once in the beginning
+	// start the grid at (0, 0, 0) and make the size of refinement level 0 cells 1
+	game_grid.geometry.set(0, 0, 0, 1, 1, 1);
+
+	// since the grid doesn't change (isn't refined / unrefined)
+	// during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();
 
-	// get the cells on this process just once, since the grid doesn't change during the game
+	// get the cells on this process just once, since the
+	// grid doesn't change during the game
 	vector<uint64_t> cells = game_grid.get_cells();
 
 

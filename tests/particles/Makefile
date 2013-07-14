@@ -5,10 +5,13 @@ CXX = mpic++ $(FLAGS)
 PROGRAMS = simple
 
 HEADERS = \
-	cell.hpp \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
-	../../dccrg_cartesian_geometry.hpp
+	../../dccrg_cartesian_geometry.hpp \
+	../../dccrg_length.hpp \
+	../../dccrg_mapping.hpp \
+	../../dccrg_topology.hpp \
+	../../dccrg_types.hpp \
+	cell.hpp \
 
 all: $(PROGRAMS)
 

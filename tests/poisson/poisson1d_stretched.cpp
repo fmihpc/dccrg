@@ -16,6 +16,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "boost/array.hpp"
 #include "boost/foreach.hpp"
 #include "boost/lexical_cast.hpp"
 #include "boost/mpi.hpp"
@@ -82,14 +83,14 @@ template<class Geometry> double get_p_norm(
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// assumes grid is 1d
 		double coord = -1;
-		if (grid.get_length_x() > 1) {
-			coord = grid.get_cell_x(cell);
+		if (grid.length.get()[0] > 1) {
+			coord = grid.geometry.get_cell_x(cell);
 		}
-		if (grid.get_length_y() > 1) {
-			coord = grid.get_cell_y(cell);
+		if (grid.length.get()[1] > 1) {
+			coord = grid.geometry.get_cell_y(cell);
 		}
-		if (grid.get_length_z() > 1) {
-			coord = grid.get_cell_z(cell);
+		if (grid.length.get()[2] > 1) {
+			coord = grid.geometry.get_cell_z(cell);
 		}
 
 		Poisson_Cell* data = grid[cell];
@@ -164,15 +165,15 @@ int main(int argc, char* argv[])
 		number_of_cells <= max_number_of_cells;
 		number_of_cells *= 2
 	) {
+		const boost::array<uint64_t, 3> grid_length = {{number_of_cells, 1, 1}};
 
-		// make coordinates for grid
-		vector<double> x_coords, y_coords, z_coords;
-		x_coords.push_back(0);
-		x_coords.push_back(2 * M_PI);
-		y_coords.push_back(0);
-		y_coords.push_back(1);
-		z_coords.push_back(0);
-		z_coords.push_back(1);
+		boost::array<vector<double>, 3> coordinates;
+		coordinates[0].push_back(0);
+		coordinates[0].push_back(2 * M_PI);
+		coordinates[1].push_back(0);
+		coordinates[1].push_back(1);
+		coordinates[2].push_back(0);
+		coordinates[2].push_back(1);
 
 		/*
 		Divide cells using given ratio with smaller cells
@@ -182,38 +183,38 @@ int main(int argc, char* argv[])
 
 		// divide equally into first four cells
 		if (number_of_cells >= 2) {
-			x_coords.insert(x_coords.begin() + 1, M_PI);
+			coordinates[0].insert(coordinates[0].begin() + 1, M_PI);
 		}
 		if (number_of_cells >= 4) {
-			x_coords.insert(x_coords.begin() + 1, M_PI / 2);
-			x_coords.insert(x_coords.begin() + 3, 3 * M_PI / 2);
+			coordinates[0].insert(coordinates[0].begin() + 1, M_PI / 2);
+			coordinates[0].insert(coordinates[0].begin() + 3, 3 * M_PI / 2);
 		}
 
-		while (x_coords.size() < number_of_cells) {
+		while (coordinates[0].size() < number_of_cells) {
 
-			const size_t new_size = 2 * (x_coords.size() - 1) + 1;
+			const size_t new_size = 2 * (coordinates[0].size() - 1) + 1;
 			for (size_t i = 1; i < new_size; i += 2) {
 
 				double new_coord = -1;
-				const double middle = (x_coords[i] + x_coords[i - 1]) / 2;
+				const double middle = (coordinates[0][i] + coordinates[0][i - 1]) / 2;
 
 				// smaller cell towards 0
 				if (middle < M_PI / 2
 				|| (middle >= M_PI && middle < 3 * M_PI / 2)) {
 
 					new_coord
-						= x_coords[i]
-						- (x_coords[i] - x_coords[i - 1]) * ratio / (ratio + 1);
+						= coordinates[0][i]
+						- (coordinates[0][i] - coordinates[0][i - 1]) * ratio / (ratio + 1);
 
 				// smaller cell towards 2 pi
 				} else {
 
 					new_coord
-						= x_coords[i - 1]
-						+ (x_coords[i] - x_coords[i - 1]) * ratio / (ratio + 1);
+						= coordinates[0][i - 1]
+						+ (coordinates[0][i] - coordinates[0][i - 1]) * ratio / (ratio + 1);
 
 				}
-				x_coords.insert(x_coords.begin() + i, new_coord);
+				coordinates[0].insert(coordinates[0].begin() + i, new_coord);
 			}
 		}
 
@@ -221,11 +222,11 @@ int main(int argc, char* argv[])
 		dccrg::Dccrg<Poisson_Cell, dccrg::Stretched_Cartesian_Geometry> grid_stretched;
 		dccrg::Dccrg<Poisson_Cell> grid_reference;
 
-		grid_stretched.set_geometry(x_coords, y_coords, z_coords);
-		grid_reference.set_geometry(number_of_cells, 1, 1, 0, 0, 0, 2 * M_PI / number_of_cells, 1, 1);
+		grid_stretched.geometry.set(coordinates);
+		grid_reference.geometry.set(0, 0, 0, 2 * M_PI / number_of_cells, 1, 1);
 
-		grid_stretched.initialize(comm, "RCB", 0, 0, true, true, true);
-		grid_reference.initialize(comm, "RCB", 0, 0, true, true, true);
+		grid_stretched.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
+		grid_reference.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
 
 		const std::vector<uint64_t> initial_cells = grid_stretched.get_cells();
 
@@ -256,8 +257,8 @@ int main(int argc, char* argv[])
 			}
 
 			const double
-				stretched_coord = grid_stretched.get_cell_x(cell),
-				reference_coord = grid_reference.get_cell_x(cell);
+				stretched_coord = grid_stretched.geometry.get_cell_x(cell),
+				reference_coord = grid_reference.geometry.get_cell_x(cell);
 
 			data_stretched->rhs = get_rhs_value(stretched_coord);
 			data_reference->rhs = get_rhs_value(reference_coord);
@@ -340,7 +341,7 @@ int main(int argc, char* argv[])
 					abort();
 				}
 
-				const double stretched_coord = grid_stretched.get_cell_x(cell);
+				const double stretched_coord = grid_stretched.geometry.get_cell_x(cell);
 
 				plot_file << stretched_coord << " " << data_stretched->solution << "\n";
 			}
@@ -357,7 +358,7 @@ int main(int argc, char* argv[])
 					abort();
 				}
 
-				const double reference_coord = grid_reference.get_cell_x(cell);
+				const double reference_coord = grid_reference.geometry.get_cell_x(cell);
 
 				plot_file << reference_coord << " " << data_reference->solution << "\n";
 			}

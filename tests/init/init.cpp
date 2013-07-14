@@ -70,21 +70,13 @@ int main(int argc, char* argv[])
 		return EXIT_SUCCESS;
 	}
 
-	// initialize grid
 	Dccrg<CellData> grid;
-
-	if (!grid.set_geometry(
-		x_length, y_length, z_length,
-		0.0, 0.0, 0.0,
-		1.0 / x_length, 1.0 / y_length, 1.0 / z_length
-	)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		return EXIT_FAILURE;
-	}
+	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 
 	clock_t before = clock();
-	grid.initialize(comm, "RCB", 1, 0);
+	grid.initialize(grid_length, comm, "RCB", 1, 0);
 	clock_t after = clock();
+
 	cout << "Process " << comm.rank()
 		<< ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC
 		<< " seconds (total grid size " << x_length * y_length * z_length << ")"

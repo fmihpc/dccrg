@@ -65,11 +65,12 @@ MPI_UNSIGNED_LONG in the following:
 #endif
 
 
-#include "dccrg_index.hpp"
-#include "dccrg_iterator_support.hpp"
-#include "dccrg_mpi_support.hpp"
-#include "dccrg_types.hpp"
 #include "dccrg_cartesian_geometry.hpp"
+#include "dccrg_iterator_support.hpp"
+#include "dccrg_mapping.hpp"
+#include "dccrg_mpi_support.hpp"
+#include "dccrg_topology.hpp"
+#include "dccrg_types.hpp"
 
 
 /*!
@@ -180,10 +181,56 @@ Dccrg() to get started with the %dccrg API.
 template <
 	class Cell_Data,
 	class Geometry = Cartesian_Geometry
-> class Dccrg : public Geometry
+> class Dccrg
 {
 
+// these must be initialized before their read-only versions.
+private:
+
+	/*!
+	Read-write version of topology for internal use.
+	*/
+	Grid_Topology topology_rw;
+
+	/*!
+	Read-write version of cell id mapping for internal use.
+	*/
+	Mapping mapping_rw;
+
+
 public:
+
+	/*!
+	Public read-only version of the grid's topology.
+
+	\see Grid_Topology
+	*/
+	const Grid_Topology& topology;
+
+	/*!
+	Public read-only version of the mapping of a
+	cell's ids to its size and location in the grid.
+
+	\see Mapping
+	*/
+	const Mapping& mapping;
+
+	/*!
+	Public read-only version of the grid's length in cells of refinement level 0.
+
+	\see Grid_Length
+	*/
+	const Grid_Length& length;
+
+	/*!
+	The geometry of the grid.
+
+	\see
+	Cartesian_Geometry
+	Dccrg()
+	*/
+	Geometry geometry;
+
 
 	/*!
 	Helper type for iterating over local cells and their data using BOOST_FOREACH
@@ -197,19 +244,30 @@ public:
 	/*!
 	Creates an uninitialized instance of dccrg.
 
-	The instance's set_geometry (inherited from the given geometry class)
-	and initialize functions must be called before doing anything else with
-	the instance, otherwise the result is undefined.
+	The instance's initialize function must be called
+	before doing anything else with the instance,
+	otherwise the result is undefined.
+
+	Use the set function of the grid's geometry
+	variable to give the grid specific physical
+	parameters such as starting location and size.
+
+	For an example see the file simple_game_of_life.cpp
+	in the examples directory.
 
 	\see
 	Available geometries:
-		- Cartesian_Geometry::set_geometry()
-		- Stretched_Cartesian_Geometry::set_geometry()
+		- Cartesian_Geometry::set()
+		- Stretched_Cartesian_Geometry::set()
 		.
 	initialize()
-	Dccrg(const Dccrg<Other_Cell_Data, Geometry>& other)
+	Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other)
 	*/
-	Dccrg()
+	Dccrg() :
+		topology(topology_rw),
+		mapping(mapping_rw),
+		length(mapping.length),
+		geometry(length, mapping, topology)
 	{
 		this->initialized = false;
 	}
@@ -218,19 +276,31 @@ public:
 	/*!
 	Creates an instance of the grid based on another instance of the grid.
 
-	Call this with all processes unless you know what you are doing.
+	Call this with all processes unless you really know what you are doing.
 	Must not be used while the instance being copied is updating remote
 	neighbor data or balancing the load.
-	The Cell_Data class can differ between the two grids but the geometry
-	must be the same.
+	The Cell_Data class can differ between the two grids.
+	The geometry of this grid must be compatible with the other
+	grid's geometry (it must have a copy contructor taking the
+	other grid's geometry as an argument).
+
 	The following data is not included in the new dccrg instance:
-		- refined/unrefined cells and their Cell_Data
-		- Cell_Data of copies of remote neighbors
+		- Other_Cell_Data, in other words the other grid's cell data
+		- refined/unrefined cells
 		- everything related to load balancing or remote neighbor updates
 
 	A dccrg instance created this way is already initialized.
 	*/
-	template<class Other_Cell_Data> Dccrg(const Dccrg<Other_Cell_Data, Geometry>& other) :
+	template<
+		class Other_Cell_Data,
+		class Other_Geometry
+	> Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other) :
+		topology_rw(other.topology),
+		mapping_rw(other.mapping),
+		topology(topology_rw),
+		mapping(mapping_rw),
+		length(mapping.length),
+		geometry(length, mapping, topology),
 		initialized(other.get_initialized()),
 		neighborhood_length(other.get_neighborhood_length()),
 		max_tag(other.get_max_tag()),
@@ -276,39 +346,20 @@ public:
 			abort();
 		}
 
-		// copy grid geometry
-		// FIXME: support geometries other than constant
-		if (!this->set_geometry(
-			other.get_length_x(),
-			other.get_length_y(),
-			other.get_length_z(),
-			other.get_start_x(),
-			other.get_start_y(),
-			other.get_start_z(),
-			other.get_unrefined_cell_length_x(),
-			other.get_unrefined_cell_length_y(),
-			other.get_unrefined_cell_length_z()
-		)) {
+		if (!this->geometry.set(other.geometry)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't copy geometry when copy constructing"
+				<< " Couldn't set geometry while copy constructing"
 				<< std::endl;
 			abort();
 		}
 
-		// maximum refinement level
-		if (!this->set_maximum_refinement_level(other.get_maximum_refinement_level())) {
+		if (!this->mapping_rw.set_maximum_refinement_level(other.mapping.get_maximum_refinement_level())) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't set maximum refinement level when copy constructing"
 				<< std::endl;
 			abort();
 		}
 
-		// periodicity
-		for (size_t i = 0; i < 3; i++) {
-			this->set_periodicity(i, other.is_periodic(i));
-		}
-
-		// zoltan
 		this->zoltan = Zoltan_Copy(other.get_zoltan());
 
 		// default construct Other_Cell_Data of local cells
@@ -325,9 +376,6 @@ public:
 	/*!
 	Initializes the instance of the grid with given parameters.
 
-	The geometry of the grid instance must have been set using set_geometry
-	before calling this function.
-
 	Zoltan_Initialize must have been called before calling this function.
 
 	comm: the grid will span all the processes in the communicator comm
@@ -336,16 +384,16 @@ public:
 		- The method that Zoltan will use for load balancing, given as a string.
 		- All methods except REFTREE are supported, see
 		  http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
-		  for a list of available methods:
+		  for a list of available methods and their documentation
 
 	neighborhood_length:
 		- Determines which cells are considered neighbors.
-		- When calculating the neighbors of a given cell a cube of length
-		  2 * neighborhood_length + 1 in every direction is considered, centered
-		  at the cell for which neighbors are being calculated.
-		- The unit lenght of the cube is the cell for which neighbors are being calculated.
+		- All cells withing a cube of length 2 * neighborhood_length + 1
+		  in every dimension are considered as neighbors of a cell, centered
+		  at the cell itself.
+		- The unit lenght of the cube is the cell itself.
 		- If neighborhood_length == 0, only cells (or children within the volume of
-		  cells of the same size as the current cell) that share a face are considered.
+		  cells of the same size as the cell itself) that share a face are considered.
 
 	maximum_refinement_level:
 		- The maximum number of times an unrefined cell can be refined
@@ -372,6 +420,7 @@ public:
 	set_send_single_cells()
 	*/
 	bool initialize(
+		const boost::array<uint64_t, 3>& initial_length,
 		const MPI_Comm& given_comm,
 		const char* load_balancing_method,
 		const unsigned int given_neighborhood_length,
@@ -383,6 +432,11 @@ public:
 	) {
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
+			return false;
+		}
+
+		if (!this->mapping_rw.set_length(initial_length)) {
+			std::cerr << "Couldn't set initial length of grid" << std::endl;
 			return false;
 		}
 
@@ -576,9 +630,9 @@ public:
 		Set grid parameters
 		*/
 
-		this->set_periodicity(0, periodic_in_x);
-		this->set_periodicity(1, periodic_in_y);
-		this->set_periodicity(2, periodic_in_z);
+		this->topology_rw.set_periodicity(0, periodic_in_x);
+		this->topology_rw.set_periodicity(1, periodic_in_y);
+		this->topology_rw.set_periodicity(2, periodic_in_z);
 
 		// set / check neighborhood_of
 		this->neighborhood_length = given_neighborhood_length;
@@ -643,8 +697,10 @@ public:
 
 
 		if (maximum_refinement_level < 0) {
-			this->set_maximum_refinement_level(this->get_maximum_possible_refinement_level());
-		} else if (!this->set_maximum_refinement_level(maximum_refinement_level)) {
+			this->mapping_rw.set_maximum_refinement_level(
+				this->mapping_rw.get_maximum_possible_refinement_level()
+			);
+		} else if (!this->mapping_rw.set_maximum_refinement_level(maximum_refinement_level)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< "Couldn't set maximum refinement level to " << maximum_refinement_level
 				<< std::endl;
@@ -655,7 +711,7 @@ public:
 
 
 		// create unrefined cells
-		const uint64_t grid_length = this->length_x * this->length_y * this->length_z;
+		const uint64_t grid_length = this->length.get()[0] * this->length.get()[1] * this->length.get()[2];
 		uint64_t cells_per_process = 0;
 		if (grid_length < this->comm_size) {
 			cells_per_process = 1;
@@ -666,7 +722,7 @@ public:
 		}
 
 		// some processes get fewer cells if grid size not divisible by this->comm_size
-		uint64_t procs_with_fewer = cells_per_process * this->comm_size - grid_length;
+		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - grid_length;
 
 		#ifndef USE_SFC
 
@@ -701,12 +757,12 @@ public:
 
 		#else
 
-		const dccrg::Types<3>::indices_t length = {{
-			this->length_x,
-			this->length_y,
-			this->length_z
+		const dccrg::Types<3>::indices_t sfc_length = {{
+			this->length.get()[0],
+			this->length.get()[1],
+			this->length.get()[2]
 		}};
-		sfc::Sfc<3, uint64_t> mapping(length);
+		sfc::Sfc<3, uint64_t> mapping(sfc_length);
 
 		/*
 		Cache only batch_size number of sfc indices at a time.
@@ -749,10 +805,10 @@ public:
 
 				dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
 				// transform indices to those of refinement level 0 cells
-				indices[0] *= uint64_t(1) << this->max_refinement_level;
-				indices[1] *= uint64_t(1) << this->max_refinement_level;
-				indices[2] *= uint64_t(1) << this->max_refinement_level;
-				const uint64_t cell_to_create = this->get_cell_from_indices(indices, 0);
+				indices[0] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				indices[1] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				indices[2] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				const uint64_t cell_to_create = this->mapping.get_cell_from_indices(indices, 0);
 
 				this->cell_process[cell_to_create] = process;
 				if (process == this->rank) {
@@ -1193,6 +1249,24 @@ public:
 		this->initialize_balance_load(use_zoltan);
 		this->continue_balance_load();
 		this->finish_balance_load();
+	}
+
+
+	/*!
+	See Mapping::get_refinement_level().
+	*/
+	int get_refinement_level(const uint64_t cell) const
+	{
+		return this->mapping.get_refinement_level(cell);
+	}
+
+
+	/*!
+	See Mapping::get_maximum_refinement_level().
+	*/
+	int get_maximum_refinement_level() const
+	{
+		return this->mapping.get_maximum_refinement_level();
 	}
 
 
@@ -2022,9 +2096,9 @@ public:
 			return false;
 		}
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
-		if (refinement_level > this->max_refinement_level) {
+		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return false;
 		}
 
@@ -2033,7 +2107,7 @@ public:
 			return false;
 		}
 
-		if (refinement_level == this->max_refinement_level) {
+		if (refinement_level == this->mapping.get_maximum_refinement_level()) {
 			this->dont_unrefine(cell);
 			return false;
 		}
@@ -2048,7 +2122,7 @@ public:
 
 		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors.at(cell)) {
 
-			if (this->get_refinement_level(neighbor) <= refinement_level) {
+			if (this->mapping.get_refinement_level(neighbor) <= refinement_level) {
 				const std::vector<uint64_t> neighbor_siblings
 					= this->get_all_children(this->get_parent(neighbor));
 
@@ -2060,7 +2134,7 @@ public:
 
 		BOOST_FOREACH(const uint64_t& neighbor, this->neighbors_to.at(cell)) {
 
-			if (this->get_refinement_level(neighbor) <= refinement_level) {
+			if (this->mapping.get_refinement_level(neighbor) <= refinement_level) {
 				const std::vector<uint64_t> neighbor_siblings
 					= this->get_all_children(this->get_parent(neighbor));
 
@@ -2113,7 +2187,7 @@ public:
 			return false;
 		}
 
-		if (this->get_refinement_level(cell) == 0) {
+		if (this->mapping.get_refinement_level(cell) == 0) {
 			return true;
 		}
 
@@ -2136,7 +2210,7 @@ public:
 
 		// unrefinement succeeds if parent of unrefined will fulfill requirements
 		const uint64_t parent = this->get_parent(cell);
-		const int refinement_level = this->get_refinement_level(parent);
+		const int refinement_level = this->mapping.get_refinement_level(parent);
 
 		#ifdef DEBUG
 		if (parent == 0) {
@@ -2162,7 +2236,7 @@ public:
 
 		BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 
-			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+			const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
 			if (neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) {
 				return true;
@@ -2219,7 +2293,7 @@ public:
 			return false;
 		}
 
-		if (this->get_refinement_level(cell) == 0) {
+		if (this->mapping.get_refinement_level(cell) == 0) {
 			return true;
 		}
 
@@ -2318,7 +2392,7 @@ public:
 
 		// gather cells in given cell's neighbor_of list at indices found above
 		boost::array<size_t, 2 * 3> current_index = {{0, 0, 0, 0, 0, 0}};
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		for (size_t
 			neighbor_i = 0;
@@ -2335,7 +2409,7 @@ public:
 				continue;
 			}
 
-			const int neigh_ref_lvl = this->get_refinement_level(neighbor);
+			const int neigh_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
 			for (int direction = -1; direction <= 1; direction += 2)
 			for (size_t dimension = 0; dimension < 3; dimension++) {
@@ -2555,7 +2629,7 @@ public:
 			return return_neighbors;
 		}
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		// find cell(s) at given indices in the stored neighbor list
 		const int last_offset
@@ -2595,11 +2669,11 @@ public:
 			}
 
 			const int current_refinement_level
-				= this->get_refinement_level(this->neighbors.at(cell)[index]);
+				= this->mapping.get_refinement_level(this->neighbors.at(cell)[index]);
 
 			if (i == current_i && j == current_j && k == current_k) {
 
-				// TODO check for 0 neighbor instead of error from get_refinement_level
+				// TODO check for 0 neighbor instead of error from mapping.get_refinement_level
 				if (current_refinement_level == -1) {
 					return_neighbors.push_back(0);
 				} else {
@@ -2777,30 +2851,30 @@ public:
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_min(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_min(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->get_cell_x_max(leaf_cells[i]) << " "
-				<< this->get_cell_y_max(leaf_cells[i]) << " "
-				<< this->get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
+				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
 		}
 
 		// map cells to written points
@@ -3107,7 +3181,7 @@ public:
 	*/
 	bool cell_overlaps_local(const uint64_t cell) const
 	{
-		const uint64_t parent = this->get_level_0_parent(cell);
+		const uint64_t parent = this->mapping.get_level_0_parent(cell);
 
 		if (this->cell_process.count(parent) > 0
 		&& this->cell_process.at(parent) == this->rank) {
@@ -3161,7 +3235,7 @@ public:
 
 		int local_max_ref_lvl_of_overlapping = 0;
 		BOOST_FOREACH(const uint64_t cell, overlapping) {
-			const int refinement_level = this->get_refinement_level(cell);
+			const int refinement_level = this->mapping.get_refinement_level(cell);
 			local_max_ref_lvl_of_overlapping
 				= std::max(refinement_level, local_max_ref_lvl_of_overlapping);
 		}
@@ -3192,9 +3266,9 @@ public:
 		// refine local cells recursively until all given_cells are created
 		BOOST_FOREACH(const uint64_t cell, overlapping) {
 			uint64_t current_child = cell;
-			const int refinement_level = this->get_refinement_level(current_child);
+			const int refinement_level = this->mapping.get_refinement_level(current_child);
 			for (int i = refinement_level - 1; i >= 0; i--) {
-				const uint64_t parent = this->get_parent_for_removed(current_child);
+				const uint64_t parent = this->mapping.get_parent(current_child);
 				cells_and_parents[i].insert(parent);
 				current_child = parent;
 			}
@@ -3607,8 +3681,10 @@ public:
 
 
 	/*!
-	Given a cell that exists and has a parent returns the parent cell
-	Returns the given cell if it doesn't have a parent or 0 if given cell doesn't exist
+	Returns the parent of given existing cell.
+
+	Returns the given cell if it doesn't have a parent
+	or error_cell if given cell doesn't exist.
 	*/
 	uint64_t get_parent(const uint64_t cell) const
 	{
@@ -3617,13 +3693,13 @@ public:
 		}
 
 		// given cell cannot have a parent
-		if (this->get_refinement_level(cell) == 0) {
+		if (this->mapping.get_refinement_level(cell) == 0) {
 			return cell;
 		}
 
-		const uint64_t parent = this->get_cell_from_indices(
-			this->get_indices(cell),
-			this->get_refinement_level(cell) - 1
+		const uint64_t parent = this->mapping.get_cell_from_indices(
+			this->mapping.get_indices(cell),
+			this->mapping.get_refinement_level(cell) - 1
 		);
 
 		if (this->cell_process.count(parent) > 0) {
@@ -3652,9 +3728,9 @@ public:
 
 		// grid length in indices
 		const uint64_t grid_length[3] = {
-			this->get_length_x() * (uint64_t(1) << this->max_refinement_level),
-			this->get_length_y() * (uint64_t(1) << this->max_refinement_level),
-			this->get_length_z() * (uint64_t(1) << this->max_refinement_level)
+			this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
+			this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
+			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
 		};
 
 		#ifdef DEBUG
@@ -3675,7 +3751,7 @@ public:
 			for (unsigned int dimension = 0; dimension < 3; dimension++) {
 				if (offsets[dimension] < 0) {
 
-					if (this->is_periodic(dimension)) {
+					if (this->topology.is_periodic(dimension)) {
 
 						// neighborhood might wrap around the grid several times
 						for (int i = 0; i > offsets[dimension]; i--) {
@@ -3710,7 +3786,7 @@ public:
 
 				} else {
 
-					if (this->is_periodic(dimension)) {
+					if (this->topology.is_periodic(dimension)) {
 						for (int i = 0; i < offsets[dimension]; i++) {
 
 							#ifdef DEBUG
@@ -3776,7 +3852,7 @@ public:
 	) const {
 		std::vector<uint64_t> return_neighbors;
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		#ifdef DEBUG
 		if (max_diff < 0) {
@@ -3793,7 +3869,7 @@ public:
 			abort();
 		}
 
-		if (refinement_level > this->max_refinement_level) {
+		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Refinement level of given cell (" << cell
 				<< ") is too large: " << refinement_level
@@ -3818,10 +3894,10 @@ public:
 			return return_neighbors;
 		}
 
-		const uint64_t cell_length = this->get_cell_length_in_indices(cell);
+		const uint64_t cell_length = this->mapping.get_cell_length_in_indices(cell);
 
 		const std::vector<Types<3>::indices_t> indices_of = this->indices_from_neighborhood(
-			this->get_indices(cell),
+			this->mapping.get_indices(cell),
 			cell_length,
 			neighborhood
 		);
@@ -3837,15 +3913,15 @@ public:
 				index_of,
 				(refinement_level < max_diff)
 					? 0 : refinement_level - max_diff,
-				(refinement_level <= this->max_refinement_level - max_diff)
-					? refinement_level + max_diff : this->max_refinement_level
+				(refinement_level <= this->mapping.get_maximum_refinement_level() - max_diff)
+					? refinement_level + max_diff : this->mapping.get_maximum_refinement_level()
 			);
 
 			#ifdef DEBUG
 			if (neighbor == 0) {
-				const Types<3>::indices_t indices = this->get_indices(cell);
+				const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 				const uint64_t smallest
-					= this->get_existing_cell(index_of, 0, this->max_refinement_level);
+					= this->get_existing_cell(index_of, 0, this->mapping.get_maximum_refinement_level());
 
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor not found for cell " << cell
@@ -3860,7 +3936,7 @@ public:
 					<< "," << index_of[1]
 					<< "," << index_of[2]
 					<< " was " << smallest
-					<< " with refinement level " << this->get_refinement_level(smallest)
+					<< " with refinement level " << this->mapping.get_refinement_level(smallest)
 					<< std::endl;
 				abort();
 			}
@@ -3874,7 +3950,7 @@ public:
 			}
 			#endif
 
-			const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+			const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
 			#ifdef DEBUG
 			if (neighbor_ref_lvl < 0) {
@@ -3901,7 +3977,7 @@ public:
 					index_of,
 					index_max,
 					std::max(0, refinement_level - max_diff),
-					std::min(this->max_refinement_level, refinement_level + max_diff)
+					std::min(this->mapping.get_maximum_refinement_level(), refinement_level + max_diff)
 				);
 
 				#ifdef DEBUG
@@ -3934,7 +4010,7 @@ public:
 						index_of,
 						index_max,
 						0,
-						this->max_refinement_level
+						this->mapping.get_maximum_refinement_level()
 					);
 					BOOST_FOREACH(const uint64_t& real, real_neighbors) {
 						std::cerr << real << " ";
@@ -3987,21 +4063,21 @@ public:
 		std::vector<uint64_t> return_neighbors;
 
 		if (cell == 0
-		|| cell > this->last_cell
+		|| cell > this->mapping.get_last_cell()
 		|| this->cell_process.count(cell) == 0
 		|| cell != this->get_child(cell)) {
 			return return_neighbors;
 		}
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		#ifdef DEBUG
-		if (refinement_level > this->max_refinement_level) {
+		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Refinement level (" << refinement_level
 				<< ") of cell " << cell
 				<< " exceeds maximum refinement level of the grid ("
-				<< this->max_refinement_level << ")"
+				<< this->mapping.get_maximum_refinement_level() << ")"
 				<< std::endl;
 			abort();
 		}
@@ -4026,8 +4102,8 @@ public:
 		// neighbors_to larger than given cell
 		if (refinement_level > 0) {
 			const uint64_t parent = this->get_parent(cell);
-			const Types<3>::indices_t indices = this->get_indices(parent);
-			const uint64_t length_in_indices = this->get_cell_length_in_indices(parent);
+			const Types<3>::indices_t indices = this->mapping.get_indices(parent);
+			const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(parent);
 
 			std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 				indices,
@@ -4042,7 +4118,7 @@ public:
 				}
 
 				const uint64_t found
-					= this->get_cell_from_indices(search_index, refinement_level - 1);
+					= this->mapping.get_cell_from_indices(search_index, refinement_level - 1);
 
 				// only add if found cell doesn't have children
 				if (found == this->get_child(found)) {
@@ -4052,7 +4128,7 @@ public:
 		}
 
 		// neighbors_to smaller than given cell
-		if (refinement_level < this->max_refinement_level) {
+		if (refinement_level < this->mapping.get_maximum_refinement_level()) {
 
 			const std::vector<uint64_t> children = this->get_all_children(cell);
 			#ifdef DEBUG
@@ -4064,11 +4140,11 @@ public:
 			}
 			#endif
 
-			const uint64_t length_in_indices = this->get_cell_length_in_indices(children[0]);
+			const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(children[0]);
 
 			BOOST_FOREACH(const uint64_t& child, children) {
 
-				const Types<3>::indices_t indices = this->get_indices(child);
+				const Types<3>::indices_t indices = this->mapping.get_indices(child);
 
 				std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 					indices,
@@ -4083,7 +4159,7 @@ public:
 					}
 
 					const uint64_t found
-						= this->get_cell_from_indices(search_index, refinement_level + 1);
+						= this->mapping.get_cell_from_indices(search_index, refinement_level + 1);
 
 					if (found == this->get_child(found)) {
 						unique_neighbors.insert(found);
@@ -4093,8 +4169,8 @@ public:
 		}
 
 		// neighbors_to of the same size as given cell
-		const Types<3>::indices_t indices = this->get_indices(cell);
-		const uint64_t length_in_indices = this->get_cell_length_in_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
+		const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(cell);
 
 		std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
 			indices,
@@ -4108,7 +4184,7 @@ public:
 				continue;
 			}
 
-			const uint64_t found = this->get_cell_from_indices(search_index, refinement_level);
+			const uint64_t found = this->mapping.get_cell_from_indices(search_index, refinement_level);
 			if (found == this->get_child(found)) {
 				unique_neighbors.insert(found);
 			}
@@ -4137,7 +4213,7 @@ public:
 		std::vector<uint64_t> return_neighbors;
 
 		if (cell == 0
-		|| cell > this->last_cell
+		|| cell > this->mapping.get_last_cell()
 		|| this->cell_process.count(cell) == 0
 		|| cell != this->get_child(cell)) {
 			return return_neighbors;
@@ -4157,13 +4233,13 @@ public:
 			}
 		}
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 		#ifdef DEBUG
-		if (refinement_level > this->max_refinement_level) {
+		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Refinement level (" << refinement_level
 				<< ") of cell " << cell
-				<< " exceeds maximum refinement level of the grid (" << this->max_refinement_level << ")"
+				<< " exceeds maximum refinement level of the grid (" << this->mapping.get_maximum_refinement_level() << ")"
 				<< std::endl;
 			abort();
 		}
@@ -4190,8 +4266,8 @@ public:
 			}
 			#endif
 
-			const Types<3>::indices_t indices = this->get_indices(parent);
-			const uint64_t length_in_indices = this->get_cell_length_in_indices(parent);
+			const Types<3>::indices_t indices = this->mapping.get_indices(parent);
+			const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(parent);
 
 			const std::vector<Types<3>::indices_t> search_indices
 				= this->indices_from_neighborhood(
@@ -4207,7 +4283,7 @@ public:
 				}
 
 				const uint64_t found
-					= this->get_cell_from_indices(search_index, refinement_level - 1);
+					= this->mapping.get_cell_from_indices(search_index, refinement_level - 1);
 
 				// only add if found cell doesn't have children
 				if (found == this->get_child(found)) {
@@ -4243,7 +4319,7 @@ public:
 	) const {
 		// size of cells in indices of given maximum_refinement_level
 		const uint64_t index_increase
-			= uint64_t(1) << (this->max_refinement_level - maximum_refinement_level);
+			= uint64_t(1) << (this->mapping.get_maximum_refinement_level() - maximum_refinement_level);
 
 		#ifdef DEBUG
 		if (minimum_refinement_level > maximum_refinement_level) {
@@ -4253,7 +4329,7 @@ public:
 			abort();
 		}
 
-		if (maximum_refinement_level > this->max_refinement_level) {
+		if (maximum_refinement_level > this->mapping.get_maximum_refinement_level()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Invalid maximum refinement level given"
 				<< std::endl;
@@ -4309,11 +4385,11 @@ public:
 					<< std::endl;
 
 				const uint64_t smallest
-					= this->get_existing_cell(indices, 0, this->max_refinement_level);
+					= this->get_existing_cell(indices, 0, this->mapping.get_maximum_refinement_level());
 
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " smallest cell there is " << smallest
-					<< " with refinement level " << this->get_refinement_level(smallest)
+					<< " with refinement level " << this->mapping.get_refinement_level(smallest)
 					<< std::endl;
 				abort();
 			}
@@ -4326,7 +4402,7 @@ public:
 				abort();
 			}
 
-			if (cell > this->last_cell) {
+			if (cell > this->mapping.get_last_cell()) {
 				std::cerr << __FILE__ << ":" << __LINE__ << " Cell can't exist" << std::endl;
 				abort();
 			}
@@ -5454,9 +5530,9 @@ public:
 	uint64_t get_existing_cell(const double x, const double y, const double z) const
 	{
 		const Types<3>::indices_t indices = {{
-			this->get_x_index_of_coord(x),
-			this->get_y_index_of_coord(y),
-			this->get_z_index_of_coord(z)
+			this->geometry.get_x_index_of_coord(x),
+			this->geometry.get_y_index_of_coord(y),
+			this->geometry.get_z_index_of_coord(z)
 		}};
 
 		if (indices[0] == error_index
@@ -5465,7 +5541,7 @@ public:
 			return error_cell;
 		}
 
-		return this->get_existing_cell(indices, 0, this->max_refinement_level);
+		return this->get_existing_cell(indices, 0, this->mapping.get_maximum_refinement_level());
 	}
 
 
@@ -5479,9 +5555,9 @@ public:
 	{
 		std::vector<uint64_t> siblings;
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 		if (refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return siblings;
 		}
 
@@ -5513,19 +5589,19 @@ public:
 		}
 
 		// given cell cannot have children
-		int refinement_level = this->get_refinement_level(cell);
-		if (refinement_level >= this->max_refinement_level) {
+		int refinement_level = this->mapping.get_refinement_level(cell);
+		if (refinement_level >= this->mapping.get_maximum_refinement_level()) {
 			return children;
 		}
 
 		children.reserve(8);
 
-		Types<3>::indices_t indices = this->get_indices(cell);
+		Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
 		// get indices of next refinement level within this cell
 		refinement_level++;
 		const uint64_t index_offset
-			= (uint64_t(1) << (this->max_refinement_level - refinement_level));
+			= (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level));
 
 		for (uint64_t
 			z_index_offset = 0;
@@ -5542,13 +5618,14 @@ public:
 			x_index_offset < 2 * index_offset;
 			x_index_offset += index_offset
 		) {
+			const Types<3>::indices_t index = {{
+				indices[0] + x_index_offset,
+				indices[1] + y_index_offset,
+				indices[2] + z_index_offset,
+			}};
+
 			children.push_back(
-				this->get_cell_from_indices(
-					indices[0] + x_index_offset,
-					indices[1] + y_index_offset,
-					indices[2] + z_index_offset,
-					refinement_level
-				)
+				this->mapping.get_cell_from_indices(index, refinement_level)
 			);
 		}
 
@@ -5569,7 +5646,7 @@ public:
 	Adds a new neighborhood for updating Cell_Data between neighbors on different processes.
 
 	Must be called with identical parameters on all processes.
-	No neighborhood_item_t should have all offsets equal to 0.
+	No neighborhood_item_t can have all offsets equal to 0.
 	Returns true on success and false in any of the following cases:
 		- given id already exists, use remove_neighborhood() before calling this
 		- (part of) given neighborhood is outside of initial neighborhood size
@@ -6108,7 +6185,6 @@ public:
 
 
 private:
-
 	bool initialized;
 
 	// size of the neighbor stencil of a cells in cells (of the same size as the cell itself)
@@ -7277,7 +7353,7 @@ private:
 			abort();
 		}
 
-		if (cell1 > this->last_cell) {
+		if (cell1 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Impossible cell1 given." << std::endl;
 			abort();
 		}
@@ -7287,24 +7363,24 @@ private:
 			abort();
 		}
 
-		if (cell2 > this->last_cell) {
+		if (cell2 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Impossible cell2 given." << std::endl;
 			abort();
 		}
 		#endif
 
-		const Types<3>::indices_t indices1 = this->get_indices(cell1);
-		const Types<3>::indices_t indices2 = this->get_indices(cell2);
-		const uint64_t cell1_length = this->get_cell_length_in_indices(cell1);
-		const uint64_t cell2_length = this->get_cell_length_in_indices(cell2);
+		const Types<3>::indices_t indices1 = this->mapping.get_indices(cell1);
+		const Types<3>::indices_t indices2 = this->mapping.get_indices(cell2);
+		const uint64_t cell1_length = this->mapping.get_cell_length_in_indices(cell1);
+		const uint64_t cell2_length = this->mapping.get_cell_length_in_indices(cell2);
 
 		// distance in indices between given cells
 		Types<3>::indices_t distance = {{0, 0, 0}};
 
 		const uint64_t grid_length[3] = {
-			this->get_length_x() * (uint64_t(1) << this->max_refinement_level),
-			this->get_length_y() * (uint64_t(1) << this->max_refinement_level),
-			this->get_length_z() * (uint64_t(1) << this->max_refinement_level)
+			this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
+			this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
+			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
 		};
 
 		uint64_t max_distance = 0;
@@ -7317,7 +7393,7 @@ private:
 					distance[i] = indices2[i] - (indices1[i] + cell1_length);
 				}
 
-				if (this->is_periodic(i)) {
+				if (this->topology.is_periodic(i)) {
 					const uint64_t distance_to_end = grid_length[i] - (indices2[i] + cell2_length);
 					distance[i] = std::min(distance[i], indices1[i] + distance_to_end);
 				}
@@ -7328,7 +7404,7 @@ private:
 					distance[i] = indices1[i] - (indices2[i] + cell2_length);
 				}
 
-				if (this->is_periodic(i)) {
+				if (this->topology.is_periodic(i)) {
 					const uint64_t distance_to_end = grid_length[i] - (indices1[i] + cell1_length);
 					distance[i] = std::min(distance[i], indices2[i] + distance_to_end);
 				}
@@ -7366,23 +7442,23 @@ private:
 			return error_cell;
 		}
 
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		// given cell cannot have children
-		if (refinement_level == this->max_refinement_level) {
+		if (refinement_level == this->mapping.get_maximum_refinement_level()) {
 			return cell;
 		}
 
-		const uint64_t child = this->get_cell_from_indices(
-			this->get_indices(cell),
+		const uint64_t child = this->mapping.get_cell_from_indices(
+			this->mapping.get_indices(cell),
 			refinement_level + 1
 		);
 
 		if (this->cell_process.count(child) > 0) {
 			return child;
-		} else {
-			return cell;
 		}
+
+		return cell;
 	}
 
 
@@ -7428,7 +7504,7 @@ private:
 						continue;
 					}
 
-					if (this->get_refinement_level(neighbor) < this->get_refinement_level(refined)) {
+					if (this->mapping.get_refinement_level(neighbor) < this->mapping.get_refinement_level(refined)) {
 						if (this->cells_to_refine.count(neighbor) == 0) {
 							unique_induced_refines.insert(neighbor);
 						}
@@ -7454,7 +7530,7 @@ private:
 						continue;
 					}
 
-					if (this->get_refinement_level(neighbor_to) < this->get_refinement_level(refined)) {
+					if (this->mapping.get_refinement_level(neighbor_to) < this->mapping.get_refinement_level(refined)) {
 						if (this->cells_to_refine.count(neighbor_to) == 0) {
 							unique_induced_refines.insert(neighbor_to);
 						}
@@ -7484,7 +7560,7 @@ private:
 					BOOST_FOREACH(const uint64_t& local, this->local_cells_on_process_boundary) {
 
 						if (this->is_neighbor(local, refined)
-						&& this->get_refinement_level(local) < this->get_refinement_level(refined)
+						&& this->mapping.get_refinement_level(local) < this->mapping.get_refinement_level(refined)
 						&& this->cells_to_refine.count(local) == 0) {
 							unique_induced_refines.insert(local);
 						}
@@ -7528,13 +7604,13 @@ private:
 					continue;
 				}
 
-				if (this->get_refinement_level(neighbor_of) < this->get_refinement_level(refined)
+				if (this->mapping.get_refinement_level(neighbor_of) < this->mapping.get_refinement_level(refined)
 				&& this->cells_to_refine.count(neighbor_of) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Neighbor (" << neighbor_of
 						<< ") of cell that will be refined (" << refined
-						<< ", ref lvl " << this->get_refinement_level(refined)
-						<< ") has too small refinement level: " << this->get_refinement_level(neighbor_of)
+						<< ", ref lvl " << this->mapping.get_refinement_level(refined)
+						<< ") has too small refinement level: " << this->mapping.get_refinement_level(neighbor_of)
 						<< std::endl;
 					abort();
 				}
@@ -7549,13 +7625,13 @@ private:
 					continue;
 				}
 
-				if (this->get_refinement_level(neighbor_to) < this->get_refinement_level(refined)
+				if (this->mapping.get_refinement_level(neighbor_to) < this->mapping.get_refinement_level(refined)
 				&& this->cells_to_refine.count(neighbor_to) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Neighbor (" << neighbor_to
 						<< ") of cell that will be refined (" << refined
-						<< ", ref lvl " << this->get_refinement_level(refined)
-						<< ") has too small refinement level: " << this->get_refinement_level(neighbor_to)
+						<< ", ref lvl " << this->mapping.get_refinement_level(refined)
+						<< ") has too small refinement level: " << this->mapping.get_refinement_level(neighbor_to)
 						<< std::endl;
 					abort();
 				}
@@ -7623,7 +7699,7 @@ private:
 			}
 
 			// ...parent of unrefined wouldn't fulfill requirements
-			const int refinement_level = this->get_refinement_level(parent);
+			const int refinement_level = this->mapping.get_refinement_level(parent);
 
 			#ifdef DEBUG
 			if (parent == 0) {
@@ -7649,7 +7725,7 @@ private:
 
 			BOOST_FOREACH(const uint64_t& neighbor, neighbors) {
 
-				const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
 				if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
 				&& this->cells_to_refine.count(neighbor) > 0) {
@@ -7705,7 +7781,7 @@ private:
 				abort();
 			}
 
-			const int ref_lvl = this->get_refinement_level(unrefined);
+			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
 
 			// neighbors_of
 			const std::vector<uint64_t> neighbors
@@ -7722,7 +7798,7 @@ private:
 					continue;
 				}
 
-				const int neighbor_ref_lvl = this->get_refinement_level(neighbor);
+				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
 				if (neighbor_ref_lvl > ref_lvl) {
 					std::cerr << __FILE__ << ":" << __LINE__
@@ -9043,26 +9119,26 @@ private:
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
 		#ifdef DEBUG
-		if (index1 >= this->get_length_x() * (uint64_t(1) << this->max_refinement_level)
-		&& index1 >= this->get_length_y() * (uint64_t(1) << this->max_refinement_level)
-		&& index1 >= this->get_length_z() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index1 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+		&& index1 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+		&& index1 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (index2 >= this->get_length_x() * (uint64_t(1) << this->max_refinement_level)
-		&& index2 >= this->get_length_y() * (uint64_t(1) << this->max_refinement_level)
-		&& index2 >= this->get_length_z() * (uint64_t(1) << this->max_refinement_level)) {
+		if (index2 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+		&& index2 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+		&& index2 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (size1 > (uint64_t(1) << this->max_refinement_level)) {
+		if (size1 > (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (size2 > (uint64_t(1) << this->max_refinement_level)) {
+		if (size2 > (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
@@ -9097,7 +9173,7 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
-		if (cell1 > this->last_cell) {
+		if (cell1 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
@@ -9105,15 +9181,15 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
-		if (cell2 > this->last_cell) {
+		if (cell2 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
 
 		const uint64_t index1 = this->get_x_index(cell1);
 		const uint64_t index2 = this->get_x_index(cell2);
-		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
+		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
 		return this->indices_overlap(index1, size1, index2, size2);
 	}
@@ -9127,7 +9203,7 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
-		if (cell1 > this->last_cell) {
+		if (cell1 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
@@ -9135,15 +9211,15 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
-		if (cell2 > this->last_cell) {
+		if (cell2 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
 
 		const uint64_t index1 = this->get_y_index(cell1);
 		const uint64_t index2 = this->get_y_index(cell2);
-		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
+		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
 		return this->indices_overlap(index1, size1, index2, size2);
 	}
@@ -9157,7 +9233,7 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
-		if (cell1 > this->last_cell) {
+		if (cell1 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
@@ -9165,15 +9241,15 @@ private:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
-		if (cell2 > this->last_cell) {
+		if (cell2 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
 
 		const uint64_t index1 = this->get_z_index(cell1);
 		const uint64_t index2 = this->get_z_index(cell2);
-		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
+		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
 		return this->indices_overlap(index1, size1, index2, size2);
 	}
@@ -9195,11 +9271,11 @@ private:
 			abort();
 		}
 
-		if (cell1 > this->last_cell) {
+		if (cell1 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			abort();
 		}
-		if (cell2 > this->last_cell) {
+		if (cell2 > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			abort();
 		}
@@ -9209,11 +9285,11 @@ private:
 			return 0;
 		}
 
-		const Types<3>::indices_t indices1 = this->get_indices(cell1);
-		const Types<3>::indices_t indices2 = this->get_indices(cell2);
+		const Types<3>::indices_t indices1 = this->mapping.get_indices(cell1);
+		const Types<3>::indices_t indices2 = this->mapping.get_indices(cell2);
 
-		const uint64_t size1 = this->get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->get_cell_length_in_indices(cell2);
+		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
+		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
 		int ret = 0;
 		if (this->indices_overlap(indices1[0], size1, indices2[0], size2)) {
@@ -9242,15 +9318,15 @@ private:
 		const int maximum_refinement_level
 	) const
 	{
-		if (indices[0] >= this->length_x * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[0] >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return error_cell;
 		}
 
-		if (indices[1] >= this->length_y * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[1] >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return error_cell;
 		}
 
-		if (indices[2] >= this->length_z * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[2] >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return error_cell;
 		}
 
@@ -9262,7 +9338,7 @@ private:
 			= (maximum_refinement_level + minimum_refinement_level) / 2;
 
 		const uint64_t average_cell
-			= this->get_cell_from_indices(indices, average_refinement_level);
+			= this->mapping.get_cell_from_indices(indices, average_refinement_level);
 
 		// use binary search recursively (assumes that all cells refine to 8 children)
 		if (this->cell_process.count(average_cell) == 0) {
@@ -9345,9 +9421,9 @@ private:
 				return;
 			}
 
-			geom_vec[3 * i + 0] = dccrg_instance->get_cell_x(cell);
-			geom_vec[3 * i + 1] = dccrg_instance->get_cell_y(cell);
-			geom_vec[3 * i + 2] = dccrg_instance->get_cell_z(cell);
+			geom_vec[3 * i + 0] = dccrg_instance->geometry.get_cell_x(cell);
+			geom_vec[3 * i + 1] = dccrg_instance->geometry.get_cell_y(cell);
+			geom_vec[3 * i + 2] = dccrg_instance->geometry.get_cell_z(cell);
 		}
 	}
 
@@ -9836,7 +9912,7 @@ private:
 			return false;
 		}
 
-		if (cell > this->last_cell) {
+		if (cell > this->mapping.get_last_cell()) {
 			std::cerr << __FILE__ << ":" << __LINE__ <<
 				" Cell " << cell << " shouldn't exist"
 				<< std::endl;

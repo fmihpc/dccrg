@@ -99,15 +99,8 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<Cell> grid;
-
-	if (!grid.set_geometry(3, 3, 3, 0, 0, 0, 1, 1, 1)) {
-		if (rank == 0) {
-			cerr << "Couldn't set grid geometry" << endl;
-		}
-		return EXIT_FAILURE;
-	}
-
-	grid.initialize(comm, "RANDOM", 3);
+	const boost::array<uint64_t, 3> grid_length = {{3, 3, 3}};
+	grid.initialize(grid_length, comm, "RANDOM", 3);
 
 	// local cells must be obtained before starting load balancing
 	const vector<uint64_t> cells = grid.get_cells();

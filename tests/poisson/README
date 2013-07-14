@@ -1,0 +1,9 @@
+Tests for a solver of the Poisson equation implemented
+on top of dccrg supporting a stretched grid, AMR, etc.
+See the ../README file for information common to all tests.
+
+Running make test in this directory will run the tests
+using one MPI process with mpirun. Running make parallel-test
+will run the tests using 6 MPI processes. If successful
+all test print PASSED to stdout. Edit the Makefile to launch
+the tests using another program interactively.

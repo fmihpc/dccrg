@@ -92,6 +92,9 @@ void apply_rules(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_g
 }
 
 
+/*!
+See the comments in simple_game_of_life.cpp for an explanation of the basics.
+*/
 int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
@@ -105,28 +108,26 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	#define X_LENGTH 1000	// in unrefined cells
-	#define Y_LENGTH 1000
-	#define Z_LENGTH 1
-	#define CELL_SIZE 1.0
-	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE);
+	game_grid.geometry.set(0, 0, 0, 1, 1, 1);
 
-	// the cells that share a vertex are considered neighbors
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
-	game_grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
+	const boost::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
+	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
-	// since the grid doesn't change (isn't refined / unrefined) during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();
 
 	/*
-	Get the cells on this process just once, since the grid doesn't change during the game
-	To make the game scale better, separate local cells into those without even one neighbor on another process and those that do.
-	While updating cell data between processes, start calculating the next turn for cells which don't have neighbors on other processes
+	Get the cells on this process just once, since
+	the grid doesn't change during the game
+	To make the game scale better, separate local cells into those
+	without even one neighbor on another process and those that do.
+	While updating cell data between processes, start calculating
+	the next turn for cells which don't have neighbors on other processes
 	*/
-	vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();
-	vector<uint64_t> outer_cells = game_grid.get_local_cells_on_process_boundary();
+	const vector<uint64_t>
+		inner_cells = game_grid.get_local_cells_not_on_process_boundary(),
+		outer_cells = game_grid.get_local_cells_on_process_boundary();
 
 	initialize_game(&inner_cells, &game_grid);
 	initialize_game(&outer_cells, &game_grid);
@@ -137,11 +138,14 @@ int main(int argc, char* argv[])
 	#define TURNS 100
 	for (int turn = 0; turn < TURNS; turn++) {
 
-		// start updating cell data from other processes and calculate the next turn for cells without neighbors on other processes in the meantime
+		// start updating cell data from other processes
+		// and calculate the next turn for cells without
+		// neighbors on other processes in the meantime
 		game_grid.start_remote_neighbor_copy_updates();
 		get_live_neighbor_counts(&inner_cells, &game_grid);
 
-		// wait for neighbor data updates to finish and the calculate the next turn for rest of the cells on this process
+		// wait for neighbor data updates to finish and the
+		// calculate the next turn for rest of the cells on this process
 		game_grid.wait_remote_neighbor_copy_updates();
 		get_live_neighbor_counts(&outer_cells, &game_grid);
 
@@ -170,9 +174,13 @@ int main(int argc, char* argv[])
 
 	// print the statistics
 	if (comm.rank() == 0) {
-		cout << "Game played at " << avg_speed << " cells / process / s (average speed, minimum: " << min_speed << ", maximum: " << max_speed << ")" << endl;
-		cout << "Average total playing speed " << avg_global_speed << " cells / s" << endl;
+		cout << "Game played at " << avg_speed
+			<< " cells / process / s (average speed, minimum: " << min_speed
+			<< ", maximum: " << max_speed << ")\n"
+			<< "Average total playing speed " << avg_global_speed << " cells / s"
+			<< endl;
 	}
 
 	return game_grid[inner_cells[0]]->is_alive;
 }
+

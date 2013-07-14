@@ -79,7 +79,7 @@ template<class Geometry> double get_p_norm(
 	double local = 0, global = 0;
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const double coord = grid.get_cell_x(cell);
+		const double coord = grid.geometry.get_cell_x(cell);
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(
 			fabs(data->solution - get_solution_value(coord)),
@@ -123,11 +123,15 @@ int main(int argc, char* argv[])
 		dccrg::Dccrg<Poisson_Cell> grid, grid_reference;
 
 		// create one layer of cells to skip around x dimension
-		grid          .set_geometry(number_of_cells, 3, 3, 0, 0, 0, cell_length, 1, 1);
-		grid_reference.set_geometry(number_of_cells, 1, 1, 0, 0, 0, cell_length, 1, 1);
+		grid          .geometry.set(0, 0, 0, cell_length, 1, 1);
+		grid_reference.geometry.set(0, 0, 0, cell_length, 1, 1);
 
-		grid          .initialize(comm, "RCB", 0, 0, true, false, false);
-		grid_reference.initialize(comm, "RCB", 0, 0, true, false, false);
+		const boost::array<uint64_t, 3>
+			grid_length = {{number_of_cells, 3, 3}},
+			grid_reference_length = {{number_of_cells, 1, 1}};
+
+		grid          .initialize(grid_length, comm, "RCB", 0, 0, true, false, false);
+		grid_reference.initialize(grid_reference_length, comm, "RCB", 0, 0, true, false, false);
 
 		// get cells in which to solve
 		const std::vector<uint64_t>
@@ -136,7 +140,7 @@ int main(int argc, char* argv[])
 
 		// emulate RANDOM but predictable load balance
 		BOOST_FOREACH(const uint64_t cell, initial_cells) {
-			const dccrg::Types<3>::indices_t indices = grid.get_indices(cell);
+			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			// move cells in middle of grid to same process as in reference grid
 			if (indices[1] == 1 && indices[2] == 1) {
 				const int target_process = indices[0] % comm.size();
@@ -144,7 +148,7 @@ int main(int argc, char* argv[])
 			}
 		}
 		BOOST_FOREACH(const uint64_t cell, initial_cells_reference) {
-			const dccrg::Types<3>::indices_t indices = grid_reference.get_indices(cell);
+			const dccrg::Types<3>::indices_t indices = grid_reference.mapping.get_indices(cell);
 			const int target_process = indices[0] % comm.size();
 			grid_reference.pin(cell, target_process);
 		}
@@ -162,7 +166,7 @@ int main(int argc, char* argv[])
 
 		std::vector<uint64_t> cells;
 		BOOST_FOREACH(const uint64_t cell, all_cells) {
-			const dccrg::Types<3>::indices_t indices = grid.get_indices(cell);
+			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			if (indices[1] == 1 && indices[2] == 1) {
 				cells.push_back(cell);
 			} else {
@@ -187,7 +191,7 @@ int main(int argc, char* argv[])
 		// also skip some remote neighbors
 		const std::vector<uint64_t> remote_neighbors = grid.get_remote_cells_on_process_boundary();
 		BOOST_FOREACH(const uint64_t cell, remote_neighbors) {
-			const dccrg::Types<3>::indices_t indices = grid.get_indices(cell);
+			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			if (indices[1] != 1 ||  indices[2] != 1) {
 				cells_to_skip.insert(cell);
 			}
@@ -200,7 +204,7 @@ int main(int argc, char* argv[])
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				abort();
 			}
-			const double coord = grid.get_cell_x(cell);
+			const double coord = grid.geometry.get_cell_x(cell);
 			data->rhs = get_rhs_value(coord);
 			data->solution = 0;
 		}
@@ -210,7 +214,7 @@ int main(int argc, char* argv[])
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				abort();
 			}
-			const double coord = grid_reference.get_cell_x(cell);
+			const double coord = grid_reference.geometry.get_cell_x(cell);
 			data->rhs = get_rhs_value(coord);
 			data->solution = 0;
 		}

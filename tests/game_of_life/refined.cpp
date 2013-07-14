@@ -45,21 +45,18 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
-	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 5
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= 5; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-		y_coordinates.push_back(i * CELL_SIZE);
+	const boost::array<uint64_t, 3> grid_length = {{5, 5, 3}};
+	const double cell_length = 1.0 / grid_length[0];
+	boost::array<vector<double>, 3> coordinates;
+	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+		for (size_t i = 0; i <= grid_length[dimension]; i++) {
+			coordinates[dimension].push_back(double(i) * cell_length);
+		}
 	}
-	for (int i = 0; i <= 3; i++) {
-		z_coordinates.push_back(i * 1.5 * CELL_SIZE);
-	}
-	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+	game_grid.geometry.set(coordinates);
 
 	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	vector<uint64_t> cells = game_grid.get_cells();
 	if (comm.rank() == 0) {
@@ -70,7 +67,7 @@ int main(int argc, char* argv[])
 	game_grid.balance_load();
 	cells = game_grid.get_cells();
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.get_cell_z(*cell) > 1 * 1.5 * CELL_SIZE) {
+		if (game_grid.geometry.get_cell_z(*cell) > 1 * 1.5 * cell_length) {
 			game_grid.refine_completely(*cell);
 		}
 	}
@@ -79,7 +76,7 @@ int main(int argc, char* argv[])
 	cells = game_grid.get_cells();
 	cout << "Process " << comm.rank() << ": number of cells after refining: " << cells.size() << endl;
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.get_cell_z(*cell) > 2 * 1.5 * CELL_SIZE) {
+		if (game_grid.geometry.get_cell_z(*cell) > 2 * 1.5 * cell_length) {
 			game_grid.refine_completely(*cell);
 		}
 	}
@@ -94,8 +91,8 @@ int main(int argc, char* argv[])
 		game_of_life_cell* cell_data = game_grid[*cell];
 		cell_data->live_neighbor_count = 0;
 
-		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
+		double y = game_grid.geometry.get_cell_y(*cell);
+		if (fabs(0.5 + 0.1 * game_grid.geometry.get_cell_length_y(*cell) - y) < 0.5 * game_grid.geometry.get_cell_length_y(*cell)) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;
@@ -220,7 +217,7 @@ int main(int argc, char* argv[])
 				}
 
 				// only consider neighbors in the same z plane
-				if (game_grid.get_cell_z(*cell) != game_grid.get_cell_z(*neighbor)) {
+				if (game_grid.geometry.get_cell_z(*cell) != game_grid.geometry.get_cell_z(*neighbor)) {
 					continue;
 				}
 

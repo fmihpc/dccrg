@@ -87,13 +87,13 @@ double get_p_norm(
 	const double p_of_norm
 ) {
 	int dimensions = 0;
-	if (grid.get_length_x() > 1) {
+	if (grid.length.get()[0] > 1) {
 		dimensions++;
 	}
-	if (grid.get_length_y() > 1) {
+	if (grid.length.get()[1] > 1) {
 		dimensions++;
 	}
-	if (grid.get_length_z() > 1) {
+	if (grid.length.get()[2] > 1) {
 		dimensions++;
 	}
 	if (dimensions != 2) {
@@ -115,20 +115,20 @@ double get_p_norm(
 
 		double analytic_solution = std::numeric_limits<double>::max();
 
-		if (grid.get_length_x() == 1) {
+		if (grid.length.get()[0] == 1) {
 			analytic_solution = get_solution_value(
-				grid.get_cell_y(cell),
-				grid.get_cell_z(cell)
+				grid.geometry.get_cell_y(cell),
+				grid.geometry.get_cell_z(cell)
 			);
-		} else if (grid.get_length_y() == 1) {
+		} else if (grid.length.get()[1] == 1) {
 			analytic_solution = get_solution_value(
-				grid.get_cell_x(cell),
-				grid.get_cell_z(cell)
+				grid.geometry.get_cell_x(cell),
+				grid.geometry.get_cell_z(cell)
 			);
-		} else if (grid.get_length_z() == 1) {
+		} else if (grid.length.get()[2] == 1) {
 			analytic_solution = get_solution_value(
-				grid.get_cell_x(cell),
-				grid.get_cell_y(cell)
+				grid.geometry.get_cell_x(cell),
+				grid.geometry.get_cell_y(cell)
 			);
 		}
 
@@ -195,13 +195,18 @@ int main(int argc, char* argv[])
 		Poisson_Solve solver;
 		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z;
 
-		grid_x.set_geometry(1, cells_x, cells_y, 0, 0, 0, 1, cell_length_x, cell_length_y);
-		grid_y.set_geometry(cells_x, 1, cells_y, 0, 0, 0, cell_length_x, 1, cell_length_y);
-		grid_z.set_geometry(cells_x, cells_y, 1, 0, 0, 0, cell_length_x, cell_length_y, 1);
+		grid_x.geometry.set(0, 0, 0, 1, cell_length_x, cell_length_y);
+		grid_y.geometry.set(0, 0, 0, cell_length_x, 1, cell_length_y);
+		grid_z.geometry.set(0, 0, 0, cell_length_x, cell_length_y, 1);
 
-		grid_x.initialize(comm, "RCB", 0, 0, true, true, true);
-		grid_y.initialize(comm, "RCB", 0, 0, true, true, true);
-		grid_z.initialize(comm, "RCB", 0, 0, true, true, true);
+		const boost::array<uint64_t, 3>
+			grid_length_x = {{1, cells_x, cells_y}},
+			grid_length_y = {{cells_x, 1, cells_y}},
+			grid_length_z = {{cells_x, cells_y, 1}};
+
+		grid_x.initialize(grid_length_x, comm, "RCB", 0, 0, true, true, true);
+		grid_y.initialize(grid_length_y, comm, "RCB", 0, 0, true, true, true);
+		grid_z.initialize(grid_length_z, comm, "RCB", 0, 0, true, true, true);
 
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
 
@@ -235,9 +240,18 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			data_x->rhs = get_rhs_value(grid_x.get_cell_y(cell), grid_x.get_cell_z(cell));
-			data_y->rhs = get_rhs_value(grid_y.get_cell_x(cell), grid_y.get_cell_z(cell));
-			data_z->rhs = get_rhs_value(grid_z.get_cell_x(cell), grid_z.get_cell_y(cell));
+			data_x->rhs = get_rhs_value(
+				grid_x.geometry.get_cell_y(cell),
+				grid_x.geometry.get_cell_z(cell)
+			);
+			data_y->rhs = get_rhs_value(
+				grid_y.geometry.get_cell_x(cell),
+				grid_y.geometry.get_cell_z(cell)
+			);
+			data_z->rhs = get_rhs_value(
+				grid_z.geometry.get_cell_x(cell),
+				grid_z.geometry.get_cell_y(cell)
+			);
 
 			data_x->solution =
 			data_y->solution =

@@ -88,59 +88,58 @@ int main(int argc, char* argv[])
 	// initialize grids, reference grid doesn't refine/unrefine
 	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid, reference_grid;
 
-	const int grid_size = 15;	// in unrefined cells
-	const double cell_size = 1.0 / grid_size;
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	const uint64_t base_length = 15;
+	const double cell_length = 1.0 / base_length;
+
+	// set grid length in each dimension based on direction given by user
+	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 	switch (direction) {
-	case 'x':
-		for (int i = 0; i <= grid_size; i++) {
-			y_coordinates.push_back(i * cell_size);
-			z_coordinates.push_back(i * cell_size);
-		}
-		x_coordinates.push_back(0);
-		x_coordinates.push_back(1);
-		break;
+		case 'x':
+			grid_length[0] = 1;
+			grid_length[1] = base_length;
+			grid_length[2] = base_length;
+			break;
 
-	case 'y':
-		for (int i = 0; i <= grid_size; i++) {
-			x_coordinates.push_back(i * cell_size);
-			z_coordinates.push_back(i * cell_size);
-		}
-		y_coordinates.push_back(0);
-		y_coordinates.push_back(1);
-		break;
+		case 'y':
+			grid_length[0] = base_length;
+			grid_length[1] = 1;
+			grid_length[2] = base_length;
+			break;
 
-	case 'z':
-		for (int i = 0; i <= grid_size; i++) {
-			x_coordinates.push_back(i * cell_size);
-			y_coordinates.push_back(i * cell_size);
-		}
-		z_coordinates.push_back(0);
-		z_coordinates.push_back(1);
-		break;
+		case 'z':
+			grid_length[0] = base_length;
+			grid_length[1] = base_length;
+			grid_length[2] = 1;
+			break;
 
-	default:
-		cerr << "Unsupported direction given: " << direction << endl;
-		break;
+		default:
+			cerr << "Unsupported direction given: " << direction << endl;
+			break;
 	}
 
-	if (!game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates)) {
+	boost::array<vector<double>, 3> coordinates;
+	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+		for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
+			coordinates[dimension].push_back(double(i) * cell_length);
+		}
+	}
+
+	if (!game_grid.geometry.set(coordinates)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
-
-	if (!reference_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates)) {
+	if (!reference_grid.geometry.set(coordinates)) {
 		cerr << "Couldn't set reference grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
 
 	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(comm, "RANDOM", neighborhood_size);
+	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
 	// play complete reference game on each process
-	reference_grid.initialize(MPI_COMM_SELF, "RANDOM", neighborhood_size);
+	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size);
 
-	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_size);
-	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_size);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
 
 	// every process outputs the game state into its own file
 	string basename("unrefined2d_");
@@ -164,7 +163,7 @@ int main(int argc, char* argv[])
 	const int time_steps = 25;
 	for (int step = 0; step < time_steps; step++) {
 
-		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, grid_size, step, comm_size);
+		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, int(grid_length[0]), step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_copies_of_remote_neighbors();
@@ -212,7 +211,7 @@ int main(int argc, char* argv[])
 
 			const int refinement_level = game_grid.get_refinement_level(cell);
 			if (refinement_level > 0) {
-				reference_cell = game_grid.get_parent_for_removed(cell);
+				reference_cell = game_grid.mapping.get_parent(cell);
 			} else {
 				reference_cell = cell;
 			}

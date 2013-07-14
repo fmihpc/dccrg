@@ -96,13 +96,8 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell> grid;
-
-	if (!grid.set_geometry(1000, 1, 1, 0, 0, 0, 1, 1, 1)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
-
-	grid.initialize(comm, "RANDOM", 3);
+	const boost::array<uint64_t, 3> grid_length = {{1000, 1, 1}};
+	grid.initialize(grid_length, comm, "RANDOM", 3);
 
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {

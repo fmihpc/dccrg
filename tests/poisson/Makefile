@@ -29,9 +29,12 @@ TEST_PROGRAMS = \
 
 HEADERS = \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
-	../../dccrg_stretched_cartesian_geometry.hpp \
 	../../dccrg_cartesian_geometry.hpp \
+	../../dccrg_length.hpp \
+	../../dccrg_mapping.hpp \
+	../../dccrg_stretched_cartesian_geometry.hpp \
+	../../dccrg_topology.hpp \
+	../../dccrg_types.hpp \
 	poisson_solve.hpp \
 	reference_poisson_solve.hpp
 

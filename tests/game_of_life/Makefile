@@ -35,9 +35,12 @@ TEST_PROGRAMS = \
 
 HEADERS = \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
-	../../dccrg_stretched_cartesian_geometry.hpp \
 	../../dccrg_cartesian_geometry.hpp \
+	../../dccrg_length.hpp \
+	../../dccrg_mapping.hpp \
+	../../dccrg_stretched_cartesian_geometry.hpp \
+	../../dccrg_topology.hpp \
+	../../dccrg_types.hpp \
 	cell.hpp initialize.hpp save.hpp solve.hpp
 
 all: $(PROGRAMS)

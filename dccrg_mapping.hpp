@@ -1,5 +1,5 @@
 /*
-Cell indexing related parameters and functions of dccrg.
+Dccrg class for mapping cell ids to their size and location.
 
 Copyright 2009, 2010, 2011, 2012, 2013 Finnish Meteorological Institute
 
@@ -9,21 +9,24 @@ as published by the Free Software Foundation.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef DCCRG_INDEX_HPP
-#define DCCRG_INDEX_HPP
+#ifndef DCCRG_MAPPING_HPP
+#define DCCRG_MAPPING_HPP
+
 
 #include "cmath"
 #include "iostream"
 #include "stdint.h"
 
+#include "dccrg_length.hpp"
 #include "dccrg_types.hpp"
+
 
 namespace dccrg {
 
@@ -31,133 +34,91 @@ namespace dccrg {
 static const uint64_t error_cell = 0;
 
 //! Indicates a non-existing index or an error when dealing with indices
-static const uint64_t error_index = std::numeric_limits<uint64_t>::max();
+static const uint64_t error_index = 0xFFFFFFFFFFFFFFFF;
 
 
 /*!
-\brief Mapping between cell ids and their indices.
+\brief Maps cells ids to their size and location.
 
-Length of the grid in unrefined cells in each dimension must be known
-in order to calculate a cell's id based on its location and size (in
-indices).
+Also handles calculations related to cell indices.
 
 \see
-Figure 2 and related text in http://dx.doi.org/10.1016/j.cpc.2012.12.017
-(unofficial version: http://arxiv.org/abs/1212.3496).
+Figures 2, 3 and the related text in
+http://dx.doi.org/10.1016/j.cpc.2012.12.017
+or
+http://arxiv.org/abs/1212.3496.
 */
-class Index
+class Mapping
 {
 
+private:
+
+	//! read-write version of Grid_Length for internal use
+	Grid_Length length_rw;
+
+
 public:
+
+
+	//! see Grid_Length
+	const Grid_Length& length;
+
 
 	/*!
 	Creates a grid with size of 1 cell and maximum refinement level 0.
 
 	Length of the grid is 1 cell in each dimension.
 	*/
-	Index()
+	Mapping() : length(length_rw)
 	{
 		this->max_refinement_level = 0;
-		this->length_x = this->length_y = this->length_z = 1;
 		this->last_cell = 1;
 	}
+
+	/*!
+	Creates a grid with size of 1 cell and maximum refinement level 0.
+
+	Length of the grid is 1 cell in each dimension.
+	*/
+	Mapping(
+		const boost::array<uint64_t, 3>& given_length
+	) : length(length_rw)
+	{
+		if (!this->length_rw.set(given_length)) {
+			abort();
+		}
+		this->max_refinement_level = 0;
+		this->update_last_cell();
+	}
+
 
 	/*!
 	Sets the grid to a default constructed state.
 	*/
-	~Index()
+	~Mapping()
 	{
 		this->max_refinement_level = 0;
-		this->length_x = this->length_y = this->length_z = 1;
 		this->last_cell = 1;
 	}
 
-	/*!
-	Sets the length of the grid in unrefined cells.
 
-	Returns true if successful, probably invalidating all previous cell
-	information (cell numbers, indices, etc.)
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes the maximum refinement level of the grid.
-	*/
-	bool set_length(
-		const uint64_t given_length_x,
-		const uint64_t given_length_y,
-		const uint64_t given_length_z
-	) {
-		// TODO: switch to boost::array<uint64_t, Dimensions> given_length
-		if (given_length_x == 0
-		|| given_length_y == 0
-		|| given_length_z == 0) {
-			std::cerr << "All lengths given must be > 0 but are "
-				<< given_length_x << " "
-				<< given_length_y << " "
-				<< given_length_z << std::endl;
+	//! see Grid_Length::set_length()
+	bool set_length(const boost::array<uint64_t, 3>& given_length)
+	{
+		if (!this->length_rw.set(given_length)) {
 			return false;
 		}
 
-		const uint64_t
-			old_length_x = this->length_x,
-			old_length_y = this->length_y,
-			old_length_z = this->length_z;
+		this->update_last_cell();
 
-		this->length_x = given_length_x;
-		this->length_y = given_length_y;
-		this->length_z = given_length_z;
-
-		if (double(this->length_x) + double(this->length_y) + double(this->length_z) > double(~uint64_t(0))) {
-			std::cerr << "Grid would have too many unrefined cells for uint64_t (length_x, length_y, length_z): "
-				<< this->length_x << " " << this->length_y << " " << this->length_z
-				<< std::endl;
-
-			this->length_x = old_length_x;
-			this->length_y = old_length_y;
-			this->length_z = old_length_z;
-			return false;
-		}
-
-		if (this->max_refinement_level > this->get_maximum_possible_refinement_level()) {
-			std::cerr << "Grid would have too many cells for an uint64_t with current refinement level"
-				<< std::endl;
-			this->length_x = old_length_x;
-			this->length_y = old_length_y;
-			this->length_z = old_length_z;
-			return false;
-		} else {
-			return true;
-		}
-	}
-
-
-	/*!
-	Returns length of the grid in unrefined cells in x direction.
-	*/
-	uint64_t get_length_x() const
-	{
-		return this->length_x;
-	}
-
-	/*!
-	Returns length of the grid in unrefined cells in y direction.
-	*/
-	uint64_t get_length_y() const
-	{
-		return this->length_y;
-	}
-
-	/*!
-	Returns length of the grid in unrefined cells in z direction.
-	*/
-	uint64_t get_length_z() const
-	{
-		return this->length_z;
+		return true;
 	}
 
 
 	/*!
 	Returns the maximum refinement level of any cell in the grid (0 means unrefined).
 	*/
-	int get_maximum_refinement_level() const
+	const int& get_maximum_refinement_level() const
 	{
 		return this->max_refinement_level;
 	}
@@ -186,17 +147,19 @@ public:
 
 	Returns error_cell if any of given indices is invalid.
 	*/
-	uint64_t get_cell_from_indices(const Types<3>::indices_t& indices, const int refinement_level) const
-	{
-		if (indices[0] >= this->length_x * (uint64_t(1) << this->max_refinement_level)) {
+	uint64_t get_cell_from_indices(
+		const Types<3>::indices_t& indices,
+		const int refinement_level
+	) const {
+		if (indices[0] >= this->length.get()[0] * (uint64_t(1) << this->max_refinement_level)) {
 			return error_cell;
 		}
 
-		if (indices[1] >= this->length_y * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[1] >= this->length.get()[1] * (uint64_t(1) << this->max_refinement_level)) {
 			return error_cell;
 		}
 
-		if (indices[2] >= this->length_z * (uint64_t(1) << this->max_refinement_level)) {
+		if (indices[2] >= this->length.get()[2] * (uint64_t(1) << this->max_refinement_level)) {
 			return error_cell;
 		}
 
@@ -213,7 +176,11 @@ public:
 
 		// add ids of larger cells
 		for (int i = 0; i < refinement_level; i++) {
-			cell += this->length_x * this->length_y * this->length_z * (uint64_t(1) << (i * 3));
+			cell +=
+				  this->length.get()[0]
+				* this->length.get()[1]
+				* this->length.get()[2]
+				* (uint64_t(1) << (i * 3));
 		}
 
 		// convert to indices of this cell's refinement level
@@ -224,29 +191,17 @@ public:
 		}};
 
 		// get the length of the grid in terms of cells of this refinement level
-		const uint64_t this_level_length_x = this->length_x * (uint64_t(1) << refinement_level);
-		const uint64_t this_level_length_y = this->length_y * (uint64_t(1) << refinement_level);
+		const boost::array<uint64_t, 2> this_level_length = {{
+			this->length.get()[0] * (uint64_t(1) << refinement_level),
+			this->length.get()[1] * (uint64_t(1) << refinement_level)
+		}};
 
 		cell
 			+= this_level_indices[0]
-			+ this_level_indices[1] * this_level_length_x
-			+ this_level_indices[2] * this_level_length_x * this_level_length_y;
+			+ this_level_indices[1] * this_level_length[0]
+			+ this_level_indices[2] * this_level_length[0] * this_level_length[1];
 
 		return cell;
-	}
-
-	/*!
-	Same as the version taking indices_t as an argument.
-	*/
-	uint64_t get_cell_from_indices(
-		const uint64_t x_index,
-		const uint64_t y_index,
-		const uint64_t z_index,
-		const int refinement_level
-	) const
-	{
-		const Types<3>::indices_t indices = {{x_index, y_index, z_index}};
-		return this->get_cell_from_indices(indices, refinement_level);
 	}
 
 
@@ -266,20 +221,28 @@ public:
 		// substract ids of larger cells
 		const int refinement_level = this->get_refinement_level(cell);
 		for (int i = 0; i < refinement_level; i++) {
-			cell -= this->length_x * this->length_y * this->length_z * (uint64_t(1) << (i * 3));
+			cell -=
+				  this->length.get()[0]
+				* this->length.get()[1]
+				* this->length.get()[2]
+				* (uint64_t(1) << (i * 3));
 		}
 
 		cell -= 1;	// cell numbering starts from 1
 		const Types<3>::indices_t indices = {{
 
-			  (cell % (this->length_x * (uint64_t(1) << refinement_level)))
+			  (cell % (this->length.get()[0] * (uint64_t(1) << refinement_level)))
 			* (uint64_t(1) << (max_refinement_level - refinement_level)),
 
-			((cell / (this->length_x * (uint64_t(1) << refinement_level)))
-				% (this->length_y * (uint64_t(1) << refinement_level)))
+			((cell / (this->length.get()[0] * (uint64_t(1) << refinement_level)))
+				% (this->length.get()[1] * (uint64_t(1) << refinement_level)))
 			* (uint64_t(1) << (max_refinement_level - refinement_level)),
 
-			  (cell / (this->length_x * this->length_y * (uint64_t(1) << (2 * refinement_level))))
+			(cell / (
+				this->length.get()[0]
+				* this->length.get()[1]
+				* (uint64_t(1) << (2 * refinement_level))
+			))
 			* (uint64_t(1) << (max_refinement_level - refinement_level))
 		}};
 
@@ -302,7 +265,11 @@ public:
 		uint64_t current_last = 0;
 
 		while (refinement_level <= this->max_refinement_level) {
-			current_last += this->length_x * this->length_y * this->length_z * (uint64_t(1) << 3 * refinement_level);
+			current_last +=
+				  this->length.get()[0]
+				* this->length.get()[1]
+				* this->length.get()[2]
+				* (uint64_t(1) << 3 * refinement_level);
 
 			if (cell <= current_last) {
 				break;
@@ -345,7 +312,8 @@ public:
 	*/
 	int get_maximum_possible_refinement_level() const
 	{
-		const uint64_t grid_length = this->length_x * this->length_y * this->length_z;
+		const uint64_t grid_length
+			= this->length.get()[0] * this->length.get()[1] * this->length.get()[2];
 		int refinement_level = 0;
 		double current_last = 0;
 		while (current_last <= double(~uint64_t(0))) {
@@ -363,8 +331,10 @@ public:
 
 	Returns the given cell if its refinement level == 0.
 	Returns error_cell if given cell's refinement level > maximum refinement level or < 0.
+
+	\see get_refinement_level()
 	*/
-	uint64_t get_parent_for_removed(const uint64_t cell) const
+	uint64_t get_parent(const uint64_t cell) const
 	{
 		const int refinement_level = this->get_refinement_level(cell);
 
@@ -404,32 +374,34 @@ public:
 	}
 
 
+	/*!
+	Returns the last valid cell id in the grid.
+	*/
+	uint64_t get_last_cell() const
+	{
+		return this->last_cell;
+	}
 
-protected:
 
-	uint64_t
-		//! length of the grid in unrefined cells in x dimension
-		length_x,
-		//! length of the grid in unrefined cells in y dimension
-		length_y,
-		//! length of the grid in unrefined cells in z dimension
-		length_z;
+
+private:
 
 	//! maximum refinemet level of any cell in the grid, 0 means unrefined
 	int max_refinement_level;
 
-	//! last valid cell id based on lengths and maximum_refinement_level
+	/*!
+	Last valid cell id based on grid lengths and maximum
+	refinement level of cells in the grid
+	*/
 	uint64_t last_cell;
-
-
-private:
 
 	/*!
 	Set the value of last_cell based on current grid lengths and max_refinement_level.
 	*/
 	void update_last_cell()
 	{
-		const uint64_t grid_length = this->length_x * this->length_y * this->length_z;
+		const uint64_t grid_length
+			= this->length.get()[0] * this->length.get()[1] * this->length.get()[2];
 		this->last_cell = 0;
 		for (int i = 0; i <= this->max_refinement_level; i++) {
 			this->last_cell += grid_length * (uint64_t(1) << (i * 3));

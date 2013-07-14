@@ -17,6 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
+#include "boost/array.hpp"
 #include "boost/lexical_cast.hpp"
 #include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
@@ -297,49 +298,49 @@ int main(int argc, char* argv[])
 	// initialize grid
 	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid;
 
-	const int grid_size = 15;	// in unrefined cells
-	const double cell_size = 1.0 / grid_size;
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
+	const uint64_t base_length = 15;
+	const double cell_length = 1.0 / base_length;
+
+	// set grid length in each dimension based on direction given by user
+	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 	switch (direction) {
-	case 'x':
-		for (int i = 0; i <= grid_size; i++) {
-			y_coordinates.push_back(i * cell_size);
-			z_coordinates.push_back(i * cell_size);
-		}
-		x_coordinates.push_back(0);
-		x_coordinates.push_back(1);
-		break;
+		case 'x':
+			grid_length[0] = 1;
+			grid_length[1] = base_length;
+			grid_length[2] = base_length;
+			break;
 
-	case 'y':
-		for (int i = 0; i <= grid_size; i++) {
-			x_coordinates.push_back(i * cell_size);
-			z_coordinates.push_back(i * cell_size);
-		}
-		y_coordinates.push_back(0);
-		y_coordinates.push_back(1);
-		break;
+		case 'y':
+			grid_length[0] = base_length;
+			grid_length[1] = 1;
+			grid_length[2] = base_length;
+			break;
 
-	case 'z':
-		for (int i = 0; i <= grid_size; i++) {
-			x_coordinates.push_back(i * cell_size);
-			y_coordinates.push_back(i * cell_size);
-		}
-		z_coordinates.push_back(0);
-		z_coordinates.push_back(1);
-		break;
+		case 'z':
+			grid_length[0] = base_length;
+			grid_length[1] = base_length;
+			grid_length[2] = 1;
+			break;
 
-	default:
-		cerr << "Unsupported direction given: " << direction << endl;
-		break;
+		default:
+			cerr << "Unsupported direction given: " << direction << endl;
+			break;
 	}
 
-	if (!game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates)) {
+	boost::array<vector<double>, 3> coordinates;
+	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+		for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
+			coordinates[dimension].push_back(double(i) * cell_length);
+		}
+	}
+
+	if (!game_grid.geometry.set(coordinates)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
 
 	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(comm, "RANDOM", neighborhood_size);
+	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
 
 	#ifdef SEND_SINGLE_CELLS
 	game_grid.set_send_single_cells(true);
@@ -348,12 +349,12 @@ int main(int argc, char* argv[])
 	if (verbose && rank == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level()
 			<< "\nNumber of cells: "
-			<< (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1)
+			<< (coordinates[0].size() - 1) * (coordinates[1].size() - 1) * (coordinates[2].size() - 1)
 			<< "\nSending single cells: " << boolalpha << game_grid.get_send_single_cells()
 			<< endl << endl;
 	}
 
-	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_size);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
 
 	// every process outputs the game state into its own file
 	string basename("game_of_life_test_");
@@ -381,7 +382,7 @@ int main(int argc, char* argv[])
 		vector<uint64_t> cells = game_grid.get_cells();
 
 		int result = check_game_of_life_state(step, game_grid);
-		if (grid_size != 15 || result != EXIT_SUCCESS) {
+		if (grid_length[0] != 15 || result != EXIT_SUCCESS) {
 			cout << "Process " << rank << ": Game of Life test failed on timestep: " << step << endl;
 			abort();
 		}

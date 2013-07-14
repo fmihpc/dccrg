@@ -260,8 +260,8 @@ public:
 
 			new_cell_data->density() = parent_data->density();
 			new_cell_data->flux() = 0;
-			new_cell_data->vx() = Velocity().vx(grid.get_cell_y(new_cell));
-			new_cell_data->vy() = Velocity().vy(grid.get_cell_x(new_cell));
+			new_cell_data->vx() = Velocity().vx(grid.geometry.get_cell_y(new_cell));
+			new_cell_data->vy() = Velocity().vy(grid.geometry.get_cell_x(new_cell));
 			new_cell_data->vz() = 0;
 		}
 
@@ -274,7 +274,7 @@ public:
 		// optimize by gathering all parents of removed cells
 		boost::unordered_set<uint64_t> parents;
 		BOOST_FOREACH(const uint64_t& removed_cell, removed_cells) {
-			parents.insert(grid.get_parent_for_removed(removed_cell));
+			parents.insert(grid.mapping.get_parent(removed_cell));
 		}
 
 		// initialize parent data
@@ -289,8 +289,8 @@ public:
 
 			parent_data->density() = 0;
 			parent_data->flux() = 0;
-			parent_data->vx() = Velocity().vx(grid.get_cell_y(parent));
-			parent_data->vy() = Velocity().vy(grid.get_cell_x(parent));
+			parent_data->vx() = Velocity().vx(grid.geometry.get_cell_y(parent));
+			parent_data->vy() = Velocity().vy(grid.geometry.get_cell_x(parent));
 			parent_data->vz() = 0;
 		}
 
@@ -305,11 +305,11 @@ public:
 				abort();
 			}
 
-			CellData* parent_data = grid[grid.get_parent_for_removed(removed_cell)];
+			CellData* parent_data = grid[grid.mapping.get_parent(removed_cell)];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for parent cell after unrefining: "
-					<< grid.get_parent_for_removed(removed_cell)
+					<< grid.mapping.get_parent(removed_cell)
 					<< std::endl;
 				abort();
 			}

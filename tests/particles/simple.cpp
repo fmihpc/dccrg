@@ -87,9 +87,9 @@ void propagate_particles(Dccrg<Cell>& grid) {
 		while (i < previous_data->particles.size()) {
 
 			// hande grid wrap around
-			previous_data->particles[i][0] = grid.get_real_x(previous_data->particles[i][0]);
-			previous_data->particles[i][1] = grid.get_real_y(previous_data->particles[i][1]);
-			previous_data->particles[i][2] = grid.get_real_z(previous_data->particles[i][2]);
+			previous_data->particles[i][0] = grid.geometry.get_real_x(previous_data->particles[i][0]);
+			previous_data->particles[i][1] = grid.geometry.get_real_y(previous_data->particles[i][1]);
+			previous_data->particles[i][2] = grid.geometry.get_real_z(previous_data->particles[i][2]);
 
 			const uint64_t current_cell = grid.get_existing_cell(
 				previous_data->particles[i][0],
@@ -240,12 +240,8 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell> grid;
-	// 3*1*1 grid of unrefined cells of size 1*1*1 starting at 0, 0, 0
-	if (!grid.set_geometry(3, 1, 1, 0, 0, 0, 1, 1, 1)) {
-		cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
-		abort();
-	}
-	grid.initialize(comm, "RANDOM", 1, 0, true, true, true);
+	const boost::array<uint64_t, 3> grid_length = {{3, 1, 1}};
+	grid.initialize(grid_length, comm, "RANDOM", 1, 0, true, true, true);
 
 	const vector<uint64_t> cells = grid.get_cells();
 
@@ -255,12 +251,12 @@ int main(int argc, char* argv[])
 
 		Cell* cell_data = grid[cell];
 
-		const double x_min = grid.get_cell_x_min(cell),
-			y_min = grid.get_cell_y_min(cell),
-			z_min = grid.get_cell_z_min(cell),
-			x_max = grid.get_cell_x_max(cell),
-			y_max = grid.get_cell_y_max(cell),
-			z_max = grid.get_cell_z_max(cell);
+		const double x_min = grid.geometry.get_cell_x_min(cell),
+			y_min = grid.geometry.get_cell_y_min(cell),
+			z_min = grid.geometry.get_cell_z_min(cell),
+			x_max = grid.geometry.get_cell_x_max(cell),
+			y_max = grid.geometry.get_cell_y_max(cell),
+			z_max = grid.geometry.get_cell_z_max(cell);
 
 		const unsigned int number_of_particles
 			= (unsigned int)ceil(max_particles_per_cell * double(rand()) / RAND_MAX);

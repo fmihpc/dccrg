@@ -67,9 +67,9 @@ public:
 			}
 
 			const double cell_density = cell_data->density(),
-				cell_length_x = grid.get_cell_length_x(cell),
-				cell_length_y = grid.get_cell_length_y(cell),
-				cell_length_z = grid.get_cell_length_z(cell),
+				cell_length_x = grid.geometry.get_cell_length_x(cell),
+				cell_length_y = grid.geometry.get_cell_length_y(cell),
+				cell_length_z = grid.geometry.get_cell_length_z(cell),
 				cell_volume = cell_length_x * cell_length_y * cell_length_z;
 
 			const std::vector<std::pair<uint64_t, int> > neighbors_to_solve
@@ -94,9 +94,9 @@ public:
 				}
 
 				const double neighbor_density = neighbor_data->density(),
-					neighbor_length_x = grid.get_cell_length_x(neighbor),
-					neighbor_length_y = grid.get_cell_length_y(neighbor),
-					neighbor_length_z = grid.get_cell_length_z(neighbor),
+					neighbor_length_x = grid.geometry.get_cell_length_x(neighbor),
+					neighbor_length_y = grid.geometry.get_cell_length_y(neighbor),
+					neighbor_length_z = grid.geometry.get_cell_length_z(neighbor),
 					neighbor_volume = neighbor_length_x * neighbor_length_y * neighbor_length_z;
 
 				// get area shared between cell and current neighbor
@@ -257,9 +257,9 @@ public:
 				abort();
 			}
 
-			const double min_step_x = grid.get_cell_length_x(cell_id) / fabs(cell->vx()),
-				min_step_y = grid.get_cell_length_y(cell_id) / fabs(cell->vy()),
-				min_step_z = grid.get_cell_length_z(cell_id) / fabs(cell->vz()),
+			const double min_step_x = grid.geometry.get_cell_length_x(cell_id) / fabs(cell->vx()),
+				min_step_y = grid.geometry.get_cell_length_y(cell_id) / fabs(cell->vy()),
+				min_step_z = grid.geometry.get_cell_length_z(cell_id) / fabs(cell->vz()),
 				current_min_step = std::min(min_step_x, std::min(min_step_y, min_step_z));
 
 			if (min_step > current_min_step) {

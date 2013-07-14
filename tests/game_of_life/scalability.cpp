@@ -3,6 +3,7 @@ Tests the scalability of the grid in 2 D
 */
 
 #include "algorithm"
+#include "boost/array.hpp"
 #include "boost/mpi.hpp"
 #include "boost/tuple/tuple.hpp"
 #include "boost/unordered_set.hpp"
@@ -72,23 +73,22 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
-	#define GRID_SIZE 1000	// in unrefined cells
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-		y_coordinates.push_back(i * CELL_SIZE);
+	const boost::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
+	const double cell_length = 1.0 / grid_length[0];
+	boost::array<vector<double>, 3> coordinates;
+	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+		for (size_t i = 0; i <= grid_length[dimension]; i++) {
+			coordinates[dimension].push_back(double(i) * cell_length);
+		}
 	}
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
-	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+	game_grid.geometry.set(coordinates);
 
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	game_grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
+	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
-		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
+		cout << "Number of cells: " << (coordinates[0].size() - 1) * (coordinates[1].size() - 1) * (coordinates[2].size() - 1) << endl << endl;
 	}
 
 	game_grid.balance_load();
@@ -114,8 +114,8 @@ int main(int argc, char* argv[])
 		cell_data->data[1] = 0;
 		#endif
 
-		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
+		double y = game_grid.geometry.get_cell_y(*cell);
+		if (fabs(0.5 + 0.1 * game_grid.geometry.get_cell_length_y(*cell) - y) < 0.5 * game_grid.geometry.get_cell_length_y(*cell)) {
 			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else
@@ -141,8 +141,8 @@ int main(int argc, char* argv[])
 		cell_data->data[1] = 0;
 		#endif
 
-		double y = game_grid.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.get_cell_length_y(*cell) - y) < 0.5 * game_grid.get_cell_length_y(*cell)) {
+		double y = game_grid.geometry.get_cell_y(*cell);
+		if (fabs(0.5 + 0.1 * game_grid.geometry.get_cell_length_y(*cell) - y) < 0.5 * game_grid.geometry.get_cell_length_y(*cell)) {
 			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else

@@ -30,163 +30,257 @@ along with this dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "stdint.h"
 #include "vector"
 
-#include "dccrg_index.hpp"
+
+#include "dccrg_cartesian_geometry.hpp"
+#include "dccrg_length.hpp"
+#include "dccrg_mapping.hpp"
+#include "dccrg_topology.hpp"
+
 
 namespace dccrg {
+
 
 /*!
 \brief Geometry class for dccrg with rectangular cuboid cells
 
 A geometry class in which the coordinates of unrefined cells are given
 by three vectors of floating points numbers.
+The number of values in each vector must be equal to the
+length of the grid + 1 in the respective dimension.
 */
-class Stretched_Cartesian_Geometry : public Index
+class Stretched_Cartesian_Geometry
 {
 
 public:
 
 	/*!
-	Creates and sets the geometry of the grid to the following:
-		- starting corner at (0, 0, 0)
-		- size of unrefined cells in each direction: 1
+	Public read-only version of the grid's length in cells of refinement level 0.
+
+	\see Grid_Length
 	*/
-	Stretched_Cartesian_Geometry()
+	const Grid_Length& length;
+
+	/*!
+	Public read-only version of the mapping of a
+	cell's ids to its size and location in the grid.
+
+	\see Mapping
+	*/
+	const Mapping& mapping;
+
+	/*!
+	Public read-only version of the grid's topology.
+
+	\see Grid_Topology
+	*/
+	const Grid_Topology& topology;
+
+
+	/*!
+	Calls reset().
+	*/
+	Stretched_Cartesian_Geometry(
+		const Grid_Length& given_length,
+		const Mapping& given_mapping,
+		const Grid_Topology& given_topology
+	) :
+		length(given_length),
+		mapping(given_mapping),
+		topology(given_topology)
 	{
-		this->x_coordinates.clear();
-		this->x_coordinates.reserve(this->length_x + 1);
-		for (uint64_t i = 0; i <= this->length_x; i++) {
-			this->x_coordinates.push_back(i);
-		}
-
-		this->y_coordinates.clear();
-		this->y_coordinates.reserve(this->length_y + 1);
-		for (uint64_t i = 0; i <= this->length_y; i++) {
-			this->y_coordinates.push_back(i);
-		}
-
-		this->z_coordinates.clear();
-		this->z_coordinates.reserve(this->length_z + 1);
-		for (uint64_t i = 0; i <= this->length_z; i++) {
-			this->z_coordinates.push_back(i);
-		}
+		this->reset();
 	}
+
+	/*!
+	Calls reset().
+	*/
+	~Stretched_Cartesian_Geometry()
+	{
+		this->reset();
+	}
+
 
 	/*!
 	Sets the geometry of the grid to the following:
 		- starting corner at (0, 0, 0)
-		- size of unrefined cells in each direction: 1
+		- size of cells of refinement level 0 in each dimension: 1
 	*/
-	~Stretched_Cartesian_Geometry()
+	void reset()
 	{
-		this->x_coordinates.clear();
-		this->x_coordinates.reserve(this->length_x + 1);
-		for (uint64_t i = 0; i <= this->length_x; i++) {
-			this->x_coordinates.push_back(i);
+		this->coordinates[0].resize(this->length.get()[0] + 1);
+		for (uint64_t i = 0; i <= this->length.get()[0]; i++) {
+			this->coordinates[0][i] = i;
 		}
 
-		this->y_coordinates.clear();
-		this->y_coordinates.reserve(this->length_y + 1);
-		for (uint64_t i = 0; i <= this->length_y; i++) {
-			this->y_coordinates.push_back(i);
+		this->coordinates[1].resize(this->length.get()[1] + 1);
+		for (uint64_t i = 0; i <= this->length.get()[1]; i++) {
+			this->coordinates[1][i] = i;
 		}
 
-		this->z_coordinates.clear();
-		this->z_coordinates.reserve(this->length_z + 1);
-		for (uint64_t i = 0; i <= this->length_z; i++) {
-			this->z_coordinates.push_back(i);
+		this->coordinates[2].resize(this->length.get()[2] + 1);
+		for (uint64_t i = 0; i <= this->length.get()[2]; i++) {
+			this->coordinates[2][i] = i;
 		}
 	}
 
-	/*!
-	Sets the grid's length in cells and its geometry to given values.
 
-	Length of the grid in unrefined cells in a dimension is the number
-	of coordinates given minus one in that dimension.
-	First coordinate is the starting point of the grid and the following
-	ith value is the endpoint of the ith unrefined cell.
-	At least two values must be given for each direction and all values
-	must be strictly increasing.
-	Returns true if successful, probably invalidating all previous cell
-	geometries, e.g. their location, size, etc.
-	Returns false if unsuccessful and in that case has no effect.
-	Automatically maximizes max_refinement_level.
+	/*!
+	Returns the geometry of the grid.
 	*/
-	bool set_geometry(
-		const std::vector<double> x_coordinates,
-		const std::vector<double> y_coordinates,
-		const std::vector<double> z_coordinates
-	) {
-		if (x_coordinates.size() < 2) {
+	const boost::array<std::vector<double>, 3>& get() const
+	{
+		return this->coordinates;
+	}
+
+
+	/*!
+	Sets the sizes of the grid's cells of refinement level 0 to given values.
+
+	Ith value in a dimension is the starting point of the Ith cell
+	in that dimension. Last value is the ending point of the last cell.
+	At least two values must be given for each dimension and all values
+	must be strictly increasing.
+	Returns true on success.
+	Returns false if unsuccessful and does nothing in that case.
+	*/
+	bool set(const boost::array<std::vector<double>, 3>& given_coordinates)
+	{
+		if (coordinates[0].size() < 2) {
 			std::cerr << "At least two coordinates are required for grid cells in the x direction"
 				<< std::endl;
 			return false;
 		}
-		if (y_coordinates.size() < 2) {
+		if (coordinates[1].size() < 2) {
 			std::cerr << "At least two coordinates are required for grid cells in the y direction"
 				<< std::endl;
 			return false;
 		}
-		if (z_coordinates.size() < 2) {
+		if (coordinates[2].size() < 2) {
 			std::cerr << "At least two coordinates are required for grid cells in the z direction"
 				<< std::endl;
 			return false;
 		}
 
-		for (uint64_t i = 0; i < x_coordinates.size() - 1; i++) {
-			if (x_coordinates[i] >= x_coordinates[i + 1]) {
+		for (uint64_t i = 0; i < coordinates[0].size() - 1; i++) {
+			if (coordinates[0][i] >= coordinates[0][i + 1]) {
 				std::cerr << "Coordinates in the x direction must be strictly increasing"
 					<< std::endl;
 				return false;
 			}
 		}
-		for (uint64_t i = 0; i < y_coordinates.size() - 1; i++) {
-			if (y_coordinates[i] >= y_coordinates[i + 1]) {
+		for (uint64_t i = 0; i < coordinates[1].size() - 1; i++) {
+			if (coordinates[1][i] >= coordinates[1][i + 1]) {
 				std::cerr << "Coordinates in the y direction must be strictly increasing"
 					<< std::endl;
 				return false;
 			}
 		}
-		for (uint64_t i = 0; i < z_coordinates.size() - 1; i++) {
-			if (z_coordinates[i] >= z_coordinates[i + 1]) {
+		for (uint64_t i = 0; i < coordinates[2].size() - 1; i++) {
+			if (coordinates[2][i] >= coordinates[2][i + 1]) {
 				std::cerr << "Coordinates in the z direction must be strictly increasing"
 					<< std::endl;
 				return false;
 			}
 		}
 
-		this->x_coordinates.clear();
-		this->x_coordinates.reserve(x_coordinates.size());
-		this->x_coordinates.insert(
-			this->x_coordinates.begin(),
-			x_coordinates.begin(),
-			x_coordinates.end()
-		);
-
-		this->y_coordinates.clear();
-		this->y_coordinates.reserve(y_coordinates.size());
-		this->y_coordinates.insert(
-			this->y_coordinates.begin(),
-			y_coordinates.begin(),
-			y_coordinates.end()
-		);
-
-		this->z_coordinates.clear();
-		this->z_coordinates.reserve(z_coordinates.size());
-		this->z_coordinates.insert(
-			this->z_coordinates.begin(),
-			z_coordinates.begin(),
-			z_coordinates.end()
-		);
-
-		if (!this->set_length(
-			this->x_coordinates.size() - 1,
-			this->y_coordinates.size() - 1,
-			this->z_coordinates.size() - 1
-		)) {
-			return false;
+		for (size_t i = 0; i < this->length.get().size(); i++) {
+			if (coordinates[i].size() != this->length.get()[i] + 1) {
+				std::cerr << "Number of values in dimension " << i
+					<< " must be length of the grid + 1 (" << this->length.get()[i] + 1
+					<< ") but is " << coordinates[i].size()
+					<< std::endl;
+				return false;
+			}
 		}
 
+		this->coordinates[0].clear();
+		this->coordinates[0].reserve(given_coordinates[0].size());
+		this->coordinates[0].insert(
+			this->coordinates[0].begin(),
+			given_coordinates[0].begin(),
+			given_coordinates[0].end()
+		);
+
+		this->coordinates[1].clear();
+		this->coordinates[1].reserve(given_coordinates[1].size());
+		this->coordinates[1].insert(
+			this->coordinates[1].begin(),
+			given_coordinates[1].begin(),
+			given_coordinates[1].end()
+		);
+
+		this->coordinates[2].clear();
+		this->coordinates[2].reserve(given_coordinates[2].size());
+		this->coordinates[2].insert(
+			this->coordinates[2].begin(),
+			given_coordinates[2].begin(),
+			given_coordinates[2].end()
+		);
+
 		return true;
+	}
+
+	/*!
+	Sets the same geometry as in the given one.
+	*/
+	bool set(const Stretched_Cartesian_Geometry& other)
+	{
+		for (size_t dimension = 0; dimension < this->length.get().size(); dimension++) {
+			if (!this->length.get()[dimension] == other.length.get()[dimension]) {
+				std::cerr << "Geometries must have the same grid length but have "
+					<< this->length.get()[dimension] << " and "
+					<< other.length.get()[dimension] << " in dimension " << dimension
+					<< std::endl;
+				return false;
+			}
+		}
+
+		return this->set(other.get());
+	}
+
+	/*!
+	Sets the same geometry as in the given one.
+	*/
+	bool set(const Cartesian_Geometry& other)
+	{
+		for (size_t dimension = 0; dimension < this->length.get().size(); dimension++) {
+			if (!this->length.get()[dimension] == other.length.get()[dimension]) {
+				std::cerr << "Geometries must have the same grid length but have "
+					<< this->length.get()[dimension] << " and "
+					<< other.length.get()[dimension] << " in dimension " << dimension
+					<< std::endl;
+				return false;
+			}
+		}
+
+		const boost::array<uint64_t, 3> grid_length = {{
+			other.length.get()[0],
+			other.length.get()[1],
+			other.length.get()[2]
+		}};
+
+		const boost::array<double, 3>
+			start = {{
+				other.get_start_x(),
+				other.get_start_y(),
+				other.get_start_z()
+			}},
+			cell_length = {{
+				other.get_unrefined_cell_length_x(),
+				other.get_unrefined_cell_length_y(),
+				other.get_unrefined_cell_length_z()
+			}};
+
+		boost::array<std::vector<double>, 3> coordinates;
+		for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+			for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
+				coordinates[dimension].push_back(
+					start[dimension] + double(i) * cell_length[dimension]
+				);
+			}
+		}
+
+		return this->set(coordinates);
 	}
 
 
@@ -195,7 +289,7 @@ public:
 	*/
 	double get_start_x() const
 	{
-		return this->x_coordinates[0];
+		return this->coordinates[0][0];
 	}
 
 	/*!
@@ -203,7 +297,7 @@ public:
 	*/
 	double get_start_y() const
 	{
-		return this->y_coordinates[0];
+		return this->coordinates[1][0];
 	}
 
 	/*!
@@ -211,32 +305,32 @@ public:
 	*/
 	double get_start_z() const
 	{
-		return this->z_coordinates[0];
+		return this->coordinates[2][0];
 	}
 
 
 	/*!
 	Returns the end corner of the grid in x direction.
 	*/
-	double get_x_end() const
+	double get_end_x() const
 	{
-		return this->x_coordinates[this->length_x];
+		return this->coordinates[0][this->length.get()[0]];
 	}
 
 	/*!
 	Returns the end corner of the grid in y direction.
 	*/
-	double get_y_end() const
+	double get_end_y() const
 	{
-		return this->y_coordinates[this->length_y];
+		return this->coordinates[1][this->length.get()[1]];
 	}
 
 	/*!
 	Returns the end corner of the grid in z direction.
 	*/
-	double get_z_end() const
+	double get_end_z() const
 	{
-		return this->z_coordinates[this->length_z];
+		return this->coordinates[2][this->length.get()[2]];
 	}
 
 
@@ -245,15 +339,15 @@ public:
 	*/
 	double get_cell_length_x(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		assert(cell != error_cell);
+		assert(this->mapping.get_refinement_level(cell) >= 0);
+		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
 
-		int refinement_level = this->get_refinement_level(cell);
+		int refinement_level = this->mapping.get_refinement_level(cell);
 		uint64_t unref_cell_x_index = this->get_unref_cell_x_coord_start_index(cell);
 
 		return
-			  (this->x_coordinates[unref_cell_x_index + 1] - this->x_coordinates[unref_cell_x_index])
+			  (this->coordinates[0][unref_cell_x_index + 1] - this->coordinates[0][unref_cell_x_index])
 			/ (uint64_t(1) << refinement_level);
 	}
 
@@ -262,15 +356,15 @@ public:
 	*/
 	double get_cell_length_y(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		assert(cell != error_cell);
+		assert(this->mapping.get_refinement_level(cell) >= 0);
+		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
 
-		int refinement_level = this->get_refinement_level(cell);
+		int refinement_level = this->mapping.get_refinement_level(cell);
 		uint64_t unref_cell_y_index = this->get_unref_cell_y_coord_start_index(cell);
 
 		return
-			  (this->y_coordinates[unref_cell_y_index + 1] - this->y_coordinates[unref_cell_y_index])
+			  (this->coordinates[1][unref_cell_y_index + 1] - this->coordinates[1][unref_cell_y_index])
 			  / (uint64_t(1) << refinement_level);
 	}
 
@@ -279,14 +373,14 @@ public:
 	*/
 	double get_cell_length_z(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		assert(cell != error_cell);
+		assert(this->mapping.get_refinement_level(cell) >= 0);
+		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
 
-		int refinement_level = this->get_refinement_level(cell);
+		int refinement_level = this->mapping.get_refinement_level(cell);
 		uint64_t unref_cell_z_index = this->get_unref_cell_z_coord_start_index(cell);
 		return
-			  (this->z_coordinates[unref_cell_z_index + 1] - this->z_coordinates[unref_cell_z_index])
+			  (this->coordinates[2][unref_cell_z_index + 1] - this->coordinates[2][unref_cell_z_index])
 			  / (uint64_t(1) << refinement_level);
 	}
 
@@ -296,32 +390,36 @@ public:
 	*/
 	double get_cell_x(const uint64_t cell) const
 	{
-		 if (cell == 0) {
+		 if (cell == error_cell) {
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
 		if (
-			   this->get_refinement_level(cell) < 0
-			|| this->get_refinement_level(cell) > this->max_refinement_level
+			   this->mapping.get_refinement_level(cell) < 0
+			|| this->mapping.get_refinement_level(cell) > this->mapping.get_maximum_refinement_level()
 		) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		uint64_t unref_cell_x_coord_start_index = this->get_unref_cell_x_coord_start_index(cell);
-		uint64_t unref_cell_x_index
-			= unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t
+			unref_cell_x_coord_start_index
+				= this->get_unref_cell_x_coord_start_index(cell),
+			unref_cell_x_index
+				= unref_cell_x_coord_start_index
+				* (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		double
+		const double
 			unref_cell_length_x
-				= this->x_coordinates[unref_cell_x_coord_start_index + 1]
-				- this->x_coordinates[unref_cell_x_coord_start_index],
+				= this->coordinates[0][unref_cell_x_coord_start_index + 1]
+				- this->coordinates[0][unref_cell_x_coord_start_index],
 			size_of_local_index
-				= unref_cell_length_x / (uint64_t(1) << this->max_refinement_level);
+				= unref_cell_length_x
+				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
 		return
-			  this->x_coordinates[unref_cell_x_coord_start_index]
+			  this->coordinates[0][unref_cell_x_coord_start_index]
 			+ size_of_local_index * (indices[0] - unref_cell_x_index)
 			+ this->get_cell_length_x(cell) / 2;
 	}
@@ -331,29 +429,34 @@ public:
 	*/
 	double get_cell_y(const uint64_t cell) const
 	{
-		 if (cell == 0) {
+		 if (cell == error_cell) {
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
+		if (this->mapping.get_refinement_level(cell) < 0
+		|| this->mapping.get_refinement_level(cell) > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		uint64_t unref_cell_y_coord_start_index = this->get_unref_cell_y_coord_start_index(cell);
-		uint64_t unref_cell_y_index
-			= unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t
+			unref_cell_y_coord_start_index
+				= this->get_unref_cell_y_coord_start_index(cell),
+			unref_cell_y_index
+				= unref_cell_y_coord_start_index
+				* (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		double
+		const double
 			unref_cell_length_y
-				= this->y_coordinates[unref_cell_y_coord_start_index + 1]
-				- this->y_coordinates[unref_cell_y_coord_start_index],
+				= this->coordinates[1][unref_cell_y_coord_start_index + 1]
+				- this->coordinates[1][unref_cell_y_coord_start_index],
 			size_of_local_index
-				= unref_cell_length_y / (uint64_t(1) << this->max_refinement_level);
+				= unref_cell_length_y
+				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
 		return
-			  this->y_coordinates[unref_cell_y_coord_start_index]
+			  this->coordinates[1][unref_cell_y_coord_start_index]
 			+ size_of_local_index * (indices[1] - unref_cell_y_index)
 			+ this->get_cell_length_y(cell) / 2;
 	}
@@ -363,29 +466,33 @@ public:
 	*/
 	double get_cell_z(const uint64_t cell) const
 	{
-		 if (cell == 0) {
+		 if (cell == error_cell) {
 			return std::numeric_limits<double>::quiet_NaN();
 		 }
 
-		if (this->get_refinement_level(cell) < 0 || this->get_refinement_level(cell) > this->max_refinement_level) {
+		if (this->mapping.get_refinement_level(cell) < 0
+		|| this->mapping.get_refinement_level(cell) > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		uint64_t unref_cell_z_coord_start_index = this->get_unref_cell_z_coord_start_index(cell);
-		uint64_t unref_cell_z_index
-			= unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level);
+		const uint64_t
+			unref_cell_z_coord_start_index
+				= this->get_unref_cell_z_coord_start_index(cell),
+			unref_cell_z_index
+				= unref_cell_z_coord_start_index
+				* (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		double
+		const double
 			unref_cell_length_z
-				= this->z_coordinates[unref_cell_z_coord_start_index + 1]
-				- this->z_coordinates[unref_cell_z_coord_start_index],
+				= this->coordinates[2][unref_cell_z_coord_start_index + 1]
+				- this->coordinates[2][unref_cell_z_coord_start_index],
 			size_of_local_index
-				= unref_cell_length_z / (uint64_t(1) << this->max_refinement_level);
+				= unref_cell_length_z / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
 		return
-			  this->z_coordinates[unref_cell_z_coord_start_index]
+			  this->coordinates[2][unref_cell_z_coord_start_index]
 			+ size_of_local_index * (indices[2] - unref_cell_z_index)
 			+ this->get_cell_length_z(cell) / 2;
 	}
@@ -445,23 +552,30 @@ public:
 	*/
 	double get_cell_x(const int refinement_level, const uint64_t x_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (x_index > this->length_x * (uint64_t(1) << this->max_refinement_level)) {
+		if (x_index > this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		uint64_t unref_cell_x_coord_start_index
-			= x_index / (uint64_t(1) << this->max_refinement_level);
+			= x_index / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		double unref_cell_length_x = this->x_coordinates[unref_cell_x_coord_start_index + 1] - this->x_coordinates[unref_cell_x_coord_start_index];
-		double size_of_local_index = unref_cell_length_x / (uint64_t(1) << this->max_refinement_level);
+		double
+			unref_cell_length_x
+				= this->coordinates[0][unref_cell_x_coord_start_index + 1]
+				- this->coordinates[0][unref_cell_x_coord_start_index],
+			size_of_local_index
+				= unref_cell_length_x
+				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		return this->x_coordinates[unref_cell_x_coord_start_index]
-			+ size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->max_refinement_level))
-			+ size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
+		return
+			this->coordinates[0][unref_cell_x_coord_start_index]
+			+ size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->mapping.get_maximum_refinement_level()))
+			+ size_of_local_index * (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level)) / 2;
 	}
 
 	/*!
@@ -469,23 +583,30 @@ public:
 	*/
 	double get_cell_y(const int refinement_level, const uint64_t y_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (y_index > this->length_y * (uint64_t(1) << this->max_refinement_level)) {
+		if (y_index > this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		uint64_t unref_cell_y_coord_start_index
-			= y_index / (uint64_t(1) << this->max_refinement_level);
+			= y_index / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		double unref_cell_length_y = this->y_coordinates[unref_cell_y_coord_start_index + 1] - this->y_coordinates[unref_cell_y_coord_start_index];
-		double size_of_local_index = unref_cell_length_y / (uint64_t(1) << this->max_refinement_level);
+		double
+			unref_cell_length_y
+				= this->coordinates[1][unref_cell_y_coord_start_index + 1]
+				- this->coordinates[1][unref_cell_y_coord_start_index],
+			size_of_local_index
+				= unref_cell_length_y
+				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		return this->y_coordinates[unref_cell_y_coord_start_index]
-			+ size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->max_refinement_level))
-			+ size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
+		return
+			this->coordinates[1][unref_cell_y_coord_start_index]
+			+ size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->mapping.get_maximum_refinement_level()))
+			+ size_of_local_index * (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level)) / 2;
 	}
 
 	/*!
@@ -493,23 +614,30 @@ public:
 	*/
 	double get_cell_z(const int refinement_level, const uint64_t z_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (z_index > this->length_z * (uint64_t(1) << this->max_refinement_level)) {
+		if (z_index > this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		uint64_t unref_cell_z_coord_start_index
-			= z_index / (uint64_t(1) << this->max_refinement_level);
+			= z_index / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		double unref_cell_length_z = this->z_coordinates[unref_cell_z_coord_start_index + 1] - this->z_coordinates[unref_cell_z_coord_start_index];
-		double size_of_local_index = unref_cell_length_z / (uint64_t(1) << this->max_refinement_level);
+		double
+			unref_cell_length_z
+				= this->coordinates[2][unref_cell_z_coord_start_index + 1]
+				- this->coordinates[2][unref_cell_z_coord_start_index],
+			size_of_local_index
+				= unref_cell_length_z
+				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 
-		return this->z_coordinates[unref_cell_z_coord_start_index]
-			+ size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->max_refinement_level))
-			+ size_of_local_index * (uint64_t(1) << (this->max_refinement_level - refinement_level)) / 2;
+		return
+			this->coordinates[2][unref_cell_z_coord_start_index]
+			+ size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->mapping.get_maximum_refinement_level()))
+			+ size_of_local_index * (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level)) / 2;
 	}
 
 
@@ -522,16 +650,18 @@ public:
 		const double y,
 		const double z
 	) const {
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return error_cell;
 		}
 
-		return this->get_cell_from_indices(
+		const Types<3>::indices_t index = {{
 			this->get_x_index_of_coord(x),
 			this->get_y_index_of_coord(y),
-			this->get_z_index_of_coord(z),
-			refinement_level
-		);
+			this->get_z_index_of_coord(z)
+		}};
+
+		return this->mapping.get_cell_from_indices(index, refinement_level);
 	}
 
 
@@ -547,16 +677,16 @@ public:
 	double get_real_x(const double x) const
 	{
 		if (x >= this->get_start_x()
-		&& x <= this->get_x_end()) {
+		&& x <= this->get_end_x()) {
 
 			return x;
 
-		} else if (!this->periodic[0]) {
+		} else if (!this->topology.is_periodic(0)) {
 
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_x_end() - this->get_start_x();
+			const double grid_size = this->get_end_x() - this->get_start_x();
 
 			if (x < this->get_start_x()) {
 
@@ -565,7 +695,7 @@ public:
 
 			} else {
 
-				const double distance = x - this->get_x_end();
+				const double distance = x - this->get_end_x();
 				return x - grid_size * ceil(distance/ grid_size);
 			}
 		}
@@ -583,16 +713,16 @@ public:
 	double get_real_y(const double y) const
 	{
 		if (y >= this->get_start_y()
-		&& y <= this->get_y_end()) {
+		&& y <= this->get_end_y()) {
 
 			return y;
 
-		} else if (!this->periodic[0]) {
+		} else if (!this->topology.is_periodic(0)) {
 
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_y_end() - this->get_start_y();
+			const double grid_size = this->get_end_y() - this->get_start_y();
 
 			if (y < this->get_start_y()) {
 
@@ -601,7 +731,7 @@ public:
 
 			} else {
 
-				const double distance = y - this->get_y_end();
+				const double distance = y - this->get_end_y();
 				return y - grid_size * ceil(distance/ grid_size);
 			}
 		}
@@ -619,16 +749,16 @@ public:
 	double get_real_z(const double z) const
 	{
 		if (z >= this->get_start_z()
-		&& z <= this->get_z_end()) {
+		&& z <= this->get_end_z()) {
 
 			return z;
 
-		} else if (!this->periodic[0]) {
+		} else if (!this->topology.is_periodic(0)) {
 
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_z_end() - this->get_start_z();
+			const double grid_size = this->get_end_z() - this->get_start_z();
 
 			if (z < this->get_start_z()) {
 
@@ -637,7 +767,7 @@ public:
 
 			} else {
 
-				const double distance = z - this->get_z_end();
+				const double distance = z - this->get_end_z();
 				return z - grid_size * ceil(distance/ grid_size);
 			}
 		}
@@ -656,29 +786,29 @@ public:
 
 		if (::isnan(x)
 		|| x < this->get_start_x()
-		|| x > this->get_x_end()) {
+		|| x > this->get_end_x()) {
 
 			return error_index;
 
 		}
 
 		uint64_t x_coord_start_index = 0;
-		while (this->x_coordinates[x_coord_start_index] < x) {
+		while (this->coordinates[0][x_coord_start_index] < x) {
 			x_coord_start_index++;
 		}
 		x_coord_start_index--;
 
 		double length_x_of_index
-			= (this->x_coordinates[x_coord_start_index + 1] - this->x_coordinates[x_coord_start_index])
-			/ this->get_cell_length_in_indices(1);
+			= (this->coordinates[0][x_coord_start_index + 1] - this->coordinates[0][x_coord_start_index])
+			/ this->mapping.get_cell_length_in_indices(1);
 
 		uint64_t index_offset = 0;
-		while (this->x_coordinates[x_coord_start_index] + index_offset * length_x_of_index < x) {
+		while (this->coordinates[0][x_coord_start_index] + index_offset * length_x_of_index < x) {
 			index_offset++;
 		}
 		index_offset--;
 
-		return x_coord_start_index * this->get_cell_length_in_indices(1) + index_offset;
+		return x_coord_start_index * this->mapping.get_cell_length_in_indices(1) + index_offset;
 	}
 
 	/*!
@@ -693,29 +823,29 @@ public:
 
 		if (::isnan(y)
 		|| y < this->get_start_y()
-		|| y > this->get_y_end()) {
+		|| y > this->get_end_y()) {
 
 			return error_index;
 
 		}
 
 		uint64_t y_coord_start_index = 0;
-		while (this->y_coordinates[y_coord_start_index] < y) {
+		while (this->coordinates[1][y_coord_start_index] < y) {
 			y_coord_start_index++;
 		}
 		y_coord_start_index--;
 
 		double length_y_of_index
-			= (this->y_coordinates[y_coord_start_index + 1] - this->y_coordinates[y_coord_start_index])
-			/ this->get_cell_length_in_indices(1);
+			= (this->coordinates[1][y_coord_start_index + 1] - this->coordinates[1][y_coord_start_index])
+			/ this->mapping.get_cell_length_in_indices(1);
 
 		uint64_t index_offset = 0;
-		while (this->y_coordinates[y_coord_start_index] + index_offset * length_y_of_index < y) {
+		while (this->coordinates[1][y_coord_start_index] + index_offset * length_y_of_index < y) {
 			index_offset++;
 		}
 		index_offset--;
 
-		return y_coord_start_index * this->get_cell_length_in_indices(1) + index_offset;
+		return y_coord_start_index * this->mapping.get_cell_length_in_indices(1) + index_offset;
 	}
 
 	/*!
@@ -730,74 +860,30 @@ public:
 
 		if (::isnan(z)
 		|| z < this->get_start_z()
-		|| z > this->get_z_end()) {
+		|| z > this->get_end_z()) {
 
 			return error_index;
 
 		}
 
 		uint64_t z_coord_start_index = 0;
-		while (this->z_coordinates[z_coord_start_index] < z) {
+		while (this->coordinates[2][z_coord_start_index] < z) {
 			z_coord_start_index++;
 		}
 		z_coord_start_index--;
 
 		double length_z_of_index
-			= (this->z_coordinates[z_coord_start_index + 1] - this->z_coordinates[z_coord_start_index])
-			/ this->get_cell_length_in_indices(1);
+			= (this->coordinates[2][z_coord_start_index + 1] - this->coordinates[2][z_coord_start_index])
+			/ this->mapping.get_cell_length_in_indices(1);
 
 		uint64_t index_offset = 0;
-		while (this->z_coordinates[z_coord_start_index] + index_offset * length_z_of_index < z) {
+		while (this->coordinates[2][z_coord_start_index] + index_offset * length_z_of_index < z) {
 			index_offset++;
 		}
 		index_offset--;
 
-		return z_coord_start_index * this->get_cell_length_in_indices(1) + index_offset;
+		return z_coord_start_index * this->mapping.get_cell_length_in_indices(1) + index_offset;
 	}
-
-
-	/*!
-	Sets the periodicity of the geometry.
-
-	index = 0 == x direction.
-	*/
-	void set_periodicity(const size_t index, const bool value)
-	{
-		if (index > 2) {
-			return;
-		}
-
-		this->periodic[index] = value;
-	}
-
-
-	/*!
-	Returns whether the geometry in periodic in given direction.
-
-	index = 0 == x direction.
-	Returns false if given index > 2.
-	*/
-	bool is_periodic(const size_t index) const
-	{
-		if (index > 2) {
-			return false;
-		}
-
-		return this->periodic[index];
-	}
-
-
-private:
-
-	// periodic[0] == true means that the grid wraps around in x direction
-	bool periodic[3];
-
-	/*!
-	The coordinates of unrefined cells in respective directions
-	First value is the starting point of the grid, the following
-	ith value is the end point of the ith unrefined cell
-	*/
-	std::vector<double> x_coordinates, y_coordinates, z_coordinates;
 
 
 	/*!
@@ -807,12 +893,12 @@ private:
 	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell) const
 	{
 		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		assert(this->mapping.get_refinement_level(cell) >= 0);
+		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		return indices[0] / (uint64_t(1) << this->max_refinement_level);
+		return indices[0] / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 	}
 
 	/*!
@@ -822,12 +908,12 @@ private:
 	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell) const
 	{
 		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		assert(this->mapping.get_refinement_level(cell) >= 0);
+		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		return indices[1] / (uint64_t(1) << this->max_refinement_level);
+		return indices[1] / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 	}
 
 	/*!
@@ -837,13 +923,24 @@ private:
 	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell) const
 	{
 		assert(cell > 0);
-		assert(this->get_refinement_level(cell) >= 0);
-		assert(this->get_refinement_level(cell) <= this->max_refinement_level);
+		assert(this->mapping.get_refinement_level(cell) >= 0);
+		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		return indices[2] / (uint64_t(1) << this->max_refinement_level);
+		return indices[2] / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 	}
+
+
+
+private:
+
+	/*!
+	The coordinates of unrefined cells in respective directions
+	First value is the starting point of the grid, the following
+	ith value is the end point of the ith unrefined cell
+	*/
+	boost::array<std::vector<double>, 3> coordinates;
 
 };	// class
 

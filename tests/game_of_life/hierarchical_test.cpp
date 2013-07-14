@@ -45,13 +45,18 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<game_of_life_cell> game_grid;
-	if (!game_grid.set_geometry(34, 7, 1, 0, 0, 0, 1, 1, 1)) {
+
+	if (!game_grid.geometry.set(0, 0, 0, 1, 1, 1)) {
 		cerr << "Couldn't set grid geometry." << endl;
 		exit(EXIT_FAILURE);
 	}
-	game_grid.initialize(comm, "HIER", 1);
+
+	const boost::array<uint64_t, 3> grid_length = {{34, 7, 1}};
+	game_grid.initialize(grid_length, comm, "HIER", 1);
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
+		cout << "Maximum refinement level of the grid: "
+			<< game_grid.get_maximum_refinement_level()
+			<< endl;
 	}
 
 	game_grid.add_partitioning_level(12);

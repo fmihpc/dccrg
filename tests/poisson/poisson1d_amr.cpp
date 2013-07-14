@@ -79,14 +79,14 @@ template<class Geometry> double get_p_norm(
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// assumes grid is 1d
 		double coord = -1;
-		if (grid.get_length_x() > 1) {
-			coord = grid.get_cell_x(cell);
+		if (grid.length.get()[0] > 1) {
+			coord = grid.geometry.get_cell_x(cell);
 		}
-		if (grid.get_length_y() > 1) {
-			coord = grid.get_cell_y(cell);
+		if (grid.length.get()[1] > 1) {
+			coord = grid.geometry.get_cell_y(cell);
 		}
-		if (grid.get_length_z() > 1) {
-			coord = grid.get_cell_z(cell);
+		if (grid.length.get()[2] > 1) {
+			coord = grid.geometry.get_cell_z(cell);
 		}
 
 		Poisson_Cell* data = grid[cell];
@@ -131,15 +131,20 @@ int main(int argc, char* argv[])
 		Poisson_Solve solver;
 		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z, grid_reference;
 
-		grid_x.set_geometry(number_of_cells, 1, 1, 0, 0, 0, cell_length, 1, 1);
-		grid_y.set_geometry(1, number_of_cells, 1, 0, 0, 0, 1, cell_length, 1);
-		grid_z.set_geometry(1, 1, number_of_cells, 0, 0, 0, 1, 1, cell_length);
-		grid_reference.set_geometry(number_of_cells, 1, 1, 0, 0, 0, cell_length, 1, 1);
+		grid_x.geometry.set(0, 0, 0, cell_length, 1, 1);
+		grid_y.geometry.set(0, 0, 0, 1, cell_length, 1);
+		grid_z.geometry.set(0, 0, 0, 1, 1, cell_length);
+		grid_reference.geometry.set(0, 0, 0, cell_length, 1, 1);
 
-		grid_x.initialize(comm, "RCB", 0, -1, true, true, true);
-		grid_y.initialize(comm, "RCB", 0, -1, true, true, true);
-		grid_z.initialize(comm, "RCB", 0, -1, true, true, true);
-		grid_reference.initialize(MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
+		const boost::array<uint64_t, 3>
+			grid_length_x = {{number_of_cells, 1, 1}},
+			grid_length_y = {{1, number_of_cells, 1}},
+			grid_length_z = {{1, 1, number_of_cells}};
+
+		grid_x.initialize(grid_length_x, comm, "RCB", 0, -1, true, true, true);
+		grid_y.initialize(grid_length_y, comm, "RCB", 0, -1, true, true, true);
+		grid_z.initialize(grid_length_z, comm, "RCB", 0, -1, true, true, true);
+		grid_reference.initialize(grid_length_x, MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
 
 		// refine every other cell once
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
@@ -194,7 +199,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_x.get_cell_x(cell);
+			const double coord = grid_x.geometry.get_cell_x(cell);
 			data_x->rhs = get_rhs_value(coord);
 			data_x->solution = 0;
 		}
@@ -206,7 +211,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_y.get_cell_y(cell);
+			const double coord = grid_y.geometry.get_cell_y(cell);
 			data_y->rhs = get_rhs_value(coord);
 			data_y->solution = 0;
 		}
@@ -218,7 +223,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_z.get_cell_z(cell);
+			const double coord = grid_z.geometry.get_cell_z(cell);
 			data_z->rhs = get_rhs_value(coord);
 			data_z->solution = 0;
 		}
@@ -230,7 +235,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_reference.get_cell_x(cell);
+			const double coord = grid_reference.geometry.get_cell_x(cell);
 			data_reference->rhs = get_rhs_value(coord);
 			data_reference->solution = 0;
 		}

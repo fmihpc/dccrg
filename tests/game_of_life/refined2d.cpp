@@ -54,20 +54,18 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
-	#define STARTING_CORNER 0.0
-	#define GRID_SIZE 15
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-		y_coordinates.push_back(i * CELL_SIZE);
+	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
+	const double cell_length = 1.0 / grid_length[0];
+	boost::array<vector<double>, 3> coordinates;
+	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+		for (size_t i = 0; i <= grid_length[dimension]; i++) {
+			coordinates[dimension].push_back(double(i) * cell_length);
+		}
 	}
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
-	game_grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
+	game_grid.geometry.set(coordinates);
 
 	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	// create a blinker
 	#define BLINKER_START 198
@@ -83,7 +81,7 @@ int main(int argc, char* argv[])
 
 	// create a toad
 	#define TOAD_START 188
-	uint64_t tmp2[] = {TOAD_START, TOAD_START + 1, TOAD_START + 2, TOAD_START + 1 + GRID_SIZE, TOAD_START + 2 + GRID_SIZE, TOAD_START + 3 + GRID_SIZE};
+	uint64_t tmp2[] = {TOAD_START, TOAD_START + 1, TOAD_START + 2, TOAD_START + 1 + grid_length[0], TOAD_START + 2 + grid_length[0], TOAD_START + 3 + grid_length[0]};
 	vector<uint64_t> toad_cells(tmp2, tmp2 + sizeof(tmp2) / sizeof(uint64_t));
 	for (vector<uint64_t>::const_iterator cell = toad_cells.begin(); cell != toad_cells.end(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -95,7 +93,7 @@ int main(int argc, char* argv[])
 
 	// create a beacon
 	#define BEACON_START 137
-	uint64_t tmp3[] = {BEACON_START, BEACON_START + 1, BEACON_START - GRID_SIZE, BEACON_START + 1 - GRID_SIZE, BEACON_START + 2 - 2 * GRID_SIZE, BEACON_START + 3 - 2 * GRID_SIZE, BEACON_START + 2 - 3 * GRID_SIZE, BEACON_START + 3 - 3 * GRID_SIZE};
+	uint64_t tmp3[] = {BEACON_START, BEACON_START + 1, BEACON_START - grid_length[0], BEACON_START + 1 - grid_length[0], BEACON_START + 2 - 2 * grid_length[0], BEACON_START + 3 - 2 * grid_length[0], BEACON_START + 2 - 3 * grid_length[0], BEACON_START + 3 - 3 * grid_length[0]};
 	vector<uint64_t> beacon_cells(tmp3, tmp3 + sizeof(tmp3) / sizeof(uint64_t));
 	for (vector<uint64_t>::const_iterator cell = beacon_cells.begin(); cell != beacon_cells.end(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -107,7 +105,7 @@ int main(int argc, char* argv[])
 
 	// create a glider
 	#define GLIDER_START 143
-	uint64_t tmp4[] = {GLIDER_START + 1, GLIDER_START + 2 - GRID_SIZE, GLIDER_START - 2 * GRID_SIZE, GLIDER_START + 1 - 2 * GRID_SIZE, GLIDER_START + 2 - 2 * GRID_SIZE};
+	uint64_t tmp4[] = {GLIDER_START + 1, GLIDER_START + 2 - grid_length[0], GLIDER_START - 2 * grid_length[0], GLIDER_START + 1 - 2 * grid_length[0], GLIDER_START + 2 - 2 * grid_length[0]};
 	vector<uint64_t> glider_cells(tmp4, tmp4 + sizeof(tmp4) / sizeof(uint64_t));
 	for (vector<uint64_t>::const_iterator cell = glider_cells.begin(); cell != glider_cells.end(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -119,7 +117,7 @@ int main(int argc, char* argv[])
 
 	// create a block
 	#define BLOCK_START 47
-	uint64_t tmp5[] = {BLOCK_START, BLOCK_START + 1, BLOCK_START - GRID_SIZE, BLOCK_START + 1 - GRID_SIZE};
+	uint64_t tmp5[] = {BLOCK_START, BLOCK_START + 1, BLOCK_START - grid_length[0], BLOCK_START + 1 - grid_length[0]};
 	vector<uint64_t> block_cells(tmp5, tmp5 + sizeof(tmp5) / sizeof(uint64_t));
 	for (vector<uint64_t>::const_iterator cell = block_cells.begin(); cell != block_cells.end(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];
@@ -131,7 +129,7 @@ int main(int argc, char* argv[])
 
 	// create a beehive
 	#define BEEHIVE_START 51
-	uint64_t tmp6[] = {BEEHIVE_START - GRID_SIZE, BEEHIVE_START + 1, BEEHIVE_START + 2, BEEHIVE_START + 1 - 2 * GRID_SIZE, BEEHIVE_START + 2 - 2 * GRID_SIZE, BEEHIVE_START + 3 - GRID_SIZE};
+	uint64_t tmp6[] = {BEEHIVE_START - grid_length[0], BEEHIVE_START + 1, BEEHIVE_START + 2, BEEHIVE_START + 1 - 2 * grid_length[0], BEEHIVE_START + 2 - 2 * grid_length[0], BEEHIVE_START + 3 - grid_length[0]};
 	vector<uint64_t> beehive_cells(tmp6, tmp6 + sizeof(tmp6) / sizeof(uint64_t));
 	for (vector<uint64_t>::const_iterator cell = beehive_cells.begin(); cell != beehive_cells.end(); cell++) {
 		game_of_life_cell* cell_data = game_grid[*cell];

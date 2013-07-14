@@ -28,13 +28,14 @@ template <class Cell_Data, class Geometry> class Dccrg;
 
 
 /*!
-Returns true if given cell is not on the process boundary, false otherwise.
+\brief Returns true if given cell is not on the process boundary, false otherwise.
 */
 template<class Cell_Data, class Geometry> class Is_Inner_Cell
 {
 friend class Dccrg<Cell_Data, Geometry>;
 
 public:
+	//! Does all the work
 	bool operator()(const typename Dccrg<Cell_Data, Geometry>::cell_and_data_pair_t& item)
 	{
 		if (this->grid.get_local_cells_on_process_boundary_internal().count(item.first)) {
@@ -56,13 +57,14 @@ private:
 
 
 /*!
-Returns true if given cell is on the process boundary, false otherwise.
+\brief Returns true if given cell is on the process boundary, false otherwise.
 */
 template<class Cell_Data, class Geometry> class Is_Outer_Cell
 {
 friend class Dccrg<Cell_Data, Geometry>;
 
 public:
+	//! Does all the work
 	bool operator()(const typename Dccrg<Cell_Data, Geometry>::cell_and_data_pair_t& item)
 	{
 		if (this->grid.get_local_cells_on_process_boundary_internal().count(item.first)) {

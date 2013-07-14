@@ -1,4 +1,4 @@
-The basic test of dccrg that play Conway's game of life.
+The basic tests of dccrg that play Conway's game of life.
 See the ../README file for information common to all tests.
 
 Running make test in this directory will test the basic

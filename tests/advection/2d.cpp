@@ -181,10 +181,10 @@ int main(int argc, char* argv[])
 	// initialize grid
 	Dccrg<Cell> grid;
 
+	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 	switch (direction) {
 	case 'x':
-		if (!grid.set_geometry(
-			1, cells, cells,
+		if (!grid.geometry.set(
 			GRID_START_X, GRID_START_Y, GRID_START_Z,
 			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
 		)) {
@@ -192,10 +192,14 @@ int main(int argc, char* argv[])
 			abort();
 		}
 
+		grid_length[0] = 1;
+		grid_length[1] = cells;
+		grid_length[2] = cells;
+
 		grid.initialize(
+			grid_length,
 			comm,
 			load_balancing_method.c_str(),
-			// only cells sharing a face are considered neighbors
 			0,
 			max_ref_lvl,
 			false, true, true
@@ -203,8 +207,7 @@ int main(int argc, char* argv[])
 		break;
 
 	case 'y':
-		if (!grid.set_geometry(
-			cells, 1, cells,
+		if (!grid.geometry.set(
 			GRID_START_X, GRID_START_Y, GRID_START_Z,
 			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
 		)) {
@@ -212,10 +215,14 @@ int main(int argc, char* argv[])
 			abort();
 		}
 
+		grid_length[0] = cells;
+		grid_length[1] = 1;
+		grid_length[2] = cells;
+
 		grid.initialize(
+			grid_length,
 			comm,
 			load_balancing_method.c_str(),
-			// only cells sharing a face are considered neighbors
 			0,
 			max_ref_lvl,
 			true, false, true
@@ -223,8 +230,7 @@ int main(int argc, char* argv[])
 		break;
 
 	case 'z':
-		if (!grid.set_geometry(
-			cells, cells, 1,
+		if (!grid.geometry.set(
 			GRID_START_X, GRID_START_Y, GRID_START_Z,
 			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
 		)) {
@@ -232,10 +238,14 @@ int main(int argc, char* argv[])
 			abort();
 		}
 
+		grid_length[0] = cells;
+		grid_length[1] = cells;
+		grid_length[2] = 1;
+
 		grid.initialize(
+			grid_length,
 			comm,
 			load_balancing_method.c_str(),
-			// only cells sharing a face are considered neighbors
 			0,
 			max_ref_lvl,
 			true, true, false

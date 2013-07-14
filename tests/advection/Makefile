@@ -7,12 +7,14 @@ CXX = mpic++ $(FLAGS)
 PROGRAMS = 2d_boost_mpi 2d_mpi 2d_boost_mpi_debug 2d_mpi_debug dc2vtk
 
 HEADERS = \
-	cell.hpp \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
 	../../dccrg_cartesian_geometry.hpp \
-	../../dccrg_mpi_support.hpp \
+	../../dccrg_length.hpp \
+	../../dccrg_mapping.hpp \
+	../../dccrg_topology.hpp \
+	../../dccrg_types.hpp \
 	adapter.hpp \
+	cell.hpp \
 	initialize.hpp \
 	save.hpp \
 	solve.hpp

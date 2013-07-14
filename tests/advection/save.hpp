@@ -154,39 +154,39 @@ public:
 			memcpy(buffer + offset, &endiannes, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const double start_x = grid.get_start_x();
+			const double start_x = grid.geometry.get_start_x();
 			memcpy(buffer + offset, &start_x, sizeof(double));
 			offset += sizeof(double);
 
-			const double start_y = grid.get_start_y();
+			const double start_y = grid.geometry.get_start_y();
 			memcpy(buffer + offset, &start_y, sizeof(double));
 			offset += sizeof(double);
 
-			const double start_z = grid.get_start_z();
+			const double start_z = grid.geometry.get_start_z();
 			memcpy(buffer + offset, &start_z, sizeof(double));
 			offset += sizeof(double);
 
-			const double cell_length_x = grid.get_cell_length_x(1);
+			const double cell_length_x = grid.geometry.get_cell_length_x(1);
 			memcpy(buffer + offset, &cell_length_x, sizeof(double));
 			offset += sizeof(double);
 
-			const double cell_length_y = grid.get_cell_length_y(1);
+			const double cell_length_y = grid.geometry.get_cell_length_y(1);
 			memcpy(buffer + offset, &cell_length_y, sizeof(double));
 			offset += sizeof(double);
 
-			const double cell_length_z = grid.get_cell_length_z(1);
+			const double cell_length_z = grid.geometry.get_cell_length_z(1);
 			memcpy(buffer + offset, &cell_length_z, sizeof(double));
 			offset += sizeof(double);
 
-			const uint64_t length_x = grid.get_length_x();
+			const uint64_t length_x = grid.length.get()[0];
 			memcpy(buffer + offset, &length_x, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const uint64_t length_y = grid.get_length_y();
+			const uint64_t length_y = grid.length.get()[1];
 			memcpy(buffer + offset, &length_y, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const uint64_t length_z = grid.get_length_z();
+			const uint64_t length_z = grid.length.get()[2];
 			memcpy(buffer + offset, &length_z, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 

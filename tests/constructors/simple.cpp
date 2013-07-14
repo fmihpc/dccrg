@@ -21,27 +21,27 @@ struct CellData {
 
 	CellData()
 	{
-		cout << "Default constructed" << endl;
+		cout << "Cell default constructed" << endl;
 	}
 
 	~CellData()
 	{
-		cout << "Default destructed" << endl;
+		cout << "Cell default destructed" << endl;
 	}
 
 	CellData(CellData& /*given*/)
 	{
-		cout << "Copied from non-const" << endl;
+		cout << "Cell copied from non-const" << endl;
 	}
 
 	CellData(const CellData& /*given*/)
 	{
-		cout << "Copied from const" << endl;
+		cout << "Cell copied from const" << endl;
 	}
 
 	CellData& operator = (const CellData& /*given*/)
 	{
-		cout << "Assigned" << endl;
+		cout << "Cell assigned" << endl;
 		return *this;
 	}
 
@@ -75,13 +75,14 @@ int main(int argc, char* argv[])
 	dccrg::Dccrg<CellData> grid;
 
 	cout << "\ngrid.set_geometry:" << endl;
-	if (!grid.set_geometry(1, 1, 1, 0, 0, 0, 1, 1, 1)) {
+	if (!grid.geometry.set(0, 0, 0, 1, 1, 1)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		return EXIT_FAILURE;
 	}
 
 	cout << "\ngrid.initialize:" << endl;
-	grid.initialize(comm, "RCB", 1, 0);
+	const boost::array<uint64_t, 3> grid_length = {{1, 1, 1}};
+	grid.initialize(grid_length, comm, "RCB", 1, 0);
 
 	cout << "\ngrid.get_cells:" << endl;
 	vector<uint64_t> cells = grid.get_cells();

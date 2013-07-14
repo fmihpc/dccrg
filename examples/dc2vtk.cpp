@@ -12,6 +12,9 @@ visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
 #include "stdint.h"
 
 #include "../dccrg_cartesian_geometry.hpp"
+#include "../dccrg_length.hpp"
+#include "../dccrg_mapping.hpp"
+#include "../dccrg_topology.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -135,13 +138,19 @@ int main(int argc, char* argv[])
 			game_data[cell] = is_alive;
 		} while (result == 1);
 
-		Cartesian_Geometry geometry;
-		geometry.set_geometry(
-			x_length, y_length, z_length,
+		// use default topology where the grid isn't periodic
+		const Grid_Topology topology;
+
+		Mapping mapping;
+		const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
+		mapping.set_length(grid_length);
+		mapping.set_maximum_refinement_level(max_ref_level);
+
+		Cartesian_Geometry geometry(mapping.length, mapping, topology);
+		geometry.set(
 			x_start, y_start, z_start,
 			cell_x_size, cell_y_size, cell_z_size
 		);
-		geometry.set_maximum_refinement_level(max_ref_level);
 
 		// write the game data to a .vtk file
 		const string input_name(argv[arg]),

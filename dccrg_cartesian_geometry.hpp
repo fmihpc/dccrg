@@ -1,20 +1,19 @@
 /*
-The mapping logic between cells' and their geometry (location, size, etc.)
-in dccrg, version in which cells are cubes.
+Dccrg class for a cartesian geometry in which cells are cubes.
 
 Copyright 2009, 2010, 2011, 2012, 2013 Finnish Meteorological Institute
 
-Dccrg is free software: you can redistribute it and/or modify
+This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
 as published by the Free Software Foundation.
 
-Dccrg is distributed in the hope that it will be useful,
+This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this dccrg. If not, see <http://www.gnu.org/licenses/>.
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 
@@ -30,27 +29,60 @@ along with this dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "stdint.h"
 #include "vector"
 
-#include "dccrg_index.hpp"
+#include "dccrg_length.hpp"
+#include "dccrg_mapping.hpp"
+#include "dccrg_topology.hpp"
+
 
 namespace dccrg {
+
 
 /*!
 \brief Geometry class for dccrg with cubic cells
 
-A geometry class in which the sizes of unrefined cells are given
-by three floating points numbers.
+A geometry class in which the sizes of cells of
+refinement level 0 are given by three floating points numbers.
 */
-class Cartesian_Geometry : public Index
+class Cartesian_Geometry
 {
 
 public:
+
+	/*!
+	Public read-only version of the grid's length in cells of refinement level 0.
+
+	\see Grid_Length
+	*/
+	const Grid_Length& length;
+
+	/*!
+	Public read-only version of the mapping of a
+	cell's ids to its size and location in the grid.
+
+	\see Mapping
+	*/
+	const Mapping& mapping;
+
+	/*!
+	Public read-only version of the grid's topology.
+
+	\see Grid_Topology
+	*/
+	const Grid_Topology& topology;
 
 	/*!
 	Creates and sets the geometry of the grid to the following:
 		- starting corner at (0, 0, 0)
 		- size of unrefined cells in each direction: 1
 	*/
-	Cartesian_Geometry()
+	Cartesian_Geometry(
+		const Grid_Length& given_length,
+		const Mapping& given_mapping,
+		const Grid_Topology& given_topology
+	) :
+		length(given_length),
+		mapping(given_mapping),
+		topology(given_topology)
 	{
 		this->start_x = 0;
 		this->start_y = 0;
@@ -81,22 +113,22 @@ public:
 	/*!
 	Sets the grid's length in cells and its geometry to given values.
 
-	- x, y and length_z set the number of unrefined cells in the grid in x, y and z direction.
-	- x, y and start_z set the starting corner of the grid, e.g. the first face
-	  of the first unrefined cell(s) in x, y  and z direction.
-	- x, y and length_z set the size of unrefined cell in x, y and z direction.
+	- given x, y and start_z set the starting corner of the grid, e.g.
+	  the first face of the first cell(s) of refinement level 0 in
+	  x, y  and z dimensions.
+	- given x, y and length_z set the size of each cell of
+	  refinement level 0 in x, y and z dimensions.
 
 	Returns true on success and false otherwise.
 	*/
-	bool set_geometry(
-		const uint64_t given_length_x, const uint64_t given_length_y, const uint64_t given_length_z,
-		const double given_start_x, const double given_start_y, const double given_start_z,
-		const double given_cell_length_x, const double given_cell_length_y, const double given_cell_length_z
+	bool set(
+		const double given_start_x,
+		const double given_start_y,
+		const double given_start_z,
+		const double given_cell_length_x,
+		const double given_cell_length_y,
+		const double given_cell_length_z
 	) {
-		if (!this->set_length(given_length_x, given_length_y, given_length_z)) {
-			return false;
-		}
-
 		// FIXME: check that all coordinates fit into a double
 		this->start_x = given_start_x;
 		this->start_y = given_start_y;
@@ -126,6 +158,23 @@ public:
 		return true;
 	}
 
+
+	/*!
+	Sets the same geometry as in the given one.
+	*/
+	bool set(const Cartesian_Geometry& other)
+	{
+		return this->set(
+			other.get_start_x(),
+			other.get_start_y(),
+			other.get_start_z(),
+			other.get_unrefined_cell_length_x(),
+			other.get_unrefined_cell_length_y(),
+			other.get_unrefined_cell_length_z()
+		);
+	}
+
+
 	/*!
 	Returns the starting corner of the grid in x direction.
 	*/
@@ -154,25 +203,25 @@ public:
 	/*!
 	Returns the end corner of the grid in x direction.
 	*/
-	double get_x_end() const
+	double get_end_x() const
 	{
-		return this->start_x + double(this->length_x) * this->cell_length_x;
+		return this->start_x + double(this->length.get()[0]) * this->cell_length_x;
 	}
 
 	/*!
 	Returns the end corner of the grid in y direction.
 	*/
-	double get_y_end() const
+	double get_end_y() const
 	{
-		return this->start_y + double(this->length_y) * this->cell_length_y;
+		return this->start_y + double(this->length.get()[1]) * this->cell_length_y;
 	}
 
 	/*!
 	Returns the end corner of the grid in z direction.
 	*/
-	double get_z_end() const
+	double get_end_z() const
 	{
-		return this->start_z + double(this->length_z) * this->cell_length_z;
+		return this->start_z + double(this->length.get()[2]) * this->cell_length_z;
 	}
 
 
@@ -208,15 +257,15 @@ public:
 	*/
 	double get_cell_length_x(const uint64_t cell) const
 	{
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		if (cell == error_cell
 		|| refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->cell_length_x / double(uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_length_x / double(uint64_t(1) << this->mapping.get_refinement_level(cell));
 	}
 
 	/*!
@@ -224,15 +273,15 @@ public:
 	*/
 	double get_cell_length_y(const uint64_t cell) const
 	{
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		if (cell == error_cell
 		|| refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->cell_length_y / double(uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_length_y / double(uint64_t(1) << this->mapping.get_refinement_level(cell));
 	}
 
 	/*!
@@ -240,15 +289,15 @@ public:
 	*/
 	double get_cell_length_z(const uint64_t cell) const
 	{
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		if (cell == error_cell
 		|| refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		return this->cell_length_z / double(uint64_t(1) << this->get_refinement_level(cell));
+		return this->cell_length_z / double(uint64_t(1) << this->mapping.get_refinement_level(cell));
 	}
 
 
@@ -257,17 +306,17 @@ public:
 	*/
 	double get_cell_x(const uint64_t cell) const
 	{
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		if (cell == error_cell
 		|| refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		return this->start_x + double(indices[0]) * this->cell_length_x / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_length_x(cell) / 2;
+		return this->start_x + double(indices[0]) * this->cell_length_x / double(uint64_t(1) << this->mapping.get_maximum_refinement_level()) + this->get_cell_length_x(cell) / 2;
 	}
 
 	/*!
@@ -275,17 +324,17 @@ public:
 	*/
 	double get_cell_y(const uint64_t cell) const
 	{
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		if (cell == error_cell
 		|| refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		return this->start_y + double(indices[1]) * this->cell_length_y / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_length_y(cell) / 2;
+		return this->start_y + double(indices[1]) * this->cell_length_y / double(uint64_t(1) << this->mapping.get_maximum_refinement_level()) + this->get_cell_length_y(cell) / 2;
 	}
 
 	/*!
@@ -293,17 +342,17 @@ public:
 	*/
 	double get_cell_z(const uint64_t cell) const
 	{
-		const int refinement_level = this->get_refinement_level(cell);
+		const int refinement_level = this->mapping.get_refinement_level(cell);
 
 		if (cell == error_cell
 		|| refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		const Types<3>::indices_t indices = this->get_indices(cell);
+		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		return this->start_z + double(indices[2]) * this->cell_length_z / double(uint64_t(1) << this->max_refinement_level) + this->get_cell_length_z(cell) / 2;
+		return this->start_z + double(indices[2]) * this->cell_length_z / double(uint64_t(1) << this->mapping.get_maximum_refinement_level()) + this->get_cell_length_z(cell) / 2;
 	}
 
 	/*!
@@ -361,16 +410,17 @@ public:
 	*/
 	double get_cell_x(const int refinement_level, const uint64_t x_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (x_index > this->length_x * (uint64_t(1) << this->max_refinement_level)) {
+		if (x_index > this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		return this->start_x
-			+ double(x_index) * this->cell_length_x / double(uint64_t(1) << this->max_refinement_level)
+			+ double(x_index) * this->cell_length_x / double(uint64_t(1) << this->mapping.get_maximum_refinement_level())
 			+ this->cell_length_x / double(uint64_t(1) << refinement_level) / 2;
 	}
 
@@ -379,16 +429,17 @@ public:
 	*/
 	double get_cell_y(const int refinement_level, const uint64_t y_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (y_index > this->length_y * (uint64_t(1) << this->max_refinement_level)) {
+		if (y_index > this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		return this->start_y
-			+ double(y_index) * this->cell_length_y / double(uint64_t(1) << this->max_refinement_level)
+			+ double(y_index) * this->cell_length_y / double(uint64_t(1) << this->mapping.get_maximum_refinement_level())
 			+ this->cell_length_y / double(uint64_t(1) << refinement_level) / 2;
 	}
 
@@ -397,16 +448,17 @@ public:
 	*/
 	double get_cell_z(const int refinement_level, const uint64_t z_index) const
 	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (z_index > this->length_z * (uint64_t(1) << this->max_refinement_level)) {
+		if (z_index > this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
 		return this->start_z
-			+ double(z_index) * this->cell_length_z / double(uint64_t(1) << this->max_refinement_level)
+			+ double(z_index) * this->cell_length_z / double(uint64_t(1) << this->mapping.get_maximum_refinement_level())
 			+ this->cell_length_z / double(uint64_t(1) << refinement_level) / 2;
 	}
 
@@ -414,18 +466,24 @@ public:
 	/*!
 	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location or refinement level
 	*/
-	uint64_t get_cell(const int refinement_level, const double x, const double y, const double z) const
-	{
-		if (refinement_level < 0 || refinement_level > this->max_refinement_level) {
+	uint64_t get_cell(
+		const int refinement_level,
+		const double x,
+		const double y,
+		const double z
+	) const {
+		if (refinement_level < 0
+		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return error_cell;
 		}
 
-		return this->get_cell_from_indices(
+		const Types<3>::indices_t index = {{
 			this->get_x_index_of_coord(x),
 			this->get_y_index_of_coord(y),
-			this->get_z_index_of_coord(z),
-			refinement_level
-		);
+			this->get_z_index_of_coord(z)
+		}};
+
+		return this->mapping.get_cell_from_indices(index, refinement_level);
 	}
 
 
@@ -441,16 +499,16 @@ public:
 	double get_real_x(const double x) const
 	{
 		if (x >= this->get_start_x()
-		&& x <= this->get_x_end()) {
+		&& x <= this->get_end_x()) {
 
 			return x;
 
-		} else if (!this->periodic[0]) {
+		} else if (!this->topology.is_periodic(0)) {
 
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_x_end() - this->get_start_x();
+			const double grid_size = this->get_end_x() - this->get_start_x();
 
 			if (x < this->get_start_x()) {
 
@@ -459,7 +517,7 @@ public:
 
 			} else {
 
-				const double distance = x - this->get_x_end();
+				const double distance = x - this->get_end_x();
 				return x - grid_size * ceil(distance/ grid_size);
 			}
 		}
@@ -477,16 +535,16 @@ public:
 	double get_real_y(const double y) const
 	{
 		if (y >= this->get_start_y()
-		&& y <= this->get_y_end()) {
+		&& y <= this->get_end_y()) {
 
 			return y;
 
-		} else if (!this->periodic[0]) {
+		} else if (!this->topology.is_periodic(1)) {
 
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_y_end() - this->get_start_y();
+			const double grid_size = this->get_end_y() - this->get_start_y();
 
 			if (y < this->get_start_y()) {
 
@@ -495,7 +553,7 @@ public:
 
 			} else {
 
-				const double distance = y - this->get_y_end();
+				const double distance = y - this->get_end_y();
 				return y - grid_size * ceil(distance/ grid_size);
 			}
 		}
@@ -513,16 +571,16 @@ public:
 	double get_real_z(const double z) const
 	{
 		if (z >= this->get_start_z()
-		&& z <= this->get_z_end()) {
+		&& z <= this->get_end_z()) {
 
 			return z;
 
-		} else if (!this->periodic[0]) {
+		} else if (!this->topology.is_periodic(2)) {
 
 			return std::numeric_limits<double>::quiet_NaN();
 
 		} else {
-			const double grid_size = this->get_z_end() - this->get_start_z();
+			const double grid_size = this->get_end_z() - this->get_start_z();
 
 			if (z < this->get_start_z()) {
 
@@ -531,7 +589,7 @@ public:
 
 			} else {
 
-				const double distance = z - this->get_z_end();
+				const double distance = z - this->get_end_z();
 				return z - grid_size * ceil(distance/ grid_size);
 			}
 		}
@@ -544,13 +602,13 @@ public:
 	Returns error_index if given location is outside of the grid
 	and the grid is not periodic in that direction.
 	*/
-	uint64_t get_x_index_of_coord(double x) const
+	uint64_t get_x_index_of_coord(const double given_x) const
 	{
-		x = this->get_real_x(x);
+		const double x = this->get_real_x(given_x);
 
 		if (::isnan(x)
 		|| x < this->get_start_x()
-		|| x > this->get_x_end()) {
+		|| x > this->get_end_x()) {
 
 			return error_index;
 
@@ -558,7 +616,7 @@ public:
 
 			return uint64_t(floor(
 				(x - this->get_start_x())
-				/ (this->cell_length_x / double(uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_x / double(uint64_t(1) << this->mapping.get_maximum_refinement_level()))
 			));
 		}
 	}
@@ -569,13 +627,13 @@ public:
 	Returns error_index if given location is outside of the grid
 	and the grid is not periodic in that direction.
 	*/
-	uint64_t get_y_index_of_coord(double y) const
+	uint64_t get_y_index_of_coord(const double given_y) const
 	{
-		y = this->get_real_y(y);
+		const double y = this->get_real_y(given_y);
 
 		if (::isnan(y)
 		|| y < this->get_start_y()
-		|| y > this->get_y_end()) {
+		|| y > this->get_end_y()) {
 
 			return error_index;
 
@@ -583,7 +641,7 @@ public:
 
 			return uint64_t(floor(
 				(y - this->get_start_y())
-				/ (this->cell_length_y / double(uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_y / double(uint64_t(1) << this->mapping.get_maximum_refinement_level()))
 			));
 		}
 	}
@@ -594,13 +652,13 @@ public:
 	Returns error_index if given location is outside of the grid
 	and the grid is not periodic in that direction.
 	*/
-	uint64_t get_z_index_of_coord(double z) const
+	uint64_t get_z_index_of_coord(const double given_z) const
 	{
-		z = this->get_real_z(z);
+		const double z = this->get_real_z(given_z);
 
 		if (::isnan(z)
 		|| z < this->get_start_z()
-		|| z > this->get_z_end()) {
+		|| z > this->get_end_z()) {
 
 			return error_index;
 
@@ -608,40 +666,9 @@ public:
 
 			return uint64_t(floor(
 				(z - this->get_start_z())
-				/ (this->cell_length_z / double(uint64_t(1) << this->max_refinement_level))
+				/ (this->cell_length_z / double(uint64_t(1) << this->mapping.get_maximum_refinement_level()))
 			));
 		}
-	}
-
-
-	/*!
-	Sets the periodicity of the geometry.
-
-	index = 0 == x direction.
-	*/
-	void set_periodicity(const size_t index, const bool value)
-	{
-		if (index > 2) {
-			return;
-		}
-
-		this->periodic[index] = value;
-	}
-
-
-	/*!
-	Returns whether the geometry in periodic in given direction.
-
-	index = 0 == x direction.
-	Returns false if given index > 2.
-	*/
-	bool is_periodic(const size_t index) const
-	{
-		if (index > 2) {
-			return false;
-		}
-
-		return this->periodic[index];
 	}
 
 
@@ -651,9 +678,6 @@ private:
 	double start_x, start_y, start_z;
 	// length of unrefined cells in all directions
 	double cell_length_x, cell_length_y, cell_length_z;
-
-	// periodic[0] == true means that the grid wraps around in x direction
-	bool periodic[3];
 
 
 };	// class

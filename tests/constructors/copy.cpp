@@ -13,6 +13,8 @@ Tests copy construction of dccrg.
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 
 using namespace std;
 
@@ -71,12 +73,13 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-	dccrg::Dccrg<Cell1> grid1;
-	if (!grid1.set_geometry(10, 10, 10, 0, 0, 0, 1, 1, 1)) {
+	dccrg::Dccrg<Cell1, dccrg::Cartesian_Geometry> grid1;
+	if (!grid1.geometry.set(0, 0, 0, 1, 1, 1)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		return EXIT_FAILURE;
 	}
-	grid1.initialize(comm, "RCB", 1, 0);
+	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
+	grid1.initialize(grid_length, comm, "RCB", 1, 0);
 
 	// check that remote neighbor update works in original grid
 	// data in grid1 == process rank
@@ -111,7 +114,7 @@ int main(int argc, char* argv[])
 	}
 
 	// check copy constructor
-	dccrg::Dccrg<Cell2> grid2(grid1);
+	dccrg::Dccrg<Cell2, dccrg::Stretched_Cartesian_Geometry> grid2(grid1);
 	const vector<uint64_t> cells2 = grid2.get_cells();
 
 	if (cells1.size() != cells2.size()) {

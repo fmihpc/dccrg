@@ -59,7 +59,7 @@ public:
 
 
 /*!
-\brief Returns whether the given type is a named predefined datatype.
+\brief Returns whether the given type is a named predefined MPI datatype.
 */
 class Is_Named_Datatype
 {

@@ -246,18 +246,30 @@ int main(int argc, char* argv[])
 
 		} while (result == 1);
 
-		Cartesian_Geometry geometry;
-		if (!geometry.set_geometry(
-			x_length, y_length, z_length,
+		const Grid_Topology topology;
+
+		Mapping mapping;
+		const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+		if (!mapping.set_length(grid_length)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set grid length to "
+				<< grid_length[0] << ", "
+				<< grid_length[1] << ", "
+				<< grid_length[2] << " cells of refinement level 0"
+				<< std::endl;
+			abort();
+		}
+		if (!mapping.set_maximum_refinement_level(max_ref_level)) {
+			std::cerr << "Couldn't set maximum refinement level of grid." << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		Cartesian_Geometry geometry(mapping.length, mapping, topology);
+		if (!geometry.set(
 			x_start, y_start, z_start,
 			cell_x_size, cell_y_size, cell_z_size
 		)) {
 			std::cerr << "Couldn't set grid geometry." << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!geometry.set_maximum_refinement_level(max_ref_level)) {
-			std::cerr << "Couldn't set maximum refinement level of grid." << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
@@ -357,7 +369,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS refinement_level int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << geometry.get_refinement_level(*cell) << "\n";
+			outfile << mapping.get_refinement_level(*cell) << "\n";
 		}
 
 		// value

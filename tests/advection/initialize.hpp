@@ -58,9 +58,9 @@ public:
 				cell->data[i] = 0;
 			}
 
-			const double x = grid.get_cell_x(cell_id),
-				y = grid.get_cell_y(cell_id),
-				//z = grid.get_cell_z(cell_id),
+			const double x = grid.geometry.get_cell_x(cell_id),
+				y = grid.geometry.get_cell_y(cell_id),
+				//z = grid.geometry.get_cell_z(cell_id),
 				radius = 0.15;
 
 			// velocities

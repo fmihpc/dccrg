@@ -41,13 +41,8 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<CellData> grid;
-
-	if (!grid.set_geometry(10, 10, 10, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		return EXIT_FAILURE;
-	}
-
-	grid.initialize(comm, "RANDOM", 2, 5);
+	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
+	grid.initialize(grid_length, comm, "RANDOM", 2, 5);
 	grid.balance_load();
 
 	const std::vector<uint64_t> cells_to_load = boost::assign::list_of
@@ -89,6 +84,10 @@ int main(int argc, char* argv[])
 		}
 
 		visit_file.close();
+	}
+
+	if (comm.rank() == 0) {
+		cout << "PASSED" << endl;
 	}
 
 	return EXIT_SUCCESS;

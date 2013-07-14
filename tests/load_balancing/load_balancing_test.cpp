@@ -118,8 +118,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<int> grid;
 
-	if (!grid.set_geometry(
-		x_length, y_length, z_length,
+	if (!grid.geometry.set(
 		-0.5, -0.5, -0.5,
 		1.0 / x_length, 1.0 / y_length, 1.0 / z_length
 	)) {
@@ -129,7 +128,9 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
+	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 	grid.initialize(
+		grid_length,
 		comm,
 		load_balancing_method.c_str(),
 		neighborhood_size
@@ -146,9 +147,9 @@ int main(int argc, char* argv[])
 	vector<uint64_t> cells = grid.get_cells();
 	for (unsigned int i = 0; i < refine_n; i++) {
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			double x = grid.get_cell_x(*cell);
-			double y = grid.get_cell_y(*cell);
-			double z = grid.get_cell_z(*cell);
+			double x = grid.geometry.get_cell_x(*cell);
+			double y = grid.geometry.get_cell_y(*cell);
+			double z = grid.geometry.get_cell_z(*cell);
 
 			if (sqrt(x * x + y * y + z * z) < 0.1) {
 				grid.refine_completely(*cell);

@@ -38,11 +38,16 @@ struct game_of_life_cell {
 /*!
 Initializes the given cells, all of which must be local
 */
-void initialize_game(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_grid)
-{
-	for (vector<uint64_t>::const_iterator cell = cells->begin(); cell != cells->end(); cell++) {
-
-		game_of_life_cell* cell_data = (*game_grid)[*cell];
+void initialize_game(
+	const vector<uint64_t>& cells,
+	Dccrg<game_of_life_cell>& game_grid
+) {
+	for (vector<uint64_t>::const_iterator
+		cell = cells.begin();
+		cell != cells.end();
+		cell++
+	) {
+		game_of_life_cell* const cell_data = game_grid[*cell];
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -57,21 +62,30 @@ void initialize_game(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* ga
 /*!
 Calculates the number of live neihgbours for every cell given, all of which must be local
 */
-void get_live_neighbor_counts(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_grid)
-{
-	for (vector<uint64_t>::const_iterator cell = cells->begin(); cell != cells->end(); cell++) {
-
-		game_of_life_cell* cell_data = (*game_grid)[*cell];
+void get_live_neighbor_counts(
+	const vector<uint64_t>& cells,
+	const Dccrg<game_of_life_cell>& game_grid
+) {
+	for (vector<uint64_t>::const_iterator
+		cell = cells.begin();
+		cell != cells.end();
+		cell++
+	) {
+		game_of_life_cell* const cell_data = game_grid[*cell];
 
 		cell_data->live_neighbor_count = 0;
-		const vector<uint64_t>* neighbors = game_grid->get_neighbors_of(*cell);
+		const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 
-		for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+		for (vector<uint64_t>::const_iterator
+			neighbor = neighbors->begin();
+			neighbor != neighbors->end();
+			neighbor++
+		) {
 			if (*neighbor == 0) {
 				continue;
 			}
 
-			game_of_life_cell* neighbor_data = (*game_grid)[*neighbor];
+			game_of_life_cell* neighbor_data = game_grid[*neighbor];
 			if (neighbor_data->is_alive) {
 				cell_data->live_neighbor_count++;
 			}
@@ -83,11 +97,16 @@ void get_live_neighbor_counts(const vector<uint64_t>* cells, Dccrg<game_of_life_
 /*!
 Applies the game of life rules to every given cell, all of which must be local
 */
-void apply_rules(const vector<uint64_t>* cells, Dccrg<game_of_life_cell>* game_grid)
-{
-	for (vector<uint64_t>::const_iterator cell = cells->begin(); cell != cells->end(); cell++) {
-
-		game_of_life_cell* cell_data = (*game_grid)[*cell];
+void apply_rules(
+	const vector<uint64_t>& cells,
+	const Dccrg<game_of_life_cell>& game_grid
+) {
+	for (vector<uint64_t>::const_iterator
+		cell = cells.begin();
+		cell != cells.end();
+		cell++
+	) {
+		game_of_life_cell* const cell_data = game_grid[*cell];
 
 		if (cell_data->live_neighbor_count == 3) {
 			cell_data->is_alive = true;
@@ -118,7 +137,7 @@ uint64_t 2nd cell
 uint64_t  2nd cell is_alive
 ...
 */
-bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_cell>* game_grid)
+bool write_game_data(const uint64_t step, communicator comm, const Dccrg<game_of_life_cell>& game_grid)
 {
 	int result;
 
@@ -167,7 +186,7 @@ bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_
 	if (comm.rank() == 0) {
 		bytes += sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
 	}
-	vector<uint64_t> cells = game_grid->get_cells();
+	vector<uint64_t> cells = game_grid.get_cells();
 	bytes += cells.size() * (sizeof(uint64_t) + sizeof(uint64_t));
 
 	// collect data from this process into one buffer
@@ -182,38 +201,38 @@ bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_
 		offset += sizeof(uint64_t);
 
 		{
-		double value = game_grid->get_start_x();
+		double value = game_grid.geometry.get_start_x();
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_start_y();
+		value = game_grid.geometry.get_start_y();
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_start_z();
+		value = game_grid.geometry.get_start_z();
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_cell_length_x(1);
+		value = game_grid.geometry.get_cell_length_x(1);
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_cell_length_y(1);
+		value = game_grid.geometry.get_cell_length_y(1);
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
-		value = game_grid->get_cell_length_z(1);
+		value = game_grid.geometry.get_cell_length_z(1);
 		memcpy(buffer + offset, &value, sizeof(double));
 		offset += sizeof(double);
 		}
 		{
-		uint64_t value = game_grid->get_length_x();
+		uint64_t value = game_grid.length.get()[0];
 		memcpy(buffer + offset, &value, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
-		value = game_grid->get_length_y();
+		value = game_grid.length.get()[1];
 		memcpy(buffer + offset, &value, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
-		value = game_grid->get_length_z();
+		value = game_grid.length.get()[2];
 		memcpy(buffer + offset, &value, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
 		}
 		{
-		int value = game_grid->get_maximum_refinement_level();
+		int value = game_grid.get_maximum_refinement_level();
 		memcpy(buffer + offset, &value, sizeof(int));
 		offset += sizeof(int);
 		}
@@ -224,7 +243,7 @@ bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_
 		memcpy(buffer + offset, &cell, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
 
-		game_of_life_cell* data = (*game_grid)[cells[i]];
+		game_of_life_cell* data = game_grid[cells[i]];
 		const uint64_t alive = data->is_alive ? 1 : 0;
 		memcpy(buffer + offset, &alive, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
@@ -249,6 +268,10 @@ bool write_game_data(const uint64_t step, communicator comm, Dccrg<game_of_life_
 }
 
 
+/*!
+See the comments in simple_game_of_life.cpp and game_of_life.cpp
+for an explanation of the basics.
+*/
 int main(int argc, char* argv[])
 {
 	environment env(argc, argv);
@@ -265,50 +288,38 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	#define X_LENGTH 10	// in unrefined cells
-	#define Y_LENGTH 10
-	#define Z_LENGTH 1
-	#define CELL_SIZE 1.0
-	game_grid.set_geometry(X_LENGTH, Y_LENGTH, Z_LENGTH, 0, 0, 0, CELL_SIZE, CELL_SIZE, CELL_SIZE);
+	game_grid.geometry.set(0, 0, 0, 1, 1, 1);
 
-	// the cells that share a vertex are considered neighbors
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	// use the recursive coordinate bisection method for load balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
-	game_grid.initialize(comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
+	const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
+	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
-	// since the grid doesn't change (isn't refined / unrefined) during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();
 
-	/*
-	Get the cells on this process just once, since the grid doesn't change during the game
-	To make the game scale better, separate local cells into those without even one neighbor on another process and those that do.
-	While updating cell data between processes, start calculating the next turn for cells which don't have neighbors on other processes
-	*/
-	vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();
-	vector<uint64_t> outer_cells = game_grid.get_local_cells_on_process_boundary();
+	const vector<uint64_t>
+		inner_cells = game_grid.get_local_cells_not_on_process_boundary(),
+		outer_cells = game_grid.get_local_cells_on_process_boundary();
 
-	initialize_game(&inner_cells, &game_grid);
-	initialize_game(&outer_cells, &game_grid);
+	initialize_game(inner_cells, game_grid);
+	initialize_game(outer_cells, game_grid);
 
 	#define TURNS 10
 	for (unsigned int turn = 0; turn < TURNS; turn++) {
 
-		write_game_data(turn, comm, &game_grid);
+		write_game_data(turn, comm, game_grid);
 
-		// start updating cell data from other processes and calculate the next turn for cells without neighbors on other processes in the meantime
 		game_grid.start_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(&inner_cells, &game_grid);
+		get_live_neighbor_counts(inner_cells, game_grid);
 
-		// wait for neighbor data updates to finish and the calculate the next turn for rest of the cells on this process
 		game_grid.wait_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(&outer_cells, &game_grid);
+		get_live_neighbor_counts(outer_cells, game_grid);
 
-		// update the state of life for all local cells
-		apply_rules(&inner_cells, &game_grid);
-		apply_rules(&outer_cells, &game_grid);
+		apply_rules(inner_cells, game_grid);
+		apply_rules(outer_cells, game_grid);
 	}
-	write_game_data(TURNS, comm, &game_grid);
+	write_game_data(TURNS, comm, game_grid);
 
 	return EXIT_SUCCESS;
 }
+
