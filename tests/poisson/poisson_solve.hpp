@@ -51,7 +51,21 @@ public:
 
 	Poisson_Cell()
 	{
-		this->rhs = this->solution = 0;
+		this->rhs            =
+		this->solution       =
+		this->best_solution  =
+		this->p0             =
+		this->p1             =
+		this->r0             =
+		this->r1             =
+		this->A_dot_p0       =
+		this->scaling_factor =
+		this->f_x_pos        =
+		this->f_x_neg        =
+		this->f_y_pos        =
+		this->f_y_neg        =
+		this->f_z_pos        =
+		this->f_z_neg        = 0;
 	}
 
 	double
