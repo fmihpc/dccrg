@@ -33,6 +33,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "zoltan.h"
 
 #include "dccrg.hpp"
+#include "dccrg_cartesian_geometry.hpp"
 
 #include "adapter.hpp"
 #include "cell.hpp"
@@ -170,69 +171,86 @@ int main(int argc, char* argv[])
 	cells = (unsigned int) round(sqrt(double(cells)));
 
 	// initialize grid
-	Dccrg<Cell> grid;
+	Dccrg<Cell, Cartesian_Geometry> grid;
+	Cartesian_Geometry::Parameters geom_params;
+
+	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 
 	switch (direction) {
 	case 'x':
-		if (!grid.set_geometry(
-			1, cells, cells,
-			GRID_START_X, GRID_START_Y, GRID_START_Z,
-			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
-		)) {
-			cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
-			abort();
-		}
+		grid_length[0] = 1;
+		grid_length[1] = cells;
+		grid_length[2] = cells;
 
 		grid.initialize(
+			grid_length,
 			comm,
 			load_balancing_method.c_str(),
 			2,
 			max_ref_lvl,
 			false, true, true
 		);
+
+		geom_params.start[0] = GRID_START_X;
+		geom_params.start[1] = GRID_START_Y;
+		geom_params.start[2] = GRID_START_Z;
+		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
+		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
+		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
 		break;
 
 	case 'y':
-		if (!grid.set_geometry(
-			cells, 1, cells,
-			GRID_START_X, GRID_START_Y, GRID_START_Z,
-			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
-		)) {
-			cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
-			abort();
-		}
+		grid_length[0] = cells;
+		grid_length[1] = 1;
+		grid_length[2] = cells;
 
 		grid.initialize(
+			grid_length,
 			comm,
 			load_balancing_method.c_str(),
 			2,
 			max_ref_lvl,
 			true, false, true
 		);
+
+		geom_params.start[0] = GRID_START_X;
+		geom_params.start[1] = GRID_START_Y;
+		geom_params.start[2] = GRID_START_Z;
+		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
+		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
+		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
 		break;
 
 	case 'z':
-		if (!grid.set_geometry(
-			cells, cells, 1,
-			GRID_START_X, GRID_START_Y, GRID_START_Z,
-			GRID_END_X / cells, GRID_END_Y / cells, GRID_END_Z / cells
-		)) {
-			cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
-			abort();
-		}
+		grid_length[0] = cells;
+		grid_length[1] = cells;
+		grid_length[2] = 1;
 
 		grid.initialize(
+			grid_length,
 			comm,
 			load_balancing_method.c_str(),
 			2,
 			max_ref_lvl,
 			true, true, false
 		);
+
+		geom_params.start[0] = GRID_START_X;
+		geom_params.start[1] = GRID_START_Y;
+		geom_params.start[2] = GRID_START_Z;
+		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
+		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
+		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
 		break;
 
 	default:
 		cerr << "Unsupported direction given: " << direction << endl;
 		break;
+	}
+
+	if (!grid.set_geometry(geom_params)) {
+		cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
+		abort();
 	}
 
 	// create the neighborhood

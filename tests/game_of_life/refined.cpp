@@ -47,13 +47,14 @@ int main(int argc, char* argv[])
 
 	const boost::array<uint64_t, 3> grid_length = {{5, 5, 3}};
 	const double cell_length = 1.0 / grid_length[0];
-	boost::array<vector<double>, 3> coordinates;
+
+	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 		for (size_t i = 0; i <= grid_length[dimension]; i++) {
-			coordinates[dimension].push_back(double(i) * cell_length);
+			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.geometry.set(coordinates);
+	game_grid.set_geometry(geom_params);
 
 	#define NEIGHBORHOOD_SIZE 1
 	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
@@ -67,7 +68,7 @@ int main(int argc, char* argv[])
 	game_grid.balance_load();
 	cells = game_grid.get_cells();
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.geometry.get_cell_z(*cell) > 1 * 1.5 * cell_length) {
+		if (game_grid.geometry.get_center(*cell)[2] > 1 * 1.5 * cell_length) {
 			game_grid.refine_completely(*cell);
 		}
 	}
@@ -76,7 +77,7 @@ int main(int argc, char* argv[])
 	cells = game_grid.get_cells();
 	cout << "Process " << comm.rank() << ": number of cells after refining: " << cells.size() << endl;
 	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.geometry.get_cell_z(*cell) > 2 * 1.5 * cell_length) {
+		if (game_grid.geometry.get_center(*cell)[2] > 2 * 1.5 * cell_length) {
 			game_grid.refine_completely(*cell);
 		}
 	}
@@ -91,8 +92,11 @@ int main(int argc, char* argv[])
 		game_of_life_cell* cell_data = game_grid[*cell];
 		cell_data->live_neighbor_count = 0;
 
-		double y = game_grid.geometry.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.geometry.get_cell_length_y(*cell) - y) < 0.5 * game_grid.geometry.get_cell_length_y(*cell)) {
+		const boost::array<double, 3>
+			cell_center = game_grid.geometry.get_center(*cell),
+			cell_length = game_grid.geometry.get_length(*cell);
+
+		if (fabs(0.5 + 0.1 * cell_length[1] - cell_center[1]) < 0.5 * cell_length[1]) {
 			cell_data->is_alive = true;
 		} else {
 			cell_data->is_alive = false;
@@ -217,7 +221,8 @@ int main(int argc, char* argv[])
 				}
 
 				// only consider neighbors in the same z plane
-				if (game_grid.geometry.get_cell_z(*cell) != game_grid.geometry.get_cell_z(*neighbor)) {
+				if (game_grid.geometry.get_center(*cell)[2]
+				!= game_grid.geometry.get_center(*neighbor)[2]) {
 					continue;
 				}
 

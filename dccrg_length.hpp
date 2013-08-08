@@ -35,6 +35,12 @@ class Grid_Length
 
 public:
 
+	/*!
+	Represents the length of the grid in cells of
+	refinement level 0 in each dimension.
+	*/
+	typedef boost::array<uint64_t, 3> type;
+
 
 	/*!
 	Sets the size of the grid in cells of refinement level 0 to 1.
@@ -49,7 +55,7 @@ public:
 	/*!
 	Creates a grid of given length in cells of refinement level 0.
 	*/
-	Grid_Length(const boost::array<uint64_t, 3>& given_length)
+	Grid_Length(const Grid_Length::type& given_length)
 	{
 		if (!this->set(given_length)) {
 			abort();
@@ -71,7 +77,7 @@ public:
 	/*!
 	The length of the grid in cells of refinement level 0.
 	*/
-	const boost::array<uint64_t, 3>& get() const
+	const Grid_Length::type& get() const
 	{
 		return this->length;
 	}
@@ -85,7 +91,7 @@ public:
 	Returns false if unsuccessful and in that case has no effect.
 	Automatically maximizes the maximum refinement level of the grid.
 	*/
-	bool set(const boost::array<uint64_t, 3>& given_length)
+	bool set(const Grid_Length::type& given_length)
 	{
 		if (
 			   given_length[0] == 0
@@ -101,7 +107,7 @@ public:
 			return false;
 		}
 
-		const boost::array<uint64_t, 3> old_length = this->length;
+		const Grid_Length::type old_length = this->length;
 
 		this->length = given_length;
 
@@ -129,8 +135,7 @@ public:
 
 private:
 
-	//! length of the grid in cells of refinement level 0
-	boost::array<uint64_t, 3> length;
+	Grid_Length::type length;
 
 };
 

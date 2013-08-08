@@ -1,7 +1,7 @@
 /*
-Dccrg class for a cartesian geometry in which cells are cubes.
+Dccrg class for a geometry representing the logical grid directly.
 
-Copyright 2009, 2010, 2011, 2012, 2013 Finnish Meteorological Institute
+Copyright 2013 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -17,8 +17,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#ifndef DCCRG_CARTESIAN_GEOMETRY_HPP
-#define DCCRG_CARTESIAN_GEOMETRY_HPP
+#ifndef DCCRG_NO_GEOMETRY_HPP
+#define DCCRG_NO_GEOMETRY_HPP
 
 
 #include "cassert"
@@ -32,64 +32,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "dccrg_length.hpp"
 #include "dccrg_mapping.hpp"
 #include "dccrg_topology.hpp"
-#include "dccrg_types.hpp"
 
 
 namespace dccrg {
 
 
 /*!
-\brief Parameters required for the Cartesian_Geometry class of dccrg.
+\brief Default geometry class of dccrg.
 
-Is given to the Cartesian_Geometry::set() function.
+Minimal wrapper around the logical coordinates of the grid.
 */
-class Cartesian_Geometry_Parameters
-{
-public:
-	boost::array<double, 3>
-		//! starting coordinate of the grid
-		start,
-		//! length of cells of refinement level 0
-		level_0_cell_length;
-
-	Cartesian_Geometry_Parameters()
-	{
-		this->start[0] =
-		this->start[1] =
-		this->start[2] = 0;
-
-		this->level_0_cell_length[0] =
-		this->level_0_cell_length[1] =
-		this->level_0_cell_length[2] = 1;
-	}
-
-	Cartesian_Geometry_Parameters(
-		const boost::array<double, 3>& given_start,
-		const boost::array<double, 3>& given_level_0_cell_length
-	) {
-		this->start = given_start;
-
-		for (size_t dimension = 0; dimension < this->level_0_cell_length.size(); dimension++) {
-			if (given_level_0_cell_length[dimension] <= 0) {
-				std::cerr << "Cell length in dimension " << dimension
-					<< " must be > 0, but is "
-					<< given_level_0_cell_length[dimension]
-					<< std::endl;
-				abort();
-			}
-		}
-		this->level_0_cell_length = given_level_0_cell_length;
-	}
-};
-
-
-/*!
-\brief Geometry class for dccrg with cubic cells
-
-A geometry class in which the sizes of cells of
-refinement level 0 are given by three floating points numbers.
-*/
-class Cartesian_Geometry
+class No_Geometry
 {
 
 public:
@@ -98,7 +51,8 @@ public:
 	Parameter type that is defined by every geometry class
 	and used to refer to their own parameter type.
 	*/
-	typedef Cartesian_Geometry_Parameters Parameters;
+	typedef int Parameters;
+
 
 	/*!
 	Public read-only version of the grid's length in cells of refinement level 0.
@@ -125,12 +79,12 @@ public:
 	/*!
 	Creates and sets the geometry of the grid to the following:
 		- starting corner at (0, 0, 0)
-		- size of unrefined cells in each direction: 1
+		- size of unrefined cells in each dimension: 1
 
 	\see
 	Grid_Length Mapping Grid_Topology
 	*/
-	Cartesian_Geometry(
+	No_Geometry(
 		const Grid_Length& given_length,
 		const Mapping& given_mapping,
 		const Grid_Topology& given_topology
@@ -140,25 +94,9 @@ public:
 		topology(given_topology)
 	{}
 
-	/*!
-	Sets the geometry of the grid to the following:
-		- starting corner at (0, 0, 0)
-		- size of unrefined cells in each direction: 1
-	*/
-	~Cartesian_Geometry()
-	{
-		this->parameters.start[0] = 0;
-		this->parameters.start[1] = 0;
-		this->parameters.start[2] = 0;
-
-		this->parameters.level_0_cell_length[0] = 1;
-		this->parameters.level_0_cell_length[1] = 1;
-		this->parameters.level_0_cell_length[2] = 1;
-	}
-
 
 	/*!
-	Returns the parameters of the grid's geometry.
+	Returns a reference to a dummy integer.
 	*/
 	const Parameters& get() const
 	{
@@ -167,41 +105,20 @@ public:
 
 
 	/*!
-	Sets the geometry of the grid to given values.
-
-	Returns true on success. On failure returns false
-	and has no effect.
+	Does nothing.
 	*/
-	bool set(const Parameters& given_parameters)
+	bool set(const Parameters& /*parameters*/)
 	{
-		for (size_t
-			dimension = 0;
-			dimension < this->parameters.level_0_cell_length.size();
-			dimension++
-		) {
-			if (given_parameters.level_0_cell_length[dimension] <= 0) {
-				std::cerr << "Cell length in dimension " << dimension
-					<< " must be > 0, but is "
-					<< given_parameters.level_0_cell_length[dimension]
-					<< std::endl;
-				return false;
-			}
-		}
-
-		// TODO: check that all cell coordinates fit into a double
-
-		this->parameters = given_parameters;
-
 		return true;
 	}
 
 
 	/*!
-	Sets the same geometry as in the given one.
+	Does nothing.
 	*/
-	bool set(const Cartesian_Geometry& other)
+	bool set(const No_Geometry& /*other*/)
 	{
-		return this->set(other.get());
+		return true;
 	}
 
 
@@ -214,11 +131,7 @@ public:
 	*/
 	boost::array<double, 3> get_start() const
 	{
-		const boost::array<double, 3> ret_val = {{
-			this->parameters.start[0],
-			this->parameters.start[1],
-			this->parameters.start[2]
-		}};
+		const boost::array<double, 3> ret_val = {{0, 0, 0}};
 		return ret_val;
 	}
 
@@ -232,25 +145,12 @@ public:
 	*/
 	boost::array<double, 3> get_end() const
 	{
-		// in cells of refinement level 0
 		const boost::array<uint64_t, 3> length = this->length.get();
-
-		const boost::array<double, 3>
-			grid_start =  this->get_start(),
-			ret_val = {{
-				grid_start[0]
-				+ double(length[0])
-					* this->parameters.level_0_cell_length[0],
-
-				grid_start[1]
-				+ double(length[1])
-					* this->parameters.level_0_cell_length[1],
-
-				grid_start[2]
-				+ double(length[2])
-					* this->parameters.level_0_cell_length[2],
-			}};
-
+		const boost::array<double, 3> ret_val = {{
+			double(length[0]),
+			double(length[1]),
+			double(length[2])
+		}};
 		return ret_val;
 	}
 
@@ -260,7 +160,8 @@ public:
 	*/
 	boost::array<double, 3> get_level_0_cell_length() const
 	{
-		return this->parameters.level_0_cell_length;
+		const boost::array<double, 3> ret_val = {{1.0, 1.0, 1.0}};
+		return ret_val;
 	}
 
 
@@ -287,11 +188,11 @@ public:
 			return error_val;
 		}
 
-		const double scaling_factor = 1.0 / double(uint64_t(1) << refinement_level);
+		const double cell_length = 1.0 / double(uint64_t(1) << refinement_level);
 		const boost::array<double, 3> ret_val = {{
-			this->parameters.level_0_cell_length[0] * scaling_factor,
-			this->parameters.level_0_cell_length[1] * scaling_factor,
-			this->parameters.level_0_cell_length[2] * scaling_factor
+			cell_length,
+			cell_length,
+			cell_length
 		}};
 
 		return ret_val;
@@ -301,7 +202,7 @@ public:
 	/*!
 	Returns the center of given cell.
 
-	A quiet NaN is returned if given error_cell,
+	A quiet NaN is returned if the given error_cell,
 	or the given cell cannot exist in the grid.
 	*/
 	boost::array<double, 3> get_center(const uint64_t cell) const
@@ -326,26 +227,15 @@ public:
 		const int max_ref_lvl = this->mapping.get_maximum_refinement_level();
 
 		const boost::array<double, 3>
-			grid_start = this->get_start(),
 			cell_length = this->get_length(cell),
-			level_0_cell_length = this->get_level_0_cell_length(),
 			ret_val = {{
-				grid_start[0]
-				+ double(indices[0])
-					* level_0_cell_length[0]
-					/ double(uint64_t(1) << max_ref_lvl)
+				double(indices[0]) / double(uint64_t(1) << max_ref_lvl)
 				+ cell_length[0] / 2,
 
-				grid_start[1]
-				+ double(indices[1])
-					* level_0_cell_length[1]
-					/ double(uint64_t(1) << max_ref_lvl)
+				double(indices[1]) / double(uint64_t(1) << max_ref_lvl)
 				+ cell_length[1] / 2,
 
-				grid_start[2]
-				+ double(indices[2])
-					* level_0_cell_length[2]
-					/ double(uint64_t(1) << max_ref_lvl)
+				double(indices[2]) / double(uint64_t(1) << max_ref_lvl)
 				+ cell_length[2] / 2
 			}};
 
@@ -408,7 +298,7 @@ public:
 	/*!
 	Returns the center of a cell of given refinement level at given index.
 
-	A quiet NaN is returned if given error_cell,
+	A quiet NaN is returned if the given error_cell,
 	or the given cell cannot exist in the grid.
 	*/
 	boost::array<double, 3> get_center(
@@ -448,37 +338,23 @@ public:
 			coordinate_scaling_factor = 1.0 / double(index_scaling_factor),
 			cell_offset_scaling_factor = 1.0 / double(uint64_t(1) << refinement_level) / 2;
 
-		const boost::array<double, 3>
-			grid_start =  this->get_start(),
-			ret_val = {{
-				grid_start[0]
-				+ double(index[0])
-					* this->parameters.level_0_cell_length[0]
-					* coordinate_scaling_factor
-				+ this->parameters.level_0_cell_length[0]
-					* cell_offset_scaling_factor,
+		const boost::array<double, 3> ret_val = {{
+			double(index[0]) * coordinate_scaling_factor
+			+ cell_offset_scaling_factor,
 
-				grid_start[1]
-				+ double(index[1])
-					* this->parameters.level_0_cell_length[1]
-					* coordinate_scaling_factor
-				+ this->parameters.level_0_cell_length[1]
-					* cell_offset_scaling_factor,
+			double(index[1]) * coordinate_scaling_factor
+			+ cell_offset_scaling_factor,
 
-				grid_start[2]
-				+ double(index[2])
-					* this->parameters.level_0_cell_length[2]
-					* coordinate_scaling_factor
-				+ this->parameters.level_0_cell_length[2]
-					* cell_offset_scaling_factor
-			}};
+			double(index[2]) * coordinate_scaling_factor
+			+ cell_offset_scaling_factor
+		}};
 
 		return ret_val;
 	}
 
 
 	/*!
-	Returns a cell of given refinement level at given location.
+	Returns the cell of given refinement level at given location.
 
 	Returns error_cell if given a location outside of the current
 	grid either in coordinate or refinement level.
@@ -509,12 +385,9 @@ public:
 	inside the geometry that is at the same location in the
 	geometry as given coordinate.
 	*/
-	boost::array<double, 3> get_real_coordinate(
-		const boost::array<double, 3>& given_coordinate
-	) const {
-		const boost::array<double, 3>
-			start = this->get_start(),
-			end = this->get_end();
+	boost::array<double, 3> get_real_coordinate(const boost::array<double, 3> given_coordinate) const
+	{
+		const boost::array<double, 3> end = this->get_end();
 
 		boost::array<double, 3> ret_val = {{
 			std::numeric_limits<double>::quiet_NaN(),
@@ -524,18 +397,18 @@ public:
 
 		for (size_t dimension = 0; dimension < given_coordinate.size(); dimension++) {
 
-			if (given_coordinate[dimension] >= start[dimension]
+			if (given_coordinate[dimension] >= 0.0
 			&& given_coordinate[dimension] <= end[dimension]) {
 
 				ret_val[dimension] = given_coordinate[dimension];
 
 			} else if (this->topology.is_periodic(dimension)) {
 
-				const double grid_length = end[dimension] - start[dimension];
+				const double grid_length = end[dimension];
 
-				if (given_coordinate[dimension] < start[dimension]) {
+				if (given_coordinate[dimension] < 0.0) {
 
-					const double distance = start[dimension] - given_coordinate[dimension];
+					const double distance = -given_coordinate[dimension];
 
 					ret_val[dimension]
 						= given_coordinate[dimension]
@@ -571,23 +444,18 @@ public:
 		}};
 
 		const boost::array<double, 3>
-			grid_start = this->get_start(),
 			grid_end = this->get_end(),
-			coordinate = this->get_real_coordinate(given_coordinate),
-			level_0_cell_length = this->get_level_0_cell_length();
-
+			coordinate = this->get_real_coordinate(given_coordinate);
 
 		for (size_t dimension = 0; dimension < given_coordinate.size(); dimension++) {
 
-			if (coordinate[dimension] >= grid_start[dimension]
+			if (coordinate[dimension] >= 0.0
 			&& coordinate[dimension] <= grid_end[dimension]) {
 
 				ret_val[dimension] = uint64_t(
 					floor(
-						(coordinate[dimension] - grid_start[dimension])
-						/ (level_0_cell_length[dimension]
-							/ double(uint64_t(1) << this->mapping.get_maximum_refinement_level())
-						)
+						coordinate[dimension]
+						* double(uint64_t(1) << this->mapping.get_maximum_refinement_level())
 					)
 				);
 
@@ -596,7 +464,6 @@ public:
 
 		return ret_val;
 	}
-
 
 
 private:

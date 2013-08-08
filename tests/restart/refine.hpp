@@ -116,11 +116,11 @@ public:
 				abort();
 			}
 
-			Cell* parent_data = grid[grid.get_parent_for_removed(removed_cell)];
+			Cell* parent_data = grid[grid.mapping.get_parent(removed_cell)];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for parent cell after unrefining: "
-					<< grid.get_parent_for_removed(removed_cell)
+					<< grid.mapping.get_parent(removed_cell)
 					<< std::endl;
 				abort();
 			}

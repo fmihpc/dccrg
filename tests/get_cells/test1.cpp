@@ -47,11 +47,6 @@ int main(int argc, char* argv[])
 
 	Dccrg<int> grid;
 
-	if (!grid.geometry.set(0, 0, 0, 1, 1, 1)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
-
 	const boost::array<uint64_t, 3> grid_length = {{7, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 2);
 

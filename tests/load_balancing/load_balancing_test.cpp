@@ -4,6 +4,7 @@ Visualize the results using for example VisIt.
 */
 
 #include "algorithm"
+#include "boost/array.hpp"
 #include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "boost/unordered_set.hpp"
@@ -14,6 +15,7 @@ Visualize the results using for example VisIt.
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
 
 using namespace std;
 using namespace boost::mpi;
@@ -116,18 +118,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	Dccrg<int> grid;
-
-	if (!grid.geometry.set(
-		-0.5, -0.5, -0.5,
-		1.0 / x_length, 1.0 / y_length, 1.0 / z_length
-	)) {
-		if (comm.rank() == 0) {
-			cerr << "Couldn't set grid geometry" << endl;
-		}
-		return EXIT_FAILURE;
-	}
-
+	Dccrg<int, Cartesian_Geometry> grid;
 	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 	grid.initialize(
 		grid_length,
@@ -135,6 +126,20 @@ int main(int argc, char* argv[])
 		load_balancing_method.c_str(),
 		neighborhood_size
 	);
+
+	Cartesian_Geometry::Parameters geom_params;
+	geom_params.start[0] =
+	geom_params.start[1] =
+	geom_params.start[2] = -0.5;
+	geom_params.level_0_cell_length[0] = 1.0 / x_length;
+	geom_params.level_0_cell_length[1] = 1.0 / y_length;
+	geom_params.level_0_cell_length[2] = 1.0 / z_length;
+	if (!grid.set_geometry(geom_params)) {
+		if (comm.rank() == 0) {
+			cerr << "Couldn't set grid geometry" << endl;
+		}
+		return EXIT_FAILURE;
+	}
 
 	// set load balancing options
 	if (load_balancing_method == "HIER") {
@@ -147,9 +152,11 @@ int main(int argc, char* argv[])
 	vector<uint64_t> cells = grid.get_cells();
 	for (unsigned int i = 0; i < refine_n; i++) {
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			double x = grid.geometry.get_cell_x(*cell);
-			double y = grid.geometry.get_cell_y(*cell);
-			double z = grid.geometry.get_cell_z(*cell);
+			const boost::array<double, 3> cell_center = grid.geometry.get_center(*cell);
+			double
+				x = cell_center[0],
+				y = cell_center[1],
+				z = cell_center[2];
 
 			if (sqrt(x * x + y * y + z * z) < 0.1) {
 				grid.refine_completely(*cell);

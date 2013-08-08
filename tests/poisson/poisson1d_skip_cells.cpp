@@ -27,6 +27,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 
 #include "dccrg.hpp"
+#include "dccrg_cartesian_geometry.hpp"
 
 #include "poisson_solve.hpp"
 
@@ -79,7 +80,7 @@ template<class Geometry> double get_p_norm(
 	double local = 0, global = 0;
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		const double coord = grid.geometry.get_cell_x(cell);
+		const double coord = grid.geometry.get_center(cell)[0];
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(
 			fabs(data->solution - get_solution_value(coord)),
@@ -120,13 +121,24 @@ int main(int argc, char* argv[])
 		const double cell_length = 2 * M_PI / number_of_cells;
 
 		Poisson_Solve solver(10, 1e-15, 2, 10);
-		dccrg::Dccrg<Poisson_Cell> grid, grid_reference;
+		dccrg::Dccrg<
+			Poisson_Cell,
+			dccrg::Cartesian_Geometry
+		> grid, grid_reference;
 
-		// create one layer of cells to skip around x dimension
-		grid          .geometry.set(0, 0, 0, cell_length, 1, 1);
-		grid_reference.geometry.set(0, 0, 0, cell_length, 1, 1);
+		dccrg::Cartesian_Geometry::Parameters geom_params;
+		geom_params.start[0] =
+		geom_params.start[1] =
+		geom_params.start[2] = 0;
+		geom_params.level_0_cell_length[0] = cell_length;
+		geom_params.level_0_cell_length[1] = 1;
+		geom_params.level_0_cell_length[2] = 1;
+
+		grid          .set_geometry(geom_params);
+		grid_reference.set_geometry(geom_params);
 
 		const boost::array<uint64_t, 3>
+			// create an extra layer of cells to skip in non-x dimensions
 			grid_length = {{number_of_cells, 3, 3}},
 			grid_reference_length = {{number_of_cells, 1, 1}};
 
@@ -204,7 +216,7 @@ int main(int argc, char* argv[])
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				abort();
 			}
-			const double coord = grid.geometry.get_cell_x(cell);
+			const double coord = grid.geometry.get_center(cell)[0];
 			data->rhs = get_rhs_value(coord);
 			data->solution = 0;
 		}
@@ -214,7 +226,7 @@ int main(int argc, char* argv[])
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				abort();
 			}
-			const double coord = grid_reference.geometry.get_cell_x(cell);
+			const double coord = grid_reference.geometry.get_center(cell)[0];
 			data->rhs = get_rhs_value(coord);
 			data->solution = 0;
 		}

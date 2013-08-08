@@ -3,6 +3,7 @@ Tests the grid using simple refinement which should induce refinement also acros
 */
 
 #include "algorithm"
+#include "boost/array.hpp"
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
@@ -36,19 +37,20 @@ int main(int argc, char* argv[])
 	Dccrg<int, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-	}
-	y_coordinates.push_back(0);
-	y_coordinates.push_back(0.5);
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(0.5);
-	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
-
+	const boost::array<uint64_t, 3> grid_length = {{GRID_SIZE, 1, 1}};
 	#define NEIGHBORHOOD_SIZE 1
-	grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+
+	#define CELL_SIZE (1.0 / GRID_SIZE)
+	Stretched_Cartesian_Geometry::Parameters geom_params;
+	for (int i = 0; i <= GRID_SIZE; i++) {
+		geom_params.coordinates[0].push_back(i * CELL_SIZE);
+	}
+	geom_params.coordinates[1].push_back(0);
+	geom_params.coordinates[1].push_back(0.5);
+	geom_params.coordinates[2].push_back(0);
+	geom_params.coordinates[2].push_back(0.5);
+	grid.set_geometry(geom_params);
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
@@ -65,7 +67,12 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		// refine the smallest cell that is closest to the starting corner
-		grid.refine_completely_at(0.000001 * CELL_SIZE, 0.000001 * CELL_SIZE, 0.000001 * CELL_SIZE);
+		const boost::array<double, 3> refine_coord = {{
+			0.000001 * CELL_SIZE,
+			0.000001 * CELL_SIZE,
+			0.000001 * CELL_SIZE
+		}};
+		grid.refine_completely_at(refine_coord);
 		grid.stop_refining();
 		grid.balance_load();
 		vector<uint64_t> cells = grid.get_cells();

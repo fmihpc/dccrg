@@ -557,10 +557,11 @@ private:
 			temp_cell_info.first = cell_data;
 
 			const int cell_ref_lvl = grid.get_refinement_level(cell);
+			const boost::array<double, 3> cell_length = grid.geometry.get_length(cell);
 			const double
-				cell_x_half_size = grid.geometry.get_cell_length_x(cell) / 2.0,
-				cell_y_half_size = grid.geometry.get_cell_length_y(cell) / 2.0,
-				cell_z_half_size = grid.geometry.get_cell_length_z(cell) / 2.0;
+				cell_x_half_size = cell_length[0] / 2.0,
+				cell_y_half_size = cell_length[1] / 2.0,
+				cell_z_half_size = cell_length[2] / 2.0;
 
 			// get face neighbors of current cell, possibly skipping some
 			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
@@ -591,10 +592,11 @@ private:
 			for (size_t i = 0; i < face_neighbors.size(); i++) {
 				const uint64_t neighbor = face_neighbors[i].first;
 				const int direction = face_neighbors[i].second;
+				const boost::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
 				const double
-					neigh_x_half_size = grid.geometry.get_cell_length_x(neighbor) / 2.0,
-					neigh_y_half_size = grid.geometry.get_cell_length_y(neighbor) / 2.0,
-					neigh_z_half_size = grid.geometry.get_cell_length_z(neighbor) / 2.0;
+					neigh_x_half_size = neighbor_length[0] / 2.0,
+					neigh_y_half_size = neighbor_length[1] / 2.0,
+					neigh_z_half_size = neighbor_length[2] / 2.0;
 
 				// assume rhs and solution are cell-centered
 				switch(direction) {

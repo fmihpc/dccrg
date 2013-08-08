@@ -15,4 +15,4 @@ scalability: scalability.cpp ../../dccrg.hpp Makefile
 
 c: clean
 clean:
-	rm -f refine_simple unrefine_simple scalability
+	rm -f refine_simple unrefine_simple scalability *.visit *.vtk

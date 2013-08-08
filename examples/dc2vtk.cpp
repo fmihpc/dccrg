@@ -146,11 +146,20 @@ int main(int argc, char* argv[])
 		mapping.set_length(grid_length);
 		mapping.set_maximum_refinement_level(max_ref_level);
 
+		/*
+		Create the geometry that was read from file
+		*/
 		Cartesian_Geometry geometry(mapping.length, mapping, topology);
-		geometry.set(
-			x_start, y_start, z_start,
-			cell_x_size, cell_y_size, cell_z_size
-		);
+
+		Cartesian_Geometry::Parameters parameters;
+		parameters.start[0] = x_start;
+		parameters.start[1] = y_start;
+		parameters.start[2] = z_start;
+		parameters.level_0_cell_length[0] = cell_x_size;
+		parameters.level_0_cell_length[1] = cell_y_size;
+		parameters.level_0_cell_length[2] = cell_z_size;
+
+		geometry.set(parameters);
 
 		// write the game data to a .vtk file
 		const string input_name(argv[arg]),
@@ -180,16 +189,22 @@ int main(int argc, char* argv[])
 		sort(cells.begin(), cells.end());
 
 		// write separate points for every cells' corners
+
 		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < cells.size(); i++) {
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_min(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_min(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_min(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
-			outfile << geometry.get_cell_x_max(cells[i]) << " " << geometry.get_cell_y_max(cells[i]) << " " << geometry.get_cell_z_max(cells[i]) << std::endl;
+			const boost::array<double, 3>
+				cell_min = geometry.get_min(cells[i]),
+				cell_max = geometry.get_max(cells[i]);
+
+			outfile
+				<< cell_min[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
+				<< cell_max[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
+				<< cell_min[0] << " " << cell_max[1] << " " << cell_min[2] << "\n"
+				<< cell_max[0] << " " << cell_max[1] << " " << cell_min[2] << "\n"
+				<< cell_min[0] << " " << cell_min[1] << " " << cell_max[2] << "\n"
+				<< cell_max[0] << " " << cell_min[1] << " " << cell_max[2] << "\n"
+				<< cell_min[0] << " " << cell_max[1] << " " << cell_max[2] << "\n"
+				<< cell_max[0] << " " << cell_max[1] << " " << cell_max[2] << "\n";
 		}
 
 		// map cells to written points

@@ -27,6 +27,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 
 #include "dccrg.hpp"
+#include "dccrg_cartesian_geometry.hpp"
 
 #include "poisson_solve.hpp"
 
@@ -78,15 +79,16 @@ template<class Geometry> double get_p_norm(
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// assumes grid is 1d
+		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
 		if (grid.length.get()[0] > 1) {
-			coord = grid.geometry.get_cell_x(cell);
+			coord = cell_center[0];
 		}
 		if (grid.length.get()[1] > 1) {
-			coord = grid.geometry.get_cell_y(cell);
+			coord = cell_center[1];
 		}
 		if (grid.length.get()[2] > 1) {
-			coord = grid.geometry.get_cell_z(cell);
+			coord = cell_center[2];
 		}
 
 		Poisson_Cell* data = grid[cell];
@@ -129,12 +131,10 @@ int main(int argc, char* argv[])
 		const double cell_length = 2 * M_PI / number_of_cells;
 
 		Poisson_Solve solver;
-		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z, grid_reference;
-
-		grid_x.geometry.set(0, 0, 0, cell_length, 1, 1);
-		grid_y.geometry.set(0, 0, 0, 1, cell_length, 1);
-		grid_z.geometry.set(0, 0, 0, 1, 1, cell_length);
-		grid_reference.geometry.set(0, 0, 0, cell_length, 1, 1);
+		dccrg::Dccrg<
+			Poisson_Cell,
+			dccrg::Cartesian_Geometry
+		> grid_x, grid_y, grid_z, grid_reference;
 
 		const boost::array<uint64_t, 3>
 			grid_length_x = {{number_of_cells, 1, 1}},
@@ -145,6 +145,27 @@ int main(int argc, char* argv[])
 		grid_y.initialize(grid_length_y, comm, "RCB", 0, -1, true, true, true);
 		grid_z.initialize(grid_length_z, comm, "RCB", 0, -1, true, true, true);
 		grid_reference.initialize(grid_length_x, MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
+
+		dccrg::Cartesian_Geometry::Parameters geom_params;
+		geom_params.start[0] =
+		geom_params.start[1] =
+		geom_params.start[2] = 0;
+		geom_params.level_0_cell_length[0] =
+		geom_params.level_0_cell_length[1] =
+		geom_params.level_0_cell_length[2] = 1;
+
+		geom_params.level_0_cell_length[0] = cell_length;
+		grid_x.set_geometry(geom_params);
+		grid_reference.set_geometry(geom_params);
+		geom_params.level_0_cell_length[0] = 1;
+
+		geom_params.level_0_cell_length[1] = cell_length;
+		grid_y.set_geometry(geom_params);
+		geom_params.level_0_cell_length[1] = 1;
+
+		geom_params.level_0_cell_length[2] = cell_length;
+		grid_z.set_geometry(geom_params);
+		geom_params.level_0_cell_length[2] = 1;
 
 		// refine every other cell once
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
@@ -199,7 +220,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_x.geometry.get_cell_x(cell);
+			const double coord = grid_x.geometry.get_center(cell)[0];
 			data_x->rhs = get_rhs_value(coord);
 			data_x->solution = 0;
 		}
@@ -211,7 +232,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_y.geometry.get_cell_y(cell);
+			const double coord = grid_y.geometry.get_center(cell)[1];
 			data_y->rhs = get_rhs_value(coord);
 			data_y->solution = 0;
 		}
@@ -223,7 +244,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_z.geometry.get_cell_z(cell);
+			const double coord = grid_z.geometry.get_center(cell)[2];
 			data_z->rhs = get_rhs_value(coord);
 			data_z->solution = 0;
 		}
@@ -235,7 +256,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const double coord = grid_reference.geometry.get_cell_x(cell);
+			const double coord = grid_reference.geometry.get_center(cell)[0];
 			data_reference->rhs = get_rhs_value(coord);
 			data_reference->solution = 0;
 		}

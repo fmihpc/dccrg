@@ -3,6 +3,7 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 */
 
 #include "algorithm"
+#include "boost/array.hpp"
 #include "boost/assign/list_of.hpp"
 #include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
@@ -170,21 +171,8 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	const uint64_t grid_size = 18;
-	const double cell_size = 1.0 / grid_size;
-	game_grid.set_geometry(
-		grid_size, grid_size, 1,
-		0, 0, 0,
-		cell_size, cell_size, cell_size
-	);
-
-	game_grid.initialize(
-		comm,
-		"RANDOM",
-		2,
-		0,
-		true, true, true
-	);
+	const boost::array<uint64_t, 3> grid_length = {{18, 18, 1}};
+	game_grid.initialize(grid_length, comm, "RANDOM", 2, 0, true, true, true);
 
 	/*
 	Use a neighborhood like this in the z plane:
@@ -216,7 +204,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initial condition
-	const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_size, 0);
+	const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], 0);
 	BOOST_FOREACH(const uint64_t cell, live_cells) {
 		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data != NULL) {
@@ -244,7 +232,7 @@ int main(int argc, char* argv[])
 
 		// check that the result is correct
 		if (step % 4 == 0) {
-			const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_size, step);
+			const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], step);
 			BOOST_FOREACH(const uint64_t cell, cells) {
 				game_of_life_cell* cell_data = game_grid[cell];
 				if (cell_data == NULL) {
@@ -304,7 +292,7 @@ int main(int argc, char* argv[])
 
 			if (cell_data->data[0] == 1) {
 				// color live cells of interlaced games differently
-				const Types<3>::indices_t indices = game_grid.get_indices(cell);
+				const Types<3>::indices_t indices = game_grid.mapping.get_indices(cell);
 				outfile << 1 + indices[0] % 2 + (indices[1] % 2) * 2;
 			} else {
 				outfile << 0;

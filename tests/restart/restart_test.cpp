@@ -28,6 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
 
 // include restart cell before gol cell
 #include "cell.hpp"
@@ -289,36 +290,42 @@ int main(int argc, char* argv[])
 	// initialize grid
 	Dccrg<Cell, Cartesian_Geometry> game_grid, reference_grid;
 
-	const int grid_size = 15;	// in unrefined cells
-	const double cell_size = 1.0 / grid_size;
+	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
+	const unsigned int neighborhood_size = 1;
+	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
+	// play complete reference game on each process
+	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size);
 
-	if (!game_grid.set_geometry(grid_size, grid_size, 1, 0, 0, 0, cell_size, cell_size, cell_size)) {
+	Cartesian_Geometry::Parameters geom_params;
+	geom_params.start[0] =
+	geom_params.start[1] =
+	geom_params.start[2] = 0;
+	geom_params.level_0_cell_length[0] =
+	geom_params.level_0_cell_length[1] =
+	geom_params.level_0_cell_length[2] = 1.0 / grid_length[0];
+
+	if (!game_grid.set_geometry(geom_params)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
 
-	if (!reference_grid.set_geometry(grid_size, grid_size, 1, 0, 0, 0, cell_size, cell_size, cell_size)) {
+	if (!reference_grid.set_geometry(geom_params)) {
 		cerr << "Couldn't set reference grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
 
-	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(comm, "RANDOM", neighborhood_size);
 	game_grid.balance_load();
-
-	// play complete reference game on each process
-	reference_grid.initialize(MPI_COMM_SELF, "RANDOM", neighborhood_size);
 
 	const uint64_t time_steps = 25;
 	uint64_t step = 0;
 
 	// always start a new reference game
-	Initialize<Cartesian_Geometry>::initialize(reference_grid, grid_size);
+	Initialize<Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
 
 	// either start a new game...
 	if (restart_name == "") {
 
-		Initialize<Cartesian_Geometry>::initialize(game_grid, grid_size);
+		Initialize<Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
 
 		// save initial state
 		IO<Cartesian_Geometry>::save(
@@ -345,7 +352,7 @@ int main(int argc, char* argv[])
 
 	while (step < time_steps) {
 
-		Refine<Cartesian_Geometry>::refine(game_grid, grid_size, step, comm_size);
+		Refine<Cartesian_Geometry>::refine(game_grid, grid_length[0], step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_copies_of_remote_neighbors();
@@ -378,7 +385,7 @@ int main(int argc, char* argv[])
 
 			const int refinement_level = game_grid.get_refinement_level(cell);
 			if (refinement_level > 0) {
-				reference_cell = game_grid.get_parent_for_removed(cell);
+				reference_cell = game_grid.mapping.get_level_0_parent(cell);
 			} else {
 				reference_cell = cell;
 			}

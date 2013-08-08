@@ -20,6 +20,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_ADVECTION_SOLVE_HPP
 
 
+#include "boost/array.hpp"
 #include "boost/foreach.hpp"
 #include "cmath"
 #include "iostream"
@@ -66,11 +67,11 @@ public:
 				abort();
 			}
 
-			const double cell_density = cell_data->density(),
-				cell_length_x = grid.geometry.get_cell_length_x(cell),
-				cell_length_y = grid.geometry.get_cell_length_y(cell),
-				cell_length_z = grid.geometry.get_cell_length_z(cell),
-				cell_volume = cell_length_x * cell_length_y * cell_length_z;
+			const boost::array<double, 3> cell_length = grid.geometry.get_length(cell);
+
+			const double
+				cell_density = cell_data->density(),
+				cell_volume = cell_length[0] * cell_length[1] * cell_length[2];
 
 			const std::vector<std::pair<uint64_t, int> > neighbors_to_solve
 				= grid.get_face_neighbors_of(cell);
@@ -93,11 +94,11 @@ public:
 					abort();
 				}
 
-				const double neighbor_density = neighbor_data->density(),
-					neighbor_length_x = grid.geometry.get_cell_length_x(neighbor),
-					neighbor_length_y = grid.geometry.get_cell_length_y(neighbor),
-					neighbor_length_z = grid.geometry.get_cell_length_z(neighbor),
-					neighbor_volume = neighbor_length_x * neighbor_length_y * neighbor_length_z;
+				const boost::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
+
+				const double
+					neighbor_density = neighbor_data->density(),
+					neighbor_volume = neighbor_length[0] * neighbor_length[1] * neighbor_length[2];
 
 				// get area shared between cell and current neighbor
 				double min_area = -1;
@@ -105,22 +106,22 @@ public:
 				case -1:
 				case +1:
 					min_area = std::min(
-						cell_length_y * cell_length_z,
-						neighbor_length_y * neighbor_length_z
+						cell_length[1] * cell_length[2],
+						neighbor_length[1] * neighbor_length[2]
 					);
 					break;
 				case -2:
 				case +2:
 					min_area = std::min(
-						cell_length_x * cell_length_z,
-						neighbor_length_x * neighbor_length_z
+						cell_length[0] * cell_length[2],
+						neighbor_length[0] * neighbor_length[2]
 					);
 					break;
 				case -3:
 				case +3:
 					min_area = std::min(
-						cell_length_x * cell_length_y,
-						neighbor_length_x * neighbor_length_y
+						cell_length[0] * cell_length[1],
+						neighbor_length[0] * neighbor_length[1]
 					);
 					break;
 				}
@@ -134,12 +135,12 @@ public:
 
 				// velocity interpolated to shared face
 				const double
-					vx = (cell_length_x * neighbor_data->vx() + neighbor_length_x * cell_data->vx())
-						/ (cell_length_x + neighbor_length_x),
-					vy = (cell_length_y * neighbor_data->vy() + neighbor_length_y * cell_data->vy())
-						/ (cell_length_y + neighbor_length_y),
-					vz = (cell_length_z * neighbor_data->vz() + neighbor_length_z * cell_data->vz())
-						/ (cell_length_z + neighbor_length_z);
+					vx = (cell_length[0] * neighbor_data->vx() + neighbor_length[0] * cell_data->vx())
+						/ (cell_length[0] + neighbor_length[0]),
+					vy = (cell_length[1] * neighbor_data->vy() + neighbor_length[1] * cell_data->vy())
+						/ (cell_length[1] + neighbor_length[1]),
+					vz = (cell_length[2] * neighbor_data->vz() + neighbor_length[2] * cell_data->vz())
+						/ (cell_length[2] + neighbor_length[2]);
 
 				switch (direction) {
 				case +1:
@@ -257,10 +258,17 @@ public:
 				abort();
 			}
 
-			const double min_step_x = grid.geometry.get_cell_length_x(cell_id) / fabs(cell->vx()),
-				min_step_y = grid.geometry.get_cell_length_y(cell_id) / fabs(cell->vy()),
-				min_step_z = grid.geometry.get_cell_length_z(cell_id) / fabs(cell->vz()),
-				current_min_step = std::min(min_step_x, std::min(min_step_y, min_step_z));
+			const boost::array<double, 3>
+				cell_length = grid.geometry.get_length(cell_id),
+				current_steps = {{
+					cell_length[0] / fabs(cell->vx()),
+					cell_length[1] / fabs(cell->vy()),
+					cell_length[2] / fabs(cell->vz())
+				}};
+
+			const double current_min_step =
+				std::min(current_steps[0],
+				std::min(current_steps[1], current_steps[2]));
 
 			if (min_step > current_min_step) {
 				min_step = current_min_step;

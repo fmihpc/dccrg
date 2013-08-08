@@ -27,6 +27,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 
 #include "dccrg.hpp"
+#include "dccrg_cartesian_geometry.hpp"
 
 #include "poisson_solve.hpp"
 #include "reference_poisson_solve.hpp"
@@ -44,9 +45,9 @@ Returns the p-norm of calculated and reference solutions to Poisson's equation.
 
 Given offset is added to the exact solution before calculating the norm.
 */
-double get_p_norm(
+template<class Geometry> double get_p_norm(
 	const std::vector<uint64_t>& cells,
-	const dccrg::Dccrg<Poisson_Cell>& grid,
+	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
 	const Reference_Poisson_Solve& reference,
 	const double p_of_norm
 ) {
@@ -69,10 +70,10 @@ Returns the p-norm between given solutions to Poisson's equation.
 Given cells must be local in both grids and both grids must also
 have identical communicators and structure except for their orientation.
 */
-double get_p_norm(
+template<class Geometry> double get_p_norm(
 	const std::vector<uint64_t>& cells,
-	const dccrg::Dccrg<Poisson_Cell>& grid1,
-	const dccrg::Dccrg<Poisson_Cell>& grid2,
+	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid1,
+	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid2,
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
@@ -95,10 +96,10 @@ double get_p_norm(
 /*!
 Offsets the given parallel solution so that it is 0 in the last cell.
 */
-void offset_solution(
+template<class Geometry> void offset_solution(
 	const uint64_t last_cell,
 	const std::vector<uint64_t>& cells,
-	const dccrg::Dccrg<Poisson_Cell>& grid
+	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 ) {
 	MPI_Comm comm = grid.get_communicator();
 
@@ -168,12 +169,10 @@ int main(int argc, char* argv[])
 
 		// using more iterations doesn't help
 		Poisson_Solve solver(10, 1e-7, 2, 10);
-		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z, grid_serial;
-
-		grid_x.geometry.set(0, 0, 0, cell_length, 1, 1);
-		grid_y.geometry.set(0, 0, 0, 1, cell_length, 1);
-		grid_z.geometry.set(0, 0, 0, 1, 1, cell_length);
-		grid_serial.geometry.set(0, 0, 0, cell_length, 1, 1);
+		dccrg::Dccrg<
+			Poisson_Cell,
+			dccrg::Cartesian_Geometry
+		> grid_x, grid_y, grid_z, grid_serial;
 
 		const boost::array<uint64_t, 3>
 			grid_length_x = {{number_of_cells, 1, 1}},
@@ -184,6 +183,27 @@ int main(int argc, char* argv[])
 		grid_y.initialize(grid_length_y, comm, "RCB", 0, 0, true, true, true);
 		grid_z.initialize(grid_length_z, comm, "RCB", 0, 0, true, true, true);
 		grid_serial.initialize(grid_length_x, MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
+
+		dccrg::Cartesian_Geometry::Parameters geom_params;
+		geom_params.start[0] =
+		geom_params.start[1] =
+		geom_params.start[2] = 0;
+		geom_params.level_0_cell_length[0] =
+		geom_params.level_0_cell_length[1] =
+		geom_params.level_0_cell_length[2] = 1;
+
+		geom_params.level_0_cell_length[0] = cell_length;
+		grid_x.set_geometry(geom_params);
+		grid_serial.set_geometry(geom_params);
+		geom_params.level_0_cell_length[0] = 1;
+
+		geom_params.level_0_cell_length[1] = cell_length;
+		grid_y.set_geometry(geom_params);
+		geom_params.level_0_cell_length[1] = 1;
+
+		geom_params.level_0_cell_length[2] = cell_length;
+		grid_z.set_geometry(geom_params);
+		geom_params.level_0_cell_length[2] = 1;
 
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
 

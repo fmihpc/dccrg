@@ -41,17 +41,37 @@ namespace dccrg {
 
 
 /*!
+\brief Parameters required for the Stretched_Cartesian_Geometry class of dccrg.
+
+Is given to the Stretched_Cartesian_Geometry::set() function.
+*/
+class Stretched_Cartesian_Geometry_Parameters
+{
+public:
+	/*!
+	The coordinates of unrefined cells in respective dimensions.
+
+	First value is the starting point of the grid, the following
+	ith value is the end point of the ith cell of refinement level 0.
+	*/
+	boost::array<std::vector<double>, 3> coordinates;
+};
+
+
+/*!
 \brief Geometry class for dccrg with rectangular cuboid cells
 
-A geometry class in which the coordinates of unrefined cells are given
-by three vectors of floating points numbers.
-The number of values in each vector must be equal to the
-length of the grid + 1 in the respective dimension.
+A geometry class in which the coordinates of cells of
+refinement level 0 are given by three vectors of floating
+points numbers. The number of values in each vector must
+be equal to the length of the grid + 1 in the respective dimension.
 */
 class Stretched_Cartesian_Geometry
 {
 
 public:
+
+	typedef Stretched_Cartesian_Geometry_Parameters Parameters;
 
 	/*!
 	Public read-only version of the grid's length in cells of refinement level 0.
@@ -107,19 +127,15 @@ public:
 	*/
 	void reset()
 	{
-		this->coordinates[0].resize(this->length.get()[0] + 1);
-		for (uint64_t i = 0; i <= this->length.get()[0]; i++) {
-			this->coordinates[0][i] = i;
-		}
-
-		this->coordinates[1].resize(this->length.get()[1] + 1);
-		for (uint64_t i = 0; i <= this->length.get()[1]; i++) {
-			this->coordinates[1][i] = i;
-		}
-
-		this->coordinates[2].resize(this->length.get()[2] + 1);
-		for (uint64_t i = 0; i <= this->length.get()[2]; i++) {
-			this->coordinates[2][i] = i;
+		for (size_t
+			dimension = 0;
+			dimension < this->parameters.coordinates.size();
+			dimension++
+		) {
+			this->parameters.coordinates[dimension].resize(this->length.get()[dimension] + 1);
+			for (uint64_t i = 0; i <= this->length.get()[dimension]; i++) {
+				this->parameters.coordinates[dimension][i] = i;
+			}
 		}
 	}
 
@@ -127,9 +143,9 @@ public:
 	/*!
 	Returns the geometry of the grid.
 	*/
-	const boost::array<std::vector<double>, 3>& get() const
+	const Parameters& get() const
 	{
-		return this->coordinates;
+		return this->parameters;
 	}
 
 
@@ -143,79 +159,42 @@ public:
 	Returns true on success.
 	Returns false if unsuccessful and does nothing in that case.
 	*/
-	bool set(const boost::array<std::vector<double>, 3>& given_coordinates)
+	bool set(const Parameters& given_parameters)
 	{
-		if (coordinates[0].size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the x direction"
-				<< std::endl;
-			return false;
-		}
-		if (coordinates[1].size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the y direction"
-				<< std::endl;
-			return false;
-		}
-		if (coordinates[2].size() < 2) {
-			std::cerr << "At least two coordinates are required for grid cells in the z direction"
-				<< std::endl;
-			return false;
-		}
-
-		for (uint64_t i = 0; i < coordinates[0].size() - 1; i++) {
-			if (coordinates[0][i] >= coordinates[0][i + 1]) {
-				std::cerr << "Coordinates in the x direction must be strictly increasing"
+		for (size_t
+			dimension = 0;
+			dimension < given_parameters.coordinates.size();
+			dimension++
+		) {
+			if (given_parameters.coordinates[dimension].size() < 2) {
+				std::cerr << "At least two coordinates are required for grid cells in the "
+					<< dimension << " dimension"
 					<< std::endl;
 				return false;
 			}
-		}
-		for (uint64_t i = 0; i < coordinates[1].size() - 1; i++) {
-			if (coordinates[1][i] >= coordinates[1][i + 1]) {
-				std::cerr << "Coordinates in the y direction must be strictly increasing"
+
+			if (given_parameters.coordinates[dimension].size() != this->length.get()[dimension] + 1) {
+				std::cerr << "Number of values in dimension " << dimension
+					<< " must be length of the grid + 1 (" << this->length.get()[dimension] + 1
+					<< ") but is " << given_parameters.coordinates[dimension].size()
 					<< std::endl;
 				return false;
 			}
-		}
-		for (uint64_t i = 0; i < coordinates[2].size() - 1; i++) {
-			if (coordinates[2][i] >= coordinates[2][i + 1]) {
-				std::cerr << "Coordinates in the z direction must be strictly increasing"
-					<< std::endl;
-				return false;
+
+			for (uint64_t i = 0; i < given_parameters.coordinates[dimension].size() - 1; i++) {
+				if (
+					given_parameters.coordinates[dimension][i]
+					>= given_parameters.coordinates[dimension][i + 1]
+				) {
+					std::cerr << "Coordinates in the " << dimension
+						<< " dimension must be strictly increasing"
+						<< std::endl;
+					return false;
+				}
 			}
 		}
 
-		for (size_t i = 0; i < this->length.get().size(); i++) {
-			if (coordinates[i].size() != this->length.get()[i] + 1) {
-				std::cerr << "Number of values in dimension " << i
-					<< " must be length of the grid + 1 (" << this->length.get()[i] + 1
-					<< ") but is " << coordinates[i].size()
-					<< std::endl;
-				return false;
-			}
-		}
-
-		this->coordinates[0].clear();
-		this->coordinates[0].reserve(given_coordinates[0].size());
-		this->coordinates[0].insert(
-			this->coordinates[0].begin(),
-			given_coordinates[0].begin(),
-			given_coordinates[0].end()
-		);
-
-		this->coordinates[1].clear();
-		this->coordinates[1].reserve(given_coordinates[1].size());
-		this->coordinates[1].insert(
-			this->coordinates[1].begin(),
-			given_coordinates[1].begin(),
-			given_coordinates[1].end()
-		);
-
-		this->coordinates[2].clear();
-		this->coordinates[2].reserve(given_coordinates[2].size());
-		this->coordinates[2].insert(
-			this->coordinates[2].begin(),
-			given_coordinates[2].begin(),
-			given_coordinates[2].end()
-		);
+		this->parameters = given_parameters;
 
 		return true;
 	}
@@ -225,16 +204,6 @@ public:
 	*/
 	bool set(const Stretched_Cartesian_Geometry& other)
 	{
-		for (size_t dimension = 0; dimension < this->length.get().size(); dimension++) {
-			if (!this->length.get()[dimension] == other.length.get()[dimension]) {
-				std::cerr << "Geometries must have the same grid length but have "
-					<< this->length.get()[dimension] << " and "
-					<< other.length.get()[dimension] << " in dimension " << dimension
-					<< std::endl;
-				return false;
-			}
-		}
-
 		return this->set(other.get());
 	}
 
@@ -253,694 +222,419 @@ public:
 			}
 		}
 
-		const boost::array<uint64_t, 3> grid_length = {{
-			other.length.get()[0],
-			other.length.get()[1],
-			other.length.get()[2]
-		}};
+		const boost::array<uint64_t, 3> grid_length = other.length.get();
 
 		const boost::array<double, 3>
-			start = {{
-				other.get_start_x(),
-				other.get_start_y(),
-				other.get_start_z()
-			}},
-			cell_length = {{
-				other.get_unrefined_cell_length_x(),
-				other.get_unrefined_cell_length_y(),
-				other.get_unrefined_cell_length_z()
-			}};
+			start = other.get_start(),
+			cell_length = other.get_level_0_cell_length();
 
-		boost::array<std::vector<double>, 3> coordinates;
+		Parameters parameters;
 		for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 			for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
-				coordinates[dimension].push_back(
+				parameters.coordinates[dimension].push_back(
 					start[dimension] + double(i) * cell_length[dimension]
 				);
 			}
 		}
 
-		return this->set(coordinates);
+		return this->set(parameters);
 	}
 
 
 	/*!
-	Returns the starting corner of the grid in x direction.
-	*/
-	double get_start_x() const
-	{
-		return this->coordinates[0][0];
-	}
+	Returns the starting corner of the grid.
 
-	/*!
-	Returns the starting corner of the grid in y direction.
+	Starting corner is defined as the corner
+	with minimum value of the coordinate in each
+	dimension.
 	*/
-	double get_start_y() const
+	boost::array<double, 3> get_start() const
 	{
-		return this->coordinates[1][0];
-	}
-
-	/*!
-	Returns the starting corner of the grid in z direction.
-	*/
-	double get_start_z() const
-	{
-		return this->coordinates[2][0];
+		const boost::array<double, 3> ret_val = {{
+			this->parameters.coordinates[0][0],
+			this->parameters.coordinates[1][0],
+			this->parameters.coordinates[2][0]
+		}};
+		return ret_val;
 	}
 
 
 	/*!
-	Returns the end corner of the grid in x direction.
-	*/
-	double get_end_x() const
-	{
-		return this->coordinates[0][this->length.get()[0]];
-	}
+	Returns the end corner of the grid.
 
-	/*!
-	Returns the end corner of the grid in y direction.
+	End corner is defined as the corner with
+	maximum value of the coordinate in each
+	dimension.
 	*/
-	double get_end_y() const
+	boost::array<double, 3> get_end() const
 	{
-		return this->coordinates[1][this->length.get()[1]];
-	}
+		const boost::array<uint64_t, 3> length = this->length.get();
+		const boost::array<double, 3> ret_val = {{
+			this->parameters.coordinates[0][length[0]],
+			this->parameters.coordinates[1][length[1]],
+			this->parameters.coordinates[2][length[2]]
+		}};
 
-	/*!
-	Returns the end corner of the grid in z direction.
-	*/
-	double get_end_z() const
-	{
-		return this->coordinates[2][this->length.get()[2]];
+		return ret_val;
 	}
 
 
 	/*!
-	Returns the length of given cell in x direction.
+	Returns the length of given cell.
+
+	A quiet NaN is returned if given error_cell,
+	or the given cell cannot exist in the grid.
 	*/
-	double get_cell_length_x(const uint64_t cell) const
+	boost::array<double, 3> get_length(const uint64_t cell) const
 	{
-		assert(cell != error_cell);
-		assert(this->mapping.get_refinement_level(cell) >= 0);
-		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
+		const int
+			refinement_level = this->mapping.get_refinement_level(cell),
+			max_ref_lvl = this->mapping.get_maximum_refinement_level();
 
-		int refinement_level = this->mapping.get_refinement_level(cell);
-		uint64_t unref_cell_x_index = this->get_unref_cell_x_coord_start_index(cell);
+		if (cell == error_cell
+		|| refinement_level < 0
+		|| refinement_level > max_ref_lvl) {
 
-		return
-			  (this->coordinates[0][unref_cell_x_index + 1] - this->coordinates[0][unref_cell_x_index])
-			/ (uint64_t(1) << refinement_level);
-	}
+			const boost::array<double, 3> error_val = {{
+				std::numeric_limits<double>::quiet_NaN(),
+				std::numeric_limits<double>::quiet_NaN(),
+				std::numeric_limits<double>::quiet_NaN()
+			}};
 
-	/*!
-	Returns the length of given cell in y direction.
-	*/
-	double get_cell_length_y(const uint64_t cell) const
-	{
-		assert(cell != error_cell);
-		assert(this->mapping.get_refinement_level(cell) >= 0);
-		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
+			return error_val;
+		}
 
-		int refinement_level = this->mapping.get_refinement_level(cell);
-		uint64_t unref_cell_y_index = this->get_unref_cell_y_coord_start_index(cell);
+		const boost::array<uint64_t, 3> coord_start_indices
+			= this->get_level_0_cell_coord_start_index(cell);
 
-		return
-			  (this->coordinates[1][unref_cell_y_index + 1] - this->coordinates[1][unref_cell_y_index])
-			  / (uint64_t(1) << refinement_level);
-	}
+		const uint64_t length_in_indices = uint64_t(1) << refinement_level;
 
-	/*!
-	Returns the length of given cell in z direction.
-	*/
-	double get_cell_length_z(const uint64_t cell) const
-	{
-		assert(cell != error_cell);
-		assert(this->mapping.get_refinement_level(cell) >= 0);
-		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
+		const boost::array<double, 3> ret_val = {{
+			(this->parameters.coordinates[0][coord_start_indices[0] + 1]
+				- this->parameters.coordinates[0][coord_start_indices[0]])
+			/ length_in_indices,
 
-		int refinement_level = this->mapping.get_refinement_level(cell);
-		uint64_t unref_cell_z_index = this->get_unref_cell_z_coord_start_index(cell);
-		return
-			  (this->coordinates[2][unref_cell_z_index + 1] - this->coordinates[2][unref_cell_z_index])
-			  / (uint64_t(1) << refinement_level);
+			(this->parameters.coordinates[1][coord_start_indices[1] + 1]
+				- this->parameters.coordinates[1][coord_start_indices[1]])
+			/ length_in_indices,
+
+			(this->parameters.coordinates[2][coord_start_indices[2] + 1]
+				- this->parameters.coordinates[2][coord_start_indices[2]])
+			/ length_in_indices
+		}};
+
+		return ret_val;
 	}
 
 
 	/*!
-	Returns the center of given cell in x direction.
-	*/
-	double get_cell_x(const uint64_t cell) const
-	{
-		 if (cell == error_cell) {
-			return std::numeric_limits<double>::quiet_NaN();
-		 }
+	Returns the center of given cell.
 
-		if (
-			   this->mapping.get_refinement_level(cell) < 0
-			|| this->mapping.get_refinement_level(cell) > this->mapping.get_maximum_refinement_level()
-		) {
-			return std::numeric_limits<double>::quiet_NaN();
+	A quiet NaN is returned if given error_cell,
+	or the given cell cannot exist in the grid.
+	*/
+	boost::array<double, 3> get_center(const uint64_t cell) const
+	{
+
+		const int
+			ref_lvl = this->mapping.get_refinement_level(cell),
+			max_ref_lvl = this->mapping.get_maximum_refinement_level();
+
+		if (cell == error_cell
+		|| ref_lvl < 0
+		|| ref_lvl > max_ref_lvl) {
+
+			const boost::array<double, 3> error_val = {{
+				std::numeric_limits<double>::quiet_NaN(),
+				std::numeric_limits<double>::quiet_NaN(),
+				std::numeric_limits<double>::quiet_NaN()
+			}};
+
+			return error_val;
 		}
 
 		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 
-		const uint64_t
-			unref_cell_x_coord_start_index
-				= this->get_unref_cell_x_coord_start_index(cell),
-			unref_cell_x_index
-				= unref_cell_x_coord_start_index
-				* (uint64_t(1) << this->mapping.get_maximum_refinement_level());
+		const boost::array<uint64_t, 3> coord_start_indices
+			= this->get_level_0_cell_coord_start_index(cell);
 
-		const double
-			unref_cell_length_x
-				= this->coordinates[0][unref_cell_x_coord_start_index + 1]
-				- this->coordinates[0][unref_cell_x_coord_start_index],
-			size_of_local_index
-				= unref_cell_length_x
-				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
+		const uint64_t level_0_length_in_indices = uint64_t(1) << max_ref_lvl;
 
-		return
-			  this->coordinates[0][unref_cell_x_coord_start_index]
-			+ size_of_local_index * (indices[0] - unref_cell_x_index)
-			+ this->get_cell_length_x(cell) / 2;
+		const boost::array<double, 3>
+			length_of_index = {{
+				(this->parameters.coordinates[0][coord_start_indices[0] + 1]
+					- this->parameters.coordinates[0][coord_start_indices[0]])
+				/ level_0_length_in_indices,
+
+				(this->parameters.coordinates[1][coord_start_indices[1] + 1]
+					- this->parameters.coordinates[1][coord_start_indices[1]])
+				/ level_0_length_in_indices,
+
+				(this->parameters.coordinates[2][coord_start_indices[2] + 1]
+					- this->parameters.coordinates[2][coord_start_indices[2]])
+				/ level_0_length_in_indices,
+			}},
+			cell_length = this->get_length(cell),
+			ret_val = {{
+				this->parameters.coordinates[0][coord_start_indices[0]]
+				+ length_of_index[0] * (indices[0] - coord_start_indices[0] * level_0_length_in_indices)
+				+ cell_length[0] / 2,
+
+				this->parameters.coordinates[1][coord_start_indices[1]]
+				+ length_of_index[1] * (indices[1] - coord_start_indices[1] * level_0_length_in_indices)
+				+ cell_length[1] / 2,
+
+				this->parameters.coordinates[2][coord_start_indices[2]]
+				+ length_of_index[2] * (indices[2] - coord_start_indices[2] * level_0_length_in_indices)
+				+ cell_length[2] / 2,
+			}};
+
+		return ret_val;
 	}
 
+
 	/*!
-	Returns the center of given cell in y direction.
+	Returns the cell's corner closest to starting corner of the grid.
+
+	In other words if the cell occupies the range:
+	\verbatim
+	[x1..x2],
+	[y1..y2],
+	...
+	\endverbatim
+	returns (x1, y1, ...).
 	*/
-	double get_cell_y(const uint64_t cell) const
+	boost::array<double, 3> get_min(const uint64_t cell) const
 	{
-		 if (cell == error_cell) {
-			return std::numeric_limits<double>::quiet_NaN();
-		 }
+		const boost::array<double, 3>
+			center = this->get_center(cell),
+			length = this->get_length(cell),
+			ret_val = {{
+				center[0] - length[0] / 2,
+				center[1] - length[1] / 2,
+				center[2] - length[2] / 2
+			}};
 
-		if (this->mapping.get_refinement_level(cell) < 0
-		|| this->mapping.get_refinement_level(cell) > this->mapping.get_maximum_refinement_level()) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
-
-		const uint64_t
-			unref_cell_y_coord_start_index
-				= this->get_unref_cell_y_coord_start_index(cell),
-			unref_cell_y_index
-				= unref_cell_y_coord_start_index
-				* (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		const double
-			unref_cell_length_y
-				= this->coordinates[1][unref_cell_y_coord_start_index + 1]
-				- this->coordinates[1][unref_cell_y_coord_start_index],
-			size_of_local_index
-				= unref_cell_length_y
-				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		return
-			  this->coordinates[1][unref_cell_y_coord_start_index]
-			+ size_of_local_index * (indices[1] - unref_cell_y_index)
-			+ this->get_cell_length_y(cell) / 2;
+		return ret_val;
 	}
 
+
 	/*!
-	Returns the center of given cell in z direction.
+	Returns the cell's corner furthest from the starting corner of the grid.
+
+	In other words if the cell occupies the range:
+	\verbatim
+	[x1..x2],
+	[y1..y2],
+	...
+	\endverbatim
+	returns (x2, y2, ...).
 	*/
-	double get_cell_z(const uint64_t cell) const
+	boost::array<double, 3> get_max(const uint64_t cell) const
 	{
-		 if (cell == error_cell) {
-			return std::numeric_limits<double>::quiet_NaN();
-		 }
+		const boost::array<double, 3>
+			center = this->get_center(cell),
+			length = this->get_length(cell),
+			ret_val = {{
+				center[0] + length[0] / 2,
+				center[1] + length[1] / 2,
+				center[2] + length[2] / 2
+			}};
 
-		if (this->mapping.get_refinement_level(cell) < 0
-		|| this->mapping.get_refinement_level(cell) > this->mapping.get_maximum_refinement_level()) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
-
-		const uint64_t
-			unref_cell_z_coord_start_index
-				= this->get_unref_cell_z_coord_start_index(cell),
-			unref_cell_z_index
-				= unref_cell_z_coord_start_index
-				* (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		const double
-			unref_cell_length_z
-				= this->coordinates[2][unref_cell_z_coord_start_index + 1]
-				- this->coordinates[2][unref_cell_z_coord_start_index],
-			size_of_local_index
-				= unref_cell_length_z / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		return
-			  this->coordinates[2][unref_cell_z_coord_start_index]
-			+ size_of_local_index * (indices[2] - unref_cell_z_index)
-			+ this->get_cell_length_z(cell) / 2;
+		return ret_val;
 	}
 
+
 	/*!
-	Returns the x coordinate of given cells face in negative x direction.
+	Returns the center of a cell of given refinement level at given index.
+
+	A quiet NaN is returned if given an invalid
+	refinement level or index.
 	*/
-	double get_cell_x_min(const uint64_t cell) const
-	{
-		return this->get_cell_x(cell) - this->get_cell_length_x(cell) / 2;
-	}
-
-	/*!
-	Returns the y coordinate of given cells face in negative y direction.
-	*/
-	double get_cell_y_min(const uint64_t cell) const
-	{
-		return this->get_cell_y(cell) - this->get_cell_length_y(cell) / 2;
-	}
-
-	/*!
-	Returns the z coordinate of given cells face in negative z direction.
-	*/
-	double get_cell_z_min(const uint64_t cell) const
-	{
-		return this->get_cell_z(cell) - this->get_cell_length_z(cell) / 2;
+	boost::array<double, 3> get_center(
+		const Types<3>::indices_t indices,
+		const int refinement_level
+	) const {
+		return this->get_center(this->mapping.get_cell_from_indices(indices, refinement_level));
 	}
 
 
 	/*!
-	Returns the x coordinate of the cells face in positive x direction.
-	*/
-	double get_cell_x_max(const uint64_t cell) const
-	{
-		return this->get_cell_x(cell) + this->get_cell_length_x(cell) / 2;
-	}
+	Returns a cell of given refinement level at given location.
 
-	/*!
-	Returns the y coordinate of the cells face in positive y direction.
-	*/
-	double get_cell_y_max(const uint64_t cell) const
-	{
-		return this->get_cell_y(cell) + this->get_cell_length_y(cell) / 2;
-	}
-
-	/*!
-	Returns the z coordinate of the cells face in positive z direction.
-	*/
-	double get_cell_z_max(const uint64_t cell) const
-	{
-		return this->get_cell_z(cell) + this->get_cell_length_z(cell) / 2;
-	}
-
-
-	/*!
-	Returns the center of a cell in x direction of given refinement level at given index.
-	*/
-	double get_cell_x(const int refinement_level, const uint64_t x_index) const
-	{
-		if (refinement_level < 0
-		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		if (x_index > this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		uint64_t unref_cell_x_coord_start_index
-			= x_index / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		double
-			unref_cell_length_x
-				= this->coordinates[0][unref_cell_x_coord_start_index + 1]
-				- this->coordinates[0][unref_cell_x_coord_start_index],
-			size_of_local_index
-				= unref_cell_length_x
-				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		return
-			this->coordinates[0][unref_cell_x_coord_start_index]
-			+ size_of_local_index * (x_index - unref_cell_x_coord_start_index * (uint64_t(1) << this->mapping.get_maximum_refinement_level()))
-			+ size_of_local_index * (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level)) / 2;
-	}
-
-	/*!
-	Returns the center of a cell in y direction of given refinement level at given index.
-	*/
-	double get_cell_y(const int refinement_level, const uint64_t y_index) const
-	{
-		if (refinement_level < 0
-		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		if (y_index > this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		uint64_t unref_cell_y_coord_start_index
-			= y_index / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		double
-			unref_cell_length_y
-				= this->coordinates[1][unref_cell_y_coord_start_index + 1]
-				- this->coordinates[1][unref_cell_y_coord_start_index],
-			size_of_local_index
-				= unref_cell_length_y
-				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		return
-			this->coordinates[1][unref_cell_y_coord_start_index]
-			+ size_of_local_index * (y_index - unref_cell_y_coord_start_index * (uint64_t(1) << this->mapping.get_maximum_refinement_level()))
-			+ size_of_local_index * (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level)) / 2;
-	}
-
-	/*!
-	Returns the center of a cell in z direction of given refinement level at given index.
-	*/
-	double get_cell_z(const int refinement_level, const uint64_t z_index) const
-	{
-		if (refinement_level < 0
-		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		if (z_index > this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			return std::numeric_limits<double>::quiet_NaN();
-		}
-
-		uint64_t unref_cell_z_coord_start_index
-			= z_index / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		double
-			unref_cell_length_z
-				= this->coordinates[2][unref_cell_z_coord_start_index + 1]
-				- this->coordinates[2][unref_cell_z_coord_start_index],
-			size_of_local_index
-				= unref_cell_length_z
-				/ (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-
-		return
-			this->coordinates[2][unref_cell_z_coord_start_index]
-			+ size_of_local_index * (z_index - unref_cell_z_coord_start_index * (uint64_t(1) << this->mapping.get_maximum_refinement_level()))
-			+ size_of_local_index * (uint64_t(1) << (this->mapping.get_maximum_refinement_level() - refinement_level)) / 2;
-	}
-
-
-	/*!
-	Returns the cell of given refinement level at given location, or 0 if outside of the current grid in location or refinement level
+	Returns error_cell if given a location outside of the current
+	grid either in coordinate or refinement level.
 	*/
 	uint64_t get_cell(
 		const int refinement_level,
-		const double x,
-		const double y,
-		const double z
+		const boost::array<double, 3>& coordinate
 	) const {
 		if (refinement_level < 0
 		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 			return error_cell;
 		}
 
-		const Types<3>::indices_t index = {{
-			this->get_x_index_of_coord(x),
-			this->get_y_index_of_coord(y),
-			this->get_z_index_of_coord(z)
+		const Types<3>::indices_t indices = this->get_indices(coordinate);
+
+		return this->mapping.get_cell_from_indices(indices, refinement_level);
+	}
+
+
+	/*!
+	Returns the real value of given coordinate in this geometry.
+
+	For each dimension:
+	Returns given coordinate if it is inside this geometry.
+	Returns a quiet NaN if this geometry is not periodic in
+	the dimension and given coordinate is outside of the geometry.
+	If this geometry is periodic in the dimension returns a value
+	inside the geometry that is at the same location in the
+	geometry as given coordinate.
+	*/
+	boost::array<double, 3> get_real_coordinate(
+		const boost::array<double, 3>& given_coordinate
+	) const {
+		const boost::array<double, 3>
+			start = this->get_start(),
+			end = this->get_end();
+
+		boost::array<double, 3> ret_val = {{
+			std::numeric_limits<double>::quiet_NaN(),
+			std::numeric_limits<double>::quiet_NaN(),
+			std::numeric_limits<double>::quiet_NaN()
 		}};
 
-		return this->mapping.get_cell_from_indices(index, refinement_level);
-	}
+		for (size_t dimension = 0; dimension < given_coordinate.size(); dimension++) {
 
+			if (given_coordinate[dimension] >= start[dimension]
+			&& given_coordinate[dimension] <= end[dimension]) {
 
-	/*!
-	Returns the real value of given x coordinate in this geometry.
+				ret_val[dimension] = given_coordinate[dimension];
 
-	Returns given x if it is inside this geometry.
-	Returns a quiet NaN if this geometry is not periodic in x direction
-	and given x is outside of the geometry.
-	If this geometry is periodic in x returns a value inside the
-	geometry that is at the same location in the geometry as given x.
-	*/
-	double get_real_x(const double x) const
-	{
-		if (x >= this->get_start_x()
-		&& x <= this->get_end_x()) {
+			} else if (this->topology.is_periodic(dimension)) {
 
-			return x;
+				const double grid_length = end[dimension] - start[dimension];
 
-		} else if (!this->topology.is_periodic(0)) {
+				if (given_coordinate[dimension] < start[dimension]) {
 
-			return std::numeric_limits<double>::quiet_NaN();
+					const double distance = start[dimension] - given_coordinate[dimension];
 
-		} else {
-			const double grid_size = this->get_end_x() - this->get_start_x();
+					ret_val[dimension]
+						= given_coordinate[dimension]
+						+ grid_length * ceil(distance / grid_length);
 
-			if (x < this->get_start_x()) {
+				} else {
 
-				const double distance = this->get_start_x() - x;
-				return x + grid_size * ceil(distance/ grid_size);
+					const double distance = given_coordinate[dimension] - end[dimension];
 
-			} else {
-
-				const double distance = x - this->get_end_x();
-				return x - grid_size * ceil(distance/ grid_size);
+					ret_val[dimension]
+						= given_coordinate[dimension]
+						- grid_length * ceil(distance / grid_length);
+				}
 			}
 		}
+
+		return ret_val;
 	}
 
+
 	/*!
-	Returns the real value of given y coordinate in this geometry.
+	Returns the index (starting from 0) of given coordinate in each dimension.
 
-	Returns given y if it is inside this geometry.
-	Returns a quiet NaN if this geometry is not periodic in y direction
-	and given y is outside of the geometry.
-	If this geometry is periodic in y returns a value inside the
-	geometry that is at the same location in the geometry as given y.
+	Returns error_index for coordinates outside of the grid in a particular
+	dimension if the grid is not periodic in that dimension.
 	*/
-	double get_real_y(const double y) const
-	{
-		if (y >= this->get_start_y()
-		&& y <= this->get_end_y()) {
+	Types<3>::indices_t get_indices(
+		const boost::array<double, 3>& coordinate
+	) const {
+		Types<3>::indices_t ret_val = {{
+			error_index,
+			error_index,
+			error_index
+		}};
 
-			return y;
+		const boost::array<double, 3>
+			grid_start = this->get_start(),
+			grid_end = this->get_end();
 
-		} else if (!this->topology.is_periodic(0)) {
+		const int max_ref_lvl = this->mapping.get_maximum_refinement_level();
+		const uint64_t level_0_length_in_indices = uint64_t(1) << max_ref_lvl;
 
-			return std::numeric_limits<double>::quiet_NaN();
+		for (size_t dimension = 0; dimension < coordinate.size(); dimension++) {
 
-		} else {
-			const double grid_size = this->get_end_y() - this->get_start_y();
+			if (coordinate[dimension] >= grid_start[dimension]
+			&& coordinate[dimension] <= grid_end[dimension]) {
 
-			if (y < this->get_start_y()) {
+				const std::vector<double>& current_coords = this->parameters.coordinates[dimension];
 
-				const double distance = this->get_start_y() - y;
-				return y + grid_size * ceil(distance/ grid_size);
+				// find where given coord starts in the coord vector
+				uint64_t coord_start_index = 0;
+				while (current_coords[coord_start_index] < coordinate[dimension]) {
+					coord_start_index++;
+				}
+				coord_start_index--;
 
-			} else {
+				// length of an index in this level 0 cell
+				const double length_of_index
+					= (current_coords[coord_start_index + 1] - current_coords[coord_start_index])
+					/ double(level_0_length_in_indices);
 
-				const double distance = y - this->get_end_y();
-				return y - grid_size * ceil(distance/ grid_size);
+				// find the offset in indices of given coord inside this level 0 cell
+				uint64_t index_offset = 0;
+				while (
+					current_coords[coord_start_index] + index_offset * length_of_index
+					< coordinate[dimension]
+				) {
+					index_offset++;
+				}
+				index_offset--;
+
+				ret_val[dimension] = coord_start_index * level_0_length_in_indices + index_offset;
 			}
 		}
-	}
 
-	/*!
-	Returns the real value of given z coordinate in this geometry.
-
-	Returns given z if it is inside this geometry.
-	Returns a quiet NaN if this geometry is not periodic in z direction
-	and given z is outside of the geometry.
-	If this geometry is periodic in z returns a value inside the
-	geometry that is at the same location in the geometry as given z.
-	*/
-	double get_real_z(const double z) const
-	{
-		if (z >= this->get_start_z()
-		&& z <= this->get_end_z()) {
-
-			return z;
-
-		} else if (!this->topology.is_periodic(0)) {
-
-			return std::numeric_limits<double>::quiet_NaN();
-
-		} else {
-			const double grid_size = this->get_end_z() - this->get_start_z();
-
-			if (z < this->get_start_z()) {
-
-				const double distance = this->get_start_z() - z;
-				return z + grid_size * ceil(distance/ grid_size);
-
-			} else {
-
-				const double distance = z - this->get_end_z();
-				return z - grid_size * ceil(distance/ grid_size);
-			}
-		}
-	}
-
-
-	/*!
-	Returns the x index of given location, starting from 0.
-
-	Returns error_index if given location is outside of the grid and
-	the geometry is not periodic in that direction.
-	*/
-	uint64_t get_x_index_of_coord(double x) const
-	{
-		x = this->get_real_x(x);
-
-		if (::isnan(x)
-		|| x < this->get_start_x()
-		|| x > this->get_end_x()) {
-
-			return error_index;
-
-		}
-
-		uint64_t x_coord_start_index = 0;
-		while (this->coordinates[0][x_coord_start_index] < x) {
-			x_coord_start_index++;
-		}
-		x_coord_start_index--;
-
-		double length_x_of_index
-			= (this->coordinates[0][x_coord_start_index + 1] - this->coordinates[0][x_coord_start_index])
-			/ this->mapping.get_cell_length_in_indices(1);
-
-		uint64_t index_offset = 0;
-		while (this->coordinates[0][x_coord_start_index] + index_offset * length_x_of_index < x) {
-			index_offset++;
-		}
-		index_offset--;
-
-		return x_coord_start_index * this->mapping.get_cell_length_in_indices(1) + index_offset;
-	}
-
-	/*!
-	Returns the y index of given location, starting from 0.
-
-	Returns error_index if given location is outside of the grid and
-	the geometry is not periodic in that direction.
-	*/
-	uint64_t get_y_index_of_coord(double y) const
-	{
-		y = this->get_real_y(y);
-
-		if (::isnan(y)
-		|| y < this->get_start_y()
-		|| y > this->get_end_y()) {
-
-			return error_index;
-
-		}
-
-		uint64_t y_coord_start_index = 0;
-		while (this->coordinates[1][y_coord_start_index] < y) {
-			y_coord_start_index++;
-		}
-		y_coord_start_index--;
-
-		double length_y_of_index
-			= (this->coordinates[1][y_coord_start_index + 1] - this->coordinates[1][y_coord_start_index])
-			/ this->mapping.get_cell_length_in_indices(1);
-
-		uint64_t index_offset = 0;
-		while (this->coordinates[1][y_coord_start_index] + index_offset * length_y_of_index < y) {
-			index_offset++;
-		}
-		index_offset--;
-
-		return y_coord_start_index * this->mapping.get_cell_length_in_indices(1) + index_offset;
-	}
-
-	/*!
-	Returns the z index of given location, starting from 0.
-
-	Returns error_index if given location is outside of the grid and
-	the geometry is not periodic in that direction.
-	*/
-	uint64_t get_z_index_of_coord(double z) const
-	{
-		z = this->get_real_z(z);
-
-		if (::isnan(z)
-		|| z < this->get_start_z()
-		|| z > this->get_end_z()) {
-
-			return error_index;
-
-		}
-
-		uint64_t z_coord_start_index = 0;
-		while (this->coordinates[2][z_coord_start_index] < z) {
-			z_coord_start_index++;
-		}
-		z_coord_start_index--;
-
-		double length_z_of_index
-			= (this->coordinates[2][z_coord_start_index + 1] - this->coordinates[2][z_coord_start_index])
-			/ this->mapping.get_cell_length_in_indices(1);
-
-		uint64_t index_offset = 0;
-		while (this->coordinates[2][z_coord_start_index] + index_offset * length_z_of_index < z) {
-			index_offset++;
-		}
-		index_offset--;
-
-		return z_coord_start_index * this->mapping.get_cell_length_in_indices(1) + index_offset;
+		return ret_val;
 	}
 
 
 	/*!
 	Returns the x index in the coordinates vector of the starting coordinate
 	of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
+
+	Returns error_index if given an invalid cell.
 	*/
-	uint64_t get_unref_cell_x_coord_start_index(const uint64_t cell) const
+	boost::array<uint64_t, 3> get_level_0_cell_coord_start_index(const uint64_t cell) const
 	{
-		assert(cell > 0);
-		assert(this->mapping.get_refinement_level(cell) >= 0);
-		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
+		const int
+			ref_lvl = this->mapping.get_refinement_level(cell),
+			max_ref_lvl = this->mapping.get_maximum_refinement_level();
+
+		if (cell == error_cell || ref_lvl < 0 || ref_lvl > max_ref_lvl) {
+			const boost::array<uint64_t, 3> error_val = {{
+				error_index,
+				error_index,
+				error_index
+			}};
+
+			return error_val;
+		}
 
 		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
+		const boost::array<uint64_t, 3> ret_val = {{
+			indices[0] / (uint64_t(1) << max_ref_lvl),
+			indices[1] / (uint64_t(1) << max_ref_lvl),
+			indices[2] / (uint64_t(1) << max_ref_lvl)
+		}};
 
-		return indices[0] / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-	}
+		return ret_val;
 
-	/*!
-	Returns the y index in the coordinates vector of the starting coordinate
-	of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
-	*/
-	uint64_t get_unref_cell_y_coord_start_index(const uint64_t cell) const
-	{
-		assert(cell > 0);
-		assert(this->mapping.get_refinement_level(cell) >= 0);
-		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
-
-		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
-
-		return indices[1] / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
-	}
-
-	/*!
-	Returns the z index in the coordinates vector of the starting coordinate
-	of an unrefined cell that is the (grand, grandgrand, ...)parent of given cell.
-	*/
-	uint64_t get_unref_cell_z_coord_start_index(const uint64_t cell) const
-	{
-		assert(cell > 0);
-		assert(this->mapping.get_refinement_level(cell) >= 0);
-		assert(this->mapping.get_refinement_level(cell) <= this->mapping.get_maximum_refinement_level());
-
-		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
-
-		return indices[2] / (uint64_t(1) << this->mapping.get_maximum_refinement_level());
 	}
 
 
 
 private:
 
-	/*!
-	The coordinates of unrefined cells in respective directions
-	First value is the starting point of the grid, the following
-	ith value is the end point of the ith unrefined cell
-	*/
-	boost::array<std::vector<double>, 3> coordinates;
+	Parameters parameters;
 
 };	// class
 

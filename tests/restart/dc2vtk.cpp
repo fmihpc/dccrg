@@ -153,13 +153,39 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Cartesian_Geometry geometry;
-		geometry.set_geometry(
-			x_length, y_length, z_length,
-			x_start, y_start, z_start,
-			cell_x_size, cell_y_size, cell_z_size
-		);
-		geometry.set_maximum_refinement_level(max_ref_level);
+		const Grid_Topology topology;
+
+		Mapping mapping;
+		const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+
+		if (!mapping.set_length(grid_length)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set grid length to "
+				<< grid_length[0] << ", "
+				<< grid_length[1] << ", "
+				<< grid_length[2] << " cells of refinement level 0"
+				<< std::endl;
+			abort();
+		}
+		if (!mapping.set_maximum_refinement_level(max_ref_level)) {
+			std::cerr << "Couldn't set maximum refinement level of grid." << std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		Cartesian_Geometry geometry(mapping.length, mapping, topology);
+
+		Cartesian_Geometry::Parameters parameters;
+		parameters.start[0] = x_start;
+		parameters.start[1] = y_start;
+		parameters.start[2] = z_start;
+		parameters.level_0_cell_length[0] = cell_x_size;
+		parameters.level_0_cell_length[1] = cell_y_size;
+		parameters.level_0_cell_length[2] = cell_z_size;
+
+		if (!geometry.set(parameters)) {
+			std::cerr << "Couldn't set grid geometry." << std::endl;
+			exit(EXIT_FAILURE);
+		}
 
 		// write the game data to a .vtk file
 		const string input_name(argv[arg]),
@@ -182,14 +208,19 @@ int main(int argc, char* argv[])
 		outfile << "POINTS " << cell_data.size() * 8 << " float" << std::endl;
 		for (uint64_t i = 0; i < cell_data.size(); i++) {
 			const uint64_t cell = cell_data[i].first;
-			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
-			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
-			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
-			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_min(cell) << std::endl;
-			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
-			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_min(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
-			outfile << geometry.get_cell_x_min(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
-			outfile << geometry.get_cell_x_max(cell) << " " << geometry.get_cell_y_max(cell) << " " << geometry.get_cell_z_max(cell) << std::endl;
+			const boost::array<double, 3>
+				cell_min = geometry.get_min(cell),
+				cell_max = geometry.get_max(cell);
+
+			outfile
+				<< cell_min[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
+				<< cell_max[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
+				<< cell_min[0] << " " << cell_max[1] << " " << cell_min[2] << "\n"
+				<< cell_max[0] << " " << cell_max[1] << " " << cell_min[2] << "\n"
+				<< cell_min[0] << " " << cell_min[1] << " " << cell_max[2] << "\n"
+				<< cell_max[0] << " " << cell_min[1] << " " << cell_max[2] << "\n"
+				<< cell_min[0] << " " << cell_max[1] << " " << cell_max[2] << "\n"
+				<< cell_max[0] << " " << cell_max[1] << " " << cell_max[2] << "\n";
 		}
 
 		// map cells to written points

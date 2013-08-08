@@ -87,15 +87,9 @@ void propagate_particles(Dccrg<Cell>& grid) {
 		while (i < previous_data->particles.size()) {
 
 			// hande grid wrap around
-			previous_data->particles[i][0] = grid.geometry.get_real_x(previous_data->particles[i][0]);
-			previous_data->particles[i][1] = grid.geometry.get_real_y(previous_data->particles[i][1]);
-			previous_data->particles[i][2] = grid.geometry.get_real_z(previous_data->particles[i][2]);
+			previous_data->particles[i] = grid.geometry.get_real_coordinate(previous_data->particles[i]);
 
-			const uint64_t current_cell = grid.get_existing_cell(
-				previous_data->particles[i][0],
-				previous_data->particles[i][1],
-				previous_data->particles[i][2]
-			);
+			const uint64_t current_cell = grid.get_existing_cell(previous_data->particles[i]);
 
 			// do nothing if particle hasn't changed cell
 			if (current_cell == previous_cell) {
@@ -251,20 +245,17 @@ int main(int argc, char* argv[])
 
 		Cell* cell_data = grid[cell];
 
-		const double x_min = grid.geometry.get_cell_x_min(cell),
-			y_min = grid.geometry.get_cell_y_min(cell),
-			z_min = grid.geometry.get_cell_z_min(cell),
-			x_max = grid.geometry.get_cell_x_max(cell),
-			y_max = grid.geometry.get_cell_y_max(cell),
-			z_max = grid.geometry.get_cell_z_max(cell);
+		const boost::array<double, 3>
+			cell_min = grid.geometry.get_min(cell),
+			cell_max = grid.geometry.get_max(cell);
 
 		const unsigned int number_of_particles
 			= (unsigned int)ceil(max_particles_per_cell * double(rand()) / RAND_MAX);
 		for (unsigned int i = 0; i < number_of_particles; i++) {
 			boost::array<double, 3> coordinates = {{
-				x_min + (x_max - x_min) * double(rand()) / RAND_MAX,
-				y_min + (y_max - y_min) * double(rand()) / RAND_MAX,
-				z_min + (z_max - z_min) * double(rand()) / RAND_MAX
+				cell_min[0] + (cell_max[0] - cell_min[0]) * double(rand()) / RAND_MAX,
+				cell_min[1] + (cell_max[1] - cell_min[1]) * double(rand()) / RAND_MAX,
+				cell_min[2] + (cell_max[2] - cell_min[2]) * double(rand()) / RAND_MAX
 			}};
 
 			cell_data->particles.push_back(coordinates);

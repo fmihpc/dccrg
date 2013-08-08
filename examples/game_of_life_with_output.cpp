@@ -200,42 +200,21 @@ bool write_game_data(const uint64_t step, communicator comm, const Dccrg<game_of
 		memcpy(buffer + offset, &step, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
 
-		{
-		double value = game_grid.geometry.get_start_x();
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-		value = game_grid.geometry.get_start_y();
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-		value = game_grid.geometry.get_start_z();
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-		value = game_grid.geometry.get_cell_length_x(1);
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-		value = game_grid.geometry.get_cell_length_y(1);
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-		value = game_grid.geometry.get_cell_length_z(1);
-		memcpy(buffer + offset, &value, sizeof(double));
-		offset += sizeof(double);
-		}
-		{
-		uint64_t value = game_grid.length.get()[0];
-		memcpy(buffer + offset, &value, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-		value = game_grid.length.get()[1];
-		memcpy(buffer + offset, &value, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-		value = game_grid.length.get()[2];
-		memcpy(buffer + offset, &value, sizeof(uint64_t));
-		offset += sizeof(uint64_t);
-		}
-		{
-		int value = game_grid.get_maximum_refinement_level();
-		memcpy(buffer + offset, &value, sizeof(int));
+		const boost::array<double, 3> grid_start = game_grid.geometry.get_start();
+		memcpy(buffer + offset, &grid_start[0], 3 * sizeof(double));
+		offset += 3 * sizeof(double);
+
+		const boost::array<double, 3> cell_length = game_grid.geometry.get_length(1);
+		memcpy(buffer + offset, &cell_length[0], 3 * sizeof(double));
+		offset += 3 * sizeof(double);
+
+		const boost::array<uint64_t, 3> grid_length = game_grid.length.get();
+		memcpy(buffer + offset, &grid_length[0], 3 * sizeof(uint64_t));
+		offset += 3 * sizeof(uint64_t);
+
+		const int max_ref_lvl = game_grid.get_maximum_refinement_level();
+		memcpy(buffer + offset, &max_ref_lvl, sizeof(int));
 		offset += sizeof(int);
-		}
 	}
 
 	for (uint64_t i = 0; i < cells.size(); i++) {
@@ -287,8 +266,6 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<game_of_life_cell> game_grid;
-
-	game_grid.geometry.set(0, 0, 0, 1, 1, 1);
 
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0

@@ -27,6 +27,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 
 #include "dccrg.hpp"
+#include "dccrg_cartesian_geometry.hpp"
 
 #include "poisson_solve.hpp"
 #include "reference_poisson_solve.hpp"
@@ -81,9 +82,9 @@ double get_solution_value(const double x, const double y)
 /*
 Returns the p-norm of the difference of solution from exact.
 */
-double get_p_norm(
+template<class Geometry> double get_p_norm(
 	const std::vector<uint64_t>& cells,
-	const dccrg::Dccrg<Poisson_Cell>& grid,
+	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
 	const double p_of_norm
 ) {
 	int dimensions = 0;
@@ -114,21 +115,22 @@ double get_p_norm(
 		}
 
 		double analytic_solution = std::numeric_limits<double>::max();
+		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
 
 		if (grid.length.get()[0] == 1) {
 			analytic_solution = get_solution_value(
-				grid.geometry.get_cell_y(cell),
-				grid.geometry.get_cell_z(cell)
+				cell_center[1],
+				cell_center[2]
 			);
 		} else if (grid.length.get()[1] == 1) {
 			analytic_solution = get_solution_value(
-				grid.geometry.get_cell_x(cell),
-				grid.geometry.get_cell_z(cell)
+				cell_center[0],
+				cell_center[2]
 			);
 		} else if (grid.length.get()[2] == 1) {
 			analytic_solution = get_solution_value(
-				grid.geometry.get_cell_x(cell),
-				grid.geometry.get_cell_y(cell)
+				cell_center[0],
+				cell_center[1]
 			);
 		}
 
@@ -193,11 +195,7 @@ int main(int argc, char* argv[])
 		*/
 
 		Poisson_Solve solver;
-		dccrg::Dccrg<Poisson_Cell> grid_x, grid_y, grid_z;
-
-		grid_x.geometry.set(0, 0, 0, 1, cell_length_x, cell_length_y);
-		grid_y.geometry.set(0, 0, 0, cell_length_x, 1, cell_length_y);
-		grid_z.geometry.set(0, 0, 0, cell_length_x, cell_length_y, 1);
+		Dccrg<Poisson_Cell, Cartesian_Geometry> grid_x, grid_y, grid_z;
 
 		const boost::array<uint64_t, 3>
 			grid_length_x = {{1, cells_x, cells_y}},
@@ -207,6 +205,32 @@ int main(int argc, char* argv[])
 		grid_x.initialize(grid_length_x, comm, "RCB", 0, 0, true, true, true);
 		grid_y.initialize(grid_length_y, comm, "RCB", 0, 0, true, true, true);
 		grid_z.initialize(grid_length_z, comm, "RCB", 0, 0, true, true, true);
+
+		Cartesian_Geometry::Parameters geom_params;
+		geom_params.start[0] =
+		geom_params.start[1] =
+		geom_params.start[2] = 0;
+		geom_params.level_0_cell_length[0] =
+		geom_params.level_0_cell_length[0] =
+		geom_params.level_0_cell_length[0] = 1;
+
+		geom_params.level_0_cell_length[1] = cell_length_x;
+		geom_params.level_0_cell_length[2] = cell_length_y;
+		grid_x.set_geometry(geom_params);
+		geom_params.level_0_cell_length[1] = 1;
+		geom_params.level_0_cell_length[2] = 1;
+
+		geom_params.level_0_cell_length[0] = cell_length_x;
+		geom_params.level_0_cell_length[2] = cell_length_y;
+		grid_y.set_geometry(geom_params);
+		geom_params.level_0_cell_length[0] = 1;
+		geom_params.level_0_cell_length[2] = 1;
+
+		geom_params.level_0_cell_length[0] = cell_length_x;
+		geom_params.level_0_cell_length[1] = cell_length_y;
+		grid_z.set_geometry(geom_params);
+		geom_params.level_0_cell_length[0] = 1;
+		geom_params.level_0_cell_length[1] = 1;
 
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
 
@@ -240,17 +264,22 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
+			const boost::array<double, 3>
+				cell_center_x = grid_x.geometry.get_center(cell),
+				cell_center_y = grid_y.geometry.get_center(cell),
+				cell_center_z = grid_z.geometry.get_center(cell);
+
 			data_x->rhs = get_rhs_value(
-				grid_x.geometry.get_cell_y(cell),
-				grid_x.geometry.get_cell_z(cell)
+				cell_center_x[1],
+				cell_center_x[2]
 			);
 			data_y->rhs = get_rhs_value(
-				grid_y.geometry.get_cell_x(cell),
-				grid_y.geometry.get_cell_z(cell)
+				cell_center_y[0],
+				cell_center_y[2]
 			);
 			data_z->rhs = get_rhs_value(
-				grid_z.geometry.get_cell_x(cell),
-				grid_z.geometry.get_cell_y(cell)
+				cell_center_z[0],
+				cell_center_z[1]
 			);
 
 			data_x->solution =

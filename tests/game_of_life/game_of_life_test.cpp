@@ -327,20 +327,20 @@ int main(int argc, char* argv[])
 			break;
 	}
 
-	boost::array<vector<double>, 3> coordinates;
+	const unsigned int neighborhood_size = 1;
+	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
+
+	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 		for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
-			coordinates[dimension].push_back(double(i) * cell_length);
+			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
 
-	if (!game_grid.geometry.set(coordinates)) {
+	if (!game_grid.set_geometry(geom_params)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
-
-	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
 
 	#ifdef SEND_SINGLE_CELLS
 	game_grid.set_send_single_cells(true);
@@ -349,7 +349,9 @@ int main(int argc, char* argv[])
 	if (verbose && rank == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level()
 			<< "\nNumber of cells: "
-			<< (coordinates[0].size() - 1) * (coordinates[1].size() - 1) * (coordinates[2].size() - 1)
+			<< (geom_params.coordinates[0].size() - 1)
+				* (geom_params.coordinates[1].size() - 1)
+				* (geom_params.coordinates[2].size() - 1)
 			<< "\nSending single cells: " << boolalpha << game_grid.get_send_single_cells()
 			<< endl << endl;
 	}

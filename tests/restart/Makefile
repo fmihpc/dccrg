@@ -10,9 +10,11 @@ PROGRAMS = restart_test dc2vtk
 
 HEADERS = \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
 	../../dccrg_cartesian_geometry.hpp \
+	../../dccrg_mapping.hpp \
 	../../dccrg_mpi_support.hpp \
+	../../dccrg_topology.hpp \
+	../../dccrg_types.hpp \
 	initialize.hpp \
 	refine.hpp \
 	solve.hpp \

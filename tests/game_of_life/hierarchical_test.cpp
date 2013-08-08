@@ -46,11 +46,6 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	if (!game_grid.geometry.set(0, 0, 0, 1, 1, 1)) {
-		cerr << "Couldn't set grid geometry." << endl;
-		exit(EXIT_FAILURE);
-	}
-
 	const boost::array<uint64_t, 3> grid_length = {{34, 7, 1}};
 	game_grid.initialize(grid_length, comm, "HIER", 1);
 	if (comm.rank() == 0) {

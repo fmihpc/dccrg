@@ -46,21 +46,10 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<CellData, Stretched_Cartesian_Geometry> grid;
+	Dccrg<CellData> grid;
 
-	#define GRID_SIZE 3
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-	}
-	y_coordinates.push_back(0);
-	y_coordinates.push_back(1);
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
-	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
-
-	grid.initialize(comm, "RANDOM", 1, 0);
+	const boost::array<uint64_t, 3> grid_length = {{3, 1, 1}};
+	grid.initialize(grid_length, comm, "RANDOM", 1, 0);
 
 	// populate the grid, number of variables in a cell is equal to its id
 	vector<uint64_t> cells = grid.get_cells();
@@ -87,19 +76,31 @@ int main(int argc, char* argv[])
 			cout << "Cell " << *cell << " data (on process " << comm.rank() << "): ";
 
 			CellData* cell_data = grid[*cell];
-			for (vector<int>::const_iterator variable = cell_data->variables1.begin(); variable != cell_data->variables1.end(); variable++) {
+			for (vector<int>::const_iterator
+				variable = cell_data->variables1.begin();
+				variable != cell_data->variables1.end();
+				variable++
+			) {
 				cout << *variable << " ";
 			}
 
 			const vector<uint64_t>* neighbors = grid.get_neighbors_of(*cell);
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+			for (vector<uint64_t>::const_iterator
+				neighbor = neighbors->begin();
+				neighbor != neighbors->end();
+				neighbor++
+			) {
 				if (*neighbor == 0) {
 					continue;
 				}
 
 				CellData* neighbor_data = grid[*neighbor];
 
-				for (vector<int>::const_iterator variable = neighbor_data->variables2.begin(); variable != neighbor_data->variables2.end(); variable++) {
+				for (vector<int>::const_iterator
+					variable = neighbor_data->variables2.begin();
+					variable != neighbor_data->variables2.end();
+					variable++
+				) {
 					cout << *variable << " ";
 				}
 			}
@@ -130,19 +131,31 @@ int main(int argc, char* argv[])
 			cout << "Cell " << *cell << " data (on process " << comm.rank() << "): ";
 
 			CellData* cell_data = grid[*cell];
-			for (vector<int>::const_iterator variable = cell_data->variables1.begin(); variable != cell_data->variables1.end(); variable++) {
+			for (vector<int>::const_iterator
+				variable = cell_data->variables1.begin();
+				variable != cell_data->variables1.end();
+				variable++
+			) {
 				cout << *variable << " ";
 			}
 
 			const vector<uint64_t>* neighbors = grid.get_neighbors_of(*cell);
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+			for (vector<uint64_t>::const_iterator
+				neighbor = neighbors->begin();
+				neighbor != neighbors->end();
+				neighbor++
+			) {
 				if (*neighbor == 0) {
 					continue;
 				}
 
 				CellData* neighbor_data = grid[*neighbor];
 
-				for (vector<int>::const_iterator variable = neighbor_data->variables2.begin(); variable != neighbor_data->variables2.end(); variable++) {
+				for (vector<int>::const_iterator
+					variable = neighbor_data->variables2.begin();
+					variable != neighbor_data->variables2.end();
+					variable++
+				) {
 					cout << *variable << " ";
 				}
 			}
@@ -174,19 +187,31 @@ int main(int argc, char* argv[])
 			cout << "Cell " << *cell << " data (on process " << comm.rank() << "): ";
 
 			CellData* cell_data = grid[*cell];
-			for (vector<int>::const_iterator variable = cell_data->variables1.begin(); variable != cell_data->variables1.end(); variable++) {
+			for (vector<int>::const_iterator
+				variable = cell_data->variables1.begin();
+				variable != cell_data->variables1.end();
+				variable++
+			) {
 				cout << *variable << " ";
 			}
 
 			const vector<uint64_t>* neighbors = grid.get_neighbors_of(*cell);
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+			for (vector<uint64_t>::const_iterator
+				neighbor = neighbors->begin();
+				neighbor != neighbors->end();
+				neighbor++
+			) {
 				if (*neighbor == 0) {
 					continue;
 				}
 
 				CellData* neighbor_data = grid[*neighbor];
 
-				for (vector<int>::const_iterator variable = neighbor_data->variables2.begin(); variable != neighbor_data->variables2.end(); variable++) {
+				for (vector<int>::const_iterator
+					variable = neighbor_data->variables2.begin();
+					variable != neighbor_data->variables2.end();
+					variable++
+				) {
 					cout << *variable << " ";
 				}
 			}

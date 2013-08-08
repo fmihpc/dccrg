@@ -9,11 +9,11 @@ as published by the Free Software Foundation.
 
 Dccrg is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
+along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "boost/foreach.hpp"
@@ -176,10 +176,12 @@ int main(int argc, char* argv[])
 			"Create a grid with arg number of unrefined cells in the z direction")
 		("maximum_refinement_level",
 			boost::program_options::value<int>(&maximum_refinement_level)->default_value(-1),
-			"Maximum refinement level of the grid (0 == not refined, -1 == maximum possible for given lengths)")
+			"Maximum refinement level of the grid (0 == not refined, "
+			"-1 == maximum possible for given lengths)")
 		("neighborhood_size",
 			boost::program_options::value<int>(&neighborhood_size)->default_value(1),
-			"Size of a cell's neighborhood in cells of equal size (0 means only cells sharing a face are neighbors)");
+			"Size of a cell's neighborhood in cells of equal size "
+			"(0 means only cells sharing a face are neighbors)");
 
 	// read options from command line
 	boost::program_options::variables_map option_variables;
@@ -207,16 +209,14 @@ int main(int argc, char* argv[])
 	// initialize
 	Dccrg<Cell> grid;
 
-	if (!grid.set_geometry(
-		x_length, y_length, z_length,
-		0.0, 0.0, 0.0,
-		1.0 / x_length, 1.0 / y_length, 1.0 / z_length
-	)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		return EXIT_FAILURE;
-	}
-
-	grid.initialize(comm, load_balancer.c_str(), neighborhood_size, maximum_refinement_level);
+	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+	grid.initialize(
+		grid_length,
+		comm,
+		load_balancer.c_str(),
+		neighborhood_size,
+		maximum_refinement_level
+	);
 	grid.balance_load();
 
 	vector<uint64_t> inner_cells = grid.get_local_cells_not_on_process_boundary();

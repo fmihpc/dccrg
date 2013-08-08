@@ -16,6 +16,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "boost/array.hpp"
 #include "boost/assign/list_of.hpp"
 #include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
@@ -73,12 +74,8 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<Cell> grid;
 
-	if (!grid.set_geometry(10, 10, 10, 0, 0, 0, 1, 1, 1)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
-
-	grid.initialize(comm, "RANDOM", 2, 0, true, true, true);
+	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
+	grid.initialize(grid_length, comm, "RANDOM", 2, 0, true, true, true);
 
 	const vector<uint64_t> cells = grid.get_cells();
 

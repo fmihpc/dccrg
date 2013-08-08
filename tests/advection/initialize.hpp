@@ -19,6 +19,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DCCRG_ADVECTION_INITIALIZE_HPP
 #define DCCRG_ADVECTION_INITIALIZE_HPP
 
+#include "boost/array.hpp"
 #include "boost/foreach.hpp"
 #include "cmath"
 #include "iostream"
@@ -58,14 +59,12 @@ public:
 				cell->data[i] = 0;
 			}
 
-			const double x = grid.geometry.get_cell_x(cell_id),
-				y = grid.geometry.get_cell_y(cell_id),
-				//z = grid.geometry.get_cell_z(cell_id),
-				radius = 0.15;
+			const boost::array<double, 3> cell_center = grid.geometry.get_center(cell_id);
+			const double radius = 0.15;
 
 			// velocities
-			cell->vx() = Velocity().vx(y);
-			cell->vy() = Velocity().vy(x);
+			cell->vx() = Velocity().vx(cell_center[1]);
+			cell->vy() = Velocity().vy(cell_center[0]);
 			cell->vz() = Velocity().vz(0);
 
 			/*
@@ -78,7 +77,10 @@ public:
 				hump_y0 = 0.5,
 				hump_r
 					= std::min(
-						std::sqrt(std::pow(x - hump_x0, 2.0) + std::pow(y - hump_y0, 2.0)),
+						std::sqrt(
+							std::pow(cell_center[0] - hump_x0, 2.0)
+							+ std::pow(cell_center[1] - hump_y0, 2.0)
+						),
 						radius
 					) / radius,
 				hump_density = 0.25 * (1 + std::cos(M_PI * hump_r));

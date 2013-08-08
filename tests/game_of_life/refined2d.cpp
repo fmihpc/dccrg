@@ -56,13 +56,13 @@ int main(int argc, char* argv[])
 
 	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const double cell_length = 1.0 / grid_length[0];
-	boost::array<vector<double>, 3> coordinates;
+	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 		for (size_t i = 0; i <= grid_length[dimension]; i++) {
-			coordinates[dimension].push_back(double(i) * cell_length);
+			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.geometry.set(coordinates);
+	game_grid.set_geometry(geom_params);
 
 	#define NEIGHBORHOOD_SIZE 1
 	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);

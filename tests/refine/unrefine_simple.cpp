@@ -2,6 +2,7 @@
 Tests the grid using simple refining and unrefining
 */
 
+#include "boost/array.hpp"
 #include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
@@ -36,30 +37,37 @@ int main(int argc, char* argv[])
 	Dccrg<int, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
-	#define CELL_SIZE (1.0 / GRID_SIZE)
-	vector<double> x_coordinates, y_coordinates, z_coordinates;
-	for (int i = 0; i <= GRID_SIZE; i++) {
-		x_coordinates.push_back(i * CELL_SIZE);
-	}
-	y_coordinates.push_back(0);
-	y_coordinates.push_back(1);
-	z_coordinates.push_back(0);
-	z_coordinates.push_back(1);
-	grid.set_geometry(x_coordinates, y_coordinates, z_coordinates);
-
+	const boost::array<uint64_t, 3> grid_length = {{GRID_SIZE, 1, 1}};
 	#define NEIGHBORHOOD_SIZE 1
-	grid.initialize(comm, "RANDOM", NEIGHBORHOOD_SIZE, 5);
+	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE, 5);
+
+	#define CELL_SIZE (1.0 / GRID_SIZE)
+	Stretched_Cartesian_Geometry::Parameters geom_params;
+	for (size_t i = 0; i <= GRID_SIZE; i++) {
+		geom_params.coordinates[0].push_back(i * CELL_SIZE);
+	}
+	geom_params.coordinates[1].push_back(0);
+	geom_params.coordinates[1].push_back(1);
+	geom_params.coordinates[2].push_back(0);
+	geom_params.coordinates[2].push_back(1);
+	grid.set_geometry(geom_params);
+
 	if (comm.rank() == 0) {
-		cout << "Maximum refinement level of the grid: " << grid.get_maximum_refinement_level() << endl;
-		cout << "Number of cells: " << (x_coordinates.size() - 1) * (y_coordinates.size() - 1) * (z_coordinates.size() - 1) << endl << endl;
+		cout << "Maximum refinement level of the grid: "
+			<< grid.get_maximum_refinement_level()
+			<< "\nNumber of cells: "
+			<< (geom_params.coordinates.size() - 1)
+				* (geom_params.coordinates.size() - 1)
+				* (geom_params.coordinates.size() - 1)
+			<< endl << endl;
 	}
 
-	// every process outputs the game state into its own file
+	// every process outputs state into its own file
 	ostringstream basename, suffix(".vtk");
 	basename << "unrefine_simple_" << comm.rank() << "_";
 	ofstream outfile, visit_file;
 
-	// visualize the game with visit -o game_of_life_test.visit
+	// visualize with visit -o game_of_life_test.visit
 	if (comm.rank() == 0) {
 		visit_file.open("unrefine_simple.visit");
 		visit_file << "!NBLOCKS " << comm.size() << endl;
@@ -76,7 +84,7 @@ int main(int argc, char* argv[])
 		vector<uint64_t> cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
 
-		// write the game state into a file named according to the current time step
+		// write state into a file named according to the current time step
 		string current_output_name("");
 		ostringstream step_string;
 		step_string.fill('0');
@@ -86,7 +94,7 @@ int main(int argc, char* argv[])
 		current_output_name += step_string.str();
 		current_output_name += suffix.str();
 
-		// visualize the game with visit -o game_of_life_test.visit
+		// visualize with visit -o game_of_life_test.visit
 		if (comm.rank() == 0) {
 			for (int process = 0; process < comm.size(); process++) {
 				visit_file << "unrefine_simple_" << process << "_" << step_string.str() << suffix.str() << endl;
@@ -125,24 +133,15 @@ int main(int argc, char* argv[])
 		before = clock();
 
 		// refine / unrefine the smallest cell that is closest to the grid starting corner
+		const boost::array<double, 3> adapt_coord = {{
+			0.0001 * CELL_SIZE,
+			0.0001 * CELL_SIZE,
+			0.0001 * CELL_SIZE
+		}};
 		if (step < 4) {
-			if (!grid.refine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't refine cell at " << 0.0001 * CELL_SIZE
-					<< ", " << 0.0001 * CELL_SIZE
-					<< ", " << 0.0001 * CELL_SIZE
-					<< std::endl;
-				abort();
-			}
+			grid.refine_completely_at(adapt_coord);
 		} else {
-			if (!grid.unrefine_completely_at(0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE, 0.0001 * CELL_SIZE)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't unrefine cell at " << 0.0001 * CELL_SIZE
-					<< ", " << 0.0001 * CELL_SIZE
-					<< ", " << 0.0001 * CELL_SIZE
-					<< std::endl;
-				abort();
-			}
+			grid.unrefine_completely_at(adapt_coord);
 		}
 
 		vector<uint64_t> new_cells = grid.stop_refining();

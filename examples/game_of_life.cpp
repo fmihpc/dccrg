@@ -108,8 +108,6 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	game_grid.geometry.set(0, 0, 0, 1, 1, 1);
-
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
 	const boost::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};

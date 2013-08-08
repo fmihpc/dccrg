@@ -117,26 +117,27 @@ int main(int argc, char* argv[])
 			break;
 	}
 
-	boost::array<vector<double>, 3> coordinates;
-	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
-		for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
-			coordinates[dimension].push_back(double(i) * cell_length);
-		}
-	}
-
-	if (!game_grid.geometry.set(coordinates)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
-	if (!reference_grid.geometry.set(coordinates)) {
-		cerr << "Couldn't set reference grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
-
 	const unsigned int neighborhood_size = 1;
 	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
 	// play complete reference game on each process
 	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size);
+
+
+	Stretched_Cartesian_Geometry::Parameters geom_params;
+	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
+		for (uint64_t i = 0; i <= grid_length[dimension]; i++) {
+			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
+		}
+	}
+	if (!game_grid.set_geometry(geom_params)) {
+		cerr << "Couldn't set grid geometry" << endl;
+		exit(EXIT_FAILURE);
+	}
+	if (!reference_grid.set_geometry(geom_params)) {
+		cerr << "Couldn't set reference grid geometry" << endl;
+		exit(EXIT_FAILURE);
+	}
+
 
 	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
 	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);

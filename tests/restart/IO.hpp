@@ -55,7 +55,7 @@ public:
 		const std::string& name,
 		const uint64_t step,
 		MPI_Comm& comm,
-		dccrg::Dccrg<Cell, UserGeometry>& game_grid
+		dccrg::Dccrg<Cell, UserGeometry>& grid
 	) {
 		int rank = 0, comm_size = 0;
 		MPI_Comm_rank(comm, &rank);
@@ -103,42 +103,21 @@ public:
 			memcpy(buffer + offset, &step, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			{
-			double value = game_grid.get_start_x();
-			memcpy(buffer + offset, &value, sizeof(double));
-			offset += sizeof(double);
-			value = game_grid.get_start_y();
-			memcpy(buffer + offset, &value, sizeof(double));
-			offset += sizeof(double);
-			value = game_grid.get_start_z();
-			memcpy(buffer + offset, &value, sizeof(double));
-			offset += sizeof(double);
-			value = game_grid.get_cell_length_x(1);
-			memcpy(buffer + offset, &value, sizeof(double));
-			offset += sizeof(double);
-			value = game_grid.get_cell_length_y(1);
-			memcpy(buffer + offset, &value, sizeof(double));
-			offset += sizeof(double);
-			value = game_grid.get_cell_length_z(1);
-			memcpy(buffer + offset, &value, sizeof(double));
-			offset += sizeof(double);
-			}
-			{
-			uint64_t value = game_grid.get_length_x();
-			memcpy(buffer + offset, &value, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
-			value = game_grid.get_length_y();
-			memcpy(buffer + offset, &value, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
-			value = game_grid.get_length_z();
-			memcpy(buffer + offset, &value, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
-			}
-			{
-			int value = game_grid.get_maximum_refinement_level();
-			memcpy(buffer + offset, &value, sizeof(int));
+			const boost::array<double, 3> grid_start = grid.geometry.get_start();
+			memcpy(buffer + offset, grid_start.data(), 3 * sizeof(double));
+			offset += 3 * sizeof(double);
+
+			const boost::array<double, 3> cell_length = grid.geometry.get_length(1);
+			memcpy(buffer + offset, cell_length.data(), 3 * sizeof(double));
+			offset += 3 * sizeof(double);
+
+			const boost::array<uint64_t, 3> grid_length = grid.length.get();
+			memcpy(buffer + offset, grid_length.data(), 3 * sizeof(uint64_t));
+			offset += 3 * sizeof(uint64_t);
+
+			const int max_ref_lvl = grid.get_maximum_refinement_level();
+			memcpy(buffer + offset, &max_ref_lvl, sizeof(int));
 			offset += sizeof(int);
-			}
 
 			result = MPI_File_write_at_all(
 				outfile,
@@ -176,7 +155,7 @@ public:
 
 		MPI_File_close(&outfile);
 
-		if (!game_grid.save_grid_data(name, header_size)) {
+		if (!grid.save_grid_data(name, header_size)) {
 			std::cerr << "Process " << rank
 				<< " Writing grid to file " << name << " failed"
 				<< std::endl;
@@ -190,7 +169,7 @@ public:
 		const std::string& name,
 		uint64_t& step,
 		MPI_Comm& comm,
-		dccrg::Dccrg<Cell, UserGeometry>& game_grid
+		dccrg::Dccrg<Cell, UserGeometry>& grid
 	) {
 		Cell::transfer_only_life = true;
 
@@ -237,7 +216,7 @@ public:
 		MPI_File_close(&infile);
 
 		MPI_Offset header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
-		game_grid.load_grid_data(name, header_size);
+		grid.load_grid_data(name, header_size);
 
 		Cell::transfer_only_life = false;
 	}

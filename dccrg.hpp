@@ -65,7 +65,7 @@ MPI_UNSIGNED_LONG in the following:
 #endif
 
 
-#include "dccrg_cartesian_geometry.hpp"
+#include "dccrg_no_geometry.hpp"
 #include "dccrg_iterator_support.hpp"
 #include "dccrg_mapping.hpp"
 #include "dccrg_mpi_support.hpp"
@@ -180,11 +180,14 @@ Dccrg() to get started with the %dccrg API.
 */
 template <
 	class Cell_Data,
-	class Geometry = Cartesian_Geometry
+	class Geometry = No_Geometry
 > class Dccrg
 {
 
-// these must be initialized before their read-only versions.
+/*
+Supporting classes must be initialized in a particular order
+and the actual order is defined by their order in this source file.
+*/
 private:
 
 	/*!
@@ -199,6 +202,7 @@ private:
 
 
 public:
+
 
 	/*!
 	Public read-only version of the grid's topology.
@@ -222,6 +226,17 @@ public:
 	*/
 	const Grid_Length& length;
 
+
+private:
+
+	/*!
+	Read-write version of the grid's geometry for internal use.
+	*/
+	Geometry geometry_rw;
+
+
+public:
+
 	/*!
 	The geometry of the grid.
 
@@ -229,8 +244,16 @@ public:
 	Cartesian_Geometry
 	Dccrg()
 	*/
-	Geometry geometry;
+	const Geometry& geometry;
 
+
+	/*!
+	Parameter type of the geometry class that is given
+	to dccrg as a template parameter.
+
+	\see For example Cartesian_Geometry_Parameters
+	*/
+	typedef typename Geometry::Parameters Geometry_Parameters;
 
 	/*!
 	Helper type for iterating over local cells and their data using BOOST_FOREACH
@@ -255,11 +278,6 @@ public:
 	For an example see the file simple_game_of_life.cpp
 	in the examples directory.
 
-	\see
-	Available geometries:
-		- Cartesian_Geometry::set()
-		- Stretched_Cartesian_Geometry::set()
-		.
 	initialize()
 	Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other)
 	*/
@@ -267,7 +285,8 @@ public:
 		topology(topology_rw),
 		mapping(mapping_rw),
 		length(mapping.length),
-		geometry(length, mapping, topology)
+		geometry_rw(length, mapping, topology),
+		geometry(geometry_rw)
 	{
 		this->initialized = false;
 	}
@@ -300,7 +319,8 @@ public:
 		topology(topology_rw),
 		mapping(mapping_rw),
 		length(mapping.length),
-		geometry(length, mapping, topology),
+		geometry_rw(length, mapping, topology),
+		geometry(geometry_rw),
 		initialized(other.get_initialized()),
 		neighborhood_length(other.get_neighborhood_length()),
 		max_tag(other.get_max_tag()),
@@ -346,7 +366,7 @@ public:
 			abort();
 		}
 
-		if (!this->geometry.set(other.geometry)) {
+		if (!this->geometry_rw.set(other.geometry)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't set geometry while copy constructing"
 				<< std::endl;
@@ -377,6 +397,7 @@ public:
 	Initializes the instance of the grid with given parameters.
 
 	Zoltan_Initialize must have been called before calling this function.
+	The geometry of the grid must not have been set before calling this function.
 
 	comm: the grid will span all the processes in the communicator comm
 
@@ -408,6 +429,7 @@ public:
 
 	\see
 	Dccrg()
+	set_geometry()
 	get_cells()
 	get_existing_cell()
 	operator[]()
@@ -865,6 +887,28 @@ public:
 
 
 	/*!
+	Sets the geometry of the grid to given values.
+
+	initialize() must have been called prior to calling this function.
+
+	Forwards the given values to the set function of the
+	Geometry class given as a template parameter to dccrg.
+
+	See the documentation of the Geometry class for details
+	of the Parameters required.
+
+	Available geometries:
+		- Cartesian_Geometry::set()
+		- Stretched_Cartesian_Geometry::set()
+		.
+	*/
+	bool set_geometry(const typename Geometry::Parameters& parameters)
+	{
+		return this->geometry_rw.set(parameters);
+	}
+
+
+	/*!
 	Returns cells without children on this process fulfilling given criteria.
 
 	By default returns all local cells.	Otherwise only those local cells are
@@ -1037,6 +1081,15 @@ public:
 		} else {
 			return NULL;
 		}
+	}
+
+
+	/*!
+	Returns the coordinate of the center of given cell.
+	*/
+	boost::array<double, 3> get_center(const uint64_t cell) const
+	{
+		return this->geometry.get_center(cell);
 	}
 
 
@@ -2842,7 +2895,11 @@ public:
 		}
 
 		std::vector<uint64_t> leaf_cells = this->get_cells();
-		std::sort(leaf_cells.begin(), leaf_cells.end());
+
+		if (leaf_cells.size() > 0) {
+			std::sort(leaf_cells.begin(), leaf_cells.end());
+		}
+
 		outfile << "# vtk DataFile Version 2.0" << std::endl;
 		outfile << "Cartesian cell refinable grid" << std::endl;
 		outfile << "ASCII" << std::endl;
@@ -2850,31 +2907,20 @@ public:
 
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
-		for (unsigned int i = 0; i < leaf_cells.size(); i++) {
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_min(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_min(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
-			outfile << this->geometry.get_cell_x_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_y_max(leaf_cells[i]) << " "
-				<< this->geometry.get_cell_z_max(leaf_cells[i]) << std::endl;
+		for (size_t i = 0; i < leaf_cells.size(); i++) {
+			const boost::array<double, 3>
+				cell_min = this->geometry.get_min(leaf_cells[i]),
+				cell_max = this->geometry.get_max(leaf_cells[i]);
+
+			outfile
+				<< cell_min[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
+				<< cell_max[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
+				<< cell_min[0] << " " << cell_max[1] << " " << cell_min[2] << "\n"
+				<< cell_max[0] << " " << cell_max[1] << " " << cell_min[2] << "\n"
+				<< cell_min[0] << " " << cell_min[1] << " " << cell_max[2] << "\n"
+				<< cell_max[0] << " " << cell_min[1] << " " << cell_max[2] << "\n"
+				<< cell_min[0] << " " << cell_max[1] << " " << cell_max[2] << "\n"
+				<< cell_max[0] << " " << cell_max[1] << " " << cell_max[2] << "\n";
 		}
 
 		// map cells to written points
@@ -2911,9 +2957,9 @@ public:
 	Does nothing in the same cases as refine_completely and additionally
 	if the coordinate is outside of the grid.
 	*/
-	bool refine_completely_at(const double x, const double y, const double z)
+	bool refine_completely_at(const boost::array<double, 3>& coordinate)
 	{
-		const uint64_t cell = this->get_existing_cell(x, y, z);
+		const uint64_t cell = this->get_existing_cell(coordinate);
 		if (cell == error_cell) {
 			return false;
 		}
@@ -2928,9 +2974,9 @@ public:
 	Does nothing in the same cases as unrefine_completely and additionally
 	if the coordinate is outside of the grid.
 	*/
-	bool unrefine_completely_at(const double x, const double y, const double z)
+	bool unrefine_completely_at(const boost::array<double, 3>& coordinate)
 	{
-		const uint64_t cell = this->get_existing_cell(x, y, z);
+		const uint64_t cell = this->get_existing_cell(coordinate);
 		if (cell == error_cell) {
 			return false;
 		}
@@ -2945,9 +2991,9 @@ public:
 	Does nothing in the same cases as dont_unrefine and additionally if the
 	coordinate is outside of the grid.
 	*/
-	bool dont_unrefine_at(const double x, const double y, const double z)
+	bool dont_unrefine_at(const boost::array<double, 3>& coordinate)
 	{
-		const uint64_t cell = this->get_existing_cell(x, y, z);
+		const uint64_t cell = this->get_existing_cell(coordinate);
 		if (cell == error_cell) {
 			return false;
 		}
@@ -3689,7 +3735,7 @@ public:
 	uint64_t get_parent(const uint64_t cell) const
 	{
 		if (this->cell_process.count(cell) == 0) {
-			return 0;
+			return error_cell;
 		}
 
 		// given cell cannot have a parent
@@ -5527,13 +5573,9 @@ public:
 	Returns error_cell if the coordinate is outside of the grid
 	or this process doesn't know which remote cells exist at given (x, y, z).
 	*/
-	uint64_t get_existing_cell(const double x, const double y, const double z) const
+	uint64_t get_existing_cell(const boost::array<double, 3>& coordinate) const
 	{
-		const Types<3>::indices_t indices = {{
-			this->geometry.get_x_index_of_coord(x),
-			this->geometry.get_y_index_of_coord(y),
-			this->geometry.get_z_index_of_coord(z)
-		}};
+		const Types<3>::indices_t indices = this->geometry.get_indices(coordinate);
 
 		if (indices[0] == error_index
 		|| indices[1] == error_index
@@ -9421,9 +9463,12 @@ private:
 				return;
 			}
 
-			geom_vec[3 * i + 0] = dccrg_instance->geometry.get_cell_x(cell);
-			geom_vec[3 * i + 1] = dccrg_instance->geometry.get_cell_y(cell);
-			geom_vec[3 * i + 2] = dccrg_instance->geometry.get_cell_z(cell);
+			const boost::array<double, 3> coordinate
+				= dccrg_instance->geometry.get_center(cell);
+
+			geom_vec[3 * i + 0] = coordinate[0];
+			geom_vec[3 * i + 1] = coordinate[1];
+			geom_vec[3 * i + 2] = coordinate[2];
 		}
 	}
 

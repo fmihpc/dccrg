@@ -7,7 +7,9 @@ PROGRAMS = neighbor_list_length game_of_life advection
 
 HEADERS = \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
+	../../dccrg_types.hpp \
+	../../dccrg_topology.hpp \
+	../../dccrg_length.hpp \
 	../../dccrg_cartesian_geometry.hpp \
 	../advection/adapter.hpp \
 	../advection/cell.hpp \

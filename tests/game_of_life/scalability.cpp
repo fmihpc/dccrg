@@ -75,20 +75,25 @@ int main(int argc, char* argv[])
 
 	const boost::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
 	const double cell_length = 1.0 / grid_length[0];
-	boost::array<vector<double>, 3> coordinates;
+
+	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 		for (size_t i = 0; i <= grid_length[dimension]; i++) {
-			coordinates[dimension].push_back(double(i) * cell_length);
+			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.geometry.set(coordinates);
+	game_grid.set_geometry(geom_params);
 
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
 	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
-		cout << "Number of cells: " << (coordinates[0].size() - 1) * (coordinates[1].size() - 1) * (coordinates[2].size() - 1) << endl << endl;
+		cout << "Number of cells: "
+			<< (geom_params.coordinates[0].size() - 1)
+				* (geom_params.coordinates[1].size() - 1)
+				* (geom_params.coordinates[2].size() - 1)
+			<< endl << endl;
 	}
 
 	game_grid.balance_load();
@@ -114,8 +119,11 @@ int main(int argc, char* argv[])
 		cell_data->data[1] = 0;
 		#endif
 
-		double y = game_grid.geometry.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.geometry.get_cell_length_y(*cell) - y) < 0.5 * game_grid.geometry.get_cell_length_y(*cell)) {
+		const boost::array<double, 3>
+			cell_center = game_grid.geometry.get_center(*cell),
+			cell_length = game_grid.geometry.get_length(*cell);
+
+		if (fabs(0.5 + 0.1 * cell_length[1] - cell_center[1]) < 0.5 * cell_length[1]) {
 			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else
@@ -141,8 +149,11 @@ int main(int argc, char* argv[])
 		cell_data->data[1] = 0;
 		#endif
 
-		double y = game_grid.geometry.get_cell_y(*cell);
-		if (fabs(0.5 + 0.1 * game_grid.geometry.get_cell_length_y(*cell) - y) < 0.5 * game_grid.geometry.get_cell_length_y(*cell)) {
+		const boost::array<double, 3>
+			cell_center = game_grid.geometry.get_center(*cell),
+			cell_length = game_grid.geometry.get_length(*cell);
+
+		if (fabs(0.5 + 0.1 * cell_length[1] - cell_center[1]) < 0.5 * cell_length[1]) {
 			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			cell_data->is_alive = true;
 			#else

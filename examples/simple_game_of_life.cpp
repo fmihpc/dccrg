@@ -52,9 +52,6 @@ int main(int argc, char* argv[])
 	// balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
 	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
-	// start the grid at (0, 0, 0) and make the size of refinement level 0 cells 1
-	game_grid.geometry.set(0, 0, 0, 1, 1, 1);
-
 	// since the grid doesn't change (isn't refined / unrefined)
 	// during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();

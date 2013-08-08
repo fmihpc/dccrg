@@ -82,15 +82,16 @@ template<class Geometry> double get_p_norm(
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// assumes grid is 1d
+		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
 		if (grid.length.get()[0] > 1) {
-			coord = grid.geometry.get_cell_x(cell);
+			coord = cell_center[0];
 		}
 		if (grid.length.get()[1] > 1) {
-			coord = grid.geometry.get_cell_y(cell);
+			coord = cell_center[1];
 		}
 		if (grid.length.get()[2] > 1) {
-			coord = grid.geometry.get_cell_z(cell);
+			coord = cell_center[2];
 		}
 
 		Poisson_Cell* data = grid[cell];
@@ -165,9 +166,25 @@ int main(int argc, char* argv[])
 		number_of_cells <= max_number_of_cells;
 		number_of_cells *= 2
 	) {
+		Dccrg<Poisson_Cell, Stretched_Cartesian_Geometry> grid_stretched;
+		Dccrg<Poisson_Cell, Cartesian_Geometry> grid_reference;
+
 		const boost::array<uint64_t, 3> grid_length = {{number_of_cells, 1, 1}};
 
-		boost::array<vector<double>, 3> coordinates;
+		grid_stretched.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
+		grid_reference.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
+
+		Cartesian_Geometry::Parameters geom_params;
+		geom_params.start[0] =
+		geom_params.start[1] =
+		geom_params.start[2] = 0;
+		geom_params.level_0_cell_length[0] = 2 * M_PI / number_of_cells;
+		geom_params.level_0_cell_length[1] = 1;
+		geom_params.level_0_cell_length[2] = 1;
+		grid_reference.set_geometry(geom_params);
+
+		Stretched_Cartesian_Geometry::Parameters stretched_geom_params;
+		boost::array<vector<double>, 3>& coordinates = stretched_geom_params.coordinates;
 		coordinates[0].push_back(0);
 		coordinates[0].push_back(2 * M_PI);
 		coordinates[1].push_back(0);
@@ -218,15 +235,9 @@ int main(int argc, char* argv[])
 			}
 		}
 
+		grid_stretched.set_geometry(stretched_geom_params);
+
 		Poisson_Solve solver(10, 1e-5, 2, 10);
-		dccrg::Dccrg<Poisson_Cell, dccrg::Stretched_Cartesian_Geometry> grid_stretched;
-		dccrg::Dccrg<Poisson_Cell> grid_reference;
-
-		grid_stretched.geometry.set(coordinates);
-		grid_reference.geometry.set(0, 0, 0, 2 * M_PI / number_of_cells, 1, 1);
-
-		grid_stretched.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
-		grid_reference.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
 
 		const std::vector<uint64_t> initial_cells = grid_stretched.get_cells();
 
@@ -257,8 +268,8 @@ int main(int argc, char* argv[])
 			}
 
 			const double
-				stretched_coord = grid_stretched.geometry.get_cell_x(cell),
-				reference_coord = grid_reference.geometry.get_cell_x(cell);
+				stretched_coord = grid_stretched.geometry.get_center(cell)[0],
+				reference_coord = grid_reference.geometry.get_center(cell)[0];
 
 			data_stretched->rhs = get_rhs_value(stretched_coord);
 			data_reference->rhs = get_rhs_value(reference_coord);
@@ -341,7 +352,7 @@ int main(int argc, char* argv[])
 					abort();
 				}
 
-				const double stretched_coord = grid_stretched.geometry.get_cell_x(cell);
+				const double stretched_coord = grid_stretched.geometry.get_center(cell)[0];
 
 				plot_file << stretched_coord << " " << data_stretched->solution << "\n";
 			}
@@ -358,7 +369,7 @@ int main(int argc, char* argv[])
 					abort();
 				}
 
-				const double reference_coord = grid_reference.geometry.get_cell_x(cell);
+				const double reference_coord = grid_reference.geometry.get_center(cell)[0];
 
 				plot_file << reference_coord << " " << data_reference->solution << "\n";
 			}

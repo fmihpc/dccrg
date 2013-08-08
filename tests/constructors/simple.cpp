@@ -74,12 +74,6 @@ int main(int argc, char* argv[])
 	cout << "\nDccrg<CellData> grid:" << endl;
 	dccrg::Dccrg<CellData> grid;
 
-	cout << "\ngrid.set_geometry:" << endl;
-	if (!grid.geometry.set(0, 0, 0, 1, 1, 1)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		return EXIT_FAILURE;
-	}
-
 	cout << "\ngrid.initialize:" << endl;
 	const boost::array<uint64_t, 3> grid_length = {{1, 1, 1}};
 	grid.initialize(grid_length, comm, "RCB", 1, 0);

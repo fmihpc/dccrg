@@ -20,6 +20,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_ADVECTION_SAVE_HPP
 
 
+#include "boost/array.hpp"
 #include "boost/mpi.hpp"
 #include "cstring"
 #include "string"
@@ -154,41 +155,17 @@ public:
 			memcpy(buffer + offset, &endiannes, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const double start_x = grid.geometry.get_start_x();
-			memcpy(buffer + offset, &start_x, sizeof(double));
-			offset += sizeof(double);
+			const boost::array<double, 3> grid_start = grid.geometry.get_start();
+			memcpy(buffer + offset, grid_start.data(), 3 * sizeof(double));
+			offset += 3 * sizeof(double);
 
-			const double start_y = grid.geometry.get_start_y();
-			memcpy(buffer + offset, &start_y, sizeof(double));
-			offset += sizeof(double);
+			const boost::array<double, 3> cell_length = grid.geometry.get_length(1);
+			memcpy(buffer + offset, cell_length.data(), 3 * sizeof(double));
+			offset += 3 * sizeof(double);
 
-			const double start_z = grid.geometry.get_start_z();
-			memcpy(buffer + offset, &start_z, sizeof(double));
-			offset += sizeof(double);
-
-			const double cell_length_x = grid.geometry.get_cell_length_x(1);
-			memcpy(buffer + offset, &cell_length_x, sizeof(double));
-			offset += sizeof(double);
-
-			const double cell_length_y = grid.geometry.get_cell_length_y(1);
-			memcpy(buffer + offset, &cell_length_y, sizeof(double));
-			offset += sizeof(double);
-
-			const double cell_length_z = grid.geometry.get_cell_length_z(1);
-			memcpy(buffer + offset, &cell_length_z, sizeof(double));
-			offset += sizeof(double);
-
-			const uint64_t length_x = grid.length.get()[0];
-			memcpy(buffer + offset, &length_x, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
-
-			const uint64_t length_y = grid.length.get()[1];
-			memcpy(buffer + offset, &length_y, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
-
-			const uint64_t length_z = grid.length.get()[2];
-			memcpy(buffer + offset, &length_z, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
+			const boost::array<uint64_t, 3> grid_length = grid.length.get();
+			memcpy(buffer + offset, grid_length.data(), 3 * sizeof(uint64_t));
+			offset += 3 * sizeof(uint64_t);
 
 			const uint8_t max_ref_lvl = uint8_t(grid.get_maximum_refinement_level());
 			memcpy(buffer + offset, &max_ref_lvl, sizeof(uint8_t));

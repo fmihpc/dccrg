@@ -74,7 +74,14 @@ int main(int argc, char* argv[])
 	}
 
 	dccrg::Dccrg<Cell1, dccrg::Cartesian_Geometry> grid1;
-	if (!grid1.geometry.set(0, 0, 0, 1, 1, 1)) {
+	dccrg::Cartesian_Geometry::Parameters geom_params;
+	geom_params.start[0] =
+	geom_params.start[1] =
+	geom_params.start[2] = 0;
+	geom_params.level_0_cell_length[0] =
+	geom_params.level_0_cell_length[1] =
+	geom_params.level_0_cell_length[2] = 1;
+	if (!grid1.set_geometry(geom_params)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		return EXIT_FAILURE;
 	}

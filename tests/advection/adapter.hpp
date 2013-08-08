@@ -260,8 +260,10 @@ public:
 
 			new_cell_data->density() = parent_data->density();
 			new_cell_data->flux() = 0;
-			new_cell_data->vx() = Velocity().vx(grid.geometry.get_cell_y(new_cell));
-			new_cell_data->vy() = Velocity().vy(grid.geometry.get_cell_x(new_cell));
+
+			const boost::array<double, 3> cell_center = grid.geometry.get_center(new_cell);
+			new_cell_data->vx() = Velocity().vx(cell_center[1]);
+			new_cell_data->vy() = Velocity().vy(cell_center[0]);
 			new_cell_data->vz() = 0;
 		}
 
@@ -289,8 +291,10 @@ public:
 
 			parent_data->density() = 0;
 			parent_data->flux() = 0;
-			parent_data->vx() = Velocity().vx(grid.geometry.get_cell_y(parent));
-			parent_data->vy() = Velocity().vy(grid.geometry.get_cell_x(parent));
+
+			const boost::array<double, 3> cell_center = grid.geometry.get_center(parent);
+			parent_data->vx() = Velocity().vx(cell_center[1]);
+			parent_data->vy() = Velocity().vy(cell_center[0]);
 			parent_data->vz() = 0;
 		}
 

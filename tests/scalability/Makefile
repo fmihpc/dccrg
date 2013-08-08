@@ -4,9 +4,12 @@ CXX = mpic++ $(FLAGS)
 
 HEADERS = \
 	../../dccrg.hpp \
-	../../dccrg_index.hpp \
+	../../dccrg_cartesian_geometry.hpp \
+	../../dccrg_length.hpp \
+	../../dccrg_mapping.hpp \
 	../../dccrg_stretched_cartesian_geometry.hpp \
-	../../dccrg_cartesian_geometry.hpp
+	../../dccrg_types.hpp \
+	../../dccrg_topology.hpp
 
 all: scalability
 
