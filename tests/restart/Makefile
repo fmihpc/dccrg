@@ -27,7 +27,7 @@ restart_test: restart_test.cpp $(HEADERS) Makefile
 	@echo "MPICXX restart_test " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS restart_test.cpp $(INCLUDES) -o restart_test
 
 dc2vtk: dc2vtk.cpp ../../dccrg_cartesian_geometry.hpp Makefile
-	@echo "CXX dc2vtk " && $(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
+	@echo "MPICXX dc2vtk " && $(MPICXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
 # test restart from there directories
 DIRS := 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23

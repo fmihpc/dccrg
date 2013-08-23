@@ -26,11 +26,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "cstdlib"
 #include "iostream"
 #include "limits"
+#include "mpi.h"
 #include "stdint.h"
 #include "vector"
 
 #include "dccrg_length.hpp"
 #include "dccrg_mapping.hpp"
+#include "dccrg_mpi_support.hpp"
 #include "dccrg_topology.hpp"
 
 
@@ -46,6 +48,12 @@ class No_Geometry
 {
 
 public:
+
+	/*!
+	Unique identifier of this geometry class, used when
+	storing the geometry to a file.
+	*/
+	const int geometry_id = 0;
 
 	/*!
 	Parameter type that is defined by every geometry class
@@ -464,6 +472,80 @@ public:
 
 		return ret_val;
 	}
+
+
+	/*!
+	Writes the geometry into given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+
+	The number of bytes written by this function can be obtained
+	from geometry_data_size().
+	*/
+	bool write(MPI_File file, MPI_Offset offset) const
+	{
+		const int ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) &this->geometry_id,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write geometry data to given file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Reads the geometry from given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+	*/
+	bool read(MPI_File file, MPI_Offset offset) const
+	{
+		int read_geometry_id = this->geometry_id + 1;
+		const int ret_val = MPI_File_read_at(
+			file,
+			offset,
+			(void*) &read_geometry_id,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry data from given file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		if (read_geometry_id != this->geometry_id) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Wrong geometry: " << read_geometry_id
+				<< ", should be " << this->geometry_id
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns the number of bytes that will be required / was required for geometry data.
+	*/
+	size_t data_size() const
+	{
+		return sizeof(int);
+	}
+
 
 
 private:

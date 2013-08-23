@@ -74,6 +74,10 @@ int main(int argc, char* argv[])
 	}
 
 	dccrg::Dccrg<Cell1, dccrg::Cartesian_Geometry> grid1;
+
+	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
+	grid1.initialize(grid_length, comm, "RCB", 1, 0);
+
 	dccrg::Cartesian_Geometry::Parameters geom_params;
 	geom_params.start[0] =
 	geom_params.start[1] =
@@ -85,8 +89,6 @@ int main(int argc, char* argv[])
 		cerr << "Couldn't set grid geometry" << endl;
 		return EXIT_FAILURE;
 	}
-	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
-	grid1.initialize(grid_length, comm, "RCB", 1, 0);
 
 	// check that remote neighbor update works in original grid
 	// data in grid1 == process rank

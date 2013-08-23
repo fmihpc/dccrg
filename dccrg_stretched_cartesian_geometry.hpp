@@ -71,6 +71,16 @@ class Stretched_Cartesian_Geometry
 
 public:
 
+	/*!
+	Unique identifier of this geometry class, used when
+	storing the geometry to a file.
+	*/
+	const int geometry_id = 2;
+
+	/*!
+	Parameter type that is defined by every geometry class
+	and used to refer to their own parameter type.
+	*/
 	typedef Stretched_Cartesian_Geometry_Parameters Parameters;
 
 	/*!
@@ -628,6 +638,180 @@ public:
 
 		return ret_val;
 
+	}
+
+
+	/*!
+	Writes the geometry into given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+
+	The number of bytes written by this function can be obtained
+	from data_size().
+	*/
+	bool write(MPI_File file, MPI_Offset offset) const
+	{
+		int ret_val = -1;
+
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) &this->geometry_id,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write geometry id to file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += sizeof(int);
+
+		// write number of coordinates in each dimension
+		boost::array<uint64_t, 3> number_of_coordinates = {{
+			this->parameters.coordinates[0].size(),
+			this->parameters.coordinates[1].size(),
+			this->parameters.coordinates[2].size()
+		}};
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) number_of_coordinates.data(),
+			3,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write geometry start from file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += 3 * sizeof(uint64_t);
+
+		for (size_t dimension = 0; dimension < this->parameters.coordinates.size(); dimension++) {
+			ret_val = MPI_File_write_at(
+				file,
+				offset,
+				(void*) &(this->parameters.coordinates[dimension][0]),
+				(int) this->parameters.coordinates[dimension].size(),
+				MPI_DOUBLE,
+				MPI_STATUS_IGNORE
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read coordinates in dimension " << dimension
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+			offset += this->parameters.coordinates[dimension].size() * sizeof(double);
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Reads the geometry from given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+	*/
+	bool read(MPI_File file, MPI_Offset offset)
+	{
+		int
+			read_geometry_id = this->geometry_id + 1,
+			ret_val = -1;
+
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			(void*) &read_geometry_id,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry id from file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += sizeof(int);
+
+		if (read_geometry_id > this->geometry_id) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Wrong geometry: " << read_geometry_id
+				<< ", should be for example " << this->geometry_id
+				<< std::endl;
+			return false;
+		}
+
+		// read number of coordinates in each dimension
+		boost::array<uint64_t, 3> number_of_coordinates = {{0, 0, 0}};
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			(void*) number_of_coordinates.data(),
+			3,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry start from file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += 3 * sizeof(uint64_t);
+
+
+		Parameters read_parameters;
+		for (size_t dimension = 0; dimension < this->parameters.coordinates.size(); dimension++) {
+			read_parameters.coordinates[dimension].resize(number_of_coordinates[dimension]);
+
+			ret_val = MPI_File_read_at(
+				file,
+				offset,
+				(void*) &(read_parameters.coordinates[dimension][0]),
+				(int) number_of_coordinates[dimension],
+				MPI_DOUBLE,
+				MPI_STATUS_IGNORE
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read coordinates in dimension " << dimension
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+			offset += number_of_coordinates[dimension] * sizeof(double);
+		}
+
+		if (!this->set(read_parameters)) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns the number of bytes that will be required / was required for geometry data.
+
+	Returns the correct value only after set() or read() have been called successfully.
+	*/
+	size_t data_size() const
+	{
+		size_t ret_val = 3 * sizeof(uint64_t);
+
+		for (size_t dimension = 0; dimension < this->parameters.coordinates.size(); dimension++) {
+			ret_val += this->parameters.coordinates[dimension].size() * sizeof(double);
+		}
+
+		return ret_val;
 	}
 
 

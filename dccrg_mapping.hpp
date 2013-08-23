@@ -25,6 +25,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "stdint.h"
 
 #include "dccrg_length.hpp"
+#include "dccrg_mpi_support.hpp"
 #include "dccrg_types.hpp"
 
 
@@ -380,6 +381,126 @@ public:
 	uint64_t get_last_cell() const
 	{
 		return this->last_cell;
+	}
+
+
+	//! Format in which mapping data is stored into a file.
+	typedef boost::array<uint8_t, 3> mapping_file_data_t;
+
+
+	/*!
+	Reads the mapping from given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+	Reads grid length in level 0 cells and cells' maximum refinement level.
+	*/
+	bool read(MPI_File file, MPI_Offset offset)
+	{
+		int
+			ret_val = -1,
+			max_ref_lvl = -1;
+
+		Grid_Length::type length = {{0, 0, 0}};
+		ret_val = MPI_File_read_at_all(
+			file,
+			offset,
+			(void*) length.data(),
+			3,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read length data: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += sizeof(Grid_Length::type);
+
+		if (!this->set_length(length)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set length of grid"
+				<< std::endl;
+			return false;
+		}
+
+		ret_val = MPI_File_read_at_all(
+			file,
+			offset,
+			(void*) &max_ref_lvl,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read maximum refinement level: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		if (!this->set_maximum_refinement_level(max_ref_lvl)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "Couldn't set maximum refinement level to " << max_ref_lvl
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Writes the mapping into given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+	*/
+	bool write(MPI_File file, MPI_Offset offset) const
+	{
+		int ret_val = -1;
+
+		Grid_Length::type length = this->length.get();
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) length.data(),
+			3,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write length data: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += sizeof(Grid_Length::type);
+
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) &(this->max_refinement_level),
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write maximum refinement level: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns the number of bytes required for mapping data.
+	*/
+	size_t data_size() const
+	{
+		return sizeof(Grid_Length::type) + sizeof(int);
 	}
 
 

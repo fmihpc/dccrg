@@ -26,11 +26,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "cstdlib"
 #include "iostream"
 #include "limits"
+#include "mpi.h"
 #include "stdint.h"
 #include "vector"
 
 #include "dccrg_length.hpp"
 #include "dccrg_mapping.hpp"
+#include "dccrg_mpi_support.hpp"
 #include "dccrg_topology.hpp"
 #include "dccrg_types.hpp"
 
@@ -93,6 +95,12 @@ class Cartesian_Geometry
 {
 
 public:
+
+	/*!
+	Unique identifier of this geometry class, used when
+	storing the geometry to a file.
+	*/
+	const int geometry_id = 1;
 
 	/*!
 	Parameter type that is defined by every geometry class
@@ -595,6 +603,155 @@ public:
 		}
 
 		return ret_val;
+	}
+
+
+	/*!
+	Writes the geometry into given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+
+	The number of bytes written by this function can be obtained
+	from geometry_data_size().
+	*/
+	bool write(MPI_File file, MPI_Offset offset) const
+	{
+		int ret_val = -1;
+
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) &this->geometry_id,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write geometry id to file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += sizeof(int);
+
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) this->parameters.start.data(),
+			3,
+			MPI_DOUBLE,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write geometry start to file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += 3 * sizeof(double);
+
+		ret_val = MPI_File_write_at(
+			file,
+			offset,
+			(void*) this->parameters.level_0_cell_length.data(),
+			3,
+			MPI_DOUBLE,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't write level 0 cell length to file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Reads the geometry from given open file starting at given offset.
+
+	Returns true on success, false otherwise.
+	*/
+	bool read(MPI_File file, MPI_Offset offset)
+	{
+		int
+			read_geometry_id = this->geometry_id + 1,
+			ret_val = -1;
+
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			(void*) &read_geometry_id,
+			1,
+			MPI_INT,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry id from file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += sizeof(int);
+
+		if (read_geometry_id > this->geometry_id) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Wrong geometry: " << read_geometry_id
+				<< ", should be for example " << this->geometry_id
+				<< std::endl;
+			return false;
+		}
+
+
+		Parameters read_parameters;
+
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			(void*) read_parameters.start.data(),
+			3,
+			MPI_DOUBLE,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry start from file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		offset += 3 * sizeof(double);
+
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			(void*) read_parameters.level_0_cell_length.data(),
+			3,
+			MPI_DOUBLE,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read level 0 cell length from file: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		if (!this->set(read_parameters)) {
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Returns the number of bytes that will be required / was required for geometry data.
+	*/
+	size_t data_size() const
+	{
+		return sizeof(int) + 6 * sizeof(double);
 	}
 
 

@@ -28,6 +28,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 
 #include "../../dccrg.hpp"
+#include "../../dccrg_mpi_support.hpp"
 
 #include "cell.hpp"
 
@@ -36,28 +37,17 @@ template<class UserGeometry> class IO
 public:
 
 	/*!
-	Saves the current state of given game of life grid into the given dc file.
+	Saves the current state of given game of life grid into the given file.
 
-	Header format:
-	uint64_t time step
-	double   start_x
-	double   start_y
-	double   start_z
-	double   cell_length_x
-	double   cell_length_y
-	double   cell_length_z
-	uint64_t length_x in cells
-	uint64_t length_y in cells
-	uint64_t length_z in cells
-	int      maximum_refinement_level
+	The game of life header consists of the given time step.
 	*/
 	static void save(
 		const std::string& name,
-		const uint64_t step,
-		MPI_Comm& comm,
+		uint64_t step,
 		dccrg::Dccrg<Cell, UserGeometry>& grid
 	) {
 		int rank = 0, comm_size = 0;
+		MPI_Comm comm = grid.get_communicator();
 		MPI_Comm_rank(comm, &rank);
 		MPI_Comm_size(comm, &comm_size);
 
@@ -83,79 +73,35 @@ public:
 		delete [] name_c_string;
 
 		if (result != MPI_SUCCESS) {
-			char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-			int string_length;
-			MPI_Error_string(result, mpi_error_string, &string_length);
-			mpi_error_string[string_length + 1] = '\0';
 			std::cerr << "Couldn't open file " << name_c_string
-				<< ": " << mpi_error_string
+				<< ": " << dccrg::Error_String()(result)
 				<< std::endl;
 			abort();
 		}
 
-		// process 0 writes the header
-		MPI_Offset header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
+		// write time step
 		if (rank == 0) {
-			uint8_t* buffer = new uint8_t [header_size];
-			assert(buffer != NULL);
-
-			size_t offset = 0;
-			memcpy(buffer + offset, &step, sizeof(uint64_t));
-			offset += sizeof(uint64_t);
-
-			const boost::array<double, 3> grid_start = grid.geometry.get_start();
-			memcpy(buffer + offset, grid_start.data(), 3 * sizeof(double));
-			offset += 3 * sizeof(double);
-
-			const boost::array<double, 3> cell_length = grid.geometry.get_length(1);
-			memcpy(buffer + offset, cell_length.data(), 3 * sizeof(double));
-			offset += 3 * sizeof(double);
-
-			const boost::array<uint64_t, 3> grid_length = grid.length.get();
-			memcpy(buffer + offset, grid_length.data(), 3 * sizeof(uint64_t));
-			offset += 3 * sizeof(uint64_t);
-
-			const int max_ref_lvl = grid.get_maximum_refinement_level();
-			memcpy(buffer + offset, &max_ref_lvl, sizeof(int));
-			offset += sizeof(int);
-
-			result = MPI_File_write_at_all(
-				outfile,
-				0,
-				buffer,
-				header_size,
-				MPI_BYTE,
-				MPI_STATUS_IGNORE
-			);
-
-			delete [] buffer;
-
-			if (result != MPI_SUCCESS) {
-				char mpi_error_string[MPI_MAX_ERROR_STRING + 1];
-				int string_length;
-				MPI_Error_string(result, mpi_error_string, &string_length);
-				mpi_error_string[string_length + 1] = '\0';
-				std::cerr << "Process " << rank
-					<< " Couldn't write cell list to file " << name
-					<< ": " << mpi_error_string
-					<< std::endl;
-				abort();
-			}
-
-		} else {
-			result = MPI_File_write_at_all(
+			result = MPI_File_write_at(
 				outfile,
 				0,
 				(void*) &step,
-				0,
-				MPI_BYTE,
+				1,
+				MPI_UINT64_T,
 				MPI_STATUS_IGNORE
 			);
+			if (result != MPI_SUCCESS) {
+				std::cerr << "Process " << rank
+					<< " Couldn't write cell list to file " << name
+					<< ": " << dccrg::Error_String()(result)
+					<< std::endl;
+				abort();
+			}
 		}
 
 		MPI_File_close(&outfile);
+		MPI_Barrier(comm);
 
-		if (!grid.save_grid_data(name, header_size)) {
+		if (!grid.save_grid_data(name, sizeof(uint64_t))) {
 			std::cerr << "Process " << rank
 				<< " Writing grid to file " << name << " failed"
 				<< std::endl;
@@ -165,10 +111,15 @@ public:
 	}
 
 
-	static void load(
-		const std::string& name,
-		uint64_t& step,
+	/*!
+	Loads a game of life from given file into given grid.
+
+	The grid will be initialized with the given communicator.
+	Returns the time step of the game read from the given file.
+	*/
+	static uint64_t load(
 		MPI_Comm& comm,
+		const std::string& name,
 		dccrg::Dccrg<Cell, UserGeometry>& grid
 	) {
 		Cell::transfer_only_life = true;
@@ -197,12 +148,13 @@ public:
 		}
 
 		// read only time step from header, other grid parameters are known
+		uint64_t ret_val = 0;
 		result = MPI_File_read_at_all(
 			infile,
 			0,
-			&step,
-			sizeof(uint64_t),
-			MPI_BYTE,
+			&ret_val,
+			1,
+			MPI_UINT64_T,
 			MPI_STATUS_IGNORE
 		);
 
@@ -214,11 +166,22 @@ public:
 		}
 
 		MPI_File_close(&infile);
+		MPI_Barrier(comm);
 
-		MPI_Offset header_size = sizeof(int) + 4 * sizeof(uint64_t) + 6 * sizeof(double);
-		grid.load_grid_data(name, header_size);
+		if (!grid.load_grid_data(
+			name,
+			sizeof(uint64_t),
+			comm,
+			"RANDOM"
+		)) {
+			std::cerr << "Couldn't load grid data"
+				<< std::endl;
+			abort();
+		}
 
 		Cell::transfer_only_life = false;
+
+		return ret_val;
 	}
 };
 

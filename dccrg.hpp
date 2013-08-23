@@ -289,6 +289,9 @@ public:
 		geometry(geometry_rw)
 	{
 		this->initialized = false;
+		this->balancing_load = false;
+		this->send_single_cells = false;
+		this->max_ref_lvl_diff = 1;
 	}
 
 
@@ -440,11 +443,12 @@ public:
 	refine_completely()
 	is_local()
 	set_send_single_cells()
+	load_grid_data()
 	*/
 	bool initialize(
 		const boost::array<uint64_t, 3>& initial_length,
 		const MPI_Comm& given_comm,
-		const char* load_balancing_method,
+		const char* const load_balancing_method,
 		const unsigned int given_neighborhood_length,
 		const int maximum_refinement_level = -1,
 		const bool periodic_in_x = false,
@@ -457,428 +461,48 @@ public:
 			return false;
 		}
 
-		if (!this->mapping_rw.set_length(initial_length)) {
-			std::cerr << "Couldn't set initial length of grid" << std::endl;
+		if (!this->initialize_mpi(given_comm)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't initialize MPI"
+				<< std::endl;
 			return false;
 		}
 
-		this->balancing_load = false;
-		this->send_single_cells = false;
-
-		if (sfc_caching_batches == 0) {
-			std::cerr << "sfc_caching_batches must be > 0" << std::endl;
+		if (!this->initialize_zoltan(load_balancing_method)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't initialize Zoltan"
+				<< std::endl;
 			return false;
 		}
 
-		int ret_val = -1;
+		this->initialize_neighborhoods(given_neighborhood_length);
 
-		if (MPI_Comm_dup(given_comm, &this->comm) != MPI_SUCCESS) {
-			std::cerr << "Couldn't duplicate given communicator" << std::endl;
-			abort();
-		}
-
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->boost_comm = boost::mpi::communicator(this->comm, boost::mpi::comm_attach);
-		#endif
-
-		int temp_size = 0;
-		if (MPI_Comm_size(this->comm, &temp_size) != MPI_SUCCESS) {
-			std::cerr << "Couldn't get size of communicator" << std::endl;
-			abort();
-		}
-		if (temp_size < 0) {
-			std::cerr << "Negative MPI comm size not supported: " << temp_size << std::endl;
-			abort();
-		}
-		this->comm_size = (uint64_t) temp_size;
-
-		int temp_rank = 0;
-		if (MPI_Comm_rank(this->comm, &temp_rank) != MPI_SUCCESS) {
-			std::cerr << "Couldn't get rank for communicator" << std::endl;
-			abort();
-		}
-		if (temp_rank < 0) {
-			std::cerr << "Negative MPI rank not supported: " << temp_rank << std::endl;
-			abort();
-		}
-		this->rank = (uint64_t) temp_rank;
-
-		// get maximum tag value
-		int attr_flag = -1, *attr = NULL;
-		ret_val = MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &attr, &attr_flag);
-		if (ret_val != MPI_SUCCESS) {
+		if (!this->initialize_from_arguments(
+			initial_length,
+			maximum_refinement_level,
+			periodic_in_x,
+			periodic_in_y,
+			periodic_in_z
+		)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't get MPI_TAG_UB: " << Error_String()(ret_val)
+				<< " Couldn't initialize dccrg"
 				<< std::endl;
-			abort();
-		}
-		if (attr == NULL) {
-			// guaranteed by MPI
-			this->max_tag = 32767;
-		} else {
-			this->max_tag = (unsigned int) *attr;
+			return false;
 		}
 
-		this->max_ref_lvl_diff = 1;
-
-		/*
-		Setup Zoltan
-		*/
-		MPI_Comm temp; // give a separate comminucator to zoltan
-		if (MPI_Comm_dup(this->comm, &temp) != MPI_SUCCESS) {
-			std::cerr << "Couldn't duplicate communicator for Zoltan" << std::endl;
-			abort();
-		}
-		this->zoltan = Zoltan_Create(temp);
-		if (this->zoltan == NULL) {
-			std::cerr << "Zoltan_Create failed"  << std::endl;
-			abort();
-		}
-
-		// check whether Zoltan_LB_Partition is expected to fail
-		if (strncmp(load_balancing_method, "NONE", sizeof("NONE")) == 0) {
-			this->no_load_balancing = true;
-		} else {
-			this->no_load_balancing = false;
-		}
-
-		// reserved options that the user cannot change
-		this->reserved_options.insert("EDGE_WEIGHT_DIM");
-		this->reserved_options.insert("NUM_GID_ENTRIES");
-		this->reserved_options.insert("NUM_LID_ENTRIES");
-		this->reserved_options.insert("OBJ_WEIGHT_DIM");
-		this->reserved_options.insert("RETURN_LISTS");
-		this->reserved_options.insert("NUM_GLOBAL_PARTS");
-		this->reserved_options.insert("NUM_LOCAL_PARTS");
-		this->reserved_options.insert("AUTO_MIGRATE");
-
-		/*
-		Set reserved options
-		*/
-		// 0 because Zoltan crashes in hierarchial with larger values
-		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");
-		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
-		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
-		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
-		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
-
-		// set other options
-		Zoltan_Set_Param(this->zoltan, "DEBUG_LEVEL", "0");
-		Zoltan_Set_Param(this->zoltan, "HIER_DEBUG_LEVEL", "0");
-		Zoltan_Set_Param(this->zoltan, "HIER_CHECKS", "0");
-		Zoltan_Set_Param(this->zoltan, "LB_METHOD", load_balancing_method);
-		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
-
-		// set the grids callback functions in Zoltan
-		Zoltan_Set_Num_Obj_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_number_of_cells,
-			this
-		);
-
-		Zoltan_Set_Obj_List_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_cell_list,
-			this
-		);
-
-		Zoltan_Set_Num_Geom_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_grid_dimensionality,
-			NULL);
-
-		Zoltan_Set_Geom_Multi_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_with_cell_coordinates,
-			this
-		);
-
-		Zoltan_Set_Num_Edges_Multi_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_number_of_neighbors_for_cells,
-			this
-		);
-
-		Zoltan_Set_Edge_List_Multi_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_neighbor_lists,
-			this
-		);
-
-		Zoltan_Set_HG_Size_CS_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_number_of_hyperedges,
-			this
-		);
-
-		Zoltan_Set_HG_CS_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_hyperedge_lists,
-			this
-		);
-
-		Zoltan_Set_HG_Size_Edge_Wts_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_number_of_edge_weights,
-			this
-		);
-
-		Zoltan_Set_HG_Edge_Wts_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_edge_weights,
-			this
-		);
-
-		Zoltan_Set_Hier_Num_Levels_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_number_of_load_balancing_hierarchies,
-			this
-		);
-
-		Zoltan_Set_Hier_Part_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_part_number,
-			this
-		);
-
-		Zoltan_Set_Hier_Method_Fn(
-			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::set_partitioning_options,
-			this
-		);
-
-
-		/*
-		Set grid parameters
-		*/
-
-		this->topology_rw.set_periodicity(0, periodic_in_x);
-		this->topology_rw.set_periodicity(1, periodic_in_y);
-		this->topology_rw.set_periodicity(2, periodic_in_z);
-
-		// set / check neighborhood_of
-		this->neighborhood_length = given_neighborhood_length;
-		if (this->neighborhood_length == 0) {
-
-			{
-			Types<3>::neighborhood_item_t item = {{0, 0, -1}};
-			this->neighborhood_of.push_back(item);
-			}
-			{
-			Types<3>::neighborhood_item_t item = {{0, -1, 0}};
-			this->neighborhood_of.push_back(item);
-			}
-			{
-			Types<3>::neighborhood_item_t item = {{-1, 0, 0}};
-			this->neighborhood_of.push_back(item);
-			}
-			{
-			Types<3>::neighborhood_item_t item = {{1, 0, 0}};
-			this->neighborhood_of.push_back(item);
-			}
-			{
-			Types<3>::neighborhood_item_t item = {{0, 1, 0}};
-			this->neighborhood_of.push_back(item);
-			}
-			{
-			Types<3>::neighborhood_item_t item = {{0, 0, 1}};
-			this->neighborhood_of.push_back(item);
-			}
-
-		} else {
-
-			for (int
-				z = -this->neighborhood_length;
-				(unsigned int) abs(z) < this->neighborhood_length + 1;
-				z++
-			)
-			for (int
-				y = -this->neighborhood_length;
-				(unsigned int) abs(y) < this->neighborhood_length + 1;
-				y++
-			)
-			for (int
-				x = -this->neighborhood_length;
-				(unsigned int) abs(x) < this->neighborhood_length + 1;
-				x++
-			) {
-				if (x == 0 && y == 0 && z == 0) {
-					continue;
-				}
-				const Types<3>::neighborhood_item_t item = {{x, y, z}};
-				this->neighborhood_of.push_back(item);
-			}
-
-		}
-
-		// set neighborhood_to
-		BOOST_FOREACH(const Types<3>::neighborhood_item_t& offset, this->neighborhood_of) {
-			Types<3>::neighborhood_item_t item = {{-offset[0], -offset[1], -offset[2]}};
-			this->neighborhood_to.push_back(item);
-		}
-
-
-		if (maximum_refinement_level < 0) {
-			this->mapping_rw.set_maximum_refinement_level(
-				this->mapping_rw.get_maximum_possible_refinement_level()
-			);
-		} else if (!this->mapping_rw.set_maximum_refinement_level(maximum_refinement_level)) {
+		if (!this->create_level_0_cells(sfc_caching_batches)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< "Couldn't set maximum refinement level to " << maximum_refinement_level
+				<< " Couldn't create cells of refinement level 0"
 				<< std::endl;
-			abort();
+			return false;
 		}
 
-		// TODO: check that the last index in the grid in every direction is less than error_index
-
-
-		// create unrefined cells
-		const uint64_t grid_length = this->length.get()[0] * this->length.get()[1] * this->length.get()[2];
-		uint64_t cells_per_process = 0;
-		if (grid_length < this->comm_size) {
-			cells_per_process = 1;
-		} else if (grid_length % this->comm_size > 0) {
-			cells_per_process = grid_length / this->comm_size + 1;
-		} else {
-			cells_per_process = grid_length / this->comm_size;
-		}
-
-		// some processes get fewer cells if grid size not divisible by this->comm_size
-		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - grid_length;
-
-		#ifndef USE_SFC
-
-		uint64_t cell_to_create = 1;
-		for (uint64_t process = 0; process < this->comm_size; process++) {
-
-			uint64_t cells_to_create;
-			if (process < procs_with_fewer) {
-				cells_to_create = cells_per_process - 1;
-			} else {
-				cells_to_create = cells_per_process;
-			}
-
-			for (uint64_t i = 0; i < cells_to_create; i++) {
-				this->cell_process[cell_to_create] = process;
-				if (process == this->rank) {
-					this->cells[cell_to_create];
-				}
-				cell_to_create++;
-			}
-		}
-
-		#ifdef DEBUG
-		if (cell_to_create != grid_length + 1) {
+		if (!this->initialize_neighbors()) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Incorrect number of cells created: " << cell_to_create - 1
-				<< ", should be " << grid_length
+				<< " Couldn't initialize neighbors"
 				<< std::endl;
-			abort();
+			return false;
 		}
-		#endif
-
-		#else
-
-		const dccrg::Types<3>::indices_t sfc_length = {{
-			this->length.get()[0],
-			this->length.get()[1],
-			this->length.get()[2]
-		}};
-		sfc::Sfc<3, uint64_t> mapping(sfc_length);
-
-		/*
-		Cache only batch_size number of sfc indices at a time.
-		Saves memory and can even be faster than caching everything at once
-		*/
-		uint64_t batch_size;
-		if (mapping.size() % sfc_caching_batches > 0) {
-			batch_size = 1 + mapping.size() / sfc_caching_batches;
-		} else {
-			batch_size = mapping.size() / sfc_caching_batches;
-		}
-
-		uint64_t cache_start = 0, cache_end = batch_size - 1;
-		mapping.cache_sfc_index_range(cache_start, cache_end);
-
-		uint64_t sfc_index = 0;
-		for (uint64_t process = 0; process < this->comm_size; process++) {
-
-			uint64_t cells_to_create;
-			if (process < procs_with_fewer) {
-				cells_to_create = cells_per_process - 1;
-			} else {
-				cells_to_create = cells_per_process;
-			}
-
-			for (uint64_t i = 0; i < cells_to_create; i++) {
-
-				// cache new sfc index batch
-				if (sfc_index > cache_end) {
-					cache_start = cache_end;
-					cache_end = cache_start + batch_size;
-
-					if (cache_end >= mapping.size()) {
-						cache_end = mapping.size() - 1;
-					}
-
-					mapping.clear();
-					mapping.cache_sfc_index_range(cache_start, cache_end);
-				}
-
-				dccrg::Types<3>::indices_t indices = mapping.get_indices(sfc_index);
-				// transform indices to those of refinement level 0 cells
-				indices[0] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
-				indices[1] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
-				indices[2] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
-				const uint64_t cell_to_create = this->mapping.get_cell_from_indices(indices, 0);
-
-				this->cell_process[cell_to_create] = process;
-				if (process == this->rank) {
-					this->cells[cell_to_create];
-				}
-
-				sfc_index++;
-			}
-		}
-		mapping.clear();
-
-		if (sfc_index != grid_length) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->rank
-				<< ": Incorrect number of cells created: " << sfc_index
-				<< ", should be " << grid_length
-				<< std::endl;
-			abort();
-		}
-
-		#endif
-
-		// update neighbor lists of created cells
-		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
-			this->neighbors[item.first]
-				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
-			this->neighbors_to[item.first]
-				= this->find_neighbors_to(item.first, this->neighborhood_to);
-		}
-		#ifdef DEBUG
-		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor lists are inconsistent"
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		this->update_remote_neighbor_info();
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->initialized = true;
 
@@ -1324,31 +948,36 @@ public:
 
 
 	/*!
-	Writes cells and their data into given file.
+	Writes grid data into given file starting at given offset in bytes.
 
-	Returns true on success, false otherwise (one one or more processes)
-	The file is written in parallel using MPI_IO.
-	Must be called by all processes.
-	Data is written starting at start_offset given in bytes
-	(e.g. write global simulation data yourself into the
-	beginning of the file).
-	Data is written in native endian format.
+	All processes write the data necessary for restoring the
+	internal state of the grid with load_grid_data().
+	This includes the geometry of the grid, the list of cells
+	which exist and their Cell_Data.
+	All data is written in native endian format.
+
+	The data saved from each cells' user data class Cell_Data is
+	defined by the get_mpi_datatype method of that class.
+	Unless you know what you're doing the method should return
+	the same datatype information both when saving and loading the grid.
+
+	Must be called by all processes with identical arguments.
+	Returns true on success, false otherwise (one one or more processes).
 	Does nothing if DCCRG_TRANSFER_USING_BOOST_MPI was defined when
 	compiling and returns false.
 
 	During this function the receiving process given to the cells'
-	mpi_datatype function is -1 and receiving == false.
-
-	\see
-	load_grid_data()
+	get_mpi_datatype function is -1 and receiving == false.
 	*/
-	bool save_grid_data(const std::string& name, MPI_Offset& start_offset)
+	bool save_grid_data(const std::string& name, MPI_Offset offset)
 	{
 		// TODO: use nonblocking versions of ...write_at_all
 		/*
 		File format:
 
-		uint8_t * start_offset, data skipped by this function
+		uint8_t * offset, data skipped by this function
+		uint64_t  endiannes check data (0x1234567890abcdef)
+		uint8_t*A internal grid data
 		uint64_t  number of cells
 		uint64_t  id of 1st cell
 		uint64_t  start of data of 1st cell in bytes
@@ -1356,8 +985,8 @@ public:
 		uint64_t  start of data...
 		...
 		uint64_t  start of data of last cell in bytes
-		uint8_t*N data of 1st cell
-		uint8_t*M data of 2nd cell
+		uint8_t*B data of 1st cell
+		uint8_t*C data of 2nd cell
 		...
 		*/
 
@@ -1394,19 +1023,101 @@ public:
 			return false;
 		}
 
-		// TODO: write an endianness check here
-		// ...0x0123456789101213...
+		// write endianness check
+		if (this->rank == 0) {
 
-		uint64_t number_of_cells = this->cells.size();
+			uint64_t endianness_check = 0x1234567890abcdef;
+
+			ret_val = MPI_File_write_at(
+				outfile,
+				offset,
+				(void*) &endianness_check,
+				1,
+				MPI_UINT64_T,
+				MPI_STATUS_IGNORE
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't write endianness check to file " << name
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+		}
+		offset += sizeof(uint64_t);
+
+		/*
+		Write data needed for initialization.
+		*/
+
+		// write mapping data
+		if (this->rank == 0) {
+			if (!this->mapping.write(outfile, offset)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't write mapping to file " << name
+					<< std::endl;
+				return false;
+			}
+		}
+		offset += this->mapping.data_size();
+
+		// write length of each cell's neighborhood
+		if (this->rank == 0) {
+			ret_val = MPI_File_write_at(
+				outfile,
+				offset,
+				(void*) &(this->neighborhood_length),
+				1,
+				MPI_UNSIGNED,
+				MPI_STATUS_IGNORE
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't write neighborhood length to file " << name
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+		}
+		offset += sizeof(unsigned int);
+
+		// write periodicity data
+		if (this->rank == 0) {
+			if (!this->topology.write(outfile, offset)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't write topology into file " << name
+					<< std::endl;
+				return false;
+			}
+		}
+		offset += this->topology.data_size();
+
+		// write geometry data
+		if (this->rank == 0) {
+			size_t written = this->geometry.write(outfile, offset);
+			if (written == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't write geometry to file " << name
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+		}
+		offset += this->geometry.data_size();
 
 		// write the total number of cells that will be written
+		uint64_t number_of_cells = this->cells.size();
 		const uint64_t total_number_of_cells
 			= All_Reduce()(number_of_cells, this->comm);
 
 		if (this->rank == 0) {
 			ret_val = MPI_File_write_at(
 				outfile,
-				start_offset,
+				offset,
 				(void*) &total_number_of_cells,
 				1,
 				MPI_UINT64_T,
@@ -1421,6 +1132,7 @@ public:
 				return false;
 			}
 		}
+		offset += sizeof(uint64_t);
 
 		// contiguous memory version of cell list needed by MPI_Write_...
 		std::vector<uint64_t> cells_to_write = this->get_cells();
@@ -1431,6 +1143,7 @@ public:
 				<< std::endl;
 			abort();
 		}
+
 
 		/*
 		Get datatypes etc. of local cell data in memory so byte offsets
@@ -1541,8 +1254,7 @@ public:
 
 		// calculate where local cell data starts in file
 		uint64_t cell_data_start
-			= (uint64_t) start_offset
-			+ sizeof(uint64_t)
+			= (uint64_t) offset
 			+ 2 * total_number_of_cells * sizeof(uint64_t);
 
 		for (size_t i = 0; i < (size_t) this->rank; i++) {
@@ -1579,7 +1291,7 @@ public:
 		}
 
 		// calculate where local cell list will begin in output file
-		uint64_t cell_list_start = (uint64_t) start_offset + sizeof(uint64_t);
+		uint64_t cell_list_start = (uint64_t) offset;
 		for (size_t i = 0; i < (size_t) this->rank; i++) {
 			cell_list_start += all_number_of_cells[i] * 2 * sizeof(uint64_t);
 		}
@@ -1762,24 +1474,21 @@ public:
 
 
 	/*!
-	Restores cells and their data from given file.
+	Restores grid state from given file written by save_grid_data() starting at given offset.
 
-	Returns true on success, false otherwise (one one or more processes)
-	The file is read in parallel using MPI_IO.
-	Must be called by all processes and all cells in the grid must be of
-	refinement level 0 prior to calling this function.
-	Data is read starting at start_offset given in bytes
-	(e.g. read global simulation data yourself from the
-	beginning of the file to initialize dccrg before calling this).
+	Call this instead of initialize() to create an instance of the grid from a file.
+	See initialize() for an explanation of given_comm, load_balancing_method and
+	sfc_caching_bathces. TODO: Reads at most number_of_cells number of cell data
+	offsets at a time, give a smaller number if all cell ids won't fit into memory at once.
 
+	Must be called by all processes of given_comm and with identical arguments.
+
+	Returns true on success.
 	Does nothing and returns false if DCCRG_TRANSFER_USING_BOOST_MPI
 	was defined when compiling.
 
 	During this function the sending process given to the cells'
 	mpi_datatype function is -1 and receiving == true.
-
-	TODO: Reads at most number_of_cells number of cell data offsets at a time,
-	give a smaller number if all cell ids won't fit	into memory at once.
 
 	\see
 	load_cells()
@@ -1787,7 +1496,10 @@ public:
 	*/
 	bool load_grid_data(
 		const std::string& name,
-		const MPI_Offset start_offset,
+		MPI_Offset offset,
+		const MPI_Comm& given_comm,
+		const char* const load_balancing_method,
+		const uint64_t sfc_caching_batches = 1,
 		const uint64_t /*number_of_cells*/ = ~uint64_t(0)
 	) {
 		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -1798,317 +1510,94 @@ public:
 
 		int ret_val = -1;
 
+		if (!this->initialize_mpi(given_comm)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't initialize MPI"
+				<< std::endl;
+			return false;
+		}
+
 		// MPI_File_open wants a non-constant string
 		char* name_c_string = new char [name.size() + 1];
 		strncpy(name_c_string, name.c_str(), name.size() + 1);
 
-		MPI_File infile;
+		MPI_File file;
 
 		ret_val = MPI_File_open(
-			this->comm,
+			given_comm,
 			name_c_string,
 			MPI_MODE_RDONLY,
 			MPI_INFO_NULL,
-			&infile
+			&file
 		);
 
 		delete [] name_c_string;
 
 		if (ret_val != MPI_SUCCESS) {
-			std::cerr << "Couldn't open file " << name_c_string
-				<< ": " << Error_String()(ret_val)
-				<< std::endl;
+			if (this->rank == 0) {
+				std::cerr << "Couldn't open file " << name_c_string
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+			}
 			return false;
 		}
 
-		// TODO: put an endianness check here
-		// ...0x0123456789101213...
+		// check endianness
+		uint64_t
+			endianness_original = 0x1234567890abcdef,
+			endianness_read = 0;
 
-		// read the total number of cells in the file
-		uint64_t total_number_of_cells = 0;
 		ret_val = MPI_File_read_at_all(
-			infile,
-			start_offset,
-			&total_number_of_cells,
+			file,
+			offset,
+			&endianness_read,
 			1,
 			MPI_UINT64_T,
 			MPI_STATUS_IGNORE
 		);
 		if (ret_val != MPI_SUCCESS) {
-			std::cerr << "Couldn't read total number of cells" << std::endl;
-			return false;
-		}
-
-		// read cells and data displacements
-		std::vector<uint64_t> all_cells_and_data_displacements(2 * total_number_of_cells, error_cell);
-		ret_val = MPI_File_read_at_all(
-			infile,
-			start_offset + sizeof(uint64_t),
-			&all_cells_and_data_displacements[0],
-			2 * total_number_of_cells,
-			MPI_UINT64_T,
-			MPI_STATUS_IGNORE
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << "Couldn't read number of cells" << std::endl;
-			return false;
-		}
-
-		#ifdef DEBUG
-		// check that proper cells were read and properly
-		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
-			const uint64_t cell = all_cells_and_data_displacements[i];
-			if (cell == error_cell) {
+			if (this->rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid cell in cell list at index " << i << ": " << cell
+					<< " Couldn't read endianness check from file " << name
+					<< ": " << Error_String()(ret_val)
 					<< std::endl;
-				abort();
 			}
+			return false;
 		}
-		#endif
+		offset += sizeof(uint64_t);
 
-		// remove all but local cell data displacements
-		std::vector<std::pair<uint64_t, uint64_t> > cells_and_data_displacements;
-		cells_and_data_displacements.reserve(this->cells.size());
-
-		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
-			const uint64_t
-				cell = all_cells_and_data_displacements[i],
-				offset = all_cells_and_data_displacements[i + 1];
-
-			if (this->cell_overlaps_local(cell)) {
-				cells_and_data_displacements.push_back(std::make_pair(cell, offset));
-			}
-		}
-		all_cells_and_data_displacements.clear();
-
-		// refine the grid to create cells that exist in the file
-		std::vector<uint64_t> final_cells;
-		final_cells.reserve(cells_and_data_displacements.size());
-		for (std::vector<std::pair<uint64_t, uint64_t> >::const_iterator
-			item = cells_and_data_displacements.begin();
-			item != cells_and_data_displacements.end();
-			item++
-		) {
-			final_cells.push_back(item->first);
-		}
-
-		if (!this->load_cells(final_cells)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't load grid"
-				<< std::endl;
-			abort();
-		}
-		final_cells.clear();
-
-		const uint64_t number_of_cells = cells_and_data_displacements.size();
-
-		#ifdef DEBUG
-		if (number_of_cells != cells_and_data_displacements.size()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Incorrect number of cell data displacements: "
-				<< cells_and_data_displacements.size()
-				<< ", should be " << number_of_cells
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-
-		// datatypes etc. of local cell data in memory
-		std::vector<void*> addresses(number_of_cells, NULL);
-		std::vector<int> counts(number_of_cells, -1);
-		std::vector<MPI_Datatype> datatypes(number_of_cells, MPI_DATATYPE_NULL);
-		std::vector<MPI_Aint>
-			memory_displacements(number_of_cells, 0),
-			file_displacements(number_of_cells, 0);
-
-		// set file view representing local cell data
-		MPI_Datatype file_datatype;
-
-		if (number_of_cells == 0) {
-
-			MPI_Type_contiguous(0, MPI_BYTE, &file_datatype);
-
-		} else {
-
-			// get datatype info from local cells in memory
-			for (uint64_t i = 0; i < number_of_cells; i++) {
-				const uint64_t cell = cells_and_data_displacements[i].first;
-
-				boost::tie(
-					addresses[i],
-					counts[i],
-					datatypes[i]
-				) = this->cells.at(cell).get_mpi_datatype(
-					cell,
-					-1,
-					(int) this->rank,
-					true
-				);
-			}
-
-			// displacements for cell data in memory are relative to first cell's data
-			for (size_t i = 0; i < number_of_cells; i++) {
-				memory_displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
-			}
-
-			// displacements for cell data in file are relative to start of file
-			for (uint64_t i = 0; i < number_of_cells; i++) {
-				file_displacements[i] = cells_and_data_displacements[i].second;
-			}
-
-			ret_val = MPI_Type_create_struct(
-				number_of_cells,
-				&counts[0],
-				&file_displacements[0],
-				&datatypes[0],
-				&file_datatype
-			);
-			if (ret_val != MPI_SUCCESS) {
+		if (endianness_original != endianness_read) {
+			if (this->rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< " Couldn't create datatype for file view: "<< Error_String()(ret_val)
+					<< " File " << name
+					<< " has wrong endianness, value from file is "
+					<< endianness_read
+					<< " but should be " << endianness_original
 					<< std::endl;
-				abort();
 			}
+			return false;
 		}
 
-		ret_val = MPI_Type_commit(&file_datatype);
-		if (ret_val != MPI_SUCCESS) {
+		if (!this->initialize_zoltan(load_balancing_method)) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't commit datatype for file view: " << Error_String()(ret_val)
+				<< " Couldn't initialize Zoltan"
 				<< std::endl;
-			abort();
+			return false;
 		}
 
-		ret_val = MPI_File_set_view(
-			infile,
-			0,
-			MPI_BYTE,
-			file_datatype,
-			const_cast<char*>("native"),
-			MPI_INFO_NULL
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't set file view for cell data: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			abort();
-		}
-
-		// create a datatype representing local cell data in memory
-		MPI_Datatype memory_datatype;
-
-		if (number_of_cells == 0) {
-
-			MPI_Type_contiguous(0, MPI_BYTE, &memory_datatype);
-			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
+		if (!this->initialize_from_file(sfc_caching_batches, file, offset)) {
+			if (this->rank == 0)  {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< " Couldn't commit datatype for file view"
+					<< " Couldn't initialize dccrg from file " << name
 					<< std::endl;
-				abort();
 			}
-
-		} else {
-
-			if (MPI_Type_create_struct(
-				number_of_cells,
-				&counts[0],
-				&memory_displacements[0],
-				&datatypes[0],
-				&memory_datatype) != MPI_SUCCESS
-			) {
-				std::cerr << "Process " << this->rank
-					<< " Couldn't create datatype for local cells"
-					<< std::endl;
-				abort();
-			}
-
-			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
-				std::cerr << "Process " << this->rank
-					<< " Couldn't commit datatype for file view"
-					<< std::endl;
-				abort();
-			}
-		}
-
-		// give a valid buffer to ...read_at_all even if no cells to read
-		if (number_of_cells == 0) {
-			addresses.push_back((void*) &number_of_cells);
-		}
-
-		ret_val = MPI_File_read_at_all(
-			infile,
-			0,
-			addresses[0],
-			1,
-			memory_datatype,
-			MPI_STATUS_IGNORE
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " couldn't read local cell data: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			abort();
-		}
-
-
-		/*
-		Deallocate datatypes
-		*/
-
-		ret_val = MPI_Type_free(&memory_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't free datatype for cell data in memory: "
-				<< Error_String()(ret_val)
-				<< std::endl;
 			return false;
 		}
 
-		ret_val = MPI_Type_free(&file_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't free datatype for cell data in file: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
-		}
-
-		BOOST_FOREACH(MPI_Datatype& datatype, datatypes) {
-			if (!Is_Named_Datatype()(datatype)) {
-				ret_val = MPI_Type_free(&datatype);
-				if (ret_val != MPI_SUCCESS) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << this->rank
-						<< " Couldn't free user defined datatype: "
-						<< Error_String()(ret_val)
-						<< std::endl;
-					return false;
-				}
-			}
-		}
-
-		ret_val = MPI_File_close(&infile);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't close input file: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
-		}
+		this->initialized = true;
 
 		return true;
-		#endif
+		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	}
 
 
@@ -5922,6 +5411,13 @@ public:
 	*/
 	MPI_Comm get_communicator() const
 	{
+		if (!this->initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_communicator called prior to init"
+				<< std::endl;
+			abort();
+		}
+
 		MPI_Comm ret_val;
 		int result = MPI_Comm_dup(this->comm, &ret_val);
 		if (result != MPI_SUCCESS) {
@@ -6385,6 +5881,868 @@ private:
 
 	bool balancing_load;
 
+
+	/*!
+	Checks and initializes MPI related stuff.
+	*/
+	bool initialize_mpi(const MPI_Comm& given_comm)
+	{
+		int ret_val = -1;
+
+		/*
+		Setup MPI related stuff
+		*/
+
+		ret_val = MPI_Comm_dup(given_comm, &this->comm);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't duplicate communicator: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+		this->boost_comm = boost::mpi::communicator(this->comm, boost::mpi::comm_attach);
+		#endif
+
+		int temp_size = 0;
+		ret_val = MPI_Comm_size(this->comm, &temp_size);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't get size of communicator: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		if (temp_size < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Negative MPI comm size not supported: " << temp_size
+				<< std::endl;
+			return false;
+		}
+		this->comm_size = (uint64_t) temp_size;
+
+		int temp_rank = 0;
+		ret_val = MPI_Comm_rank(this->comm, &temp_rank);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't get rank for communicator: " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+		if (temp_rank < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Negative MPI rank not supported: " << temp_rank
+				<< std::endl;
+			abort();
+		}
+		this->rank = (uint64_t) temp_rank;
+
+		// get maximum tag value
+		int attr_flag = -1, *attr = NULL;
+		ret_val = MPI_Comm_get_attr(MPI_COMM_WORLD, MPI_TAG_UB, &attr, &attr_flag);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't get MPI_TAG_UB: " << Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+		if (attr == NULL) {
+			// guaranteed by MPI
+			this->max_tag = 32767;
+		} else {
+			this->max_tag = (unsigned int) *attr;
+		}
+
+		return true;
+	}
+
+	/*!
+	Initializes Zoltan related stuff.
+	*/
+	bool initialize_zoltan(const char* const load_balancing_method)
+	{
+		int ret_val = -1;
+
+		MPI_Comm temp; // give a separate comminucator to zoltan
+		ret_val = MPI_Comm_dup(this->comm, &temp);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << "Couldn't duplicate communicator for Zoltan" << std::endl;
+			return false;
+		}
+		this->zoltan = Zoltan_Create(temp);
+		if (this->zoltan == NULL) {
+			std::cerr << "Zoltan_Create failed" << std::endl;
+			return false;
+		}
+
+		// check whether Zoltan_LB_Partition is expected to fail
+		if (strncmp(load_balancing_method, "NONE", sizeof("NONE")) == 0) {
+			this->no_load_balancing = true;
+		} else {
+			this->no_load_balancing = false;
+		}
+
+		// reserved options that the user cannot change
+		this->reserved_options.insert("EDGE_WEIGHT_DIM");
+		this->reserved_options.insert("NUM_GID_ENTRIES");
+		this->reserved_options.insert("NUM_LID_ENTRIES");
+		this->reserved_options.insert("OBJ_WEIGHT_DIM");
+		this->reserved_options.insert("RETURN_LISTS");
+		this->reserved_options.insert("NUM_GLOBAL_PARTS");
+		this->reserved_options.insert("NUM_LOCAL_PARTS");
+		this->reserved_options.insert("AUTO_MIGRATE");
+
+		/*
+		Set reserved options
+		*/
+		// 0 because Zoltan crashes in hierarchial with larger values
+		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");
+		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
+		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
+		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
+		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
+
+		// set other options
+		Zoltan_Set_Param(this->zoltan, "DEBUG_LEVEL", "0");
+		Zoltan_Set_Param(this->zoltan, "HIER_DEBUG_LEVEL", "0");
+		Zoltan_Set_Param(this->zoltan, "HIER_CHECKS", "0");
+		Zoltan_Set_Param(this->zoltan, "LB_METHOD", load_balancing_method);
+		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
+
+		// set the grids callback functions in Zoltan
+		Zoltan_Set_Num_Obj_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::get_number_of_cells,
+			this
+		);
+
+		Zoltan_Set_Obj_List_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_cell_list,
+			this
+		);
+
+		Zoltan_Set_Num_Geom_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::get_grid_dimensionality,
+			NULL
+		);
+
+		Zoltan_Set_Geom_Multi_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_with_cell_coordinates,
+			this
+		);
+
+		Zoltan_Set_Num_Edges_Multi_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_number_of_neighbors_for_cells,
+			this
+		);
+
+		Zoltan_Set_Edge_List_Multi_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_neighbor_lists,
+			this
+		);
+
+		Zoltan_Set_HG_Size_CS_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_number_of_hyperedges,
+			this
+		);
+
+		Zoltan_Set_HG_CS_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_hyperedge_lists,
+			this
+		);
+
+		Zoltan_Set_HG_Size_Edge_Wts_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_number_of_edge_weights,
+			this
+		);
+
+		Zoltan_Set_HG_Edge_Wts_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::fill_edge_weights,
+			this
+		);
+
+		Zoltan_Set_Hier_Num_Levels_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::get_number_of_load_balancing_hierarchies,
+			this
+		);
+
+		Zoltan_Set_Hier_Part_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::get_part_number,
+			this
+		);
+
+		Zoltan_Set_Hier_Method_Fn(
+			this->zoltan,
+			&Dccrg<Cell_Data, Geometry>::set_partitioning_options,
+			this
+		);
+
+		return true;
+	}
+
+
+	/*!
+	Sets the default neighborhoods of cells.
+	*/
+	void initialize_neighborhoods(const unsigned int given_neighborhood_length)
+	{
+		// set neighborhood_of
+		this->neighborhood_length = given_neighborhood_length;
+		if (this->neighborhood_length == 0) {
+
+			{
+			Types<3>::neighborhood_item_t item = {{0, 0, -1}};
+			this->neighborhood_of.push_back(item);
+			}
+			{
+			Types<3>::neighborhood_item_t item = {{0, -1, 0}};
+			this->neighborhood_of.push_back(item);
+			}
+			{
+			Types<3>::neighborhood_item_t item = {{-1, 0, 0}};
+			this->neighborhood_of.push_back(item);
+			}
+			{
+			Types<3>::neighborhood_item_t item = {{1, 0, 0}};
+			this->neighborhood_of.push_back(item);
+			}
+			{
+			Types<3>::neighborhood_item_t item = {{0, 1, 0}};
+			this->neighborhood_of.push_back(item);
+			}
+			{
+			Types<3>::neighborhood_item_t item = {{0, 0, 1}};
+			this->neighborhood_of.push_back(item);
+			}
+
+		} else {
+
+			for (int
+				z = -this->neighborhood_length;
+				(unsigned int) abs(z) < this->neighborhood_length + 1;
+				z++
+			)
+			for (int
+				y = -this->neighborhood_length;
+				(unsigned int) abs(y) < this->neighborhood_length + 1;
+				y++
+			)
+			for (int
+				x = -this->neighborhood_length;
+				(unsigned int) abs(x) < this->neighborhood_length + 1;
+				x++
+			) {
+				if (x == 0 && y == 0 && z == 0) {
+					continue;
+				}
+				const Types<3>::neighborhood_item_t item = {{x, y, z}};
+				this->neighborhood_of.push_back(item);
+			}
+
+		}
+
+		// set neighborhood_to
+		BOOST_FOREACH(const Types<3>::neighborhood_item_t& offset, this->neighborhood_of) {
+			Types<3>::neighborhood_item_t item = {{-offset[0], -offset[1], -offset[2]}};
+			this->neighborhood_to.push_back(item);
+		}
+	}
+
+
+	/*!
+	Creates cells of refinement level 0 and assigns them to processes.
+
+	If USE_SFC is defined when compiling the cells will be assigned to
+	processes using a space-filling curve which should improve the
+	initial computational load.
+
+	this->length and this->mapping must have been initialized prior
+	to calling this function.
+	*/
+	bool create_level_0_cells(const uint64_t sfc_caching_batches)
+	{
+		if (sfc_caching_batches == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " sfc_caching_batches must be > 0"
+				<< std::endl;
+			return false;
+		}
+
+		const uint64_t total_cells
+			= this->length.get()[0]
+			* this->length.get()[1]
+			* this->length.get()[2];
+
+		uint64_t cells_per_process = 0;
+
+		if (total_cells < this->comm_size) {
+			cells_per_process = 1;
+		} else if (total_cells % this->comm_size > 0) {
+			cells_per_process = total_cells / this->comm_size + 1;
+		} else {
+			cells_per_process = total_cells / this->comm_size;
+		}
+
+		// some processes get fewer cells if grid size not divisible by this->comm_size
+		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - total_cells;
+
+		#ifndef USE_SFC
+
+		uint64_t cell_to_create = 1;
+		for (uint64_t process = 0; process < this->comm_size; process++) {
+
+			uint64_t cells_to_create;
+			if (process < procs_with_fewer) {
+				cells_to_create = cells_per_process - 1;
+			} else {
+				cells_to_create = cells_per_process;
+			}
+
+			for (uint64_t i = 0; i < cells_to_create; i++) {
+				this->cell_process[cell_to_create] = process;
+				if (process == this->rank) {
+					this->cells[cell_to_create];
+				}
+				cell_to_create++;
+			}
+		}
+
+		#ifdef DEBUG
+		if (cell_to_create != total_cells + 1) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of cells created: " << cell_to_create - 1
+				<< ", should be " << total_cells
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		#else // ifndef USE_SFC
+
+		const dccrg::Types<3>::indices_t sfc_length = {{
+			this->length.get()[0],
+			this->length.get()[1],
+			this->length.get()[2]
+		}};
+		sfc::Sfc<3, uint64_t> sfc_mapping(sfc_length);
+
+		/*
+		Cache only batch_size number of sfc indices at a time.
+		Saves memory and can even be faster than caching everything at once
+		*/
+		uint64_t batch_size;
+		if (sfc_mapping.size() % sfc_caching_batches > 0) {
+			batch_size = 1 + sfc_mapping.size() / sfc_caching_batches;
+		} else {
+			batch_size = sfc_mapping.size() / sfc_caching_batches;
+		}
+
+		uint64_t cache_start = 0, cache_end = batch_size - 1;
+		sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
+
+		uint64_t sfc_index = 0;
+		for (uint64_t process = 0; process < this->comm_size; process++) {
+
+			uint64_t cells_to_create;
+			if (process < procs_with_fewer) {
+				cells_to_create = cells_per_process - 1;
+			} else {
+				cells_to_create = cells_per_process;
+			}
+
+			for (uint64_t i = 0; i < cells_to_create; i++) {
+
+				// cache new sfc index batch
+				if (sfc_index > cache_end) {
+					cache_start = cache_end;
+					cache_end = cache_start + batch_size;
+
+					if (cache_end >= sfc_mapping.size()) {
+						cache_end = sfc_mapping.size() - 1;
+					}
+
+					sfc_mapping.clear();
+					sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
+				}
+
+				dccrg::Types<3>::indices_t indices = sfc_mapping.get_indices(sfc_index);
+				// transform indices to those of refinement level 0 cells
+				indices[0] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				indices[1] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				indices[2] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				const uint64_t cell_to_create = this->mapping.get_cell_from_indices(indices, 0);
+
+				this->cell_process[cell_to_create] = process;
+				if (process == this->rank) {
+					this->cells[cell_to_create];
+				}
+
+				sfc_index++;
+			}
+		}
+		sfc_mapping.clear();
+
+		if (sfc_index != total_cells) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->rank
+				<< ": Incorrect number of cells created: " << sfc_index
+				<< ", should be " << total_cells
+				<< std::endl;
+			abort();
+		}
+
+		#endif // ifndef USE_SFC
+		// TODO: check that the last index in the grid in every direction is less than error_index
+
+		return true;
+	}
+
+
+	/*!
+	Initializes the grid from given parameters.
+	*/
+	bool initialize_from_arguments(
+		const boost::array<uint64_t, 3>& initial_length,
+		const int maximum_refinement_level,
+		const bool periodic_in_x,
+		const bool periodic_in_y,
+		const bool periodic_in_z
+	) {
+		if (!this->mapping_rw.set_length(initial_length)) {
+			std::cerr << "Couldn't set initial length of grid" << std::endl;
+			return false;
+		}
+
+		this->topology_rw.set_periodicity(0, periodic_in_x);
+		this->topology_rw.set_periodicity(1, periodic_in_y);
+		this->topology_rw.set_periodicity(2, periodic_in_z);
+
+		if (maximum_refinement_level < 0) {
+			this->mapping_rw.set_maximum_refinement_level(
+				this->mapping_rw.get_maximum_possible_refinement_level()
+			);
+		} else if (!this->mapping_rw.set_maximum_refinement_level(maximum_refinement_level)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "Couldn't set maximum refinement level to " << maximum_refinement_level
+				<< std::endl;
+			abort();
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Same as initialize_from_arguments() but reads parameters from file.
+
+	File must be an open file and offset given in bytes.
+	*/
+	bool initialize_from_file(
+		const uint64_t sfc_caching_batches,
+		MPI_File file,
+		MPI_Offset offset
+	) {
+		int ret_val = -1;
+
+		// initialize mapping
+		if (!this->mapping_rw.read(file, offset)) {
+			if (rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read mapping"
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += this->mapping.data_size();
+
+		// initialize default neighborhood
+		unsigned int neighborhood_length = 0;
+		ret_val = MPI_File_read_at_all(
+			file,
+			offset,
+			(void*) &neighborhood_length,
+			1,
+			MPI_UNSIGNED,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			if (rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read length of cells' neighborhoods: " << Error_String()(ret_val)
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += sizeof(unsigned int);
+		this->initialize_neighborhoods(neighborhood_length);
+
+		// initialize topology
+		if (!this->topology_rw.read(file, offset)) {
+			if (rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read grid topology from file"
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += this->topology.data_size();
+
+		// initialize geometry
+		if (!this->geometry_rw.read(file, offset)) {
+			if (this->rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read geometry from file"
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += this->geometry.data_size();
+
+		// initial cells must exist along with neighbor lists,
+		// etc. before loading the grid.
+		this->create_level_0_cells(sfc_caching_batches);
+		if (!this->initialize_neighbors()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't initialize neighbors"
+				<< std::endl;
+			return false;
+		}
+
+		// read the total number of cells in the file
+		uint64_t total_number_of_cells = 0;
+		ret_val = MPI_File_read_at_all(
+			file,
+			offset,
+			&total_number_of_cells,
+			1,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << "Couldn't read total number of cells" << std::endl;
+			return false;
+		}
+		offset += sizeof(uint64_t);
+
+		// read cells and data displacements
+		std::vector<uint64_t> all_cells_and_data_displacements(2 * total_number_of_cells, error_cell);
+		ret_val = MPI_File_read_at_all(
+			file,
+			offset,
+			&all_cells_and_data_displacements[0],
+			2 * total_number_of_cells,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << "Couldn't read number of cells" << std::endl;
+			return false;
+		}
+
+		#ifdef DEBUG
+		// check that correct cells were read properly
+		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
+			const uint64_t cell = all_cells_and_data_displacements[i];
+			if (cell == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid cell in cell list at index " << i << ": " << cell
+					<< std::endl;
+				abort();
+			}
+		}
+		#endif
+
+		// remove all but local cell data displacements
+		std::vector<std::pair<uint64_t, uint64_t> > cells_and_data_displacements;
+		cells_and_data_displacements.reserve(this->cells.size());
+
+		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
+			const uint64_t
+				cell = all_cells_and_data_displacements[i],
+				offset = all_cells_and_data_displacements[i + 1];
+
+			if (this->cell_overlaps_local(cell)) {
+				cells_and_data_displacements.push_back(std::make_pair(cell, offset));
+			}
+		}
+		all_cells_and_data_displacements.clear();
+
+		// refine the grid to create cells that exist in the file
+		std::vector<uint64_t> final_cells;
+		final_cells.reserve(cells_and_data_displacements.size());
+		for (std::vector<std::pair<uint64_t, uint64_t> >::const_iterator
+			item = cells_and_data_displacements.begin();
+			item != cells_and_data_displacements.end();
+			item++
+		) {
+			final_cells.push_back(item->first);
+		}
+
+		if (!this->load_cells(final_cells)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't load grid"
+				<< std::endl;
+			abort();
+		}
+		final_cells.clear();
+
+		const uint64_t number_of_cells = cells_and_data_displacements.size();
+
+		#ifdef DEBUG
+		if (number_of_cells != cells_and_data_displacements.size()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of cell data displacements: "
+				<< cells_and_data_displacements.size()
+				<< ", should be " << number_of_cells
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+
+		// datatypes etc. of local cell data in memory
+		std::vector<void*> addresses(number_of_cells, NULL);
+		std::vector<int> counts(number_of_cells, -1);
+		std::vector<MPI_Datatype> datatypes(number_of_cells, MPI_DATATYPE_NULL);
+		std::vector<MPI_Aint>
+			memory_displacements(number_of_cells, 0),
+			file_displacements(number_of_cells, 0);
+
+		// set file view representing local cell data
+		MPI_Datatype file_datatype;
+
+		if (number_of_cells == 0) {
+
+			MPI_Type_contiguous(0, MPI_BYTE, &file_datatype);
+
+		} else {
+
+			// get datatype info from local cells in memory
+			for (uint64_t i = 0; i < number_of_cells; i++) {
+				const uint64_t cell = cells_and_data_displacements[i].first;
+
+				boost::tie(
+					addresses[i],
+					counts[i],
+					datatypes[i]
+				) = this->cells.at(cell).get_mpi_datatype(
+					cell,
+					-1,
+					(int) this->rank,
+					true
+				);
+			}
+
+			// displacements for cell data in memory are relative to first cell's data
+			for (size_t i = 0; i < number_of_cells; i++) {
+				memory_displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
+			}
+
+			// displacements for cell data in file are relative to start of file
+			for (uint64_t i = 0; i < number_of_cells; i++) {
+				file_displacements[i] = cells_and_data_displacements[i].second;
+			}
+
+			ret_val = MPI_Type_create_struct(
+				number_of_cells,
+				&counts[0],
+				&file_displacements[0],
+				&datatypes[0],
+				&file_datatype
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't create datatype for file view: "<< Error_String()(ret_val)
+					<< std::endl;
+				abort();
+			}
+		}
+
+		ret_val = MPI_Type_commit(&file_datatype);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't commit datatype for file view: " << Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+
+		ret_val = MPI_File_set_view(
+			file,
+			0,
+			MPI_BYTE,
+			file_datatype,
+			const_cast<char*>("native"),
+			MPI_INFO_NULL
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set file view for cell data: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+
+		// create a datatype representing local cell data in memory
+		MPI_Datatype memory_datatype;
+
+		if (number_of_cells == 0) {
+
+			MPI_Type_contiguous(0, MPI_BYTE, &memory_datatype);
+			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+
+		} else {
+
+			if (MPI_Type_create_struct(
+				number_of_cells,
+				&counts[0],
+				&memory_displacements[0],
+				&datatypes[0],
+				&memory_datatype) != MPI_SUCCESS
+			) {
+				std::cerr << "Process " << this->rank
+					<< " Couldn't create datatype for local cells"
+					<< std::endl;
+				abort();
+			}
+
+			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
+				std::cerr << "Process " << this->rank
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+		}
+
+		// give a valid buffer to ...read_at_all even if no cells to read
+		if (number_of_cells == 0) {
+			addresses.push_back((void*) &number_of_cells);
+		}
+
+		ret_val = MPI_File_read_at_all(
+			file,
+			0,
+			addresses[0],
+			1,
+			memory_datatype,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " couldn't read local cell data: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+
+
+		/*
+		Deallocate datatypes
+		*/
+
+		ret_val = MPI_Type_free(&memory_datatype);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't free datatype for cell data in memory: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		ret_val = MPI_Type_free(&file_datatype);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't free datatype for cell data in file: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		BOOST_FOREACH(MPI_Datatype& datatype, datatypes) {
+			if (!Is_Named_Datatype()(datatype)) {
+				ret_val = MPI_Type_free(&datatype);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't free user defined datatype: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					return false;
+				}
+			}
+		}
+
+		ret_val = MPI_File_close(&file);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't close input file: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/*!
+	Initializes local cells' neighbor lists and related data structures.
+
+	this->create_level_0_cells() must have been called prior to this.
+	*/
+	bool initialize_neighbors()
+	{
+		// update neighbor lists of created cells
+		BOOST_FOREACH(const cell_and_data_pair_t& item, this->cells) {
+			this->neighbors[item.first]
+				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
+			this->neighbors_to[item.first]
+				= this->find_neighbors_to(item.first, this->neighborhood_to);
+		}
+		#ifdef DEBUG
+		if (!this->verify_neighbors()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbor lists are inconsistent"
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		this->update_remote_neighbor_info();
+		#ifdef DEBUG
+		if (!this->verify_remote_neighbor_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		this->recalculate_neighbor_update_send_receive_lists();
+
+		return true;
+	}
 
 
 	/*!

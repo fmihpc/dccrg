@@ -247,7 +247,9 @@ public:
 		this->comm_rank = grid.get_rank();
 
 		if (!cache_is_up_to_date) {
+			phiprof::start("Caching system info");
 			this->cache_system_info(cells, cells_to_skip, grid);
+			phiprof::stop("Caching system info");
 		}
 
 		double
@@ -261,6 +263,7 @@ public:
 			//std::cout << "r0 . r1: " << dot_r_g << std::endl;
 		}
 
+		phiprof::start("Iterating solution");
 		size_t iteration = 0;
 		do {
 			iteration++;
@@ -462,6 +465,7 @@ public:
 			}
 
 		} while (iteration < this->max_iterations);
+		phiprof::stop("Iterating solution", iteration, "iterations");
 
 		if (this->comm_rank == 0) {
 			//std::cout << "iterations: " << iteration << ", residual: " << residual_min << std::endl;
@@ -514,6 +518,7 @@ private:
 	*/
 	double get_residual() const
 	{
+		phiprof::start("Calculating residual");
 		double local = 0, global = 0;
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 			Poisson_Cell* data = info.first;
@@ -521,6 +526,7 @@ private:
 		}
 		MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 		global = std::pow(global, 1.0 / p_of_norm);
+		phiprof::stop("Calculating residual");
 		return global;
 	}
 
@@ -812,6 +818,8 @@ private:
 	template<class Geometry> double initialize_solver(
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
+		phiprof::start("Initializing solver");
+
 		// transfer user's guess for the solution to calculate residual
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 		grid.update_copies_of_remote_neighbors();
@@ -876,6 +884,7 @@ private:
 			dot_r_l += data->r0 * data->r1;
 		}
 		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
+		phiprof::stop("Initializing solver");
 
 		return dot_r_g;
 	}
