@@ -124,7 +124,8 @@ public:
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
-		const bool /*receiving*/
+		const bool /*receiving*/,
+		const int /*neighborhoo_id*/
 	) {
 		void* address = NULL;
 		int count = -1;

@@ -59,7 +59,8 @@ public:
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
-		const bool /*receiving*/
+		const bool /*receiving*/,
+		const int /*neighborhoo_id*/
 	) {
 		// transfer cell density and velocities to other processes
 		// TODO: only transfer velocities after they have changed

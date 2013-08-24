@@ -57,7 +57,8 @@ public:
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
-		const bool /*receiving*/
+		const bool /*receiving*/,
+		const int /*neighborhood_id*/
 	) {
 		if (Cell::transfer_only_life) {
 			return boost::make_tuple(&(this->data), 1, MPI_UINT64_T);

@@ -141,11 +141,12 @@ static const int
 
 
 /*!
-\brief Main class of dccrg, instantiate this to create a parallel grid for simulations.
+\brief Main class of dccrg, instantiate and initialize() to create a parallel grid for simulations.
 
-Cell_Data is stored in all local cells and must provide a way for dccrg to
-query what data to send between processes using MPI-2.2
-(http://www.mpi-forum.org/docs/), by default it must have the following method:
+Cell_Data is stored in all local cells and their remote neighbors and must
+provide a way for dccrg to query what data to send between processes using
+MPI-2.2 (http://www.mpi-forum.org/docs/), by default Cell_Data must have the
+following method:
 \verbatim
 boost::tuple<
 	void*,
@@ -155,12 +156,27 @@ boost::tuple<
 	const uint64_t cell_id,
 	const int sender,
 	const int receiver,
-	const bool receiving
+	const bool receiving,
+	const int neighborhood_id
 );
 \endverbatim
-where the return value is passed as is to MPI functions and  the arguments
-provide additional information for the method. If DCCRG_TRANSFER_USING_BOOST_MPI is
-defined when compiling then Cell_Data must have the following method:
+where the return value is passed as is to MPI functions and the arguments
+provide additional information for the method:
+	- cell_id is the id of the cell whose get_mpi_datatype is being called
+	- sender is the MPI process number sending the cell's data
+		- this can be negative, e.g. when loading grid data from a file,
+		  see load_grid_data()
+	- receiver is the MPI process number receiving the cell's data
+		- this can be negative, e.g. when saving grid data to a file,
+		  see save_grid_data()
+	- receiving is true on the receiving process and false on the sending
+	- neighborhood_id is the neighborhood id for which communication is
+	  being done, see add_neighborhood()
+		- neighborhood_id is undefined when saving/loading grid data
+		  from a file and balancing the computational load
+
+If DCCRG_TRANSFER_USING_BOOST_MPI is defined when compiling then
+Cell_Data must have the following method:
 \verbatim
 template<typename Archiver> void serialize(
 	Archiver& ar,
@@ -173,7 +189,7 @@ http://www.boost.org/doc/libs/release/doc/html/mpi/tutorial.html
 The get_mpi_datatype() function decides what data to transfer whenever data
 is transferred e.g. between processes or when grid data is written/read from a file.
 
-Geometry class decides the physical and logical size, shape, etc of the grid.
+Geometry class decides the physical size, shape, etc of the grid.
 
 \see
 Dccrg() to get started with the %dccrg API.
@@ -1165,7 +1181,8 @@ public:
 				cell,
 				(int) this->rank,
 				-1,
-				false
+				false,
+				-1
 			);
 		}
 
@@ -3002,7 +3019,8 @@ public:
 		this->start_user_data_transfers(
 			this->cells,
 			this->cells_to_receive,
-			this->cells_to_send
+			this->cells_to_send,
+			-2
 		);
 
 		this->wait_user_data_transfer_receives(
@@ -3991,7 +4009,8 @@ public:
 			return this->start_user_data_transfers(
 				this->remote_neighbors,
 				this->cells_to_receive,
-				this->cells_to_send
+				this->cells_to_send,
+				neighborhood_id
 			);
 		}
 
@@ -4063,7 +4082,8 @@ public:
 		if (!this->start_user_data_transfers(
 			this->remote_neighbors,
 			this->user_neigh_cells_to_receive.at(neighborhood_id),
-			this->user_neigh_cells_to_send.at(neighborhood_id)
+			this->user_neigh_cells_to_send.at(neighborhood_id),
+			neighborhood_id
 		)) {
 			ret_val = false;
 		}
@@ -6539,7 +6559,8 @@ private:
 					cell,
 					-1,
 					(int) this->rank,
-					true
+					true,
+					-1
 				);
 			}
 
@@ -8642,7 +8663,8 @@ private:
 		this->start_user_data_transfers(
 			this->unrefined_cell_data,
 			this->cells_to_receive,
-			this->cells_to_send
+			this->cells_to_send,
+			-3
 		);
 
 		// update data for parents (and their neighborhood) of unrefined cells
@@ -8868,15 +8890,16 @@ private:
 	bool start_user_data_transfers(
 		boost::unordered_map<uint64_t, Cell_Data>& destination,
 		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
-		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item,
+		const int neighborhood_id
 	) {
 		bool ret_val = true;
 
-		if (!this->start_user_data_receives(destination, receive_item)) {
+		if (!this->start_user_data_receives(destination, receive_item, neighborhood_id)) {
 			ret_val = false;
 		}
 
-		if (!this->start_user_data_sends(send_item)) {
+		if (!this->start_user_data_sends(send_item, neighborhood_id)) {
 			ret_val = false;
 		}
 
@@ -8889,7 +8912,8 @@ private:
 	*/
 	bool start_user_data_receives(
 		boost::unordered_map<uint64_t, Cell_Data>& destination,
-		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& receive_item,
+		const int neighborhood_id
 	) {
 		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
 		int ret_val = -1;
@@ -8940,6 +8964,10 @@ private:
 						)
 					);
 
+					// prevent compiler from warning about not using neighborhood_id
+					int temp = neighborhood_id;
+					temp++;
+
 					#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 					this->receive_requests[sending_process].push_back(MPI_Request());
@@ -8956,7 +8984,8 @@ private:
 						cell,
 						sending_process,
 						(int) this->rank,
-						true
+						true,
+						neighborhood_id
 					);
 
 					const bool is_named_datatype = Is_Named_Datatype()(user_datatype);
@@ -9022,6 +9051,9 @@ private:
 					)
 				);
 
+				int temp = neighborhood_id;
+				temp++;
+
 				#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 				// reserve space for incoming user data in this end
@@ -9049,7 +9081,8 @@ private:
 						cell,
 						sending_process,
 						(int) this->rank,
-						true
+						true,
+						neighborhood_id
 					);
 				}
 
@@ -9130,7 +9163,8 @@ private:
 	Posts MPI_Isends for start_user_data_transfers().
 	*/
 	bool start_user_data_sends(
-		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item
+		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& send_item,
+		const int neighborhood_id
 	) {
 		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
 		int ret_val = -1;
@@ -9176,6 +9210,10 @@ private:
 						)
 					);
 
+					// prevent compiler from warning about not using neighborhood_id
+					int temp = neighborhood_id;
+					temp++;
+
 					#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 					this->send_requests[receiving_process].push_back(MPI_Request());
@@ -9192,7 +9230,8 @@ private:
 						cell,
 						(int) this->rank,
 						receiving_process,
-						false
+						false,
+						neighborhood_id
 					);
 
 					const bool is_named_datatype = Is_Named_Datatype()(user_datatype);
@@ -9277,6 +9316,9 @@ private:
 					)
 				);
 
+				int temp = neighborhood_id;
+				temp++;
+
 				#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 				// get mpi transfer info from cells
@@ -9295,7 +9337,8 @@ private:
 						cell,
 						(int) this->rank,
 						receiving_process,
-						false
+						false,
+						neighborhood_id
 					);
 				}
 

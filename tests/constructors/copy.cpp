@@ -34,7 +34,8 @@ struct Cell1 {
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
-		const bool /*receiving*/
+		const bool /*receiving*/,
+		const int /*neighborhoo_id*/
 	) {
 		return boost::make_tuple(&(this->data), 1, MPI_INT);
 	}
@@ -56,7 +57,8 @@ struct Cell2 {
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
-		const bool /*receiving*/
+		const bool /*receiving*/,
+		const int /*neighborhoo_id*/
 	) {
 		return boost::make_tuple(&(this->data), 1, MPI_DOUBLE);
 	}

@@ -60,7 +60,8 @@ public:
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
-		const bool /*receiving*/
+		const bool /*receiving*/,
+		const int /*neighborhood_id*/
 	) {
 		return boost::make_tuple(&(this->data), 13, MPI_UINT64_T);
 	}
