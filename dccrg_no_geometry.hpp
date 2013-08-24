@@ -53,7 +53,7 @@ public:
 	Unique identifier of this geometry class, used when
 	storing the geometry to a file.
 	*/
-	const int geometry_id = 0;
+	static const int geometry_id = 0;
 
 	/*!
 	Parameter type that is defined by every geometry class
@@ -100,7 +100,9 @@ public:
 		length(given_length),
 		mapping(given_mapping),
 		topology(given_topology)
-	{}
+	{
+		this->parameters = 0;
+	}
 
 
 	/*!
@@ -484,14 +486,16 @@ public:
 	*/
 	bool write(MPI_File file, MPI_Offset offset) const
 	{
-		const int ret_val = MPI_File_write_at(
-			file,
-			offset,
-			(void*) &this->geometry_id,
-			1,
-			MPI_INT,
-			MPI_STATUS_IGNORE
-		);
+		const int
+			temp_id = No_Geometry::geometry_id,
+			ret_val = MPI_File_write_at(
+				file,
+				offset,
+				(void*) &temp_id,
+				1,
+				MPI_INT,
+				MPI_STATUS_IGNORE
+			);
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't write geometry data to given file: " << Error_String()(ret_val)
@@ -510,7 +514,7 @@ public:
 	*/
 	bool read(MPI_File file, MPI_Offset offset) const
 	{
-		int read_geometry_id = this->geometry_id + 1;
+		int read_geometry_id = No_Geometry::geometry_id + 1;
 		const int ret_val = MPI_File_read_at(
 			file,
 			offset,
@@ -526,10 +530,10 @@ public:
 			return false;
 		}
 
-		if (read_geometry_id != this->geometry_id) {
+		if (read_geometry_id != No_Geometry::geometry_id) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Wrong geometry: " << read_geometry_id
-				<< ", should be " << this->geometry_id
+				<< ", should be " << No_Geometry::geometry_id
 				<< std::endl;
 			return false;
 		}

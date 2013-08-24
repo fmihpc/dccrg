@@ -11,9 +11,9 @@ visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
 #include "iostream"
 #include "stdint.h"
 
-#include "../dccrg_cartesian_geometry.hpp"
 #include "../dccrg_length.hpp"
 #include "../dccrg_mapping.hpp"
+#include "../dccrg_no_geometry.hpp"
 #include "../dccrg_topology.hpp"
 
 using namespace std;
@@ -141,25 +141,14 @@ int main(int argc, char* argv[])
 		// use default topology where the grid isn't periodic
 		const Grid_Topology topology;
 
+		// mapping of cell ids to their (logical) size and location
 		Mapping mapping;
 		const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
 		mapping.set_length(grid_length);
 		mapping.set_maximum_refinement_level(max_ref_level);
 
-		/*
-		Create the geometry that was read from file
-		*/
-		Cartesian_Geometry geometry(mapping.length, mapping, topology);
-
-		Cartesian_Geometry::Parameters parameters;
-		parameters.start[0] = x_start;
-		parameters.start[1] = y_start;
-		parameters.start[2] = z_start;
-		parameters.level_0_cell_length[0] = cell_x_size;
-		parameters.level_0_cell_length[1] = cell_y_size;
-		parameters.level_0_cell_length[2] = cell_z_size;
-
-		geometry.set(parameters);
+		// No_Geometry doesn't change after being constructed
+		No_Geometry geometry(mapping.length, mapping, topology);
 
 		// write the game data to a .vtk file
 		const string input_name(argv[arg]),

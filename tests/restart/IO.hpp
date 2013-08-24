@@ -28,6 +28,7 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "vector"
 
 #include "../../dccrg.hpp"
+#include "../../dccrg_cartesian_geometry.hpp"
 #include "../../dccrg_mpi_support.hpp"
 
 #include "cell.hpp"

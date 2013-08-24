@@ -100,7 +100,7 @@ public:
 	Unique identifier of this geometry class, used when
 	storing the geometry to a file.
 	*/
-	const int geometry_id = 1;
+	static const int geometry_id = 1;
 
 	/*!
 	Parameter type that is defined by every geometry class
@@ -618,10 +618,11 @@ public:
 	{
 		int ret_val = -1;
 
+		const int temp_id = Cartesian_Geometry::geometry_id;
 		ret_val = MPI_File_write_at(
 			file,
 			offset,
-			(void*) &this->geometry_id,
+			(void*) &temp_id,
 			1,
 			MPI_INT,
 			MPI_STATUS_IGNORE
@@ -677,7 +678,7 @@ public:
 	bool read(MPI_File file, MPI_Offset offset)
 	{
 		int
-			read_geometry_id = this->geometry_id + 1,
+			read_geometry_id = Cartesian_Geometry::geometry_id + 1,
 			ret_val = -1;
 
 		ret_val = MPI_File_read_at(
@@ -696,10 +697,11 @@ public:
 		}
 		offset += sizeof(int);
 
-		if (read_geometry_id > this->geometry_id) {
+		// TODO: don't error out if given No_Geometry
+		if (read_geometry_id != Cartesian_Geometry::geometry_id) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Wrong geometry: " << read_geometry_id
-				<< ", should be for example " << this->geometry_id
+				<< ", should be " << Cartesian_Geometry::geometry_id
 				<< std::endl;
 			return false;
 		}
