@@ -42,21 +42,24 @@ public:
 	Saves the current state of given game of life grid into the given file.
 
 	The game of life header consists of the given time step.
+	Must be called by all processes with identical arguments,
+	an existing file with given name is removed.
 	*/
 	static void save(
 		const std::string& name,
 		uint64_t step,
 		dccrg::Dccrg<Cell, UserGeometry>& grid
 	) {
-		int rank = 0, comm_size = 0;
+		int rank = 0;
 		MPI_Comm comm = grid.get_communicator();
 		MPI_Comm_rank(comm, &rank);
-		MPI_Comm_size(comm, &comm_size);
+		if (rank == 0) {
+			std::remove(name.c_str());
+		}
+		MPI_Barrier(comm);
+		MPI_Comm_free(&comm);
 
 		Cell::transfer_only_life = true;
-		std::remove(name.c_str());
-
-		MPI_Barrier(comm);
 
 		boost::tuple<void*, int, MPI_Datatype> header;
 		if (rank == 0) {
