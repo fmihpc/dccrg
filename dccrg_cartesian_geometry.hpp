@@ -674,6 +674,8 @@ public:
 	Reads the geometry from given open file starting at given offset.
 
 	Returns true on success, false otherwise.
+	Unless you know what you're doing must be called by all processes
+	with identical arguments.
 	*/
 	bool read(MPI_File file, MPI_Offset offset)
 	{

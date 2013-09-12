@@ -977,6 +977,10 @@ public:
 	Unless you know what you're doing the method should return
 	the same datatype information both when saving and loading the grid.
 
+	Process 0 writes the data represented by the given header to the
+	file at given offset. The header does not have to be defined
+	on other processes.
+
 	Must be called by all processes with identical arguments.
 	Returns true on success, false otherwise (one one or more processes).
 	Does nothing if DCCRG_TRANSFER_USING_BOOST_MPI was defined when
@@ -985,15 +989,19 @@ public:
 	During this function the receiving process given to the cells'
 	get_mpi_datatype function is -1 and receiving == false.
 	*/
-	bool save_grid_data(const std::string& name, MPI_Offset offset)
-	{
+	bool save_grid_data(
+		const std::string& name,
+		MPI_Offset offset,
+		boost::tuple<void*, int, MPI_Datatype> header
+	) {
 		// TODO: use nonblocking versions of ...write_at_all
 		/*
 		File format:
 
 		uint8_t * offset, data skipped by this function
+		uint8_t*A user's header data
 		uint64_t  endiannes check data (0x1234567890abcdef)
-		uint8_t*A internal grid data
+		uint8_t*B internal grid data
 		uint64_t  number of cells
 		uint64_t  id of 1st cell
 		uint64_t  start of data of 1st cell in bytes
@@ -1001,8 +1009,8 @@ public:
 		uint64_t  start of data...
 		...
 		uint64_t  start of data of last cell in bytes
-		uint8_t*B data of 1st cell
-		uint8_t*C data of 2nd cell
+		uint8_t*C data of 1st cell
+		uint8_t*D data of 2nd cell
 		...
 		*/
 
@@ -1014,22 +1022,15 @@ public:
 
 		int ret_val = -1;
 
-		// MPI_File_open wants a non-constant string
-		char* name_c_string = new char [name.size() + 1];
-		strncpy(name_c_string, name.c_str(), name.size() + 1);
-
 		MPI_File outfile;
 
 		ret_val = MPI_File_open(
 			this->comm,
-			name_c_string,
+			const_cast<char*>(name.c_str()),
 			MPI_MODE_CREATE | MPI_MODE_WRONLY,
 			MPI_INFO_NULL,
 			&outfile
 		);
-
-		delete [] name_c_string;
-
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Process " << this->rank
@@ -1037,6 +1038,53 @@ public:
 				<< ": " << Error_String()(ret_val)
 				<< std::endl;
 			return false;
+		}
+
+		// process 0 writes user's header
+		if (this->rank == 0) {
+			ret_val = MPI_File_write_at(
+				outfile,
+				offset,
+				boost::tuples::get<0>(header),
+				boost::tuples::get<1>(header),
+				boost::tuples::get<2>(header),
+				MPI_STATUS_IGNORE
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't write header to file " << name
+					<< ": " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+
+			int header_size = 0;
+			if (MPI_Type_size(boost::tuples::get<2>(header), &header_size) != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				return false;
+			}
+
+			ret_val = MPI_Bcast(&header_size, 1, MPI_INT, 0, this->comm);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't send header size: " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+			offset += (MPI_Offset) header_size;
+
+		} else {
+			int header_size = 0;
+			ret_val = MPI_Bcast(&header_size, 1, MPI_INT, 0, this->comm);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " couldn't receive header size: " << Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+			offset += (MPI_Offset) header_size;
 		}
 
 		// write endianness check
@@ -1498,6 +1546,10 @@ public:
 	sfc_caching_bathces. TODO: Reads at most number_of_cells number of cell data
 	offsets at a time, give a smaller number if all cell ids won't fit into memory at once.
 
+	All processes read the same data defined by the given header starting at
+	given file offset in bytes. The header does not have to be defined on
+	other processes.
+
 	Must be called by all processes of given_comm and with identical arguments.
 
 	Returns true on success.
@@ -1514,6 +1566,7 @@ public:
 	bool load_grid_data(
 		const std::string& name,
 		MPI_Offset offset,
+		boost::tuple<void*, int, MPI_Datatype> header,
 		const MPI_Comm& given_comm,
 		const char* const load_balancing_method,
 		const uint64_t sfc_caching_batches = 1,
@@ -1534,30 +1587,48 @@ public:
 			return false;
 		}
 
-		// MPI_File_open wants a non-constant string
-		char* name_c_string = new char [name.size() + 1];
-		strncpy(name_c_string, name.c_str(), name.size() + 1);
-
 		MPI_File file;
 
 		ret_val = MPI_File_open(
 			given_comm,
-			name_c_string,
+			const_cast<char*>(name.c_str()),
 			MPI_MODE_RDONLY,
 			MPI_INFO_NULL,
 			&file
 		);
-
-		delete [] name_c_string;
-
 		if (ret_val != MPI_SUCCESS) {
 			if (this->rank == 0) {
-				std::cerr << "Couldn't open file " << name_c_string
+				std::cerr << "Couldn't open file " << name
 					<< ": " << Error_String()(ret_val)
 					<< std::endl;
 			}
 			return false;
 		}
+
+		// read in user's header
+		ret_val = MPI_File_read_at_all(
+			file,
+			offset,
+			boost::tuples::get<0>(header),
+			boost::tuples::get<1>(header),
+			boost::tuples::get<2>(header),
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't read header from file " << name
+				<< ": " << Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		int header_size = 0;
+		if (MPI_Type_size(boost::tuples::get<2>(header), &header_size) != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			return false;
+		}
+		offset += (MPI_Offset) header_size;
 
 		// check endianness
 		uint64_t

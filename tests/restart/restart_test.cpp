@@ -128,6 +128,8 @@ int main(int argc, char* argv[])
 	Setup restart grid and game
 	*/
 
+	uint64_t step = 0;
+
 	// either start a new game...
 	if (restart_name == "") {
 
@@ -149,14 +151,14 @@ int main(int argc, char* argv[])
 
 	// ...or restart from saved game
 	} else {
-		const uint64_t restart_step = IO<Cartesian_Geometry>::load(
+		step = IO<Cartesian_Geometry>::load(
 			comm,
 			restart_name,
 			game_grid
 		);
 
 		// play the reference game to the same step
-		for (uint64_t i = 0; i < restart_step; i++) {
+		for (uint64_t i = 0; i < step; i++) {
 			Solve<Cartesian_Geometry>::solve(reference_grid);
 		}
 	}
@@ -164,8 +166,6 @@ int main(int argc, char* argv[])
 	game_grid.balance_load();
 
 	const uint64_t time_steps = 25;
-	uint64_t step = 0;
-
 	while (step < time_steps) {
 
 		Refine<Cartesian_Geometry>::refine(game_grid, grid_length[0], step, comm_size);
@@ -216,7 +216,7 @@ int main(int argc, char* argv[])
 			if (cell_data->data[0] != reference_data->data[0]) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Cell's " << cell
-					<< " life doesn't agree with reference at step " << step
+					<< " life doesn't agree with reference at the beginning of step " << step
 					<< std::endl;
 				abort();
 			}
