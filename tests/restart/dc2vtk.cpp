@@ -9,6 +9,7 @@ visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
 #include "cstring"
 #include "fstream"
 #include "iostream"
+#include "mpi.h"
 #include "stdint.h"
 
 #include "../../dccrg_cartesian_geometry.hpp"
