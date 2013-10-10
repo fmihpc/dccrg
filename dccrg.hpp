@@ -994,6 +994,7 @@ public:
 		MPI_Offset offset,
 		boost::tuple<void*, int, MPI_Datatype> header
 	) {
+		// TODO: use only one ...write_at_all
 		// TODO: use nonblocking versions of ...write_at_all
 		/*
 		File format:
@@ -1042,12 +1043,27 @@ public:
 
 		// process 0 writes user's header
 		if (this->rank == 0) {
+
+			MPI_Datatype header_type = header.get<2>();
+
+			if (!Is_Named_Datatype()(header_type)) {
+				ret_val = MPI_Type_commit(&header_type);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< "Process " << this->rank
+						<< " Couldn't commit header datatype: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
+			}
+
 			ret_val = MPI_File_write_at(
 				outfile,
 				offset,
-				boost::tuples::get<0>(header),
-				boost::tuples::get<1>(header),
-				boost::tuples::get<2>(header),
+				header.get<0>(),
+				header.get<1>(),
+				header_type,
 				MPI_STATUS_IGNORE
 			);
 			if (ret_val != MPI_SUCCESS) {
@@ -1059,8 +1075,9 @@ public:
 				return false;
 			}
 
+			// everyone moves the offset by header size
 			int header_size = 0;
-			if (MPI_Type_size(boost::tuples::get<2>(header), &header_size) != MPI_SUCCESS) {
+			if (MPI_Type_size(header_type, &header_size) != MPI_SUCCESS) {
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				return false;
 			}
@@ -1073,6 +1090,18 @@ public:
 				return false;
 			}
 			offset += (MPI_Offset) header_size;
+
+			if (!Is_Named_Datatype()(header_type)) {
+				ret_val = MPI_Type_free(&header_type);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't free header datatype: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					return false;
+				}
+			}
 
 		} else {
 			int header_size = 0;
@@ -1210,21 +1239,21 @@ public:
 
 
 		/*
-		Get datatypes etc. of local cell data in memory so byte offsets
-		in output file can be calculated in order to write cell list(s)
+		Create a datatype representing all local cell data in memory
 		*/
 
 		std::vector<void*> addresses(number_of_cells, NULL);
 		std::vector<int> counts(number_of_cells, -1);
-		std::vector<MPI_Datatype> datatypes(number_of_cells, MPI_DATATYPE_NULL);
+		std::vector<MPI_Datatype> mem_datatypes(number_of_cells, MPI_DATATYPE_NULL);
 
+		// get intermediate datatypes from user
 		for (size_t i = 0; i < number_of_cells; i++) {
 			const uint64_t cell = cells_to_write[i];
 
 			boost::tie(
 				addresses[i],
 				counts[i],
-				datatypes[i]
+				mem_datatypes[i]
 			) = this->cells.at(cell).get_mpi_datatype(
 				cell,
 				(int) this->rank,
@@ -1252,7 +1281,7 @@ public:
 				number_of_cells,
 				&counts[0],
 				&memory_displacements[0],
-				&datatypes[0],
+				&mem_datatypes[0],
 				&memory_datatype
 			);
 			if (ret_val != MPI_SUCCESS) {
@@ -1278,8 +1307,44 @@ public:
 
 
 		/*
-		Calculate where each local cells' data starts in the file
+		Create a datatype representing all local cell data in file
 		*/
+
+		// exclude padding from file data by maybe using contiguous datatypes
+		std::vector<MPI_Datatype> file_datatypes(mem_datatypes.size(), MPI_DATATYPE_NULL);
+		for (size_t i = 0; i < mem_datatypes.size(); i++) {
+			MPI_Datatype& mem_datatype = mem_datatypes[i];
+
+			if (Is_Named_Datatype()(mem_datatype)) {
+
+				file_datatypes[i] = mem_datatype;
+
+			} else {
+
+				int size_in_bytes;
+				ret_val = MPI_Type_size(mem_datatypes[i], &size_in_bytes);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't get datatype size: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
+
+				ret_val =  MPI_Type_contiguous(size_in_bytes, MPI_BYTE, &(file_datatypes[i]));
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't create contiguous datatype: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
+			}
+		}
+
+		// calculate where each local cells' data starts in the file
 		uint64_t current_byte_offset = 0;
 
 		std::vector<MPI_Aint> file_displacements(number_of_cells, 0);
@@ -1288,7 +1353,7 @@ public:
 			file_displacements[i] += current_byte_offset;
 
 			int current_bytes;
-			MPI_Type_size(datatypes[i], &current_bytes);
+			MPI_Type_size(file_datatypes[i], &current_bytes);
 			if (current_bytes < 0) {
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				abort();
@@ -1397,7 +1462,7 @@ public:
 		// set as file view the datatype representing local cell data in file
 		MPI_Datatype file_datatype;
 
-		// wihtout local cells create an empty view and datatype
+		// without local cells create an empty view and datatype
 		if (number_of_cells == 0) {
 
 			ret_val = MPI_Type_contiguous(0, MPI_BYTE, &file_datatype);
@@ -1426,7 +1491,7 @@ public:
 				number_of_cells,
 				&counts[0],
 				&file_displacements[0],
-				&datatypes[0],
+				&file_datatypes[0],
 				&file_datatype
 			);
 			if (ret_val != MPI_SUCCESS) {
@@ -1447,7 +1512,6 @@ public:
 					<< std::endl;
 				abort();
 			}
-
 		}
 
 		ret_val = MPI_File_set_view(
@@ -1510,13 +1574,27 @@ public:
 			return false;
 		}
 
-		BOOST_FOREACH(MPI_Datatype& datatype, datatypes) {
+		BOOST_FOREACH(MPI_Datatype& datatype, mem_datatypes) {
 			if (!Is_Named_Datatype()(datatype)) {
 				ret_val = MPI_Type_free(&datatype);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
-						<< " Couldn't free user defined datatype: "
+						<< " Couldn't free intermediate memory datatype: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					return false;
+				}
+			}
+		}
+
+		BOOST_FOREACH(MPI_Datatype& datatype, file_datatypes) {
+			if (!Is_Named_Datatype()(datatype)) {
+				ret_val = MPI_Type_free(&datatype);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't free intermediate file datatype: "
 						<< Error_String()(ret_val)
 						<< std::endl;
 					return false;
@@ -1606,12 +1684,26 @@ public:
 		}
 
 		// read in user's header
+		MPI_Datatype header_type = header.get<2>();
+
+		if (!Is_Named_Datatype()(header_type)) {
+			ret_val = MPI_Type_commit(&header_type);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< "Process " << this->rank
+					<< " Couldn't commit header datatype: "
+					<< Error_String()(ret_val)
+					<< std::endl;
+				abort();
+			}
+		}
+
 		ret_val = MPI_File_read_at_all(
 			file,
 			offset,
-			boost::tuples::get<0>(header),
-			boost::tuples::get<1>(header),
-			boost::tuples::get<2>(header),
+			header.get<0>(),
+			header.get<1>(),
+			header_type,
 			MPI_STATUS_IGNORE
 		);
 		if (ret_val != MPI_SUCCESS) {
@@ -1624,11 +1716,23 @@ public:
 		}
 
 		int header_size = 0;
-		if (MPI_Type_size(boost::tuples::get<2>(header), &header_size) != MPI_SUCCESS) {
+		if (MPI_Type_size(header_type, &header_size) != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			return false;
 		}
 		offset += (MPI_Offset) header_size;
+
+		if (!Is_Named_Datatype()(header_type)) {
+			ret_val = MPI_Type_free(&header_type);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't free header datatype: "
+					<< Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
+		}
 
 		// check endianness
 		uint64_t
@@ -6604,7 +6708,7 @@ private:
 		// datatypes etc. of local cell data in memory
 		std::vector<void*> addresses(number_of_cells, NULL);
 		std::vector<int> counts(number_of_cells, -1);
-		std::vector<MPI_Datatype> datatypes(number_of_cells, MPI_DATATYPE_NULL);
+		std::vector<MPI_Datatype> mem_datatypes(number_of_cells, MPI_DATATYPE_NULL);
 		std::vector<MPI_Aint>
 			memory_displacements(number_of_cells, 0),
 			file_displacements(number_of_cells, 0);
@@ -6625,7 +6729,7 @@ private:
 				boost::tie(
 					addresses[i],
 					counts[i],
-					datatypes[i]
+					mem_datatypes[i]
 				) = this->cells.at(cell).get_mpi_datatype(
 					cell,
 					-1,
@@ -6633,6 +6737,40 @@ private:
 					true,
 					-1
 				);
+			}
+
+			// padding is not included in the file so maybe use contiguous datatypes
+			std::vector<MPI_Datatype> file_datatypes(mem_datatypes.size(), MPI_DATATYPE_NULL);
+			for (size_t i = 0; i < mem_datatypes.size(); i++) {
+				MPI_Datatype& mem_datatype = mem_datatypes[i];
+
+				if (Is_Named_Datatype()(mem_datatype)) {
+
+					file_datatypes[i] = mem_datatype;
+
+				} else {
+
+					int size_in_bytes;
+					ret_val = MPI_Type_size(mem_datatypes[i], &size_in_bytes);
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Process " << this->rank
+							<< " Couldn't get datatype size: "
+							<< Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+
+					ret_val =  MPI_Type_contiguous(size_in_bytes, MPI_BYTE, &(file_datatypes[i]));
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Process " << this->rank
+							<< " Couldn't create contiguous datatype: "
+							<< Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+				}
 			}
 
 			// displacements for cell data in memory are relative to first cell's data
@@ -6649,7 +6787,7 @@ private:
 				number_of_cells,
 				&counts[0],
 				&file_displacements[0],
-				&datatypes[0],
+				&file_datatypes[0],
 				&file_datatype
 			);
 			if (ret_val != MPI_SUCCESS) {
@@ -6706,7 +6844,7 @@ private:
 				number_of_cells,
 				&counts[0],
 				&memory_displacements[0],
-				&datatypes[0],
+				&mem_datatypes[0],
 				&memory_datatype) != MPI_SUCCESS
 			) {
 				std::cerr << "Process " << this->rank
@@ -6770,7 +6908,7 @@ private:
 			return false;
 		}
 
-		BOOST_FOREACH(MPI_Datatype& datatype, datatypes) {
+		BOOST_FOREACH(MPI_Datatype& datatype, mem_datatypes) {
 			if (!Is_Named_Datatype()(datatype)) {
 				ret_val = MPI_Type_free(&datatype);
 				if (ret_val != MPI_SUCCESS) {
