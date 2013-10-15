@@ -1081,6 +1081,7 @@ public:
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				return false;
 			}
+			header_size *= header.get<1>();
 
 			ret_val = MPI_Bcast(&header_size, 1, MPI_INT, 0, this->comm);
 			if (ret_val != MPI_SUCCESS) {
