@@ -1721,6 +1721,7 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			return false;
 		}
+		header_size *= header.get<1>();
 		offset += (MPI_Offset) header_size;
 
 		if (!Is_Named_Datatype()(header_type)) {
