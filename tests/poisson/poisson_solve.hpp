@@ -517,12 +517,143 @@ private:
 	{
 		double local = 0, global = 0;
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
-			local += std::pow(fabs(data->r0), this->p_of_norm);
+			const Poisson_Cell* const data = info.first;
+			local += std::pow(std::fabs(data->r0), this->p_of_norm);
 		}
 		MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 		global = std::pow(global, 1.0 / p_of_norm);
 		return global;
+	}
+
+
+	/*!
+	Returns the geometrical scaling factor for given cell.
+
+	Neighbors missing from given list are considered to be
+	of equal size to given cell.
+	*/
+	template<class Geometry> void set_scaling_factor(
+		const uint64_t cell,
+		const std::vector<std::pair<uint64_t, int> >& neighbors,
+		const dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+	) const {
+
+		Poisson_Cell* const cell_data = grid[cell];
+		if (cell_data == NULL) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No data for cell " << cell
+				<< std::endl;
+			abort();
+		}
+
+		const boost::array<double, 3> cell_length = grid.geometry.get_length(cell);
+		const double
+			cell_x_half_size = cell_length[0] / 2.0,
+			cell_y_half_size = cell_length[1] / 2.0,
+			cell_z_half_size = cell_length[2] / 2.0;
+
+		// non-existing or skipped neighbors are equal in size to current cell
+		double
+			neigh_pos_x_offset = +2 * cell_x_half_size,
+			neigh_neg_x_offset = -2 * cell_x_half_size,
+			neigh_pos_y_offset = +2 * cell_y_half_size,
+			neigh_neg_y_offset = -2 * cell_y_half_size,
+			neigh_pos_z_offset = +2 * cell_z_half_size,
+			neigh_neg_z_offset = -2 * cell_z_half_size;
+
+		for (size_t i = 0; i < neighbors.size(); i++) {
+			const uint64_t neighbor = neighbors[i].first;
+			const int direction = neighbors[i].second;
+			const boost::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
+			const double
+				neigh_x_half_size = neighbor_length[0] / 2.0,
+				neigh_y_half_size = neighbor_length[1] / 2.0,
+				neigh_z_half_size = neighbor_length[2] / 2.0;
+
+			// assume rhs and solution are cell-centered
+			switch(direction) {
+			case +1:
+				neigh_pos_x_offset = cell_x_half_size + neigh_x_half_size;
+				break;
+			case -1:
+				neigh_neg_x_offset = -1.0 * (cell_x_half_size + neigh_x_half_size);
+				break;
+			case +2:
+				neigh_pos_y_offset = cell_y_half_size + neigh_y_half_size;
+				break;
+			case -2:
+				neigh_neg_y_offset = -1.0 * (cell_y_half_size + neigh_y_half_size);
+				break;
+			case +3:
+				neigh_pos_z_offset = cell_z_half_size + neigh_z_half_size;
+				break;
+			case -3:
+				neigh_neg_z_offset = -1.0 * (cell_z_half_size + neigh_z_half_size);
+				break;
+			default:
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid direction: " << direction
+					<< std::endl;
+				abort();
+				break;
+			}
+		}
+
+		const double
+			total_offset_x = neigh_pos_x_offset - neigh_neg_x_offset,
+			total_offset_y = neigh_pos_y_offset - neigh_neg_y_offset,
+			total_offset_z = neigh_pos_z_offset - neigh_neg_z_offset;
+
+		// geometry factors are 0 in directions without neighbors
+		cell_data->f_x_pos =
+		cell_data->f_x_neg =
+		cell_data->f_y_pos =
+		cell_data->f_y_neg =
+		cell_data->f_z_pos =
+		cell_data->f_z_neg = 0;
+
+		for (size_t i = 0; i < neighbors.size(); i++) {
+			const int direction = neighbors[i].second;
+
+			// don't mind extra work due to 4 smaller face neighbors
+			switch(direction) {
+			case +1:
+				cell_data->f_x_pos = +2.0 / (neigh_pos_x_offset * total_offset_x);
+				break;
+			case -1:
+				cell_data->f_x_neg = -2.0 / (neigh_neg_x_offset * total_offset_x);
+				break;
+			case +2:
+				cell_data->f_y_pos = +2.0 / (neigh_pos_y_offset * total_offset_y);
+				break;
+			case -2:
+				cell_data->f_y_neg = -2.0 / (neigh_neg_y_offset * total_offset_y);
+				break;
+			case +3:
+				cell_data->f_z_pos = +2.0 / (neigh_pos_z_offset * total_offset_z);
+				break;
+			case -3:
+				cell_data->f_z_neg = -2.0 / (neigh_neg_z_offset * total_offset_z);
+				break;
+			default:
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid direction: " << direction
+					<< std::endl;
+				abort();
+				break;
+			}
+		}
+
+		cell_data->scaling_factor
+			=
+			- cell_data->f_x_pos
+			- cell_data->f_x_neg
+			- cell_data->f_y_pos
+			- cell_data->f_y_neg
+			- cell_data->f_z_pos
+			- cell_data->f_z_neg;
+
+		return;
 	}
 
 
@@ -536,13 +667,103 @@ private:
 		const boost::unordered_set<uint64_t>& cells_to_skip,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
-		// make sure copies of remote neighbors exist
-		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
+		/*
+		Calculate scaling factors in given cells and
+		neighbors of given cells not in cells_to_skip
+		*/
+
+		// mark cells_to_skip internally with a scaling factor of 1
+		BOOST_FOREACH(const uint64_t cell_to_skip, cells_to_skip) {
+			if (grid.is_local(cell_to_skip)) {
+				Poisson_Cell* const cell_data = grid[cell_to_skip];
+				if (cell_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for cell " << cell_to_skip
+						<< std::endl;
+					abort();
+				}
+
+				cell_data->scaling_factor = 1;
+			}
+		}
+		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
 		grid.update_copies_of_remote_neighbors();
 
+		boost::unordered_set<uint64_t> scaling_factor_cells;
+
+		// calculate scaling factors in given cells
+		BOOST_FOREACH(const uint64_t cell, cells) {
+
+			Poisson_Cell* const cell_data = grid[cell];
+			if (cell_data == NULL) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " No data for cell " << cell
+					<< std::endl;
+				abort();
+			}
+
+			// possibly skip some face neighbors
+			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
+				= grid.get_face_neighbors_of(cell);
+
+			std::vector<std::pair<uint64_t, int> > face_neighbors;
+			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
+				const uint64_t neighbor = all_face_neighbors[i].first;
+				Poisson_Cell* const neighbor_data = grid[neighbor];
+				if (neighbor_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for neighbor " << neighbor
+						<< " of cell " << cell
+						<< std::endl;
+					abort();
+				}
+
+				if (neighbor_data->scaling_factor != 1) {
+					face_neighbors.push_back(all_face_neighbors[i]);
+					if (grid.is_local(neighbor)) {
+						scaling_factor_cells.insert(neighbor);
+					}
+				}
+			}
+
+			this->set_scaling_factor(cell, face_neighbors, grid);
+		}
+
+		// calculate scaling factor in rest of required cells
+		BOOST_FOREACH(const uint64_t cell, cells) {
+			scaling_factor_cells.erase(cell);
+		}
+		BOOST_FOREACH(const uint64_t cell, scaling_factor_cells) {
+			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
+				= grid.get_face_neighbors_of(cell);
+
+			std::vector<std::pair<uint64_t, int> > face_neighbors;
+			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
+				const uint64_t neighbor = all_face_neighbors[i].first;
+				Poisson_Cell* const neighbor_data = grid[neighbor];
+				if (neighbor_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for neighbor " << neighbor
+						<< " of cell " << cell
+						<< std::endl;
+					abort();
+				}
+
+				if (neighbor_data->scaling_factor != 1) {
+					face_neighbors.push_back(all_face_neighbors[i]);
+					if (grid.is_local(neighbor)) {
+						scaling_factor_cells.insert(neighbor);
+					}
+				}
+			}
+
+			this->set_scaling_factor(cell, face_neighbors, grid);
+		}
+
+
+		// cache information about cells' neighbors
 		this->cell_info.clear();
 		this->cell_info.reserve(cells.size());
-
 		BOOST_FOREACH(const uint64_t cell, cells) {
 
 			cell_info_t temp_cell_info;
@@ -557,135 +778,30 @@ private:
 
 			temp_cell_info.first = cell_data;
 
-			const int cell_ref_lvl = grid.get_refinement_level(cell);
-			const boost::array<double, 3> cell_length = grid.geometry.get_length(cell);
-			const double
-				cell_x_half_size = cell_length[0] / 2.0,
-				cell_y_half_size = cell_length[1] / 2.0,
-				cell_z_half_size = cell_length[2] / 2.0;
-
-			// get face neighbors of current cell, possibly skipping some
 			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
 				= grid.get_face_neighbors_of(cell);
 
 			std::vector<std::pair<uint64_t, int> > face_neighbors;
-
 			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
 				const uint64_t neighbor = all_face_neighbors[i].first;
-				if (cells_to_skip.count(neighbor) == 0) {
+				Poisson_Cell* const neighbor_data = grid[neighbor];
+				if (neighbor_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for neighbor " << neighbor
+						<< " of cell " << cell
+						<< std::endl;
+					abort();
+				}
+
+				if (neighbor_data->scaling_factor != 1) {
 					face_neighbors.push_back(all_face_neighbors[i]);
+					if (grid.is_local(neighbor)) {
+						scaling_factor_cells.insert(neighbor);
+					}
 				}
 			}
 
-			/*
-			Get cell centers of neighbors relative to current cell
-			*/
-
-			// non-existing neighbors are equal in size to current cell
-			double
-				neigh_pos_x_offset = +2 * cell_x_half_size,
-				neigh_neg_x_offset = -2 * cell_x_half_size,
-				neigh_pos_y_offset = +2 * cell_y_half_size,
-				neigh_neg_y_offset = -2 * cell_y_half_size,
-				neigh_pos_z_offset = +2 * cell_z_half_size,
-				neigh_neg_z_offset = -2 * cell_z_half_size;
-
-			for (size_t i = 0; i < face_neighbors.size(); i++) {
-				const uint64_t neighbor = face_neighbors[i].first;
-				const int direction = face_neighbors[i].second;
-				const boost::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
-				const double
-					neigh_x_half_size = neighbor_length[0] / 2.0,
-					neigh_y_half_size = neighbor_length[1] / 2.0,
-					neigh_z_half_size = neighbor_length[2] / 2.0;
-
-				// assume rhs and solution are cell-centered
-				switch(direction) {
-				case +1:
-					neigh_pos_x_offset = cell_x_half_size + neigh_x_half_size;
-					break;
-				case -1:
-					neigh_neg_x_offset = -1.0 * (cell_x_half_size + neigh_x_half_size);
-					break;
-				case +2:
-					neigh_pos_y_offset = cell_y_half_size + neigh_y_half_size;
-					break;
-				case -2:
-					neigh_neg_y_offset = -1.0 * (cell_y_half_size + neigh_y_half_size);
-					break;
-				case +3:
-					neigh_pos_z_offset = cell_z_half_size + neigh_z_half_size;
-					break;
-				case -3:
-					neigh_neg_z_offset = -1.0 * (cell_z_half_size + neigh_z_half_size);
-					break;
-				default:
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Invalid direction: " << direction
-						<< std::endl;
-					abort();
-					break;
-				}
-			}
-
-			/*
-			Set geometry factors of current cell
-			*/
-
-			const double
-				total_offset_x = neigh_pos_x_offset - neigh_neg_x_offset,
-				total_offset_y = neigh_pos_y_offset - neigh_neg_y_offset,
-				total_offset_z = neigh_pos_z_offset - neigh_neg_z_offset;
-
-			// geometry factors are 0 in directions without neighbors
-			cell_data->f_x_pos =
-			cell_data->f_x_neg =
-			cell_data->f_y_pos =
-			cell_data->f_y_neg =
-			cell_data->f_z_pos =
-			cell_data->f_z_neg = 0;
-
-			for (size_t i = 0; i < face_neighbors.size(); i++) {
-				const int direction = face_neighbors[i].second;
-
-				// don't mind extra work due to 4 smaller face neighbors
-				switch(direction) {
-				case +1:
-					cell_data->f_x_pos = +2.0 / (neigh_pos_x_offset * total_offset_x);
-					break;
-				case -1:
-					cell_data->f_x_neg = -2.0 / (neigh_neg_x_offset * total_offset_x);
-					break;
-				case +2:
-					cell_data->f_y_pos = +2.0 / (neigh_pos_y_offset * total_offset_y);
-					break;
-				case -2:
-					cell_data->f_y_neg = -2.0 / (neigh_neg_y_offset * total_offset_y);
-					break;
-				case +3:
-					cell_data->f_z_pos = +2.0 / (neigh_pos_z_offset * total_offset_z);
-					break;
-				case -3:
-					cell_data->f_z_neg = -2.0 / (neigh_neg_z_offset * total_offset_z);
-					break;
-				default:
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Invalid direction: " << direction
-						<< std::endl;
-					abort();
-					break;
-				}
-			}
-			cell_data->scaling_factor
-				=
-				- cell_data->f_x_pos
-				- cell_data->f_x_neg
-				- cell_data->f_y_pos
-				- cell_data->f_y_neg
-				- cell_data->f_z_pos
-				- cell_data->f_z_neg;
-
-			// cache neighbor info
+			const int cell_ref_lvl = grid.get_refinement_level(cell);
 			for (size_t i = 0; i < face_neighbors.size(); i++) {
 
 				neighbor_info_t temp_neigh_info;
@@ -694,7 +810,7 @@ private:
 				temp_neigh_info.get<1>() = direction;
 
 				const uint64_t neighbor = face_neighbors[i].first;
-				Poisson_Cell* neighbor_data = grid[neighbor];
+				Poisson_Cell* const neighbor_data = grid[neighbor];
 				if (neighbor_data == NULL) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " No data for neighbor " << neighbor << " of cell " << cell
@@ -720,17 +836,18 @@ private:
 			this->cell_info.push_back(temp_cell_info);
 		}
 
-
 		/*
 		Scale diagonal values of A in A . i and due to that also neighbor factors
 		*/
 
-		// update scaling_factor between neighbors
+		// scaling factors of neighbors are also needed
 		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
 		grid.update_copies_of_remote_neighbors();
 
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 			Poisson_Cell* data = info.first;
+
+			// also scale the solution guessed by user
 			data->solution *= data->scaling_factor;
 
 			/*
@@ -746,7 +863,7 @@ private:
 				neg_z_done = false;
 
 			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-				Poisson_Cell* neighbor_data = neigh_info.get<0>();
+				const Poisson_Cell* const neighbor_data = neigh_info.get<0>();
 				const int direction = neigh_info.get<1>();
 
 				switch(direction) {
@@ -823,7 +940,7 @@ private:
 
 			data->r0 = data->rhs - data->solution;
 
-			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
+			BOOST_FOREACH(const neighbor_info_t& neigh_info, info.second) {
 				Poisson_Cell* neighbor_data = neigh_info.get<0>();
 
 				// final multiplier to use for current neighbor's data
