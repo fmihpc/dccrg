@@ -351,11 +351,11 @@ public:
 
 			// update residual and possibly stop solving
 			const double residual = this->get_residual();
-			if (residual <= this->stop_residual) {
-				break;
-			}
 			if (this->comm_rank == 0) {
 				//std::cout << "residual: " << residual << std::endl;
+			}
+			if (residual <= this->stop_residual) {
+				break;
 			}
 			if (residual >= this->stop_after_residual_increase * residual_min) {
 				break;
@@ -363,7 +363,9 @@ public:
 
 			// save solution if at minimum residual so far
 			if (residual_min > residual) {
-				//std::cout << "saving solution at residual " << residual << std::endl;
+				if (this->comm_rank == 0) {
+					//std::cout << "saving solution at residual " << residual << std::endl;
+				}
 				residual_min = residual;
 				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
 					Poisson_Cell* data = info.first;
