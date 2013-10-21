@@ -4270,6 +4270,9 @@ public:
 	/*!
 	Starts receiving updates for local copies of remote neighbor cells.
 
+	A local copy of a remote neighbor is default constructed if it does
+	not exist already.
+
 	\see
 	wait_remote_neighbor_copy_update_receives()
 	start_remote_neighbor_copy_sends()
