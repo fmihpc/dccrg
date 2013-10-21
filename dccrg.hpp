@@ -1466,25 +1466,7 @@ public:
 		// without local cells create an empty view and datatype
 		if (number_of_cells == 0) {
 
-			ret_val = MPI_Type_contiguous(0, MPI_BYTE, &file_datatype);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< "Process " << this->rank
-					<< " Couldn't create an empty datatype for file view: "
-					<< Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-
-			ret_val = MPI_Type_commit(&file_datatype);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< "Process " << this->rank
-					<< " Couldn't commit an empty datatype for file view: "
-					<< Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
+			file_datatype = MPI_BYTE;
 
 		} else {
 
@@ -1533,14 +1515,27 @@ public:
 		}
 
 		// write cell data
-		ret_val = MPI_File_write_at_all(
-			outfile,
-			0,
-			addresses[0],
-			1,
-			memory_datatype,
-			MPI_STATUS_IGNORE
-		);
+		if (number_of_cells > 0) {
+			ret_val = MPI_File_write_at_all(
+				outfile,
+				0,
+				addresses[0],
+				1,
+				memory_datatype,
+				MPI_STATUS_IGNORE
+			);
+		} else {
+			// give a valid address just in case
+			void* temp = NULL;
+			ret_val = MPI_File_write_at_all(
+				outfile,
+				0,
+				&temp,
+				0,
+				memory_datatype,
+				MPI_STATUS_IGNORE
+			);
+		}
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< "Process " << this->rank
@@ -1555,24 +1550,28 @@ public:
 		Deallocate datatypes
 		*/
 
-		ret_val = MPI_Type_free(&memory_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't free datatype for cell data in memory: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
+		if (!Is_Named_Datatype()(memory_datatype)) {
+			ret_val = MPI_Type_free(&memory_datatype);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't free datatype for cell data in memory: "
+					<< Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
 		}
 
-		ret_val = MPI_Type_free(&file_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't free datatype for cell data in file: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
+		if (!Is_Named_Datatype()(file_datatype)) {
+			ret_val = MPI_Type_free(&file_datatype);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't free datatype for cell data in file: "
+					<< Error_String()(ret_val)
+					<< std::endl;
+				return false;
+			}
 		}
 
 		BOOST_FOREACH(MPI_Datatype& datatype, mem_datatypes) {
