@@ -176,9 +176,11 @@ public:
 	Poisson_Solve()
 	{
 		this->max_iterations = 1000;
+		this->min_iterations = 0;
 		this->stop_residual = 1e-15;
 		this->p_of_norm = 2;
 		this->stop_after_residual_increase = 10;
+		this->verbose = false;
 	};
 
 	/*!
@@ -190,17 +192,22 @@ public:
 		- p-norm of the solution is below given_stop_residual
 		- residual has increased by a factor stop_after_residual_increase
 		  from its minimum encountered so far
+	but not before given_min_iterations number if iterations have been done.
 	*/
 	Poisson_Solve(
 		const unsigned int given_max_iterations,
+		const unsigned int given_min_iterations,
 		const double given_stop_residual,
 		const double given_p_of_norm,
-		const double given_stop_after_residual_increase
+		const double given_stop_after_residual_increase,
+		const bool given_verbosity
 	) {
 		this->max_iterations = given_max_iterations;
+		this->min_iterations = given_min_iterations;
 		this->stop_residual = given_stop_residual;
 		this->p_of_norm = given_p_of_norm;
 		this->stop_after_residual_increase = given_stop_after_residual_increase;
+		this->verbose = given_verbosity;
 	};
 
 
@@ -258,8 +265,8 @@ public:
 			dot_r_l = 0,
 			dot_r_g = this->initialize_solver(grid);
 
-		if (this->comm_rank == 0) {
-			//std::cout << "r0 . r1: " << dot_r_g << std::endl;
+		if (this->comm_rank == 0 && this->verbose) {
+			std::cout << "r0 . r1: " << dot_r_g << std::endl;
 		}
 
 		size_t iteration = 0;
@@ -329,8 +336,8 @@ public:
 				dot_p_l += data->p1 / data->scaling_factor * data->A_dot_p0;
 			}
 			MPI_Allreduce(&dot_p_l, &dot_p_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
-			if (this->comm_rank == 0) {
-				//std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
+			if (this->comm_rank == 0 && this->verbose) {
+				std::cout << "p1 . (A . p0): " << dot_p_g << std::endl;
 			}
 			// no sense in continuing with dividing by zero
 			if (dot_p_g == 0) {
@@ -338,8 +345,8 @@ public:
 			}
 
 			const double alpha = dot_r_g / dot_p_g;
-			if (this->comm_rank == 0) {
-				//std::cout << "alpha: " << alpha << std::endl;
+			if (this->comm_rank == 0 && this->verbose) {
+				std::cout << "alpha: " << alpha << std::endl;
 			}
 
 
@@ -351,20 +358,27 @@ public:
 
 			// update residual and possibly stop solving
 			const double residual = this->get_residual();
-			if (this->comm_rank == 0) {
-				//std::cout << "residual: " << residual << std::endl;
+			if (this->comm_rank == 0 && this->verbose) {
+				std::cout << "residual: " << residual << std::endl;
 			}
-			if (residual <= this->stop_residual) {
+
+			if (
+				residual <= this->stop_residual
+				&& iteration >= this->min_iterations
+			) {
 				break;
 			}
-			if (residual >= this->stop_after_residual_increase * residual_min) {
+			if (
+				residual >= this->stop_after_residual_increase * residual_min
+				&& iteration >= this->min_iterations
+			) {
 				break;
 			}
 
 			// save solution if at minimum residual so far
 			if (residual_min > residual) {
-				if (this->comm_rank == 0) {
-					//std::cout << "saving solution at residual " << residual << std::endl;
+				if (this->comm_rank == 0 && this->verbose) {
+					std::cout << "saving solution at residual " << residual << std::endl;
 				}
 				residual_min = residual;
 				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
@@ -447,13 +461,13 @@ public:
 				dot_r_l += data->r0 * data->r1;
 			}
 			MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
-			if (this->comm_rank == 0) {
-				//std::cout << "new r0 . r1: " << dot_r_g << std::endl;
+			if (this->comm_rank == 0 && this->verbose) {
+				std::cout << "new r0 . r1: " << dot_r_g << std::endl;
 			}
 
 			const double beta = dot_r_g / old_dot_r_g;
-			if (this->comm_rank == 0) {
-				//std::cout << "beta: " << beta << std::endl;
+			if (this->comm_rank == 0 && this->verbose) {
+				std::cout << "beta: " << beta << std::endl;
 			}
 
 
@@ -466,8 +480,8 @@ public:
 
 		} while (iteration < this->max_iterations);
 
-		if (this->comm_rank == 0) {
-			//std::cout << "iterations: " << iteration << ", residual: " << residual_min << std::endl;
+		if (this->comm_rank == 0 && this->verbose) {
+			std::cout << "iterations: " << iteration << ", residual: " << residual_min << std::endl;
 		}
 
 		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
@@ -492,8 +506,10 @@ private:
 	typedef typename std::pair<Poisson_Cell*, std::vector<neighbor_info_t> > cell_info_t;
 
 
-	// maximum number of iterations to do
-	unsigned int max_iterations;
+	// maximum and minumum number of iterations to do
+	unsigned int
+		max_iterations,
+		min_iterations;
 
 	// stop solving when residual <= stop_residual
 	double stop_residual;
@@ -511,6 +527,7 @@ private:
 	MPI_Comm comm;
 	int comm_rank;
 
+	bool verbose;
 
 	/*!
 	Returns global residual of the solution.

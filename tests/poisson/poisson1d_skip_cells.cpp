@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 	) {
 		const double cell_length = 2 * M_PI / number_of_cells;
 
-		Poisson_Solve solver(10, 1e-15, 2, 10);
+		Poisson_Solve solver(10, 0, 1e-15, 2, 10, false);
 		dccrg::Dccrg<
 			Poisson_Cell,
 			dccrg::Cartesian_Geometry

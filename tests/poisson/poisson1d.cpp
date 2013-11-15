@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
 		*/
 
 		// using more iterations doesn't help
-		Poisson_Solve solver(10, 1e-7, 2, 10);
+		Poisson_Solve solver(10, 0, 1e-7, 2, 10, false);
 		dccrg::Dccrg<
 			Poisson_Cell,
 			dccrg::Cartesian_Geometry

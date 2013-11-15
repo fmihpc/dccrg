@@ -237,7 +237,7 @@ int main(int argc, char* argv[])
 
 		grid_stretched.set_geometry(stretched_geom_params);
 
-		Poisson_Solve solver(10, 1e-5, 2, 10);
+		Poisson_Solve solver(10, 0, 1e-5, 2, 10, false);
 
 		const std::vector<uint64_t> initial_cells = grid_stretched.get_cells();
 
