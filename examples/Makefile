@@ -18,7 +18,7 @@ game_of_life_with_output: game_of_life_with_output.cpp $(HEADERS) Makefile
 	$(MPICXX) -DDCCRG_TRANSFER_USING_BOOST_MPI game_of_life_with_output.cpp $(INCLUDES) -o game_of_life_with_output
 
 dc2vtk: dc2vtk.cpp ../dccrg_cartesian_geometry.hpp Makefile
-	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
+	$(MPICXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
 d: data
 data:
