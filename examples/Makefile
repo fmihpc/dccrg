@@ -2,7 +2,6 @@ EXTRA_WARNINGS = -ansi -Winit-self -Wswitch-enum -Wunused-parameter -Wformat=2 -
 FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x #$(EXTRA_WARNINGS)
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 MPICXX = mpic++ $(FLAGS)
-CXX = g++ $(FLAGS)
 
 HEADERS = ../dccrg.hpp ../dccrg_cartesian_geometry.hpp
 
