@@ -4998,7 +4998,7 @@ public:
 			const uint64_t cell = i->first;
 
 			if (this->cell_process.at(cell) != this->rank) {
-				return;
+				continue;
 			}
 
 			if (cell == this->get_child(cell)) {
