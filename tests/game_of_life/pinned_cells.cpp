@@ -62,10 +62,11 @@ int main(int argc, char* argv[])
 			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.set_geometry(geom_params);
 
 	#define NEIGHBORHOOD_SIZE 1
 	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+
+	game_grid.set_geometry(geom_params);
 
 	// create a blinker
 	#define BLINKER_START 198
