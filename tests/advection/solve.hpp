@@ -1,7 +1,7 @@
 /*
 A solver for the advection tests of dccrg.
 
-Copyright 2012, 2013 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
