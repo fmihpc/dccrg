@@ -3,8 +3,6 @@ Add more documentation
 Use get_real_x,y,z in get_x,y,z_index_of_coord
 
 Make dccrg even more modular:
--separate stateless logic (doesn't consider whether cells exist or not)
- into dccrg_index.hpp or similar with function names starting with get_.
 -separate serial stateful logic into a separate file with function names
  starting with find_.
 -separate parallel logic into a separate file.
@@ -14,3 +12,7 @@ Allow users to preallocate their cells when updating
 remote neighbor data, load balancing, etc. This way
 default constructed user cells don't have to be able
 to return correct MPI_Datatypes to dccrg.
+
+Add support using standard C++ + MPI datatypes transparently, at least
+once https://svn.boost.org/trac/boost/ticket/9444 has been available
+in a few release versions of boost.

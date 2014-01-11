@@ -1,4 +1,5 @@
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x
+# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs
 BOOST_MPI_LIBS = -lboost_serialization -lboost_mpi
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)

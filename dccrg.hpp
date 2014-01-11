@@ -3,6 +3,7 @@ A distributed cartesian cell-refinable grid.
 
 Copyright 2009, 2010, 2011, 2012, 2013,
 2014 Finnish Meteorological Institute
+Copyright 2014 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -66,6 +67,7 @@ MPI_UNSIGNED_LONG in the following:
 #endif
 
 
+#include "dccrg_get_cell_datatype.hpp"
 #include "dccrg_no_geometry.hpp"
 #include "dccrg_iterator_support.hpp"
 #include "dccrg_mapping.hpp"
@@ -142,12 +144,20 @@ static const int
 
 
 /*!
-\brief Main class of dccrg, instantiate and initialize() to create a parallel grid for simulations.
+\brief Main class of dccrg, instantiate and initialize() to create a parallel simulation grid.
 
-Cell_Data is stored in all local cells and their remote neighbors and must
-provide a way for dccrg to query what data to send between processes using
-MPI-2.2 (http://www.mpi-forum.org/docs/), by default Cell_Data must have the
-following method:
+Cell_Data class will be stored in all local cells (and their remote neighbors after
+a call to e.g. update_copies_of_remote_neighbors()) and must provide a way for dccrg to query
+what data to send between processes using MPI-2.2 (http://www.mpi-forum.org/docs/).
+Cell_Data must have one of the following member functions (as const or not):
+\verbatim
+boost::tuple<
+	void*,
+	int,
+	MPI_Datatype
+> get_mpi_datatype();
+\endverbatim
+or
 \verbatim
 boost::tuple<
 	void*,
@@ -161,8 +171,12 @@ boost::tuple<
 	const int neighborhood_id
 );
 \endverbatim
-where the return value is passed as is to MPI functions and the arguments
-provide additional information for the method:
+The get_mpi_datatype() function of the Cell_Data class decides what data
+dccrg should transfer between processes or when the grid is written
+to/read from a file. Internally the result of get_mpi_datatype()
+from all cells being transferred is collected into one MPI_Datatype and
+passed to MPI functions (see also set_send_single_cells()).
+If needed, the arguments to get_mpi_datatype() provide additional information:
 	- cell_id is the id of the cell whose get_mpi_datatype is being called
 	- sender is the MPI process number sending the cell's data
 		- this can be negative, e.g. when loading grid data from a file,
@@ -177,18 +191,15 @@ provide additional information for the method:
 		  from a file and balancing the computational load
 
 If DCCRG_TRANSFER_USING_BOOST_MPI is defined when compiling then
-Cell_Data must have the following method:
+Cell_Data must have the following method
 \verbatim
 template<typename Archiver> void serialize(
 	Archiver& ar,
 	const unsigned int version
 );
 \endverbatim
-for boost::mpi, see User-defined data types in boost::mpi tutorial:
+used by boost::mpi. See User-defined data types in boost::mpi tutorial:
 http://www.boost.org/doc/libs/release/doc/html/mpi/tutorial.html
-
-The get_mpi_datatype() function decides what data to transfer whenever data
-is transferred e.g. between processes or when grid data is written/read from a file.
 
 Geometry class decides the physical size, shape, etc of the grid.
 
@@ -1256,7 +1267,8 @@ public:
 				addresses[i],
 				counts[i],
 				mem_datatypes[i]
-			) = this->cells.at(cell).get_mpi_datatype(
+			) = detail::get_cell_mpi_datatype(
+				this->cells.at(cell),
 				cell,
 				(int) this->rank,
 				-1,
@@ -6735,7 +6747,8 @@ private:
 					addresses[i],
 					counts[i],
 					mem_datatypes[i]
-				) = this->cells.at(cell).get_mpi_datatype(
+				) = detail::get_cell_mpi_datatype(
+					this->cells.at(cell),
 					cell,
 					-1,
 					(int) this->rank,
@@ -9194,7 +9207,8 @@ private:
 						address,
 						count,
 						user_datatype
-					) = destination.at(cell).get_mpi_datatype(
+					) = detail::get_cell_mpi_datatype(
+						destination.at(cell),
 						cell,
 						sending_process,
 						(int) this->rank,
@@ -9291,7 +9305,8 @@ private:
 						addresses[i],
 						counts[i],
 						datatypes[i]
-					) = destination.at(cell).get_mpi_datatype(
+					) = detail::get_cell_mpi_datatype(
+						destination.at(cell),
 						cell,
 						sending_process,
 						(int) this->rank,
@@ -9440,7 +9455,8 @@ private:
 						address,
 						count,
 						user_datatype
-					) = this->cells.at(cell).get_mpi_datatype(
+					) = detail::get_cell_mpi_datatype(
+						this->cells.at(cell),
 						cell,
 						(int) this->rank,
 						receiving_process,
@@ -9547,7 +9563,8 @@ private:
 						addresses[i],
 						counts[i],
 						datatypes[i]
-					) = this->cells.at(cell).get_mpi_datatype(
+					) = detail::get_cell_mpi_datatype(
+						this->cells.at(cell),
 						cell,
 						(int) this->rank,
 						receiving_process,

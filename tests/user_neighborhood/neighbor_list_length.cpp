@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "boost/assign/list_of.hpp"
 #include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
+#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "iostream"
 #include "vector"
@@ -43,18 +44,13 @@ struct Cell
 
 	#else
 
-	void mpi_datatype(
-		void*& address,
-		int& count,
-		MPI_Datatype& datatype,
-		const uint64_t /*cell_id*/,
-		const int /*sender*/,
-		const int /*receiver*/,
-		const bool /*receiving*/
-	) {
-		address = &(this->data);
-		count = 1;
-		datatype = MPI_INT;
+	boost::tuple<
+		void*,
+		int,
+		MPI_Datatype
+	> get_mpi_datatype() const
+	{
+		boost::make_tuple((void*) &(this->data), 1, MPI_INT);
 	}
 
 	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER

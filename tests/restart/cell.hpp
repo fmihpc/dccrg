@@ -53,17 +53,12 @@ public:
 		void*,
 		int,
 		MPI_Datatype
-	> get_mpi_datatype(
-		const uint64_t /*cell_id*/,
-		const int /*sender*/,
-		const int /*receiver*/,
-		const bool /*receiving*/,
-		const int /*neighborhood_id*/
-	) {
+	> get_mpi_datatype() const
+	{
 		if (Cell::transfer_only_life) {
-			return boost::make_tuple(&(this->data), 1, MPI_UINT64_T);
+			return boost::make_tuple((void*) &(this->data), 1, MPI_UINT64_T);
 		} else {
-			return boost::make_tuple(&(this->data), 13, MPI_UINT64_T);
+			return boost::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
 		}
 	}
 

@@ -65,14 +65,9 @@ public:
 		void*,
 		int,
 		MPI_Datatype
-	> get_mpi_datatype(
-		const uint64_t /*cell_id*/,
-		const int /*sender*/,
-		const int /*receiver*/,
-		const bool /*receiving*/,
-		const int /*neighborhoo_id*/
-	) {
-		return boost::make_tuple(&(this->data[0]), this->data.size(), MPI_UINT8_T);
+	> get_mpi_datatype() const
+	{
+		return boost::make_tuple((void*) &(this->data[0]), this->data.size(), MPI_UINT8_T);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI

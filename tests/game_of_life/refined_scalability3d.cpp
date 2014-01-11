@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 		}
 		game_grid.stop_refining();
 		cells = game_grid.get_cells();
-	} while (all_reduce(comm, int(cells.size()), plus<int>()) < MAX_CELLS);
+	} while (all_reduce(comm, int(cells.size()), plus<int>()) < int(MAX_CELLS));
 	game_grid.balance_load();
 
 	vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();

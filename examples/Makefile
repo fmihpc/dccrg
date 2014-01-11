@@ -1,5 +1,5 @@
-EXTRA_WARNINGS = -ansi -Winit-self -Wswitch-enum -Wunused-parameter -Wformat=2 -Wshadow -Wconversion -Wcast-align -Wsign-conversion -Wlogical-op -Wmissing-declarations -Wpacked -Wpadded -Wredundant-decls -Wunreachable-code -Winline -Winvalid-pch -Wdisabled-optimization
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x #$(EXTRA_WARNINGS)
+# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
+FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs
 INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_serialization -lzoltan
 MPICXX = mpic++ $(FLAGS)
 
