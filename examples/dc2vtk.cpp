@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 		//cout << "max_ref_level: " << max_ref_level << endl;
 
 		// read in game data
-		boost::unordered_map<uint64_t, uint64_t> game_data;
+		std::unordered_map<uint64_t, uint64_t> game_data;
 		do {
 			uint64_t cell;
 			result = fread(&cell, sizeof(uint64_t), 1, infile);
@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
 
 		// mapping of cell ids to their (logical) size and location
 		Mapping mapping;
-		const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
+		const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
 		mapping.set_length(grid_length);
 		mapping.set_maximum_refinement_level(max_ref_level);
 
@@ -168,7 +168,7 @@ int main(int argc, char* argv[])
 		// write cells in a known order
 		vector<uint64_t> cells;
 		cells.reserve(game_data.size());
-		for (boost::unordered_map<uint64_t, uint64_t>::const_iterator
+		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
 			data = game_data.begin();
 			data != game_data.end();
 			data++
@@ -181,7 +181,7 @@ int main(int argc, char* argv[])
 
 		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < cells.size(); i++) {
-			const boost::array<double, 3>
+			const std::array<double, 3>
 				cell_min = geometry.get_min(cells[i]),
 				cell_max = geometry.get_max(cells[i]);
 

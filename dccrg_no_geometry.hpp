@@ -21,13 +21,12 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_NO_GEOMETRY_HPP
 
 
-#include "cassert"
 #include "cmath"
+#include "cstdint"
 #include "cstdlib"
 #include "iostream"
 #include "limits"
 #include "mpi.h"
-#include "stdint.h"
 #include "vector"
 
 #include "dccrg_length.hpp"
@@ -139,9 +138,9 @@ public:
 	with minimum value of the coordinate in each
 	dimension.
 	*/
-	boost::array<double, 3> get_start() const
+	std::array<double, 3> get_start() const
 	{
-		const boost::array<double, 3> ret_val = {{0, 0, 0}};
+		const std::array<double, 3> ret_val = {{0, 0, 0}};
 		return ret_val;
 	}
 
@@ -153,10 +152,10 @@ public:
 	maximum value of the coordinate in each
 	dimension.
 	*/
-	boost::array<double, 3> get_end() const
+	std::array<double, 3> get_end() const
 	{
-		const boost::array<uint64_t, 3> length = this->length.get();
-		const boost::array<double, 3> ret_val = {{
+		const std::array<uint64_t, 3> length = this->length.get();
+		const std::array<double, 3> ret_val = {{
 			double(length[0]),
 			double(length[1]),
 			double(length[2])
@@ -168,9 +167,9 @@ public:
 	/*!
 	Returns the length of cells of refinement level 0.
 	*/
-	boost::array<double, 3> get_level_0_cell_length() const
+	std::array<double, 3> get_level_0_cell_length() const
 	{
-		const boost::array<double, 3> ret_val = {{1.0, 1.0, 1.0}};
+		const std::array<double, 3> ret_val = {{1.0, 1.0, 1.0}};
 		return ret_val;
 	}
 
@@ -181,7 +180,7 @@ public:
 	A quiet NaN is returned if the given error_cell,
 	or the given cell cannot exist in the grid.
 	*/
-	boost::array<double, 3> get_length(const uint64_t cell) const
+	std::array<double, 3> get_length(const uint64_t cell) const
 	{
 		const int refinement_level = this->mapping.get_refinement_level(cell);
 
@@ -189,7 +188,7 @@ public:
 		|| refinement_level < 0
 		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 
-			const boost::array<double, 3> error_val = {{
+			const std::array<double, 3> error_val = {{
 				std::numeric_limits<double>::quiet_NaN(),
 				std::numeric_limits<double>::quiet_NaN(),
 				std::numeric_limits<double>::quiet_NaN()
@@ -199,7 +198,7 @@ public:
 		}
 
 		const double cell_length = 1.0 / double(uint64_t(1) << refinement_level);
-		const boost::array<double, 3> ret_val = {{
+		const std::array<double, 3> ret_val = {{
 			cell_length,
 			cell_length,
 			cell_length
@@ -215,7 +214,7 @@ public:
 	A quiet NaN is returned if the given error_cell,
 	or the given cell cannot exist in the grid.
 	*/
-	boost::array<double, 3> get_center(const uint64_t cell) const
+	std::array<double, 3> get_center(const uint64_t cell) const
 	{
 
 		const int refinement_level = this->mapping.get_refinement_level(cell);
@@ -224,7 +223,7 @@ public:
 		|| refinement_level < 0
 		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
 
-			const boost::array<double, 3> error_val = {{
+			const std::array<double, 3> error_val = {{
 				std::numeric_limits<double>::quiet_NaN(),
 				std::numeric_limits<double>::quiet_NaN(),
 				std::numeric_limits<double>::quiet_NaN()
@@ -236,7 +235,7 @@ public:
 		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
 		const int max_ref_lvl = this->mapping.get_maximum_refinement_level();
 
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			cell_length = this->get_length(cell),
 			ret_val = {{
 				double(indices[0]) / double(uint64_t(1) << max_ref_lvl)
@@ -264,9 +263,9 @@ public:
 	\endverbatim
 	returns (x1, y1, ...).
 	*/
-	boost::array<double, 3> get_min(const uint64_t cell) const
+	std::array<double, 3> get_min(const uint64_t cell) const
 	{
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			center = this->get_center(cell),
 			length = this->get_length(cell),
 			ret_val = {{
@@ -290,9 +289,9 @@ public:
 	\endverbatim
 	returns (x2, y2, ...).
 	*/
-	boost::array<double, 3> get_max(const uint64_t cell) const
+	std::array<double, 3> get_max(const uint64_t cell) const
 	{
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			center = this->get_center(cell),
 			length = this->get_length(cell),
 			ret_val = {{
@@ -311,12 +310,12 @@ public:
 	A quiet NaN is returned if the given error_cell,
 	or the given cell cannot exist in the grid.
 	*/
-	boost::array<double, 3> get_center(
+	std::array<double, 3> get_center(
 		const int refinement_level,
 		const Types<3>::indices_t index
 	) const {
 
-		const boost::array<double, 3> error_val = {{
+		const std::array<double, 3> error_val = {{
 			std::numeric_limits<double>::quiet_NaN(),
 			std::numeric_limits<double>::quiet_NaN(),
 			std::numeric_limits<double>::quiet_NaN()
@@ -348,7 +347,7 @@ public:
 			coordinate_scaling_factor = 1.0 / double(index_scaling_factor),
 			cell_offset_scaling_factor = 1.0 / double(uint64_t(1) << refinement_level) / 2;
 
-		const boost::array<double, 3> ret_val = {{
+		const std::array<double, 3> ret_val = {{
 			double(index[0]) * coordinate_scaling_factor
 			+ cell_offset_scaling_factor,
 
@@ -371,7 +370,7 @@ public:
 	*/
 	uint64_t get_cell(
 		const int refinement_level,
-		const boost::array<double, 3>& coordinate
+		const std::array<double, 3>& coordinate
 	) const {
 		if (refinement_level < 0
 		|| refinement_level > this->mapping.get_maximum_refinement_level()) {
@@ -395,11 +394,11 @@ public:
 	inside the geometry that is at the same location in the
 	geometry as given coordinate.
 	*/
-	boost::array<double, 3> get_real_coordinate(const boost::array<double, 3> given_coordinate) const
+	std::array<double, 3> get_real_coordinate(const std::array<double, 3> given_coordinate) const
 	{
-		const boost::array<double, 3> end = this->get_end();
+		const std::array<double, 3> end = this->get_end();
 
-		boost::array<double, 3> ret_val = {{
+		std::array<double, 3> ret_val = {{
 			std::numeric_limits<double>::quiet_NaN(),
 			std::numeric_limits<double>::quiet_NaN(),
 			std::numeric_limits<double>::quiet_NaN()
@@ -445,7 +444,7 @@ public:
 	Returns error_index for coordinates outside of the grid in a particular
 	dimension if the grid is not periodic in that dimension.
 	*/
-	Types<3>::indices_t get_indices(const boost::array<double, 3>& given_coordinate) const
+	Types<3>::indices_t get_indices(const std::array<double, 3>& given_coordinate) const
 	{
 		Types<3>::indices_t ret_val = {{
 			error_index,
@@ -453,7 +452,7 @@ public:
 			error_index
 		}};
 
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			grid_end = this->get_end(),
 			coordinate = this->get_real_coordinate(given_coordinate);
 

@@ -21,15 +21,14 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_MPI_SUPPORT_HPP
 
 #include "algorithm"
-#include "boost/foreach.hpp"
-#include "boost/unordered_map.hpp"
-#include "boost/unordered_set.hpp"
 #include "climits"
+#include "cstdint"
 #include "cstdlib"
 #include "iostream"
 #include "mpi.h"
-#include "stdint.h"
 #include "string"
+#include "unordered_map"
+#include "unordered_set"
 #include "vector"
 
 namespace dccrg {
@@ -182,7 +181,7 @@ public:
 
 		// transfer to contiguous array and then fill result
 		uint64_t total_send_count = 0;
-		BOOST_FOREACH(const int send_count, send_counts) {
+		for (const int send_count: send_counts) {
 			total_send_count += (uint64_t) send_count;
 		}
 
@@ -289,17 +288,17 @@ public:
 	*/
 	uint64_t operator()(
 		uint64_t value,
-		const boost::unordered_set<int>& neighbors,
+		const std::unordered_set<int>& neighbors,
 		MPI_Comm& comm
 	) {
 		// send / receive with asynchronous messages to / from each neighbor
 		// TODO: doesn't seem possible to reduce number of messages even if
 		//       > 2 processes are all neighbors of each other
-		boost::unordered_map<int, std::pair<MPI_Request, uint64_t> > receive_requests;
-		boost::unordered_map<int, MPI_Request> send_requests;
+		std::unordered_map<int, std::pair<MPI_Request, uint64_t> > receive_requests;
+		std::unordered_map<int, MPI_Request> send_requests;
 
 		// post receives
-		BOOST_FOREACH(const int process, neighbors) {
+		for (const int process: neighbors) {
 			receive_requests[process];
 			if (
 				MPI_Irecv(
@@ -321,7 +320,7 @@ public:
 		}
 
 		// post sends
-		BOOST_FOREACH(const int process, neighbors) {
+		for (const int process: neighbors) {
 			send_requests[process];
 			if (
 				MPI_Isend(
@@ -343,7 +342,7 @@ public:
 		}
 
 		// wait for receives
-		BOOST_FOREACH(const int process, neighbors) {
+		for (const int process: neighbors) {
 			if (
 				MPI_Wait(&(receive_requests.at(process).first), MPI_STATUS_IGNORE) != MPI_SUCCESS
 			) {
@@ -357,12 +356,12 @@ public:
 
 		// reduce
 		uint64_t result = value;
-		BOOST_FOREACH(const int process, neighbors) {
+		for (const int process: neighbors) {
 			result += receive_requests.at(process).second;
 		}
 
 		// wait for sends
-		BOOST_FOREACH(const int process, neighbors) {
+		for (const int process: neighbors) {
 			if (MPI_Wait(&(send_requests.at(process)), MPI_STATUS_IGNORE) != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " MPI_Wait for send to process " << process

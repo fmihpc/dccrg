@@ -59,7 +59,7 @@ public:
 				cell->data[i] = 0;
 			}
 
-			const boost::array<double, 3> cell_center = grid.geometry.get_center(cell_id);
+			const std::array<double, 3> cell_center = grid.geometry.get_center(cell_id);
 			const double radius = 0.15;
 
 			// velocities

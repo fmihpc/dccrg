@@ -4,10 +4,10 @@ Tests the grid with a game of life on a refined grid in 3 D with neighbors only 
 
 #include "algorithm"
 #include "boost/mpi.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "unordered_set"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{5, 5, 3}};
+	const std::array<uint64_t, 3> grid_length = {{5, 5, 3}};
 	const double cell_length = 1.0 / grid_length[0];
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 		game_of_life_cell* cell_data = game_grid[*cell];
 		cell_data->live_neighbor_count = 0;
 
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			cell_center = game_grid.geometry.get_center(*cell),
 			cell_length = game_grid.geometry.get_length(*cell);
 

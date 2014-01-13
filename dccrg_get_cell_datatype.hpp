@@ -23,10 +23,9 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "boost/function_types/property_tags.hpp"
 #include "boost/mpl/vector.hpp"
-#include "boost/static_assert.hpp"
 #include "boost/tti/has_member_function.hpp"
-#include "boost/tuple/tuple.hpp"
-#include "boost/utility/enable_if.hpp"
+#include "tuple"
+#include "type_traits"
 #include "cstdint"
 #include "mpi.h"
 
@@ -45,10 +44,10 @@ Version for get_mpi_datatype(const uint64_t, ..., const int) const.
 */
 template<
 	class Cell_T
-> typename boost::enable_if_c<
+> typename std::enable_if<
 	has_member_function_get_mpi_datatype<
 		Cell_T,
-		boost::tuple<void*, int, MPI_Datatype>,
+		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
 			const int,
@@ -58,7 +57,7 @@ template<
 		>,
 		boost::function_types::const_qualified
 	>::value,
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -88,10 +87,10 @@ Version for get_mpi_datatype(const uint64_t, ..., const int).
 */
 template<
 	class Cell_T
-> typename boost::enable_if_c<
+> typename std::enable_if<
 	has_member_function_get_mpi_datatype<
 		Cell_T,
-		boost::tuple<void*, int, MPI_Datatype>,
+		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
 			const int,
@@ -100,7 +99,7 @@ template<
 			const int
 		>
 	>::value,
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -131,17 +130,17 @@ Gives precedence to get_mpi_datatype which takes arguments.
 */
 template<
 	class Cell_T
-> typename boost::enable_if_c<
+> typename std::enable_if<
 	has_member_function_get_mpi_datatype<
 		Cell_T,
-		boost::tuple<void*, int, MPI_Datatype>,
+		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<>,
 		boost::function_types::const_qualified
 	>::value
 	and not
 	has_member_function_get_mpi_datatype<
 		Cell_T,
-		boost::tuple<void*, int, MPI_Datatype>,
+		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
 			const int,
@@ -151,7 +150,7 @@ template<
 		>,
 		boost::function_types::const_qualified
 	>::value,
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -176,16 +175,16 @@ Gives precedence to get_mpi_datatype which takes arguments.
 */
 template<
 	class Cell_T
-> typename boost::enable_if_c<
+> typename std::enable_if<
 	has_member_function_get_mpi_datatype<
 		Cell_T,
-		boost::tuple<void*, int, MPI_Datatype>,
+		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<>
 	>::value
 	and not
 	has_member_function_get_mpi_datatype<
 		Cell_T,
-		boost::tuple<void*, int, MPI_Datatype>,
+		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
 			const int,
@@ -194,7 +193,7 @@ template<
 			const int
 		>
 	>::value,
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype

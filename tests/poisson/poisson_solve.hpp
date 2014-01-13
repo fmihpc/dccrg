@@ -116,7 +116,7 @@ public:
 		INIT      = 2;
 
 	// tells dccrg what to transfer, assumes no padding between variables
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -150,7 +150,7 @@ public:
 			break;
 		}
 
-		return boost::make_tuple(address, count, datatype);
+		return std::make_tuple(address, count, datatype);
 	}
 };
 
@@ -237,11 +237,11 @@ public:
 		const std::vector<uint64_t>& outer_cells,*/
 		const std::vector<uint64_t>& cells,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
-		const boost::unordered_set<uint64_t>& cells_to_skip = boost::unordered_set<uint64_t>(),
+		const std::unordered_set<uint64_t>& cells_to_skip = std::unordered_set<uint64_t>(),
 		const bool cache_is_up_to_date = false
 	) {
 		// TODO: if a neighbor is not in given cells assume it doesn't exist
-		// const boost::unordered_set<uint64_t> unique_cells;
+		// const std::unordered_set<uint64_t> unique_cells;
 		// unique_cells.reserve(inner_cells.size() + outer_cells.size());
 		// unique_cells.insert(inner_cells.begin(), inner_cells.end());
 		// unique_cells.insert(outer_cells.begin(), outer_cells.end());
@@ -283,10 +283,10 @@ public:
 				data->A_dot_p0 = data->p0;
 
 				BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-					Poisson_Cell* neighbor_data = neigh_info.get<0>();
+					Poisson_Cell* neighbor_data = std::get<0>(neigh_info);
 
 					double multiplier = 0;
-					const int direction = neigh_info.get<1>();
+					const int direction = std::get<1>(neigh_info);
 					switch(direction) {
 					case +1:
 						multiplier = data->f_x_pos;
@@ -314,7 +314,7 @@ public:
 						break;
 					}
 
-					const int rel_ref_lvl = neigh_info.get<2>();
+					const int rel_ref_lvl = std::get<2>(neigh_info);
 					if (rel_ref_lvl > 0) {
 						multiplier /= 4.0;
 					}
@@ -396,7 +396,7 @@ public:
 				double A_dot_p1 = data->p0;
 
 				BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-					Poisson_Cell* neighbor_data = neigh_info.get<0>();
+					Poisson_Cell* neighbor_data = std::get<0>(neigh_info);
 
 					/*
 					In transpose(A) . p1 use that multiplier which was calculated
@@ -404,7 +404,7 @@ public:
 					i.e. just "reverse" the direction of the update.
 					*/
 					double multiplier = 0;
-					const int direction = neigh_info.get<1>();
+					const int direction = std::get<1>(neigh_info);
 					switch(direction) {
 					case +1:
 						multiplier = neighbor_data->f_x_neg;
@@ -432,7 +432,7 @@ public:
 						break;
 					}
 
-					const int rel_ref_lvl = neigh_info.get<2>();
+					const int rel_ref_lvl = std::get<2>(neigh_info);
 					if (rel_ref_lvl < 0) {
 						multiplier /= 4.0;
 					}
@@ -495,7 +495,7 @@ private:
 	Data of cell's neighbor, neighbor's direction from cell
 	and neighbor's relative refinement level (if > 0 neighbor is smaller)
 	*/
-	typedef typename boost::tuple<Poisson_Cell*, int, int> neighbor_info_t;
+	typedef typename std::tuple<Poisson_Cell*, int, int> neighbor_info_t;
 
 	// data of a local cell and info of its neighbors
 	typedef typename std::pair<Poisson_Cell*, std::vector<neighbor_info_t> > cell_info_t;
@@ -560,7 +560,7 @@ private:
 			abort();
 		}
 
-		const boost::array<double, 3> cell_length = grid.geometry.get_length(cell);
+		const std::array<double, 3> cell_length = grid.geometry.get_length(cell);
 		const double
 			cell_x_half_size = cell_length[0] / 2.0,
 			cell_y_half_size = cell_length[1] / 2.0,
@@ -578,7 +578,7 @@ private:
 		for (size_t i = 0; i < neighbors.size(); i++) {
 			const uint64_t neighbor = neighbors[i].first;
 			const int direction = neighbors[i].second;
-			const boost::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
+			const std::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
 			const double
 				neigh_x_half_size = neighbor_length[0] / 2.0,
 				neigh_y_half_size = neighbor_length[1] / 2.0,
@@ -678,7 +678,7 @@ private:
 	*/
 	template<class Geometry> void cache_system_info(
 		const std::vector<uint64_t>& cells,
-		const boost::unordered_set<uint64_t>& cells_to_skip,
+		const std::unordered_set<uint64_t>& cells_to_skip,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
 		/*
@@ -703,7 +703,7 @@ private:
 		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
 		grid.update_copies_of_remote_neighbors();
 
-		boost::unordered_set<uint64_t> scaling_factor_cells;
+		std::unordered_set<uint64_t> scaling_factor_cells;
 
 		// calculate scaling factors in given cells
 		BOOST_FOREACH(const uint64_t cell, cells) {
@@ -821,7 +821,7 @@ private:
 				neighbor_info_t temp_neigh_info;
 
 				const int direction = face_neighbors[i].second;
-				temp_neigh_info.get<1>() = direction;
+				std::get<1>(temp_neigh_info) = direction;
 
 				const uint64_t neighbor = face_neighbors[i].first;
 				Poisson_Cell* const neighbor_data = grid[neighbor];
@@ -831,7 +831,7 @@ private:
 						<< std::endl;
 					abort();
 				}
-				temp_neigh_info.get<0>() = neighbor_data;
+				std::get<0>(temp_neigh_info) = neighbor_data;
 
 				int relative_ref_lvl = 0;
 				const int neigh_ref_lvl = grid.get_refinement_level(neighbor);
@@ -842,7 +842,7 @@ private:
 				} else {
 					relative_ref_lvl = -1;
 				}
-				temp_neigh_info.get<2>() = relative_ref_lvl;
+				std::get<2>(temp_neigh_info) = relative_ref_lvl;
 
 				temp_cell_info.second.push_back(temp_neigh_info);
 			}
@@ -877,8 +877,8 @@ private:
 				neg_z_done = false;
 
 			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-				const Poisson_Cell* const neighbor_data = neigh_info.get<0>();
-				const int direction = neigh_info.get<1>();
+				const Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
+				const int direction = std::get<1>(neigh_info);
 
 				switch(direction) {
 				case +1:
@@ -955,11 +955,11 @@ private:
 			data->r0 = data->rhs - data->solution;
 
 			BOOST_FOREACH(const neighbor_info_t& neigh_info, info.second) {
-				Poisson_Cell* neighbor_data = neigh_info.get<0>();
+				Poisson_Cell* neighbor_data = std::get<0>(neigh_info);
 
 				// final multiplier to use for current neighbor's data
 				double multiplier = 0;
-				const int direction = neigh_info.get<1>();
+				const int direction = std::get<1>(neigh_info);
 				switch(direction) {
 				case +1:
 					multiplier = data->f_x_pos;
@@ -987,7 +987,7 @@ private:
 					break;
 				}
 
-				const int rel_ref_lvl = neigh_info.get<2>();
+				const int rel_ref_lvl = std::get<2>(neigh_info);
 				if (rel_ref_lvl > 0) {
 					// average over 4 smaller face neighbors
 					multiplier /= 4.0;

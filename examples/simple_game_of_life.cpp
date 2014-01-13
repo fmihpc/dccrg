@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 	// don't allow refining cells into 8 smaller ones
 	#define MAX_REFINEMENT_LEVEL 0
 	// length of grid in cells of refinement level 0 (largest possible)
-	const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
+	const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
 	// use the recursive coordinate bisection method for load
 	// balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
 	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);

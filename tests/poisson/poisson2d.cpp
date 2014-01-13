@@ -115,7 +115,7 @@ template<class Geometry> double get_p_norm(
 		}
 
 		double analytic_solution = std::numeric_limits<double>::max();
-		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
+		const std::array<double, 3> cell_center = grid.geometry.get_center(cell);
 
 		if (grid.length.get()[0] == 1) {
 			analytic_solution = get_solution_value(
@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
 		Poisson_Solve solver;
 		Dccrg<Poisson_Cell, Cartesian_Geometry> grid_x, grid_y, grid_z;
 
-		const boost::array<uint64_t, 3>
+		const std::array<uint64_t, 3>
 			grid_length_x = {{1, cells_x, cells_y}},
 			grid_length_y = {{cells_x, 1, cells_y}},
 			grid_length_z = {{cells_x, cells_y, 1}};
@@ -264,7 +264,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			const boost::array<double, 3>
+			const std::array<double, 3>
 				cell_center_x = grid_x.geometry.get_center(cell),
 				cell_center_y = grid_y.geometry.get_center(cell),
 				cell_center_z = grid_z.geometry.get_center(cell);

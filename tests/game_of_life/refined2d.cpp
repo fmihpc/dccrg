@@ -6,10 +6,10 @@ Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined
 
 #include "algorithm"
 #include "boost/mpi.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "unordered_set"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
+	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const double cell_length = 1.0 / grid_length[0];
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {

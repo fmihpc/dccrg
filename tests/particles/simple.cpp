@@ -53,7 +53,7 @@ void propagate_particles(Dccrg<Cell>& grid) {
 
 	// propagate particles in local cells and copies of remote neighbors
 	vector<uint64_t> cells = grid.get_cells();
-	const boost::unordered_set<uint64_t>& remote_neighbors
+	const std::unordered_set<uint64_t>& remote_neighbors
 		= grid.get_remote_cells_on_process_boundary_internal();
 	cells.insert(cells.begin(), remote_neighbors.begin(), remote_neighbors.end());
 
@@ -65,7 +65,7 @@ void propagate_particles(Dccrg<Cell>& grid) {
 			abort();
 		}
 
-		for (vector<boost::array<double, 3> >::iterator
+		for (vector<std::array<double, 3> >::iterator
 			particle = cell_data->particles.begin();
 			particle != cell_data->particles.end();
 			particle++
@@ -83,7 +83,7 @@ void propagate_particles(Dccrg<Cell>& grid) {
 			abort();
 		}
 
-		vector<boost::array<double, 3> >::size_type i = 0;
+		vector<std::array<double, 3> >::size_type i = 0;
 		while (i < previous_data->particles.size()) {
 
 			// hande grid wrap around
@@ -166,7 +166,7 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 	BOOST_FOREACH(uint64_t cell, cells) {
 
 		Cell* cell_data = grid[cell];
-		for (vector<boost::array<double, 3> >::const_iterator
+		for (vector<std::array<double, 3> >::const_iterator
 			coordinates = cell_data->particles.begin();
 			coordinates != cell_data->particles.end();
 			coordinates++, written_particles++
@@ -206,7 +206,7 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 	outfile << "SCALARS cell int 1\nLOOKUP_TABLE default\n";
 	BOOST_FOREACH(uint64_t cell, cells) {
 		Cell* cell_data = grid[cell];
-		for (vector<boost::array<double, 3> >::const_iterator
+		for (vector<std::array<double, 3> >::const_iterator
 			coordinates = cell_data->particles.begin();
 			coordinates != cell_data->particles.end();
 			coordinates++, written_particles++
@@ -234,7 +234,7 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell> grid;
-	const boost::array<uint64_t, 3> grid_length = {{3, 1, 1}};
+	const std::array<uint64_t, 3> grid_length = {{3, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 1, 0, true, true, true);
 
 	const vector<uint64_t> cells = grid.get_cells();
@@ -245,14 +245,14 @@ int main(int argc, char* argv[])
 
 		Cell* cell_data = grid[cell];
 
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			cell_min = grid.geometry.get_min(cell),
 			cell_max = grid.geometry.get_max(cell);
 
 		const unsigned int number_of_particles
 			= (unsigned int)ceil(max_particles_per_cell * double(rand()) / RAND_MAX);
 		for (unsigned int i = 0; i < number_of_particles; i++) {
-			boost::array<double, 3> coordinates = {{
+			std::array<double, 3> coordinates = {{
 				cell_min[0] + (cell_max[0] - cell_min[0]) * double(rand()) / RAND_MAX,
 				cell_min[1] + (cell_max[1] - cell_min[1]) * double(rand()) / RAND_MAX,
 				cell_min[2] + (cell_max[2] - cell_min[2]) * double(rand()) / RAND_MAX
@@ -300,7 +300,7 @@ int main(int argc, char* argv[])
 		Cell::transfer_particles = false;
 		grid.update_copies_of_remote_neighbors();
 
-		const boost::unordered_set<uint64_t>& remote_neighbors
+		const std::unordered_set<uint64_t>& remote_neighbors
 			= grid.get_remote_cells_on_process_boundary_internal();
 
 		BOOST_FOREACH(uint64_t remote_neighbor, remote_neighbors) {

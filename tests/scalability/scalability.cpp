@@ -61,13 +61,13 @@ public:
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) &(this->data[0]), this->data.size(), MPI_UINT8_T);
+		return std::make_tuple((void*) &(this->data[0]), this->data.size(), MPI_UINT8_T);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -80,10 +80,10 @@ size_t Cell::data_size = 0;
 Returns the number of bytes that have to be transmitted in given list to other processes.
 */
 size_t get_traffic_size(
-	const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& lists
+	const std::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& lists
 ) {
 	double communication_size = 0;
-	for (boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
+	for (std::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
 		list = lists.begin();
 		list != lists.end();
 		list++
@@ -205,7 +205,7 @@ int main(int argc, char* argv[])
 	// initialize
 	Dccrg<Cell> grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 	grid.initialize(
 		grid_length,
 		comm,
@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
 	double sends_size = 0, receives_size = 0;
 	for (int timestep = 0; timestep < timesteps; timestep++) {
 
-		const boost::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
+		const std::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
 			&sends	= grid.get_cells_to_send(),
 			&receives = grid.get_cells_to_receive();
 

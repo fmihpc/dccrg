@@ -22,7 +22,7 @@ int main(int argc, char* argv[])
 	MPI_Comm_size(world, &size);
 
 	// previous and next processes are neighbors
-	boost::unordered_set<int> neighbors;
+	std::unordered_set<int> neighbors;
 	uint64_t correct_value = 10 * (uint64_t) abs(rank);
 	if (rank > 0) {
 		neighbors.insert(rank - 1);

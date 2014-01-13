@@ -35,7 +35,7 @@ public:
 	data[4] > 0: flux of density into this cell
 	data[5]: maximum relative difference in density between this cell and and its neighbors
 	*/
-	boost::array<double, 6> data;
+	std::array<double, 6> data;
 
 	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
@@ -51,7 +51,7 @@ public:
 	#else
 
 	// returns MPI_Datatype corresponding to cell data to transfer
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -59,7 +59,7 @@ public:
 	{
 		// transfer cell density and velocities to other processes
 		// TODO: only transfer velocities after they have changed
-		return boost::make_tuple((void*) &(this->data), 4, MPI_DOUBLE);
+		return std::make_tuple((void*) &(this->data), 4, MPI_DOUBLE);
 	}
 
 	#endif

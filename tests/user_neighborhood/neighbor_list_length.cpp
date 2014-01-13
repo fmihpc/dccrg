@@ -16,13 +16,11 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/array.hpp"
-#include "boost/assign/list_of.hpp"
-#include "boost/foreach.hpp"
+#include "array"
 #include "boost/mpi.hpp"
-#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "iostream"
+#include "tuple"
 #include "vector"
 #include "zoltan.h"
 
@@ -44,13 +42,13 @@ struct Cell
 
 	#else
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		boost::make_tuple((void*) &(this->data), 1, MPI_INT);
+		return std::make_tuple((void*) &(this->data), 1, MPI_INT);
 	}
 
 	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
@@ -70,13 +68,13 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<Cell> grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
+	const std::array<uint64_t, 3> grid_length = {{10, 10, 10}};
 	grid.initialize(grid_length, comm, "RANDOM", 2, 0, true, true, true);
 
 	const vector<uint64_t> cells = grid.get_cells();
 
 	// default neighbor lists should have 5^3 - 1 = 124 neighbors
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell);
 		if (neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -100,15 +98,14 @@ int main(int argc, char* argv[])
 	// create a neighborhood of one cell at (-2, -2, -2)
 	{
 	const int hood_id = 1;
-	const std::vector<neigh_t> neighborhood
-		= boost::assign::list_of<neigh_t>(boost::assign::list_of(-2)(-2)(-2));
+	const std::vector<neigh_t> neighborhood{{-2, -2, -2}};
 	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -134,17 +131,17 @@ int main(int argc, char* argv[])
 	// create a neighborhood of two cells at (-1, -1, -1) and (2, 2, 2)
 	{
 	const int hood_id = 2;
-	const std::vector<neigh_t> neighborhood
-		= boost::assign::list_of<neigh_t>
-			(boost::assign::list_of(-1)(-1)(-1))
-			(boost::assign::list_of( 2)( 2)( 2));
+	const std::vector<neigh_t> neighborhood{
+		{-1, -1, -1},
+		{ 2,  2,  2}
+	};
 	if (!grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " add_neighborhood failed"
 				<< std::endl;
 			abort();
 	}
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -185,7 +182,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -226,7 +223,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -268,7 +265,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		// check number of neighbors
 		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 124) {
@@ -306,11 +303,11 @@ int main(int argc, char* argv[])
 		) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " User neighbor list of cell " << cell << ":\n";
-			BOOST_FOREACH(const uint64_t neighbor, *neighbors) {
+			for (const uint64_t neighbor: *neighbors) {
 				std::cerr << neighbor << ", ";
 			}
 			std::cerr << "\nnot equal to default neighbor list:\n";
-			BOOST_FOREACH(const uint64_t neighbor, *default_neighbors) {
+			for (const uint64_t neighbor: *default_neighbors) {
 				std::cerr << neighbor << ", ";
 			}
 			std::cerr << std::endl;
@@ -322,8 +319,7 @@ int main(int argc, char* argv[])
 	// try to create a neighborhood too far away
 	{
 	const int hood_id = 5;
-	const std::vector<neigh_t> neighborhood
-		= boost::assign::list_of<neigh_t>(boost::assign::list_of(-1)(2)(-3));
+	const std::vector<neigh_t> neighborhood{{-1, 2, -3}};
 	if (grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " add_neighborhood succeeded"
@@ -335,8 +331,7 @@ int main(int argc, char* argv[])
 	// try to use an existing neighborhood id
 	{
 	const int hood_id = 0;
-	const std::vector<neigh_t> neighborhood
-		= boost::assign::list_of<neigh_t>(boost::assign::list_of(1)(2)(-2));
+	const std::vector<neigh_t> neighborhood{{1, 2, -2}};
 	if (grid.add_neighborhood(hood_id, neighborhood)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " add_neighborhood succeeded"

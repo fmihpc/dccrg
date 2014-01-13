@@ -22,8 +22,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
 #include "cmath"
+#include "cstdint"
 #include "iostream"
-#include "stdint.h"
 
 #include "dccrg_length.hpp"
 #include "dccrg_mpi_support.hpp"
@@ -83,7 +83,7 @@ public:
 	Length of the grid is 1 cell in each dimension.
 	*/
 	Mapping(
-		const boost::array<uint64_t, 3>& given_length
+		const std::array<uint64_t, 3>& given_length
 	) : length(length_rw)
 	{
 		if (!this->length_rw.set(given_length)) {
@@ -105,7 +105,7 @@ public:
 
 
 	//! see Grid_Length::set_length()
-	bool set_length(const boost::array<uint64_t, 3>& given_length)
+	bool set_length(const std::array<uint64_t, 3>& given_length)
 	{
 		if (!this->length_rw.set(given_length)) {
 			return false;
@@ -193,7 +193,7 @@ public:
 		}};
 
 		// get the length of the grid in terms of cells of this refinement level
-		const boost::array<uint64_t, 2> this_level_length = {{
+		const std::array<uint64_t, 2> this_level_length = {{
 			this->length.get()[0] * (uint64_t(1) << refinement_level),
 			this->length.get()[1] * (uint64_t(1) << refinement_level)
 		}};
@@ -386,7 +386,7 @@ public:
 
 
 	//! Format in which mapping data is stored into a file.
-	typedef boost::array<uint8_t, 3> mapping_file_data_t;
+	typedef std::array<uint8_t, 3> mapping_file_data_t;
 
 
 	/*!

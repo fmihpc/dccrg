@@ -36,7 +36,7 @@ public:
 	unsigned int number_of_particles;
 
 	// coordinates of particles in this cell
-	std::vector<boost::array<double, 3> > particles;
+	std::vector<std::array<double, 3> > particles;
 
 	/*
 	The number of particles is transferred over MPI if
@@ -57,7 +57,7 @@ public:
 	}
 
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -87,7 +87,7 @@ public:
 
 		}
 
-		return boost::make_tuple(address, count, datatype);
+		return std::make_tuple(address, count, datatype);
 	}
 
 

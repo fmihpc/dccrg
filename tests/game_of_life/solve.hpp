@@ -19,10 +19,10 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef SOLVE_HPP
 #define SOLVE_HPP
 
-#include "boost/unordered_map.hpp"
-#include "boost/unordered_set.hpp"
 #include "iostream"
 #include "stdint.h"
+#include "unordered_map"
+#include "unordered_set"
 #include "vector"
 
 #include "../../dccrg.hpp"
@@ -41,12 +41,8 @@ public:
 	static void solve(dccrg::Dccrg<Cell, UserGeometry>& game_grid)
 	{
 		// get the neighbor counts of every cell
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
-			cell_item = game_grid.begin();
-			cell_item != game_grid.end();
-			cell_item++
-		) {
-			const uint64_t cell = cell_item->first;
+		for (const auto& item: game_grid) {
+			const uint64_t cell = item.first;
 
 			Cell* cell_data = game_grid[cell];
 			if (cell_data == NULL) {
@@ -64,25 +60,21 @@ public:
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(cell) == 0) {
 
-				for (std::vector<uint64_t>::const_iterator
-					neighbor = neighbors->begin();
-					neighbor != neighbors->end();
-					neighbor++
-				) {
-					if (*neighbor == 0) {
+				for (const uint64_t neighbor: *neighbors) {
+					if (neighbor == dccrg::error_cell) {
 						continue;
 					}
 
-					Cell* neighbor_data = game_grid[*neighbor];
+					Cell* neighbor_data = game_grid[neighbor];
 					if (neighbor_data == NULL) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of cell " << cell
-							<< ": " << *neighbor
+							<< ": " << neighbor
 							<< std::endl;
 						abort();
 					}
 
-					if (game_grid.get_refinement_level(*neighbor) == 0) {
+					if (game_grid.get_refinement_level(neighbor) == 0) {
 						if (neighbor_data->data[0]) {
 							cell_data->data[1]++;
 						}
@@ -90,7 +82,7 @@ public:
 					} else {
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(*neighbor);
+						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell_data->data[5 + i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -119,30 +111,26 @@ public:
 			// refined cells total the neighbor counts of siblings
 			} else {
 
-				for (std::vector<uint64_t>::const_iterator
-					neighbor = neighbors->begin();
-					neighbor != neighbors->end(); 
-					neighbor++
-				) {
-					if (*neighbor == 0) {
+				for (const uint64_t neighbor: *neighbors) {
+					if (neighbor == dccrg::error_cell) {
 						continue;
 					}
 
-					Cell* neighbor_data = game_grid[*neighbor];
+					Cell* neighbor_data = game_grid[neighbor];
 					if (neighbor_data == NULL) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of refined cell " << cell
-							<< ": " << *neighbor
+							<< ": " << neighbor
 							<< std::endl;
 						abort();
 					}
 
-					if (game_grid.get_refinement_level(*neighbor) == 0) {
+					if (game_grid.get_refinement_level(neighbor) == 0) {
 
 						// larger neighbors appear several times in the neighbor list
 						bool neighbor_processed = false;
 						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == *neighbor) {
+							if (cell_data->data[5 + i] == neighbor) {
 								neighbor_processed = true;
 								break;
 							}
@@ -153,7 +141,7 @@ public:
 						} else {
 							for (int i = 0; i < 8; i++) {
 								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = *neighbor;
+									cell_data->data[5 + i] = neighbor;
 									break;
 								}
 							}
@@ -162,7 +150,7 @@ public:
 						if (neighbor_data->data[0]) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->data[2 + i] == 0) {
-									cell_data->data[2 + i] = *neighbor;
+									cell_data->data[2 + i] = neighbor;
 									break;
 								}
 							}
@@ -172,12 +160,12 @@ public:
 					} else {
 
 						// ignore own siblings
-						if (game_grid.get_parent(cell) == game_grid.get_parent(*neighbor)) {
+						if (game_grid.get_parent(cell) == game_grid.get_parent(neighbor)) {
 							continue;
 						}
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(*neighbor);
+						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell_data->data[5 + i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -213,43 +201,39 @@ public:
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
-			cell_item = game_grid.begin();
-			cell_item != game_grid.end();
-			cell_item++
-		) {
-			const uint64_t cell = cell_item->first;
+		for (const auto& item: game_grid) {
+			const uint64_t cell = item.first;
 
 			if (game_grid.get_refinement_level(cell) == 0) {
 				continue;
 			}
 			Cell* cell_data = game_grid[cell];
 
-			boost::unordered_set<uint64_t> current_live_unrefined_neighbors;
+			std::unordered_set<uint64_t> current_live_unrefined_neighbors;
 			for (int i = 0; i < 3; i++) {
 				current_live_unrefined_neighbors.insert(cell_data->data[2 + i]);
 			}
 
-			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
-			for (std::vector<uint64_t>::const_iterator
-				neighbor = neighbors->begin();
-				neighbor != neighbors->end();
-				neighbor++
-			) {
-				if (*neighbor == 0) {
+			const std::vector<uint64_t>* const neighbors = game_grid.get_neighbors_of(cell);
+			if (neighbors == NULL) {
+				abort();
+			}
+
+			for (const uint64_t neighbor: *neighbors) {
+				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				if (game_grid.get_refinement_level(*neighbor) == 0) {
+				if (game_grid.get_refinement_level(neighbor) == 0) {
 					continue;
 				}
 
 				// total live neighbors counts only between siblings
-				if (game_grid.get_parent(cell) != game_grid.get_parent(*neighbor)) {
+				if (game_grid.get_parent(cell) != game_grid.get_parent(neighbor)) {
 					continue;
 				}
 
-				Cell* neighbor_data = game_grid[*neighbor];
+				Cell* neighbor_data = game_grid[neighbor];
 				for (int i = 0; i < 3; i++) {
 					current_live_unrefined_neighbors.insert(neighbor_data->data[2 + i]);
 				}
@@ -260,12 +244,8 @@ public:
 		}
 
 		// calculate the next turn
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
-			cell_item = game_grid.begin();
-			cell_item != game_grid.end();
-			cell_item++
-		) {
-			const uint64_t cell = cell_item->first;
+		for (const auto& item: game_grid) {
+			const uint64_t cell = item.first;
 
 			Cell* cell_data = game_grid[cell];
 

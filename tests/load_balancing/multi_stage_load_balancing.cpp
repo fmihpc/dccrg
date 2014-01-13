@@ -34,13 +34,13 @@ public:
 	// load balancing stage currently in progress
 	static size_t stage;
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) &(this->data[Cell::stage]), 1, MPI_INT);
+		return std::make_tuple((void*) &(this->data[Cell::stage]), 1, MPI_INT);
 	}
 };
 
@@ -95,12 +95,12 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<Cell> grid;
-	const boost::array<uint64_t, 3> grid_length = {{3, 3, 3}};
+	const std::array<uint64_t, 3> grid_length = {{3, 3, 3}};
 	grid.initialize(grid_length, comm, "RANDOM", 3);
 
 	// local cells must be obtained before starting load balancing
 	const vector<uint64_t> cells = grid.get_cells();
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const uint64_t cell: cells) {
 		Cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
 		}
 
 		cell_data->data.resize(lb_stages);
-		BOOST_FOREACH(int& data_item, cell_data->data) {
+		for (int& data_item: cell_data->data) {
 			data_item = -1;
 		}
 	}
@@ -125,9 +125,9 @@ int main(int argc, char* argv[])
 	*/
 
 	// cells that will be moved to this process
-	const boost::unordered_set<uint64_t>& added_cells
+	const std::unordered_set<uint64_t>& added_cells
 		= grid.get_cells_added_by_balance_load();
-	BOOST_FOREACH(const uint64_t cell, added_cells) {
+	for (const uint64_t cell: added_cells) {
 		Cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -140,7 +140,7 @@ int main(int argc, char* argv[])
 	}
 
 	// cells that will be moved from this process
-	const boost::unordered_set<uint64_t>& removed_cells
+	const std::unordered_set<uint64_t>& removed_cells
 		= grid.get_cells_removed_by_balance_load();
 
 	// allow going through all cells with one loop
@@ -159,15 +159,15 @@ int main(int argc, char* argv[])
 		Cell::stage = current_stage;
 
 		// set all data of all cells to -1
-		BOOST_FOREACH(const uint64_t cell, all_cells) {
+		for (const uint64_t cell: all_cells) {
 			Cell* cell_data = grid[cell];
-			BOOST_FOREACH(int& data_item, cell_data->data) {
+			for (int& data_item: cell_data->data) {
 				data_item = -1;
 			}
 		}
 
 		// set one item of outgoing cells to current_stage
-		BOOST_FOREACH(const uint64_t cell, removed_cells) {
+		for (const uint64_t cell: removed_cells) {
 			Cell* cell_data = grid[cell];
 			cell_data->data[current_stage] = (int) current_stage;
 		}
@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 		grid.continue_balance_load();
 
 		// check that data arrived correctly
-		BOOST_FOREACH(const uint64_t cell, added_cells) {
+		for (const uint64_t cell: added_cells) {
 			Cell* cell_data = grid[cell];
 			if (cell_data->data.size() != lb_stages) {
 				std::cerr << __FILE__ << ":" << __LINE__
@@ -216,21 +216,15 @@ int main(int argc, char* argv[])
 	}
 
 	// check that correct cells will be moved
-	boost::unordered_set<uint64_t> new_cells_reference;
-	BOOST_FOREACH(const uint64_t cell, cells) {
-		new_cells_reference.insert(cell);
-	}
-	BOOST_FOREACH(const uint64_t cell, added_cells) {
-		new_cells_reference.insert(cell);
-	}
-	BOOST_FOREACH(const uint64_t cell, removed_cells) {
-		new_cells_reference.erase(cell);
-	}
+	std::unordered_set<uint64_t> new_cells_reference;
+	new_cells_reference.insert(cells.cbegin(), cells.cend());
+	new_cells_reference.insert(added_cells.cbegin(), added_cells.cend());
+	new_cells_reference.erase(removed_cells.cbegin(), removed_cells.cend());
 
 	grid.finish_balance_load();
 
 	const vector<uint64_t> new_local = grid.get_cells();
-	BOOST_FOREACH(const uint64_t cell, new_local) {
+	for (const uint64_t cell: new_local) {
 		if (new_cells_reference.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Rank " << rank

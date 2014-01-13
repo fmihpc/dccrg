@@ -20,12 +20,11 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define IO_HPP
 
 #include "algorithm"
-#include "boost/foreach.hpp"
-#include "boost/tuple/tuple.hpp"
+#include "cstdint"
 #include "cstdio"
 #include "iostream"
 #include "mpi.h"
-#include "stdint.h"
+#include "tuple"
 #include "vector"
 
 #include "../../dccrg.hpp"
@@ -61,16 +60,16 @@ public:
 
 		Cell::transfer_only_life = true;
 
-		boost::tuple<void*, int, MPI_Datatype> header;
+		std::tuple<void*, int, MPI_Datatype> header;
 		if (rank == 0) {
-			boost::tuples::get<0>(header) = &step;
-			boost::tuples::get<1>(header) = 1;
-			boost::tuples::get<2>(header) = MPI_UINT64_T;
+			std::get<0>(header) = &step;
+			std::get<1>(header) = 1;
+			std::get<2>(header) = MPI_UINT64_T;
 		} else {
 			// give a valid address just in case
-			boost::tuples::get<0>(header) = &(boost::tuples::get<1>(header));
-			boost::tuples::get<1>(header) = 0;
-			boost::tuples::get<2>(header) = MPI_BYTE;
+			std::get<0>(header) = &(std::get<1>(header));
+			std::get<1>(header) = 0;
+			std::get<2>(header) = MPI_BYTE;
 		}
 
 		if (!grid.save_grid_data(name, 0, header)) {
@@ -99,10 +98,10 @@ public:
 		// read only time step from header, other grid parameters are known
 		uint64_t ret_val = 0;
 
-		boost::tuple<void*, int, MPI_Datatype> header;
-		boost::tuples::get<0>(header) = &ret_val;
-		boost::tuples::get<1>(header) = 1;
-		boost::tuples::get<2>(header) = MPI_UINT64_T;
+		std::tuple<void*, int, MPI_Datatype> header;
+		std::get<0>(header) = &ret_val;
+		std::get<1>(header) = 1;
+		std::get<2>(header) = MPI_UINT64_T;
 
 		if (!grid.load_grid_data(
 			name,

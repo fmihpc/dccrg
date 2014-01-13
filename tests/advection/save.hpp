@@ -155,15 +155,15 @@ public:
 			memcpy(buffer + offset, &endiannes, sizeof(uint64_t));
 			offset += sizeof(uint64_t);
 
-			const boost::array<double, 3> grid_start = grid.geometry.get_start();
+			const std::array<double, 3> grid_start = grid.geometry.get_start();
 			memcpy(buffer + offset, grid_start.data(), 3 * sizeof(double));
 			offset += 3 * sizeof(double);
 
-			const boost::array<double, 3> cell_length = grid.geometry.get_length(1);
+			const std::array<double, 3> cell_length = grid.geometry.get_length(1);
 			memcpy(buffer + offset, cell_length.data(), 3 * sizeof(double));
 			offset += 3 * sizeof(double);
 
-			const boost::array<uint64_t, 3> grid_length = grid.length.get();
+			const std::array<uint64_t, 3> grid_length = grid.length.get();
 			memcpy(buffer + offset, grid_length.data(), 3 * sizeof(uint64_t));
 			offset += 3 * sizeof(uint64_t);
 

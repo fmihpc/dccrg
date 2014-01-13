@@ -119,7 +119,7 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<int, Cartesian_Geometry> grid;
-	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 	grid.initialize(
 		grid_length,
 		comm,
@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
 	vector<uint64_t> cells = grid.get_cells();
 	for (unsigned int i = 0; i < refine_n; i++) {
 		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const boost::array<double, 3> cell_center = grid.geometry.get_center(*cell);
+			const std::array<double, 3> cell_center = grid.geometry.get_center(*cell);
 			double
 				x = cell_center[0],
 				y = cell_center[1],

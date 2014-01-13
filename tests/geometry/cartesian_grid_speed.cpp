@@ -24,7 +24,7 @@ int main(void)
 	const Grid_Topology topology;
 
 	Mapping mapping;
-	const boost::array<uint64_t, 3> grid_length = {{100, 200, 300}};
+	const std::array<uint64_t, 3> grid_length = {{100, 200, 300}};
 	if (!mapping.set_length(grid_length)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set grid length to "
@@ -56,7 +56,7 @@ int main(void)
 
 	before = clock();
 	for (uint64_t cell = 1; cell <= cells; cell++) {
-		const boost::array<double, 3> length = geometry.get_length(cell);
+		const std::array<double, 3> length = geometry.get_length(cell);
 		avg_size_x += length[0];
 		avg_size_y += length[1];
 		avg_size_z += length[2];
@@ -81,7 +81,7 @@ int main(void)
 
 	before = clock();
 	for (uint64_t cell = 1; cell <= cells; cell++) {
-		const boost::array<double, 3> center = geometry.get_center(cell);
+		const std::array<double, 3> center = geometry.get_center(cell);
 		avg_pos_x += center[0];
 		avg_pos_y += center[1];
 		avg_pos_z += center[2];

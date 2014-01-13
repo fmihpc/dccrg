@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<CellData> grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{3, 1, 1}};
+	const std::array<uint64_t, 3> grid_length = {{3, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 1, 0);
 
 	// populate the grid, number of variables in a cell is equal to its id

@@ -38,7 +38,7 @@ public:
 	data[5..12] process only one sibling (assume identical state),
 	            these record the parents of processed siblings
 	*/
-	boost::array<uint64_t, 13> data;
+	std::array<uint64_t, 13> data;
 
 	// == true when saving and restarting
 	static bool transfer_only_life;
@@ -49,16 +49,16 @@ public:
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
 		if (Cell::transfer_only_life) {
-			return boost::make_tuple((void*) &(this->data), 1, MPI_UINT64_T);
+			return std::make_tuple((void*) &(this->data), 1, MPI_UINT64_T);
 		} else {
-			return boost::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
+			return std::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
 		}
 	}
 

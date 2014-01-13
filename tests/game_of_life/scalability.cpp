@@ -3,15 +3,14 @@ Tests the scalability of the grid in 2 D
 */
 
 #include "algorithm"
-#include "boost/array.hpp"
+#include "array"
 #include "boost/mpi.hpp"
-#include "boost/tuple/tuple.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "fstream"
 #include "iostream"
-#include "unistd.h"
+#include "tuple"
+#include "unordered_set"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
@@ -34,7 +33,7 @@ struct game_of_life_cell {
 	// data[0] == 1 if cell is alive, data[1] holds the number of live neighbors
 	unsigned int data[2];
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -45,7 +44,7 @@ struct game_of_life_cell {
 		const bool /*receiving*/,
 		const int /*neighborhoo_id*/
 	) {
-		return boost::make_tuple(&(this->data), 1, MPI_INT);
+		return std::make_tuple(&(this->data), 1, MPI_INT);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -74,7 +73,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
+	const std::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
 	const double cell_length = 1.0 / grid_length[0];
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
@@ -120,7 +119,7 @@ int main(int argc, char* argv[])
 		cell_data->data[1] = 0;
 		#endif
 
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			cell_center = game_grid.geometry.get_center(*cell),
 			cell_length = game_grid.geometry.get_length(*cell);
 
@@ -150,7 +149,7 @@ int main(int argc, char* argv[])
 		cell_data->data[1] = 0;
 		#endif
 
-		const boost::array<double, 3>
+		const std::array<double, 3>
 			cell_center = game_grid.geometry.get_center(*cell),
 			cell_length = game_grid.geometry.get_length(*cell);
 

@@ -175,9 +175,9 @@ int main(int argc, char* argv[])
 		//cout << "max_ref_level: " << uint16_t(max_ref_level) << endl;	// uint8_t == unsigned char so formatting fails
 
 		// read in cell data
-		boost::unordered_map<uint64_t, Cell> data;
-		boost::unordered_map<uint64_t, uint16_t> cell_process;
-		boost::unordered_map<uint64_t, boost::array<double, 3> > velocity;
+		std::unordered_map<uint64_t, Cell> data;
+		std::unordered_map<uint64_t, uint16_t> cell_process;
+		std::unordered_map<uint64_t, std::array<double, 3> > velocity;
 		do {
 			uint64_t cell;
 			result = fread(&cell, sizeof(uint64_t), 1, infile);
@@ -249,7 +249,7 @@ int main(int argc, char* argv[])
 		const Grid_Topology topology;
 
 		Mapping mapping;
-		const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+		const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 		if (!mapping.set_length(grid_length)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't set grid length to "
@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
 		// write cells in a known order
 		vector<uint64_t> cells;
 		cells.reserve(data.size());
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
+		for (std::unordered_map<uint64_t, Cell>::const_iterator
 			item = data.begin();
 			item != data.end();
 			item++
@@ -309,7 +309,7 @@ int main(int argc, char* argv[])
 		// write separate points for every cells' corners
 		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
 		for (unsigned int i = 0; i < cells.size(); i++) {
-			const boost::array<double, 3>
+			const std::array<double, 3>
 				cell_min = geometry.get_min(cells[i]),
 				cell_max = geometry.get_max(cells[i]);
 

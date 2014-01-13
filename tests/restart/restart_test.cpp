@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 	/*
 	Common grid parameters
 	*/
-	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
+	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const unsigned int neighborhood_size = 1;
 
 	Cartesian_Geometry::Parameters geom_params;

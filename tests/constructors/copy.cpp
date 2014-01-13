@@ -26,13 +26,13 @@ struct Cell1 {
 
 	Cell1() { data = -1; }
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) &(this->data), 1, MPI_INT);
+		return std::make_tuple((void*) &(this->data), 1, MPI_INT);
 	}
 };
 
@@ -44,7 +44,7 @@ struct Cell2 {
 
 	Cell2() { data = -2; }
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -55,7 +55,7 @@ struct Cell2 {
 		const bool /*receiving*/,
 		const int /*neighborhoo_id*/
 	) {
-		return boost::make_tuple(&(this->data), 1, MPI_DOUBLE);
+		return std::make_tuple(&(this->data), 1, MPI_DOUBLE);
 	}
 };
 
@@ -72,7 +72,7 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<Cell1, dccrg::Cartesian_Geometry> grid1;
 
-	const boost::array<uint64_t, 3> grid_length = {{10, 10, 10}};
+	const std::array<uint64_t, 3> grid_length = {{10, 10, 10}};
 	grid1.initialize(grid_length, comm, "RCB", 1, 0);
 
 	dccrg::Cartesian_Geometry::Parameters geom_params;
@@ -97,10 +97,10 @@ int main(int argc, char* argv[])
 
 	grid1.update_copies_of_remote_neighbors();
 
-	const boost::unordered_set<uint64_t>& remote_neighbors1
+	const std::unordered_set<uint64_t>& remote_neighbors1
 		= grid1.get_remote_cells_on_process_boundary_internal();
 
-	const boost::unordered_map<uint64_t, uint64_t>& cell_process1
+	const std::unordered_map<uint64_t, uint64_t>& cell_process1
 		= grid1.get_cell_process();
 
 	BOOST_FOREACH(const uint64_t cell, remote_neighbors1) {
@@ -149,10 +149,10 @@ int main(int argc, char* argv[])
 
 	grid2.update_copies_of_remote_neighbors();
 
-	const boost::unordered_set<uint64_t>& remote_neighbors2
+	const std::unordered_set<uint64_t>& remote_neighbors2
 		= grid2.get_remote_cells_on_process_boundary_internal();
 
-	const boost::unordered_map<uint64_t, uint64_t>& cell_process2
+	const std::unordered_map<uint64_t, uint64_t>& cell_process2
 		= grid2.get_cell_process();
 
 	BOOST_FOREACH(const uint64_t cell, remote_neighbors2) {

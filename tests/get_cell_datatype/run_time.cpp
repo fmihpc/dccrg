@@ -23,29 +23,29 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "../../dccrg_get_cell_datatype.hpp"
 
 struct Cell1 {
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype()
 	{
-		return boost::make_tuple((void*) NULL, 1, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 1, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell2 {
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) NULL, 2, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 2, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell3 {
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -56,12 +56,12 @@ struct Cell3 {
 		const bool /*receiving*/,
 		const int /*neighborhood_id*/
 	) {
-		return boost::make_tuple((void*) NULL, 3, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 3, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell4 {
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -72,12 +72,12 @@ struct Cell4 {
 		const bool /*receiving*/,
 		const int /*neighborhood_id*/
 	) const {
-		return boost::make_tuple((void*) NULL, 4, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 4, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell5 {
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -88,10 +88,10 @@ struct Cell5 {
 		const bool /*receiving*/,
 		const int /*neighborhood_id*/
 	) const {
-		return boost::make_tuple((void*) NULL, 5, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 5, MPI_DATATYPE_NULL);
 	}
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -102,13 +102,13 @@ struct Cell5 {
 		const bool /*receiving*/,
 		const int /*neighborhood_id*/
 	) {
-		return boost::make_tuple((void*) NULL, 6, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 6, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell6 {
 	// the one with arguments should take precedence
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -119,30 +119,30 @@ struct Cell6 {
 		const bool /*receiving*/,
 		const int /*neighborhood_id*/
 	) const {
-		return boost::make_tuple((void*) NULL, 7, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 7, MPI_DATATYPE_NULL);
 	}
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) NULL, 8, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 8, MPI_DATATYPE_NULL);
 	}
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype()
 	{
-		return boost::make_tuple((void*) NULL, 9, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 9, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell7 {
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -153,30 +153,30 @@ struct Cell7 {
 		const bool /*receiving*/,
 		const int /*neighborhood_id*/
 	) {
-		return boost::make_tuple((void*) NULL, 10, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 10, MPI_DATATYPE_NULL);
 	}
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) NULL, 11, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 11, MPI_DATATYPE_NULL);
 	}
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype()
 	{
-		return boost::make_tuple((void*) NULL, 12, MPI_DATATYPE_NULL);
+		return std::make_tuple((void*) NULL, 12, MPI_DATATYPE_NULL);
 	}
 };
 
 #define CHECK_DATATYPE_COUNT(cell, returned_count) \
-boost::tie( \
+std::tie( \
 	address, \
 	count, \
 	datatype \

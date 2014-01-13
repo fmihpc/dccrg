@@ -267,7 +267,7 @@ int main(int argc, char* argv[])
 		outfile << "POINTS " << cell_data.size() * 8 << " float" << std::endl;
 		for (uint64_t i = 0; i < cell_data.size(); i++) {
 			const uint64_t cell = cell_data[i].first;
-			const boost::array<double, 3>
+			const std::array<double, 3>
 				cell_min = geometry.get_min(cell),
 				cell_max = geometry.get_max(cell);
 

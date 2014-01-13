@@ -110,7 +110,7 @@ int main(int argc, char* argv[])
 
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	const boost::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
+	const std::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
 	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
 	game_grid.balance_load();

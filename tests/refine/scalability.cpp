@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
 	// initialize
 	Dccrg<int> grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 	grid.initialize(grid_length, comm, "RCB", neighborhood_size, maximum_refinement_level);
 	grid.balance_load();
 

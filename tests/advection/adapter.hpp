@@ -55,9 +55,9 @@ public:
 		const double diff_increase,
 		const double diff_threshold,
 		const double unrefine_sensitivity,
-		boost::unordered_set<uint64_t>& cells_to_refine,
-		boost::unordered_set<uint64_t>& cells_not_to_unrefine,
-		boost::unordered_set<uint64_t>& cells_to_unrefine,
+		std::unordered_set<uint64_t>& cells_to_refine,
+		std::unordered_set<uint64_t>& cells_not_to_unrefine,
+		std::unordered_set<uint64_t>& cells_to_unrefine,
 		dccrg::Dccrg<CellData, Geometry>& grid
 	) {
 		if (grid.get_maximum_refinement_level() == 0) {
@@ -198,9 +198,9 @@ public:
 		class CellData,
 		class Geometry
 	> static std::pair<uint64_t, uint64_t> adapt_grid(
-		boost::unordered_set<uint64_t>& cells_to_refine,
-		boost::unordered_set<uint64_t>& cells_not_to_unrefine,
-		boost::unordered_set<uint64_t>& cells_to_unrefine,
+		std::unordered_set<uint64_t>& cells_to_refine,
+		std::unordered_set<uint64_t>& cells_not_to_unrefine,
+		std::unordered_set<uint64_t>& cells_to_unrefine,
 		dccrg::Dccrg<CellData, Geometry>& grid
 	) {
 		if (grid.get_maximum_refinement_level() == 0) {
@@ -261,7 +261,7 @@ public:
 			new_cell_data->density() = parent_data->density();
 			new_cell_data->flux() = 0;
 
-			const boost::array<double, 3> cell_center = grid.geometry.get_center(new_cell);
+			const std::array<double, 3> cell_center = grid.geometry.get_center(new_cell);
 			new_cell_data->vx() = Velocity().vx(cell_center[1]);
 			new_cell_data->vy() = Velocity().vy(cell_center[0]);
 			new_cell_data->vz() = 0;
@@ -274,7 +274,7 @@ public:
 		const std::vector<uint64_t> removed_cells = grid.get_removed_cells();
 
 		// optimize by gathering all parents of removed cells
-		boost::unordered_set<uint64_t> parents;
+		std::unordered_set<uint64_t> parents;
 		BOOST_FOREACH(const uint64_t& removed_cell, removed_cells) {
 			parents.insert(grid.mapping.get_parent(removed_cell));
 		}
@@ -292,7 +292,7 @@ public:
 			parent_data->density() = 0;
 			parent_data->flux() = 0;
 
-			const boost::array<double, 3> cell_center = grid.geometry.get_center(parent);
+			const std::array<double, 3> cell_center = grid.geometry.get_center(parent);
 			parent_data->vx() = Velocity().vx(cell_center[1]);
 			parent_data->vy() = Velocity().vy(cell_center[0]);
 			parent_data->vz() = 0;

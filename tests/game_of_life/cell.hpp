@@ -19,10 +19,10 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CELL_HPP
 #define CELL_HPP
 
-#include "boost/array.hpp"
-#include "boost/tuple/tuple.hpp"
+#include "array"
 #include "mpi.h"
 #include "stdint.h"
+#include "tuple"
 
 /*!
 Game of life cell with 8 * 13 bytes of data.
@@ -39,7 +39,7 @@ public:
 	data[5..12] process only one sibling (assume identical state),
 	            these record the parents of processed siblings
 	*/
-	boost::array<uint64_t, 13> data;
+	std::array<uint64_t, 13> data;
 
 	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
@@ -47,12 +47,14 @@ public:
 		Archiver& ar,
 		const unsigned int /*version*/
 	) {
-		ar & data;
+		for (size_t i = 0; i < this->data.size(); i++) {
+			ar & data[i];
+		}
 	}
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
@@ -66,7 +68,7 @@ public:
 		const int /*neighborhood_id*/
 		#endif
 	) const {
-		return boost::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
+		return std::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI

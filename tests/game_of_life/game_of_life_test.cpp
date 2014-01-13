@@ -17,13 +17,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
-#include "boost/array.hpp"
+#include "array"
 #include "boost/lexical_cast.hpp"
 #include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "unordered_set"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
 	const double cell_length = 1.0 / base_length;
 
 	// set grid length in each dimension based on direction given by user
-	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
+	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 	switch (direction) {
 		case 'x':
 			grid_length[0] = 1;

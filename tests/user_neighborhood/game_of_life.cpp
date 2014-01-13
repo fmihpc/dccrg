@@ -3,14 +3,12 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 */
 
 #include "algorithm"
-#include "boost/array.hpp"
-#include "boost/assign/list_of.hpp"
-#include "boost/foreach.hpp"
+#include "array"
 #include "boost/mpi.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "unordered_set"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -26,13 +24,13 @@ struct game_of_life_cell {
 
 	#else
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) &(this->data[0]), 1, MPI_UNSIGNED);
+		return std::make_tuple((void*) &(this->data[0]), 1, MPI_UNSIGNED);
 	}
 
 	#endif
@@ -66,7 +64,7 @@ Returns cells which are alive at given time step.
 
 Given time step must be divisible by 4.
 */
-boost::unordered_set<uint64_t> get_live_cells(
+std::unordered_set<uint64_t> get_live_cells(
 	const uint64_t grid_size,
 	const int time_step
 ) {
@@ -75,7 +73,7 @@ boost::unordered_set<uint64_t> get_live_cells(
 		abort();
 	}
 
-	boost::unordered_set<uint64_t> result;
+	std::unordered_set<uint64_t> result;
 
 	/*
 	The game is interlaced so "neighboring" cells have one
@@ -135,17 +133,17 @@ boost::unordered_set<uint64_t> get_live_cells(
 	Odd x, odd y
 	*/
 	// http://www.conwaylife.com/wiki/Glider
-	std::vector<std::pair<int, int> > glider_coordinates
-		= boost::assign::list_of<std::pair<int, int> >
-			(std::make_pair(3 + 2 * (time_step / 4), 15 - 2 * (time_step / 4)))
-			(std::make_pair(5 + 2 * (time_step / 4), 13 - 2 * (time_step / 4)))
-			(std::make_pair(1 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)))
-			(std::make_pair(3 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)))
-			(std::make_pair(5 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)));
+	std::vector<std::pair<int, int> > glider_coordinates{
+		{3 + 2 * (time_step / 4), 15 - 2 * (time_step / 4)},
+		{5 + 2 * (time_step / 4), 13 - 2 * (time_step / 4)},
+		{1 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)},
+		{3 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)},
+		{5 + 2 * (time_step / 4), 11 - 2 * (time_step / 4)}
+	};
 	for (size_t i = 0; i < glider_coordinates.size(); i++) {
-		int&
-			x = glider_coordinates[i].first,
-			y = glider_coordinates[i].second;
+		int
+			&x = glider_coordinates[i].first,
+			&y = glider_coordinates[i].second;
 		wrap_coordinates((const int) grid_size, x, y);
 		result.insert((uint64_t) y * grid_size + (uint64_t) x);
 	}
@@ -167,7 +165,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{18, 18, 1}};
+	const std::array<uint64_t, 3> grid_length = {{18, 18, 1}};
 	game_grid.initialize(grid_length, comm, "RANDOM", 2, 0, true, true, true);
 
 	/*
@@ -180,16 +178,16 @@ int main(int argc, char* argv[])
 	and play 4 interlaced games simultaneously.
 	*/
 	typedef dccrg::Types<3>::neighborhood_item_t neigh_t;
-	const std::vector<neigh_t> neighborhood
-		= boost::assign::list_of<neigh_t>
-			(boost::assign::list_of(-2)(-2)(0))
-			(boost::assign::list_of(-2)( 0)(0))
-			(boost::assign::list_of(-2)( 2)(0))
-			(boost::assign::list_of( 0)(-2)(0))
-			(boost::assign::list_of( 0)( 2)(0))
-			(boost::assign::list_of( 2)(-2)(0))
-			(boost::assign::list_of( 2)( 0)(0))
-			(boost::assign::list_of( 2)( 2)(0));
+	const std::vector<neigh_t> neighborhood{
+		{-2, -2, 0},
+		{-2,  0, 0},
+		{-2,  2, 0},
+		{ 0, -2, 0},
+		{ 0,  2, 0},
+		{ 2, -2, 0},
+		{ 2,  0, 0},
+		{ 2,  2, 0}
+	};
 
 	const int neighborhood_id = 1;
 	if (!game_grid.add_neighborhood(neighborhood_id, neighborhood)) {
@@ -200,8 +198,8 @@ int main(int argc, char* argv[])
 	}
 
 	// initial condition
-	const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], 0);
-	BOOST_FOREACH(const uint64_t cell, live_cells) {
+	const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], 0);
+	for (const uint64_t cell: live_cells) {
 		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data != NULL) {
 			cell_data->data[0] = 1;
@@ -228,8 +226,8 @@ int main(int argc, char* argv[])
 
 		// check that the result is correct
 		if (step % 4 == 0) {
-			const boost::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], step);
-			BOOST_FOREACH(const uint64_t cell, cells) {
+			const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], step);
+			for (const uint64_t cell: cells) {
 				game_of_life_cell* cell_data = game_grid[cell];
 				if (cell_data == NULL) {
 					std::cerr << __FILE__ << ":" << __LINE__ << endl;
@@ -283,7 +281,7 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const uint64_t cell: cells) {
 			game_of_life_cell* cell_data = game_grid[cell];
 
 			if (cell_data->data[0] == 1) {
@@ -299,7 +297,7 @@ int main(int argc, char* argv[])
 		// write each cells live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const uint64_t cell: cells) {
 			game_of_life_cell* cell_data = game_grid[cell];
 			outfile << cell_data->data[1] << endl;
 		}
@@ -307,7 +305,7 @@ int main(int argc, char* argv[])
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const uint64_t cell: cells) {
 			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
@@ -322,12 +320,12 @@ int main(int argc, char* argv[])
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const uint64_t cell: cells) {
 			outfile << cell << endl;
 		}
 		outfile.close();
 
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const uint64_t cell: cells) {
 			game_of_life_cell* cell_data = game_grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__ << endl;
@@ -341,7 +339,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			BOOST_FOREACH(const uint64_t neighbor, *neighbors) {
+			for (const uint64_t neighbor: *neighbors) {
 				if (neighbor == 0) {
 					continue;
 				}
@@ -362,7 +360,7 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const uint64_t cell: cells) {
 			game_of_life_cell* cell_data = game_grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__ << endl;

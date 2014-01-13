@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<int> grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{7, 1, 1}};
+	const std::array<uint64_t, 3> grid_length = {{7, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 2);
 
 	// distribute cells to processes like this,
@@ -73,9 +73,9 @@ int main(int argc, char* argv[])
 		// neighborhood without neighbors
 		neighborhood0,
 		// one neighbor in positive x direction
-		neighborhood1 = list_of<neigh_t>(list_of(2)(0)(0)),
+		neighborhood1{{2, 0, 0}},
 		// two neighbors in +y and +z
-		neighborhood2 = list_of<neigh_t>(list_of(0)(1)(0))(list_of(0)(0)(1));
+		neighborhood2 = {{0, 1, 0}, {0, 0, 1}};
 
 	const int
 		neighborhood_id0 = 0,

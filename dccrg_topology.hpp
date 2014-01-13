@@ -22,7 +22,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_TOPOLOGY_HPP
 
 
-#include "boost/array.hpp"
+#include "array"
 
 #include "dccrg_mpi_support.hpp"
 
@@ -56,7 +56,7 @@ public:
 	false means that it does not.
 	*/
 	Grid_Topology(
-		const boost::array<bool, 3>& given_periodicity
+		const std::array<bool, 3>& given_periodicity
 	) :
 		periodic(given_periodicity)
 	{}
@@ -96,7 +96,7 @@ public:
 
 
 	//! Format in which topology data is stored into a file.
-	typedef boost::array<uint8_t, 3> topology_file_data_t;
+	typedef std::array<uint8_t, 3> topology_file_data_t;
 
 
 	/*!
@@ -186,7 +186,7 @@ public:
 private:
 
 	// true means grid wraps around in that dimension
-	boost::array<bool, 3> periodic;
+	std::array<bool, 3> periodic;
 
 };
 

@@ -41,7 +41,7 @@ public:
 	static void solve(dccrg::Dccrg<Cell, UserGeometry>& game_grid)
 	{
 		// get the neighbor counts of every cell
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
+		for (std::unordered_map<uint64_t, Cell>::const_iterator
 			cell_item = game_grid.begin();
 			cell_item != game_grid.end();
 			cell_item++
@@ -213,7 +213,7 @@ public:
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
+		for (std::unordered_map<uint64_t, Cell>::const_iterator
 			cell_item = game_grid.begin();
 			cell_item != game_grid.end();
 			cell_item++
@@ -225,7 +225,7 @@ public:
 			}
 			Cell* cell_data = game_grid[cell];
 
-			boost::unordered_set<uint64_t> current_live_unrefined_neighbors;
+			std::unordered_set<uint64_t> current_live_unrefined_neighbors;
 			for (int i = 0; i < 3; i++) {
 				current_live_unrefined_neighbors.insert(cell_data->data[2 + i]);
 			}
@@ -260,7 +260,7 @@ public:
 		}
 
 		// calculate the next turn
-		for (boost::unordered_map<uint64_t, Cell>::const_iterator
+		for (std::unordered_map<uint64_t, Cell>::const_iterator
 			cell_item = game_grid.begin();
 			cell_item != game_grid.end();
 			cell_item++

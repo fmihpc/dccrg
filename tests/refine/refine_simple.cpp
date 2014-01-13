@@ -37,7 +37,7 @@ int main(int argc, char* argv[])
 	Dccrg<int, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
-	const boost::array<uint64_t, 3> grid_length = {{GRID_SIZE, 1, 1}};
+	const std::array<uint64_t, 3> grid_length = {{GRID_SIZE, 1, 1}};
 	#define NEIGHBORHOOD_SIZE 1
 	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		// refine the smallest cell that is closest to the starting corner
-		const boost::array<double, 3> refine_coord = {{
+		const std::array<double, 3> refine_coord = {{
 			0.000001 * CELL_SIZE,
 			0.000001 * CELL_SIZE,
 			0.000001 * CELL_SIZE

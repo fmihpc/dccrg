@@ -82,7 +82,7 @@ template<class Geometry> double get_p_norm(
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// assumes grid is 1d
-		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
+		const std::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
 		if (grid.length.get()[0] > 1) {
 			coord = cell_center[0];
@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
 		Dccrg<Poisson_Cell, Stretched_Cartesian_Geometry> grid_stretched;
 		Dccrg<Poisson_Cell, Cartesian_Geometry> grid_reference;
 
-		const boost::array<uint64_t, 3> grid_length = {{number_of_cells, 1, 1}};
+		const std::array<uint64_t, 3> grid_length = {{number_of_cells, 1, 1}};
 
 		grid_stretched.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
 		grid_reference.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
@@ -184,7 +184,7 @@ int main(int argc, char* argv[])
 		grid_reference.set_geometry(geom_params);
 
 		Stretched_Cartesian_Geometry::Parameters stretched_geom_params;
-		boost::array<vector<double>, 3>& coordinates = stretched_geom_params.coordinates;
+		std::array<vector<double>, 3>& coordinates = stretched_geom_params.coordinates;
 		coordinates[0].push_back(0);
 		coordinates[0].push_back(2 * M_PI);
 		coordinates[1].push_back(0);

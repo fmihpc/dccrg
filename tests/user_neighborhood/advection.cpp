@@ -17,17 +17,15 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
-#include "boost/array.hpp"
-#include "boost/assign/list_of.hpp"
-#include "boost/foreach.hpp"
+#include "array"
 #include "boost/lexical_cast.hpp"
 #include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "iomanip"
 #include "iostream"
 #include "mpi.h"
 #include "string"
+#include "unordered_set"
 #include "utility"
 #include "vector"
 #include "zoltan.h"
@@ -174,7 +172,7 @@ int main(int argc, char* argv[])
 	Dccrg<Cell, Cartesian_Geometry> grid;
 	Cartesian_Geometry::Parameters geom_params;
 
-	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
+	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 
 	switch (direction) {
 	case 'x':
@@ -255,14 +253,14 @@ int main(int argc, char* argv[])
 
 	// create the neighborhood
 	typedef dccrg::Types<3>::neighborhood_item_t neigh_t;
-	const std::vector<neigh_t> neighborhood
-		= boost::assign::list_of<neigh_t>
-			(boost::assign::list_of( 0)( 0)(-1))
-			(boost::assign::list_of( 0)(-1)( 0))
-			(boost::assign::list_of(-1)( 0)( 0))
-			(boost::assign::list_of( 1)( 0)( 0))
-			(boost::assign::list_of( 0)( 1)( 0))
-			(boost::assign::list_of( 0)( 0)( 1));
+	const std::vector<neigh_t> neighborhood{
+		{ 0,  0, -1},
+		{ 0, -1,  0},
+		{-1,  0,  0},
+		{ 1,  0,  0},
+		{ 0,  1,  0},
+		{ 0,  0,  1}
+	};
 
 	if (!grid.add_neighborhood(NEIGHBORHOOD_ID, neighborhood)) {
 		std::cerr << __FILE__ << ":" << __LINE__
@@ -278,7 +276,7 @@ int main(int argc, char* argv[])
 	// apply initial condition 1st time for prerefining the grid
 	Initialize()(grid);
 
-	boost::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
+	std::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 
 	uint64_t created_cells = 0, removed_cells = 0;
 

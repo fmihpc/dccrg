@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
 			dccrg::Cartesian_Geometry
 		> grid_x, grid_y, grid_z, grid_serial;
 
-		const boost::array<uint64_t, 3>
+		const std::array<uint64_t, 3>
 			grid_length_x = {{number_of_cells, 1, 1}},
 			grid_length_y = {{1, number_of_cells, 1}},
 			grid_length_z = {{1, 1, number_of_cells}};

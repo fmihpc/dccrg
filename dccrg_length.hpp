@@ -21,7 +21,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_LENGTH_HPP
 
 
-#include "boost/array.hpp"
+#include "array"
 #include "iostream"
 #include "stdint.h"
 
@@ -40,7 +40,7 @@ public:
 	Represents the length of the grid in cells of
 	refinement level 0 in each dimension.
 	*/
-	typedef boost::array<uint64_t, 3> type;
+	typedef std::array<uint64_t, 3> type;
 
 
 	/*!

@@ -200,15 +200,15 @@ bool write_game_data(const uint64_t step, communicator comm, const Dccrg<game_of
 		memcpy(buffer + offset, &step, sizeof(uint64_t));
 		offset += sizeof(uint64_t);
 
-		const boost::array<double, 3> grid_start = game_grid.geometry.get_start();
+		const std::array<double, 3> grid_start = game_grid.geometry.get_start();
 		memcpy(buffer + offset, &grid_start[0], 3 * sizeof(double));
 		offset += 3 * sizeof(double);
 
-		const boost::array<double, 3> cell_length = game_grid.geometry.get_length(1);
+		const std::array<double, 3> cell_length = game_grid.geometry.get_length(1);
 		memcpy(buffer + offset, &cell_length[0], 3 * sizeof(double));
 		offset += 3 * sizeof(double);
 
-		const boost::array<uint64_t, 3> grid_length = game_grid.length.get();
+		const std::array<uint64_t, 3> grid_length = game_grid.length.get();
 		memcpy(buffer + offset, &grid_length[0], 3 * sizeof(uint64_t));
 		offset += 3 * sizeof(uint64_t);
 
@@ -269,7 +269,7 @@ int main(int argc, char* argv[])
 
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	const boost::array<uint64_t, 3> grid_length = {{10, 10, 1}};
+	const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
 	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
 	game_grid.balance_load();

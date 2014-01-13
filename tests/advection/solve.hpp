@@ -67,7 +67,7 @@ public:
 				abort();
 			}
 
-			const boost::array<double, 3> cell_length = grid.geometry.get_length(cell);
+			const std::array<double, 3> cell_length = grid.geometry.get_length(cell);
 
 			const double
 				cell_density = cell_data->density(),
@@ -94,7 +94,7 @@ public:
 					abort();
 				}
 
-				const boost::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
+				const std::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
 
 				const double
 					neighbor_density = neighbor_data->density(),
@@ -258,7 +258,7 @@ public:
 				abort();
 			}
 
-			const boost::array<double, 3>
+			const std::array<double, 3>
 				cell_length = grid.geometry.get_length(cell_id),
 				current_steps = {{
 					cell_length[0] / fabs(cell->vx()),

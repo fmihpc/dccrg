@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DCCRG_TYPES_HPP
 #define DCCRG_TYPES_HPP
 
-#include "boost/array.hpp"
-#include "stdint.h"
+#include "array"
+#include "cstdint"
 
 namespace dccrg {
 
@@ -57,7 +57,7 @@ y
 \endverbatim
 
 */
-typedef boost::array<uint64_t, Dimensions> indices_t;
+typedef std::array<uint64_t, Dimensions> indices_t;
 
 /*!
 Defines one item of cells' neighborhood in the grid.
@@ -81,7 +81,7 @@ neighborhood items making up the neighborhood would be:
 +1, +1, 0
 \endverbatim
 */
-typedef boost::array<int, Dimensions> neighborhood_item_t;
+typedef std::array<int, Dimensions> neighborhood_item_t;
 
 };	// class
 

@@ -5,10 +5,10 @@ Returns EXIT_SUCCESS if everything went ok.
 
 #include "algorithm"
 #include "boost/mpi.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "unordered_set"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -46,7 +46,7 @@ int main(int argc, char* argv[])
 
 	Dccrg<game_of_life_cell> game_grid;
 
-	const boost::array<uint64_t, 3> grid_length = {{34, 7, 1}};
+	const std::array<uint64_t, 3> grid_length = {{34, 7, 1}};
 	game_grid.initialize(grid_length, comm, "HIER", 1);
 	if (comm.rank() == 0) {
 		cout << "Maximum refinement level of the grid: "

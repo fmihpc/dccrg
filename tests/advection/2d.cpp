@@ -183,7 +183,7 @@ int main(int argc, char* argv[])
 	Dccrg<Cell, Cartesian_Geometry> grid;
 	Cartesian_Geometry::Parameters geom_params;
 
-	boost::array<uint64_t, 3> grid_length = {{0, 0, 0}};
+	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 
 	switch (direction) {
 	case 'x':
@@ -269,7 +269,7 @@ int main(int argc, char* argv[])
 	// apply initial condition 1st time for prerefining the grid
 	Initialize()(grid);
 
-	boost::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
+	std::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 
 	uint64_t created_cells = 0, removed_cells = 0;
 

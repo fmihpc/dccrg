@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
 		grid          .set_geometry(geom_params);
 		grid_reference.set_geometry(geom_params);
 
-		const boost::array<uint64_t, 3>
+		const std::array<uint64_t, 3>
 			// create an extra layer of cells to skip in non-x dimensions
 			grid_length = {{number_of_cells, 3, 3}},
 			grid_reference_length = {{number_of_cells, 1, 1}};
@@ -174,7 +174,7 @@ int main(int argc, char* argv[])
 			cells_reference = grid_reference.get_cells(),
 			all_cells = grid.get_cells();
 
-		boost::unordered_set<uint64_t> cells_to_skip;
+		std::unordered_set<uint64_t> cells_to_skip;
 
 		std::vector<uint64_t> cells;
 		BOOST_FOREACH(const uint64_t cell, all_cells) {

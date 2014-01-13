@@ -46,13 +46,13 @@ public:
 
 	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) &(this->unused), 1, MPI_INT);
+		return std::make_tuple((void*) &(this->unused), 1, MPI_INT);
 	}
 
 	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell> grid;
-	const boost::array<uint64_t, 3> grid_length = {{1000, 1, 1}};
+	const std::array<uint64_t, 3> grid_length = {{1000, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 3);
 
 	// do a few iterations with random load balancing
@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
 			inner_temp = grid.get_local_cells_not_on_process_boundary(),
 			outer_temp = grid.get_local_cells_on_process_boundary();
 
-		const boost::unordered_set<uint64_t>
+		const std::unordered_set<uint64_t>
 			inner_cells(inner_temp.begin(), inner_temp.end()),
 			outer_cells(outer_temp.begin(), outer_temp.end());
 

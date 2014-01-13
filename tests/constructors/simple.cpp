@@ -45,13 +45,13 @@ struct CellData {
 		return *this;
 	}
 
-	boost::tuple<
+	std::tuple<
 		void*,
 		int,
 		MPI_Datatype
 	> get_mpi_datatype() const
 	{
-		return boost::make_tuple((void*) &(this->data), 1, MPI_DOUBLE);
+		return std::make_tuple((void*) &(this->data), 1, MPI_DOUBLE);
 	}
 };
 
@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
 	dccrg::Dccrg<CellData> grid;
 
 	cout << "\ngrid.initialize:" << endl;
-	const boost::array<uint64_t, 3> grid_length = {{1, 1, 1}};
+	const std::array<uint64_t, 3> grid_length = {{1, 1, 1}};
 	grid.initialize(grid_length, comm, "RCB", 1, 0);
 
 	cout << "\ngrid.get_cells:" << endl;

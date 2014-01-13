@@ -79,7 +79,7 @@ template<class Geometry> double get_p_norm(
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
 		// assumes grid is 1d
-		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
+		const std::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
 		if (grid.length.get()[0] > 1) {
 			coord = cell_center[0];
@@ -136,7 +136,7 @@ int main(int argc, char* argv[])
 			dccrg::Cartesian_Geometry
 		> grid_x, grid_y, grid_z, grid_reference;
 
-		const boost::array<uint64_t, 3>
+		const std::array<uint64_t, 3>
 			grid_length_x = {{number_of_cells, 1, 1}},
 			grid_length_y = {{1, number_of_cells, 1}},
 			grid_length_z = {{1, 1, number_of_cells}};
