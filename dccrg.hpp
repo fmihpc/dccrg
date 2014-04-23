@@ -3250,9 +3250,6 @@ public:
 			this->removed_cells.end()
 		);
 
-		std::vector<std::vector<uint64_t> > all_removed_cells;
-		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
-
 		// created cells on all processes
 		std::vector<uint64_t> temp_added_cells(
 			this->added_cells.begin(),
@@ -3263,6 +3260,9 @@ public:
 		All_Gather()(temp_added_cells, all_added_cells, this->comm);
 
 		#ifdef DEBUG
+		std::vector<std::vector<uint64_t> > all_removed_cells;
+		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
+
 		// check that there are no duplicate adds / removes
 		boost::unordered_set<uint64_t> all_adds, all_removes;
 
