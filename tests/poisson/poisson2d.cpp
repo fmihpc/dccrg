@@ -2,6 +2,7 @@
 Tests the parallel Poisson solver implemented on top of dccrg in 2d.
 
 Copyright 2012, 2013, 2014 Finnish Meteorological Institute
+Copyright 2014 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -30,7 +31,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "dccrg_cartesian_geometry.hpp"
 
 #include "poisson_solve.hpp"
-#include "reference_poisson_solve.hpp"
+
 
 using namespace boost::mpi;
 using namespace dccrg;
@@ -40,44 +41,78 @@ using namespace std;
 int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 
 
-double get_rhs_value(const double x, const double y)
-{
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi] " << x
-			<< std::endl;
-		abort();
-	}
-	if (y < 0 || y > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " y must be in the range [0, 2 * pi] " << y
-			<< std::endl;
-		abort();
-	}
-
-	return sin(x) + sin(2 * y);
-}
-
 /*
 Returns the analytic solution to the test Poisson's equation.
 */
 double get_solution_value(const double x, const double y)
 {
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]: " << x
-			<< std::endl;
-		abort();
-	}
-	if (y < 0 || y > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " y must be in the range [0, 2 * pi]: " << y
-			<< std::endl;
-		abort();
+	return sin(x) * cos(2 * y);
+}
+
+double get_rhs_value(const double x, const double y)
+{
+	return -5 * get_solution_value(x, y);
+}
+
+
+/*
+Offsets solution in given grid so that average is equal to analytic solution.
+*/
+template<class Geometry> void normalize_solution(
+	const std::vector<uint64_t>& cells,
+	dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+) {
+	if (cells.size() == 0) {
+		return;
 	}
 
-	return -sin(x) - sin(2 * y) / 4;
+	double avg_solved = 0, avg_analytic = 0;
+	BOOST_FOREACH(const uint64_t cell, cells) {
+
+		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
+		if (grid.length.get()[0] == 1) {
+			avg_analytic += get_solution_value(
+				cell_center[1],
+				cell_center[2]
+			);
+		} else if (grid.length.get()[1] == 1) {
+			avg_analytic += get_solution_value(
+				cell_center[0],
+				cell_center[2]
+			);
+		} else if (grid.length.get()[2] == 1) {
+			avg_analytic += get_solution_value(
+				cell_center[0],
+				cell_center[1]
+			);
+		}
+
+		Poisson_Cell* const cell_data = grid[cell];
+		if (cell_data == NULL) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No data for last cell " << cell
+				<< std::endl;
+			abort();
+		}
+
+		avg_solved += cell_data->solution;
+	}
+	avg_analytic /= cells.size();
+	avg_solved /= cells.size();
+
+	BOOST_FOREACH(const uint64_t cell, cells) {
+		Poisson_Cell* const cell_data = grid[cell];
+		if (cell_data == NULL) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No data for last cell " << cell
+				<< std::endl;
+			abort();
+		}
+
+		cell_data->solution -= avg_solved - avg_analytic;
+	}
 }
+
 
 /*
 Returns the p-norm of the difference of solution from exact.
@@ -188,13 +223,14 @@ int main(int argc, char* argv[])
 
 		const double
 			cell_length_x = 2 * M_PI / cells_x,
-			cell_length_y = 2 * M_PI / cells_y;
+			cell_length_y = 1 * M_PI / cells_y;
 
 		/*
 		Parallel 2d solution in each dimension
 		*/
 
 		Poisson_Solve solver;
+		//solver.set_verbosity(true);
 		Dccrg<Poisson_Cell, Cartesian_Geometry> grid_x, grid_y, grid_z;
 
 		const boost::array<uint64_t, 3>
@@ -211,8 +247,8 @@ int main(int argc, char* argv[])
 		geom_params.start[1] =
 		geom_params.start[2] = 0;
 		geom_params.level_0_cell_length[0] =
-		geom_params.level_0_cell_length[0] =
-		geom_params.level_0_cell_length[0] = 1;
+		geom_params.level_0_cell_length[1] =
+		geom_params.level_0_cell_length[2] = 1;
 
 		geom_params.level_0_cell_length[1] = cell_length_x;
 		geom_params.level_0_cell_length[2] = cell_length_y;
@@ -290,6 +326,10 @@ int main(int argc, char* argv[])
 		solver.solve(cells, grid_x);
 		solver.solve(cells, grid_y);
 		solver.solve(cells, grid_z);
+
+		normalize_solution(cells, grid_x);
+		normalize_solution(cells, grid_y);
+		normalize_solution(cells, grid_z);
 
 		// check that parallel solutions with more cells have smaller norms
 		const double
@@ -433,10 +473,6 @@ int main(int argc, char* argv[])
 				}
 			}
 			old_norm_2n_n_z = norm_z;
-		}
-
-		if (comm.rank() == 0) {
-			//cout << cells_x << " " << cells_y << " " << norm_x << " " << norm_y << " " << norm_z << endl;
 		}
 
 		MPI_Allreduce(&success, &global_success, 1, MPI_INT, MPI_SUM, comm);
