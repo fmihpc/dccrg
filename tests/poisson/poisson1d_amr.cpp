@@ -2,6 +2,7 @@
 Adaptive mesh refinement version of poisson1d.
 
 Copyright 2013, 2014 Finnish Meteorological Institute
+Copyright 2014 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -38,31 +39,75 @@ using namespace std;
 
 int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 
-double get_rhs_value(const double x)
-{
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]" << x
-			<< std::endl;
-		abort();
-	}
 
-	return sin(x);
-}
-
-/*
-Returns the analytic solution to the test Poisson's equation.
-*/
 double get_solution_value(const double x)
 {
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]: " << x
-			<< std::endl;
-		abort();
+	return std::pow(sin(x/2), 2.0);
+}
+
+double get_rhs_value(const double x)
+{
+	return 0.5 * (std::pow(cos(x/2), 2.0) - std::pow(sin(x/2), 2.0));
+}
+
+
+/*
+Offsets solution in given grid so that average is equal to analytic solution.
+*/
+template<class Geometry> void normalize_solution(
+	const std::vector<uint64_t>& cells,
+	dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+) {
+	if (cells.size() == 0) {
+		return;
 	}
 
-	return -sin(x);
+	double avg_solved = 0, avg_analytic = 0, divisor = 0;
+	BOOST_FOREACH(const uint64_t cell, cells) {
+
+		const int ref_lvl = grid.get_refinement_level(cell);
+		if (ref_lvl < 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Invalid refinement level for cell " << cell
+				<< std::endl;
+			abort();
+		}
+		const double value_factor = 1.0 / std::pow(double(8), double(ref_lvl));
+		divisor += value_factor;
+
+		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
+		if (grid.length.get()[0] > 1) {
+			avg_analytic += value_factor * get_solution_value(cell_center[0]);
+		} else if (grid.length.get()[1] > 1) {
+			avg_analytic += value_factor * get_solution_value(cell_center[1]);
+		} else if (grid.length.get()[2] > 1) {
+			avg_analytic += value_factor * get_solution_value(cell_center[2]);
+		}
+
+		Poisson_Cell* const cell_data = grid[cell];
+		if (cell_data == NULL) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No data for cell " << cell
+				<< std::endl;
+			abort();
+		}
+
+		avg_solved += value_factor * cell_data->solution;
+	}
+	avg_analytic /= divisor;
+	avg_solved /= divisor;
+
+	BOOST_FOREACH(const uint64_t cell, cells) {
+		Poisson_Cell* const cell_data = grid[cell];
+		if (cell_data == NULL) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " No data for cell " << cell
+				<< std::endl;
+			abort();
+		}
+
+		cell_data->solution -= avg_solved - avg_analytic;
+	}
 }
 
 /*
@@ -78,7 +123,6 @@ template<class Geometry> double get_p_norm(
 	double local = 0, global = 0;
 
 	BOOST_FOREACH(const uint64_t cell, cells) {
-		// assumes grid is 1d
 		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
 		if (grid.length.get()[0] > 1) {
@@ -91,12 +135,14 @@ template<class Geometry> double get_p_norm(
 			coord = cell_center[2];
 		}
 
-		Poisson_Cell* data = grid[cell];
+		const Poisson_Cell* const data = grid[cell];
+
 		local += std::pow(
 			fabs(data->solution - get_solution_value(coord)),
 			p_of_norm
 		);
 	}
+
 	MPI_Comm temp = grid.get_communicator();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
 	MPI_Comm_free(&temp);
@@ -124,7 +170,7 @@ int main(int argc, char* argv[])
 
 	const size_t max_number_of_cells = 4096;
 	for (size_t
-		number_of_cells = 2;
+		number_of_cells = 32;
 		number_of_cells <= max_number_of_cells;
 		number_of_cells *= 2
 	) {
@@ -265,6 +311,10 @@ int main(int argc, char* argv[])
 		solver.solve(cells_y, grid_y);
 		solver.solve(cells_z, grid_z);
 		solver.solve(cells_reference, grid_reference);
+		normalize_solution(cells_x, grid_x);
+		normalize_solution(cells_y, grid_y);
+		normalize_solution(cells_z, grid_z);
+		normalize_solution(cells_reference, grid_reference);
 
 		// check that parallel solutions are close to analytic
 		const double
@@ -308,45 +358,41 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		// check that AMR solution is better (in some cases) than reference
-		if (number_of_cells == 2
-		|| number_of_cells == 32
-		|| number_of_cells == 512) {
-			if (norm_x > norm_reference) {
-				success = 1;
-				if (comm.rank() == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " " << p_of_norm
-						<< " norm of x solution (" << norm_x
-						<< ") larger than reference (" << norm_reference
-						<< ") with " << number_of_cells
-						<< " cells"
-						<< std::endl;
-				}
+		// check that AMR solution is better than reference
+		if (norm_x > norm_reference) {
+			success = 1;
+			if (comm.rank() == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " " << p_of_norm
+					<< " norm of x solution (" << norm_x
+					<< ") larger than reference (" << norm_reference
+					<< ") with " << number_of_cells
+					<< " cells"
+					<< std::endl;
 			}
-			if (norm_y > norm_reference) {
-				success = 1;
-				if (comm.rank() == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " " << p_of_norm
-						<< " norm of y solution (" << norm_y
-						<< ") larger than reference (" << norm_reference
-						<< ") with " << number_of_cells
-						<< " cells"
-						<< std::endl;
-				}
+		}
+		if (norm_y > norm_reference) {
+			success = 1;
+			if (comm.rank() == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " " << p_of_norm
+					<< " norm of y solution (" << norm_y
+					<< ") larger than reference (" << norm_reference
+					<< ") with " << number_of_cells
+					<< " cells"
+					<< std::endl;
 			}
-			if (norm_z > norm_reference) {
-				success = 1;
-				if (comm.rank() == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " " << p_of_norm
-						<< " norm of z solution (" << norm_z
-						<< ") larger than reference (" << norm_reference
-						<< ") with " << number_of_cells
-						<< " cells"
-						<< std::endl;
-				}
+		}
+		if (norm_z > norm_reference) {
+			success = 1;
+			if (comm.rank() == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " " << p_of_norm
+					<< " norm of z solution (" << norm_z
+					<< ") larger than reference (" << norm_reference
+					<< ") with " << number_of_cells
+					<< " cells"
+					<< std::endl;
 			}
 		}
 
