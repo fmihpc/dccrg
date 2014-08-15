@@ -30,6 +30,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "mpi.h"
 #include "stdint.h"
+#include "unordered_set"
 #include "vector"
 
 #include "dccrg.hpp"
@@ -206,6 +207,12 @@ public:
 	};
 
 
+	void set_verbosity(const bool given)
+	{
+		this->verbose = given;
+	}
+
+
 	/*!
 	Solves the Poisson's equation in given cells.
 
@@ -277,13 +284,13 @@ public:
 			*/
 
 			// A . p0, cache the result
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
 
-				data->A_dot_p0 = data->p0;
+				data->A_dot_p0 = data->scaling_factor * data->p0;
 
-				BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-					Poisson_Cell* neighbor_data = std::get<0>(neigh_info);
+				for(const auto& neigh_info: info.second) {
+					Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
 
 					double multiplier = 0;
 					const int direction = std::get<1>(neigh_info);
@@ -325,10 +332,9 @@ public:
 
 			// p1 . (A . p0)
 			double dot_p_l = 0, dot_p_g = 0;
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
-				// only values used in A . i are scaled
-				dot_p_l += data->p1 / data->scaling_factor * data->A_dot_p0;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
+				dot_p_l += data->p1 * data->A_dot_p0;
 			}
 			MPI_Allreduce(&dot_p_l, &dot_p_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 			if (this->comm_rank == 0 && this->verbose) {
@@ -346,8 +352,8 @@ public:
 
 
 			// update solution
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
 				data->solution += alpha * data->p0;
 			}
 
@@ -355,6 +361,18 @@ public:
 			const double residual = this->get_residual();
 			if (this->comm_rank == 0 && this->verbose) {
 				std::cout << "residual: " << residual << std::endl;
+			}
+
+			// save solution if at minimum residual so far
+			if (residual_min > residual) {
+				if (this->comm_rank == 0 && this->verbose) {
+					std::cout << "saving solution at residual " << residual << std::endl;
+				}
+				residual_min = residual;
+				for(const auto& info: this->cell_info) {
+					Poisson_Cell* const data = info.first;
+					data->best_solution = data->solution;
+				}
 			}
 
 			if (
@@ -370,33 +388,21 @@ public:
 				break;
 			}
 
-			// save solution if at minimum residual so far
-			if (residual_min > residual) {
-				if (this->comm_rank == 0 && this->verbose) {
-					std::cout << "saving solution at residual " << residual << std::endl;
-				}
-				residual_min = residual;
-				BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-					Poisson_Cell* data = info.first;
-					data->best_solution = data->solution;
-				}
-			}
-
 			// update r0
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
 				data->r0 -= alpha * data->A_dot_p0;
 			}
 
 			// update r1
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
 
-				// A . p1 in the same style as A . p0 above
-				double A_dot_p1 = data->p0;
+				// A . p1
+				double A_dot_p1 = data->scaling_factor * data->p1;
 
-				BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-					Poisson_Cell* neighbor_data = std::get<0>(neigh_info);
+				for(const auto& neigh_info: info.second) {
+					Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
 
 					/*
 					In transpose(A) . p1 use that multiplier which was calculated
@@ -433,7 +439,7 @@ public:
 					}
 
 					const int rel_ref_lvl = std::get<2>(neigh_info);
-					if (rel_ref_lvl < 0) {
+					if (rel_ref_lvl > 0) {
 						multiplier /= 4.0;
 					}
 
@@ -451,8 +457,8 @@ public:
 			// calculate beta
 			const double old_dot_r_g = dot_r_g;
 			dot_r_l = dot_r_g = 0;
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
 				dot_r_l += data->r0 * data->r1;
 			}
 			MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
@@ -467,10 +473,10 @@ public:
 
 
 			// update p0, p1
-			BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-				Poisson_Cell* data = info.first;
-				data->p0 = data->r0 * data->scaling_factor + beta * data->p0;
-				data->p1 = data->r1 * data->scaling_factor + beta * data->p1;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
+				data->p0 = data->r0 + beta * data->p0;
+				data->p1 = data->r1 + beta * data->p1;
 			}
 
 		} while (iteration < this->max_iterations);
@@ -479,9 +485,106 @@ public:
 			std::cout << "iterations: " << iteration << ", residual: " << residual_min << std::endl;
 		}
 
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
-			data->solution = data->best_solution / data->scaling_factor;
+		for(const auto& info: this->cell_info) {
+			Poisson_Cell* const data = info.first;
+			data->solution = data->best_solution;
+		}
+
+		MPI_Comm_free(&(this->comm));
+	}
+
+
+	/*!
+	A more robust but slower and less accurate version of solve().
+
+	Based on http://www.rsmas.miami.edu/personal/miskandarani/Courses/MSC321/Projects/prjpoisson.pdf
+	*/
+	template<class Geometry> void solve_failsafe(
+		const std::vector<uint64_t>& cells,
+		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+	) {
+		this->comm = grid.get_communicator();
+		this->comm_rank = grid.get_rank();
+
+		this->cache_system_info(cells, std::unordered_set<uint64_t>(), grid);
+
+		// only solution is needed from other processes
+		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
+
+		size_t iteration = 0;
+		double norm = std::numeric_limits<double>::max();
+		while (iteration++ < this->max_iterations and norm > this->stop_residual) {
+
+			grid.update_copies_of_remote_neighbors();
+
+			double norm_local = 0;
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
+
+				const double inv_scaling_factor = -1.0 / data->scaling_factor;
+
+				// use best solution for storing next solution
+				data->best_solution = -inv_scaling_factor * data->rhs;
+
+				for(const auto& neigh_info: info.second) {
+					Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
+
+					double multiplier = 0;
+					const int direction = std::get<1>(neigh_info);
+					switch(direction) {
+					case +1:
+						multiplier = data->f_x_pos;
+						break;
+					case -1:
+						multiplier = data->f_x_neg;
+						break;
+					case +2:
+						multiplier = data->f_y_pos;
+						break;
+					case -2:
+						multiplier = data->f_y_neg;
+						break;
+					case +3:
+						multiplier = data->f_z_pos;
+						break;
+					case -3:
+						multiplier = data->f_z_neg;
+						break;
+					default:
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Invalid direction: " << direction
+							<< std::endl;
+						abort();
+						break;
+					}
+
+					const int rel_ref_lvl = std::get<2>(neigh_info);
+					if (rel_ref_lvl > 0) {
+						multiplier /= 4.0;
+					}
+
+					data->best_solution
+						+= inv_scaling_factor * multiplier * neighbor_data->solution;
+				}
+
+				norm_local += std::fabs(data->solution - data->best_solution);
+			}
+
+			norm = 0;
+			MPI_Allreduce(&norm_local, &norm, 1, MPI_DOUBLE, MPI_SUM, this->comm);
+			if (this->comm_rank == 0 && this->verbose) {
+				std::cout << "Norm: " << norm << std::endl;
+			}
+
+			for(const auto& info: this->cell_info) {
+				Poisson_Cell* const data = info.first;
+				data->solution = data->best_solution;
+			}
+
+		}
+
+		if (this->comm_rank == 0 && this->verbose) {
+			std::cout << "iterations: " << iteration << ", norm: " << norm << std::endl;
 		}
 
 		MPI_Comm_free(&(this->comm));
@@ -530,7 +633,7 @@ private:
 	double get_residual() const
 	{
 		double local = 0, global = 0;
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
+		for(const auto& info: this->cell_info) {
 			const Poisson_Cell* const data = info.first;
 			local += std::pow(std::fabs(data->r0), this->p_of_norm);
 		}
@@ -687,7 +790,7 @@ private:
 		*/
 
 		// mark cells_to_skip internally with a scaling factor of 1
-		BOOST_FOREACH(const uint64_t cell_to_skip, cells_to_skip) {
+		for(const auto& cell_to_skip: cells_to_skip) {
 			if (grid.is_local(cell_to_skip)) {
 				Poisson_Cell* const cell_data = grid[cell_to_skip];
 				if (cell_data == NULL) {
@@ -706,7 +809,7 @@ private:
 		std::unordered_set<uint64_t> scaling_factor_cells;
 
 		// calculate scaling factors in given cells
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for(const auto& cell: cells) {
 
 			Poisson_Cell* const cell_data = grid[cell];
 			if (cell_data == NULL) {
@@ -744,10 +847,10 @@ private:
 		}
 
 		// calculate scaling factor in rest of required cells
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for(const auto& cell: cells) {
 			scaling_factor_cells.erase(cell);
 		}
-		BOOST_FOREACH(const uint64_t cell, scaling_factor_cells) {
+		for(const auto& cell: scaling_factor_cells) {
 			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
 				= grid.get_face_neighbors_of(cell);
 
@@ -774,15 +877,17 @@ private:
 			this->set_scaling_factor(cell, face_neighbors, grid);
 		}
 
+		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
+		grid.update_copies_of_remote_neighbors();
 
 		// cache information about cells' neighbors
 		this->cell_info.clear();
 		this->cell_info.reserve(cells.size());
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for(const auto& cell: cells) {
 
 			cell_info_t temp_cell_info;
 
-			Poisson_Cell* cell_data = grid[cell];
+			Poisson_Cell* const cell_data = grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for cell " << cell
@@ -849,90 +954,6 @@ private:
 
 			this->cell_info.push_back(temp_cell_info);
 		}
-
-		/*
-		Scale diagonal values of A in A . i and due to that also neighbor factors
-		*/
-
-		// scaling factors of neighbors are also needed
-		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
-		grid.update_copies_of_remote_neighbors();
-
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
-
-			// also scale the solution guessed by user
-			data->solution *= data->scaling_factor;
-
-			/*
-			Take into account in local factor for a neighbor
-			that their values are scaled using their own factor
-			*/
-			bool
-				pos_x_done = false,
-				neg_x_done = false,
-				pos_y_done = false,
-				neg_y_done = false,
-				pos_z_done = false,
-				neg_z_done = false;
-
-			BOOST_FOREACH(const neighbor_info_t neigh_info, info.second) {
-				const Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
-				const int direction = std::get<1>(neigh_info);
-
-				switch(direction) {
-				case +1:
-					if (!pos_x_done) {
-						pos_x_done = true;
-						data->f_x_pos /= neighbor_data->scaling_factor;
-					}
-					break;
-				case -1:
-					if (!neg_x_done) {
-						neg_x_done = true;
-						data->f_x_neg /= neighbor_data->scaling_factor;
-					}
-					break;
-				case +2:
-					if (!pos_y_done) {
-						pos_y_done = true;
-						data->f_y_pos /= neighbor_data->scaling_factor;
-					}
-					break;
-				case -2:
-					if (!neg_y_done) {
-						neg_y_done = true;
-						data->f_y_neg /= neighbor_data->scaling_factor;
-					}
-					break;
-				case +3:
-					if (!pos_z_done) {
-						pos_z_done = true;
-						data->f_z_pos /= neighbor_data->scaling_factor;
-					}
-					break;
-				case -3:
-					if (!neg_z_done) {
-						neg_z_done = true;
-						data->f_z_neg /= neighbor_data->scaling_factor;
-					}
-					break;
-				default:
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Invalid direction: " << direction
-						<< std::endl;
-					abort();
-					break;
-				}
-			}
-		}
-
-		// update (rest of) corrected scaling factors
-		grid.update_copies_of_remote_neighbors();
-
-		// update scaled solution
-		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
-		grid.update_copies_of_remote_neighbors();
 	}
 
 
@@ -949,13 +970,13 @@ private:
 		grid.update_copies_of_remote_neighbors();
 
 		// residual == r0 = rhs - A . solution
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
+		for(const auto& info: this->cell_info) {
+			Poisson_Cell* const data = info.first;
 
-			data->r0 = data->rhs - data->solution;
+			data->r0 = data->rhs - data->scaling_factor * data->solution;
 
-			BOOST_FOREACH(const neighbor_info_t& neigh_info, info.second) {
-				Poisson_Cell* neighbor_data = std::get<0>(neigh_info);
+			for(const auto& neigh_info: info.second) {
+				Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
 
 				// final multiplier to use for current neighbor's data
 				double multiplier = 0;
@@ -998,13 +1019,12 @@ private:
 
 			// initially all variables equal to residual
 			data->r1 = data->r0;
-			// p0 and p1 are used scaled
-			data->p0 = data->p1 = data->scaling_factor * data->r0;
+			data->p0 = data->p1 = data->r0;
 		}
 
 		double dot_r_l = 0, dot_r_g = 0;
-		BOOST_FOREACH(const cell_info_t& info, this->cell_info) {
-			Poisson_Cell* data = info.first;
+		for(const auto& info: this->cell_info) {
+			Poisson_Cell* const data = info.first;
 			dot_r_l += data->r0 * data->r1;
 		}
 		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);

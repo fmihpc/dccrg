@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
 
 	const size_t max_number_of_cells = 32768;
 	for (size_t
-		number_of_cells = 2;
+		number_of_cells = 8;
 		number_of_cells <= max_number_of_cells;
 		number_of_cells *= 2
 	) {
