@@ -56,65 +56,6 @@ double get_rhs_value(const double x, const double y)
 
 
 /*
-Offsets solution in given grid so that average is equal to analytic solution.
-*/
-template<class Geometry> void normalize_solution(
-	const std::vector<uint64_t>& cells,
-	dccrg::Dccrg<Poisson_Cell, Geometry>& grid
-) {
-	if (cells.size() == 0) {
-		return;
-	}
-
-	double avg_solved = 0, avg_analytic = 0;
-	BOOST_FOREACH(const uint64_t cell, cells) {
-
-		const boost::array<double, 3> cell_center = grid.geometry.get_center(cell);
-		if (grid.length.get()[0] == 1) {
-			avg_analytic += get_solution_value(
-				cell_center[1],
-				cell_center[2]
-			);
-		} else if (grid.length.get()[1] == 1) {
-			avg_analytic += get_solution_value(
-				cell_center[0],
-				cell_center[2]
-			);
-		} else if (grid.length.get()[2] == 1) {
-			avg_analytic += get_solution_value(
-				cell_center[0],
-				cell_center[1]
-			);
-		}
-
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		avg_solved += cell_data->solution;
-	}
-	avg_analytic /= cells.size();
-	avg_solved /= cells.size();
-
-	BOOST_FOREACH(const uint64_t cell, cells) {
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		cell_data->solution -= avg_solved - avg_analytic;
-	}
-}
-
-
-/*
 Returns the p-norm of the difference of solution from exact.
 */
 template<class Geometry> double get_p_norm(
@@ -326,10 +267,6 @@ int main(int argc, char* argv[])
 		solver.solve(cells, grid_x);
 		solver.solve(cells, grid_y);
 		solver.solve(cells, grid_z);
-
-		normalize_solution(cells, grid_x);
-		normalize_solution(cells, grid_y);
-		normalize_solution(cells, grid_z);
 
 		// check that parallel solutions with more cells have smaller norms
 		const double

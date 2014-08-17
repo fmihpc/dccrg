@@ -41,13 +41,6 @@ int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 
 double get_rhs_value(const double x)
 {
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]" << x
-			<< std::endl;
-		abort();
-	}
-
 	return sin(x);
 }
 
@@ -57,13 +50,6 @@ Returns the analytic solution to the test Poisson's equation.
 */
 double get_solution_value(const double x)
 {
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]: " << x
-			<< std::endl;
-		abort();
-	}
-
 	return -sin(x);
 }
 
@@ -114,7 +100,7 @@ int main(int argc, char* argv[])
 
 	const size_t max_number_of_cells = 32768;
 	for (size_t
-		number_of_cells = 2;
+		number_of_cells = 8;
 		number_of_cells <= max_number_of_cells;
 		number_of_cells *= 2
 	) {
@@ -173,16 +159,14 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t>
 			cells_reference = grid_reference.get_cells(),
 			all_cells = grid.get_cells();
+		std::vector<uint64_t> cells, cells_to_skip;
 
-		boost::unordered_set<uint64_t> cells_to_skip;
-
-		std::vector<uint64_t> cells;
 		BOOST_FOREACH(const uint64_t cell, all_cells) {
 			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			if (indices[1] == 1 && indices[2] == 1) {
 				cells.push_back(cell);
 			} else {
-				cells_to_skip.insert(cell);
+				cells_to_skip.push_back(cell);
 			}
 		}
 
@@ -198,15 +182,6 @@ int main(int argc, char* argv[])
 			}
 			cout << ")" << std::endl;
 			abort();
-		}
-
-		// also skip some remote neighbors
-		const std::vector<uint64_t> remote_neighbors = grid.get_remote_cells_on_process_boundary();
-		BOOST_FOREACH(const uint64_t cell, remote_neighbors) {
-			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
-			if (indices[1] != 1 ||  indices[2] != 1) {
-				cells_to_skip.insert(cell);
-			}
 		}
 
 		// initialize
