@@ -287,19 +287,20 @@ int main(int argc, char* argv[])
 			norm_stretched = get_p_norm(cells, grid_stretched, p_of_norm, 0),
 			norm_reference = get_p_norm(cells, grid_reference, p_of_norm, 0);
 
+		// the stretched version isn't supposed to work better with more cells,
+		// at least not with a ratio of 3 in length between neighboring cells
 		if (number_of_cells == 8
 		&& norm_stretched > norm_reference) {
 			success = 1;
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " 2 norm of stretched solution from exact (" << norm_stretched
-					<< ") larger than 2 norm of reference from exact (" << norm_reference << ")"
+					<< ") larger than 2 norm of reference from exact (" << norm_reference
+					<< ") with " << cells.size() << " cells"
 					<< std::endl;
 			}
 		}
 
-		// the stretched version isn't supposed to work better with more cells,
-		// at least not with a ratio of 3 in length between neighboring cells
 		if (norm_reference > old_norm_reference) {
 			success = 1;
 			if (comm.rank() == 0) {

@@ -17,10 +17,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
@@ -55,59 +52,6 @@ double get_rhs_value(const double x, const double y, const double z)
 	return -(81.0 / 16.0) * get_solution_value(x, y, z);
 }
 
-
-/*
-Offsets solution in given grid so that average is equal to analytic solution.
-*/
-template<class Geometry> void normalize_solution(
-	const std::vector<uint64_t>& cells,
-	dccrg::Dccrg<Poisson_Cell, Geometry>& grid
-) {
-	double avg_solved = 0, avg_analytic = 0, divisor = 0;
-	for(const auto& cell: cells) {
-
-		const int ref_lvl = grid.get_refinement_level(cell);
-		if (ref_lvl < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Got invalid refinement level for cell " << cell
-				<< std::endl;
-			abort();
-		}
-		const double value_factor = 1.0 / std::pow(double(8), double(ref_lvl));
-		divisor += value_factor;
-
-		const auto cell_center = grid.geometry.get_center(cell);
-		avg_analytic += value_factor * get_solution_value(
-			cell_center[0],
-			cell_center[1],
-			cell_center[2]
-		);
-
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		avg_solved += value_factor * cell_data->solution;
-	}
-	avg_analytic /= divisor;
-	avg_solved /= divisor;
-
-	for(const auto& cell: cells) {
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		cell_data->solution -= avg_solved - avg_analytic;
-	}
-}
 
 /*
 Returns the p-norm of the difference of solution from exact.
@@ -260,7 +204,6 @@ int main(int argc, char* argv[])
 
 	Poisson_Solve solver;
 	solver.solve(cells, grid);
-	normalize_solution(cells, grid);
 
 	const double
 		p_of_norm = 2,

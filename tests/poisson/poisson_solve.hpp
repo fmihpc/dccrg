@@ -2,6 +2,7 @@
 Parallel Poisson solver build on top of dccrg.
 
 Copyright 2012, 2013, 2014 Finnish Meteorological Institute
+Copyright 2014 Ilja Honkonen
 
 Dccrg free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -70,7 +71,7 @@ public:
 	}
 
 	double
-		// rhs is b and solution is x in the equation A . x = b
+		// rhs is b and solution is x in the equation Ax = b
 		rhs, solution,
 
 		// saved solution whenever minimum residual obtained
@@ -113,7 +114,7 @@ public:
 		SOLVING   = 0,
 		// geometry factors
 		GEOMETRY  = 1,
-		// solution when initializing
+		// data related to initialization
 		INIT      = 2;
 
 	// tells dccrg what to transfer, assumes no padding between variables
@@ -221,12 +222,16 @@ public:
 	The solution (x) of the equation also must have been initialized
 	(with a guess, 0 usually works) before calling this function.
 
-	Given grid must have a default neighborhood of size 0? or ...
-
 	Cells in cells_to_skip and missing neighbors in case the grid is not
 	periodic are assumed to be of equal size and have rhs of equal value
-	to their current neighbor. If any cell is both in given cells and
-	cells_to_skip the result is undefined.
+	to their current neighbor. Cells given in cells to skip will be
+	removed from cells_to_skip before solving. Only local cells need to
+	be given in cells_to_skip, that data is updated between processes
+	internally.
+
+	Cells in given grid which do not appear in either cells or cells_to_skip
+	are considered boundary cells whose rhs will be used by the solver
+	but the solution can be left undefined and will not be changed.
 
 	If the structure of the grid has not changed since the last call
 	to this function (new cells haven't been created or existing ones removed,
@@ -234,9 +239,10 @@ public:
 	cache_is_up_to_date can be set to true in which case the
 	caching/preparation step will be skipped speeding up this function.
 
-	If the residual increases to 10x its minimum value while solving
-	the last solution will be replaced with the one for which
-	the residual was smallest and this function will return.
+	If the residual increases a certain factor its minimum value while
+	solving (factor given to constructor) the last solution will be
+	replaced with the one for which the residual was smallest and this
+	function will return.
 	*/
 	template<class Geometry> void solve(
 		/* TODO: overlap computation with communication
@@ -244,15 +250,9 @@ public:
 		const std::vector<uint64_t>& outer_cells,*/
 		const std::vector<uint64_t>& cells,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
-		const std::unordered_set<uint64_t>& cells_to_skip = std::unordered_set<uint64_t>(),
+		const std::vector<uint64_t>& cells_to_skip = std::vector<uint64_t>(),
 		const bool cache_is_up_to_date = false
 	) {
-		// TODO: if a neighbor is not in given cells assume it doesn't exist
-		// const std::unordered_set<uint64_t> unique_cells;
-		// unique_cells.reserve(inner_cells.size() + outer_cells.size());
-		// unique_cells.insert(inner_cells.begin(), inner_cells.end());
-		// unique_cells.insert(outer_cells.begin(), outer_cells.end());
-
 		this->comm = grid.get_communicator();
 		this->comm_rank = grid.get_rank();
 
@@ -501,12 +501,13 @@ public:
 	*/
 	template<class Geometry> void solve_failsafe(
 		const std::vector<uint64_t>& cells,
-		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
+		dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
+		const std::vector<uint64_t>& cells_to_skip = std::vector<uint64_t>()
 	) {
 		this->comm = grid.get_communicator();
 		this->comm_rank = grid.get_rank();
 
-		this->cache_system_info(cells, std::unordered_set<uint64_t>(), grid);
+		this->cache_system_info(cells, cells_to_skip, grid);
 
 		// only solution is needed from other processes
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
@@ -518,9 +519,15 @@ public:
 			grid.update_copies_of_remote_neighbors();
 
 			double norm_local = 0;
+
+			size_t error = 0;
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
 
+				if (data->scaling_factor == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__ << " " << error++ << std::endl;
+					abort();
+				}
 				const double inv_scaling_factor = -1.0 / data->scaling_factor;
 
 				// use best solution for storing next solution
@@ -580,7 +587,6 @@ public:
 				Poisson_Cell* const data = info.first;
 				data->solution = data->best_solution;
 			}
-
 		}
 
 		if (this->comm_rank == 0 && this->verbose) {
@@ -777,19 +783,40 @@ private:
 	/*!
 	Caches a grid agnostic form of the system to solve.
 
-	Prepares geometric factors, scales the initial solution, etc.
+	Prepares geometric factors, etc.
 	*/
 	template<class Geometry> void cache_system_info(
 		const std::vector<uint64_t>& cells,
-		const std::unordered_set<uint64_t>& cells_to_skip,
+		const std::vector<uint64_t>& cells_to_skip,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
-		/*
-		Calculate scaling factors in given cells and
-		neighbors of given cells not in cells_to_skip
-		*/
+		// classify cells into different types
+		const double
+			// all geometric factors needed
+			solve_cell = 0,
+			// only factors towards solve cells needed
+			boundary_cell = 1,
+			// geometric factors not needed
+			skip_cell = 2;
 
-		// mark cells_to_skip internally with a scaling factor of 1
+		// classify all local cells as boundary by default
+		std::vector<uint64_t> all_cells = grid.get_cells();
+		std::sort(all_cells.begin(), all_cells.end());
+
+		for(const auto& cell: all_cells) {
+			if (grid.is_local(cell)) {
+				Poisson_Cell* const cell_data = grid[cell];
+				if (cell_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for cell " << cell
+						<< std::endl;
+					abort();
+				}
+
+				// store classifications in p0
+				cell_data->p0 = boundary_cell;
+			}
+		}
 		for(const auto& cell_to_skip: cells_to_skip) {
 			if (grid.is_local(cell_to_skip)) {
 				Poisson_Cell* const cell_data = grid[cell_to_skip];
@@ -800,16 +827,29 @@ private:
 					abort();
 				}
 
-				cell_data->scaling_factor = 1;
+				cell_data->p0 = skip_cell;
 			}
 		}
-		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
+		for(const auto& cell: cells) {
+			if (grid.is_local(cell)) {
+				Poisson_Cell* const cell_data = grid[cell];
+				if (cell_data == NULL) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " No data for cell " << cell
+						<< std::endl;
+					abort();
+				}
+
+				cell_data->p0 = solve_cell;
+			}
+		}
+		Poisson_Cell::transfer_switch = Poisson_Cell::SOLVING;
 		grid.update_copies_of_remote_neighbors();
 
-		std::unordered_set<uint64_t> scaling_factor_cells;
-
-		// calculate scaling factors in given cells
-		for(const auto& cell: cells) {
+		// calculate scaling factors and cache neighbor info
+		this->cell_info.clear();
+		this->cell_info.reserve(cells.size());
+		for(const auto& cell: all_cells) {
 
 			Poisson_Cell* const cell_data = grid[cell];
 			if (cell_data == NULL) {
@@ -818,6 +858,15 @@ private:
 					<< std::endl;
 				abort();
 			}
+
+			if (cell_data->p0 == skip_cell) {
+				continue;
+			}
+
+			cell_info_t temp_cell_info;
+			temp_cell_info.first = cell_data;
+
+			const int cell_ref_lvl = grid.get_refinement_level(cell);
 
 			// possibly skip some face neighbors
 			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
@@ -835,108 +884,24 @@ private:
 					abort();
 				}
 
-				if (neighbor_data->scaling_factor != 1) {
-					face_neighbors.push_back(all_face_neighbors[i]);
-					if (grid.is_local(neighbor)) {
-						scaling_factor_cells.insert(neighbor);
-					}
-				}
-			}
-
-			this->set_scaling_factor(cell, face_neighbors, grid);
-		}
-
-		// calculate scaling factor in rest of required cells
-		for(const auto& cell: cells) {
-			scaling_factor_cells.erase(cell);
-		}
-		for(const auto& cell: scaling_factor_cells) {
-			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
-				= grid.get_face_neighbors_of(cell);
-
-			std::vector<std::pair<uint64_t, int> > face_neighbors;
-			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
-				const uint64_t neighbor = all_face_neighbors[i].first;
-				Poisson_Cell* const neighbor_data = grid[neighbor];
-				if (neighbor_data == NULL) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " No data for neighbor " << neighbor
-						<< " of cell " << cell
-						<< std::endl;
-					abort();
+				if (neighbor_data->p0 == skip_cell) {
+					continue;
 				}
 
-				if (neighbor_data->scaling_factor != 1) {
-					face_neighbors.push_back(all_face_neighbors[i]);
-					if (grid.is_local(neighbor)) {
-						scaling_factor_cells.insert(neighbor);
-					}
-				}
-			}
-
-			this->set_scaling_factor(cell, face_neighbors, grid);
-		}
-
-		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
-		grid.update_copies_of_remote_neighbors();
-
-		// cache information about cells' neighbors
-		this->cell_info.clear();
-		this->cell_info.reserve(cells.size());
-		for(const auto& cell: cells) {
-
-			cell_info_t temp_cell_info;
-
-			Poisson_Cell* const cell_data = grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell " << cell
-					<< std::endl;
-				abort();
-			}
-
-			temp_cell_info.first = cell_data;
-
-			const std::vector<std::pair<uint64_t, int> > all_face_neighbors
-				= grid.get_face_neighbors_of(cell);
-
-			std::vector<std::pair<uint64_t, int> > face_neighbors;
-			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
-				const uint64_t neighbor = all_face_neighbors[i].first;
-				Poisson_Cell* const neighbor_data = grid[neighbor];
-				if (neighbor_data == NULL) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " No data for neighbor " << neighbor
-						<< " of cell " << cell
-						<< std::endl;
-					abort();
+				if (
+					cell_data->p0 == boundary_cell
+					and neighbor_data->p0 == boundary_cell
+				) {
+					continue;
 				}
 
-				if (neighbor_data->scaling_factor != 1) {
-					face_neighbors.push_back(all_face_neighbors[i]);
-					if (grid.is_local(neighbor)) {
-						scaling_factor_cells.insert(neighbor);
-					}
-				}
-			}
-
-			const int cell_ref_lvl = grid.get_refinement_level(cell);
-			for (size_t i = 0; i < face_neighbors.size(); i++) {
+				face_neighbors.push_back(all_face_neighbors[i]);
 
 				neighbor_info_t temp_neigh_info;
-
-				const int direction = face_neighbors[i].second;
-				std::get<1>(temp_neigh_info) = direction;
-
-				const uint64_t neighbor = face_neighbors[i].first;
-				Poisson_Cell* const neighbor_data = grid[neighbor];
-				if (neighbor_data == NULL) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " No data for neighbor " << neighbor << " of cell " << cell
-						<< std::endl;
-					abort();
-				}
 				std::get<0>(temp_neigh_info) = neighbor_data;
+
+				const int direction = all_face_neighbors[i].second;
+				std::get<1>(temp_neigh_info) = direction;
 
 				int relative_ref_lvl = 0;
 				const int neigh_ref_lvl = grid.get_refinement_level(neighbor);
@@ -952,8 +917,24 @@ private:
 				temp_cell_info.second.push_back(temp_neigh_info);
 			}
 
+			if (face_neighbors.size() == 0) {
+				// don't consider cells without normal neighbors
+				cell_data->p0 = skip_cell;
+				continue;
+			}
+
+			this->set_scaling_factor(cell, face_neighbors, grid);
+
+			// include boundary cells only as neighbors when solving
+			if (cell_data->p0 == boundary_cell) {
+				continue;
+			}
+
 			this->cell_info.push_back(temp_cell_info);
 		}
+
+		Poisson_Cell::transfer_switch = Poisson_Cell::GEOMETRY;
+		grid.update_copies_of_remote_neighbors();
 	}
 
 

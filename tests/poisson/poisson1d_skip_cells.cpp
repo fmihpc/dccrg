@@ -16,10 +16,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
@@ -41,13 +38,6 @@ int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 
 double get_rhs_value(const double x)
 {
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]" << x
-			<< std::endl;
-		abort();
-	}
-
 	return sin(x);
 }
 
@@ -57,13 +47,6 @@ Returns the analytic solution to the test Poisson's equation.
 */
 double get_solution_value(const double x)
 {
-	if (x < 0 || x > 2 * M_PI) {
-		std::cerr << __FILE__ << ":" << __LINE__
-			<< " x must be in the range [0, 2 * pi]: " << x
-			<< std::endl;
-		abort();
-	}
-
 	return -sin(x);
 }
 
@@ -79,7 +62,7 @@ template<class Geometry> double get_p_norm(
 ) {
 	double local = 0, global = 0;
 
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for(const auto& cell: cells) {
 		const double coord = grid.geometry.get_center(cell)[0];
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(
@@ -114,7 +97,7 @@ int main(int argc, char* argv[])
 
 	const size_t max_number_of_cells = 32768;
 	for (size_t
-		number_of_cells = 2;
+		number_of_cells = 8;
 		number_of_cells <= max_number_of_cells;
 		number_of_cells *= 2
 	) {
@@ -151,7 +134,7 @@ int main(int argc, char* argv[])
 			initial_cells_reference = grid_reference.get_cells();
 
 		// emulate RANDOM but predictable load balance
-		BOOST_FOREACH(const uint64_t cell, initial_cells) {
+		for(const auto& cell: initial_cells) {
 			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			// move cells in middle of grid to same process as in reference grid
 			if (indices[1] == 1 && indices[2] == 1) {
@@ -159,7 +142,7 @@ int main(int argc, char* argv[])
 				grid.pin(cell, target_process);
 			}
 		}
-		BOOST_FOREACH(const uint64_t cell, initial_cells_reference) {
+		for(const auto& cell: initial_cells_reference) {
 			const dccrg::Types<3>::indices_t indices = grid_reference.mapping.get_indices(cell);
 			const int target_process = indices[0] % comm.size();
 			grid_reference.pin(cell, target_process);
@@ -173,44 +156,33 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t>
 			cells_reference = grid_reference.get_cells(),
 			all_cells = grid.get_cells();
+		std::vector<uint64_t> cells, cells_to_skip;
 
-		std::unordered_set<uint64_t> cells_to_skip;
-
-		std::vector<uint64_t> cells;
-		BOOST_FOREACH(const uint64_t cell, all_cells) {
+		for(const auto& cell: all_cells) {
 			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			if (indices[1] == 1 && indices[2] == 1) {
 				cells.push_back(cell);
 			} else {
-				cells_to_skip.insert(cell);
+				cells_to_skip.push_back(cell);
 			}
 		}
 
 		if (cells.size() != cells_reference.size()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Length of cell lists not equal: " << cells.size() << " (";
-			BOOST_FOREACH(const uint64_t cell, cells) {
+			for(const auto& cell: cells) {
 				cout << cell << ",";
 			}
 			cout << "); should be " << cells_reference.size() << " (";
-			BOOST_FOREACH(const uint64_t cell, cells_reference) {
+			for(const auto& cell: cells_reference) {
 				cout << cell << ",";
 			}
 			cout << ")" << std::endl;
 			abort();
 		}
 
-		// also skip some remote neighbors
-		const std::vector<uint64_t> remote_neighbors = grid.get_remote_cells_on_process_boundary();
-		BOOST_FOREACH(const uint64_t cell, remote_neighbors) {
-			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
-			if (indices[1] != 1 ||  indices[2] != 1) {
-				cells_to_skip.insert(cell);
-			}
-		}
-
 		// initialize
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for(const auto& cell: cells) {
 			Poisson_Cell *data = grid[cell];
 			if (data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
@@ -220,7 +192,7 @@ int main(int argc, char* argv[])
 			data->rhs = get_rhs_value(coord);
 			data->solution = 0;
 		}
-		BOOST_FOREACH(const uint64_t cell, cells_reference) {
+		for(const auto& cell: cells_reference) {
 			Poisson_Cell *data = grid_reference[cell];
 			if (data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;

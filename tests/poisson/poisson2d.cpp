@@ -17,10 +17,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/foreach.hpp"
 #include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
@@ -56,65 +53,6 @@ double get_rhs_value(const double x, const double y)
 
 
 /*
-Offsets solution in given grid so that average is equal to analytic solution.
-*/
-template<class Geometry> void normalize_solution(
-	const std::vector<uint64_t>& cells,
-	dccrg::Dccrg<Poisson_Cell, Geometry>& grid
-) {
-	if (cells.size() == 0) {
-		return;
-	}
-
-	double avg_solved = 0, avg_analytic = 0;
-	BOOST_FOREACH(const uint64_t cell, cells) {
-
-		const auto cell_center = grid.geometry.get_center(cell);
-		if (grid.length.get()[0] == 1) {
-			avg_analytic += get_solution_value(
-				cell_center[1],
-				cell_center[2]
-			);
-		} else if (grid.length.get()[1] == 1) {
-			avg_analytic += get_solution_value(
-				cell_center[0],
-				cell_center[2]
-			);
-		} else if (grid.length.get()[2] == 1) {
-			avg_analytic += get_solution_value(
-				cell_center[0],
-				cell_center[1]
-			);
-		}
-
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		avg_solved += cell_data->solution;
-	}
-	avg_analytic /= cells.size();
-	avg_solved /= cells.size();
-
-	BOOST_FOREACH(const uint64_t cell, cells) {
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		cell_data->solution -= avg_solved - avg_analytic;
-	}
-}
-
-
-/*
 Returns the p-norm of the difference of solution from exact.
 */
 template<class Geometry> double get_p_norm(
@@ -140,7 +78,7 @@ template<class Geometry> double get_p_norm(
 	}
 
 	double local = 0, global = 0;
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for(const auto& cell: cells) {
 		Poisson_Cell* data = grid[cell];
 		if (data == NULL) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -271,7 +209,7 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
 
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
-		BOOST_FOREACH(const uint64_t cell, initial_cells) {
+		for(const auto& cell: initial_cells) {
 			const int target_process = cell % comm.size();
 			grid_x.pin(cell, target_process);
 			grid_y.pin(cell, target_process);
@@ -287,7 +225,7 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t> cells = grid_x.get_cells();
 
 		// initialize
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for(const auto& cell: cells) {
 			Poisson_Cell
 				*data_x = grid_x[cell],
 				*data_y = grid_y[cell],
@@ -326,10 +264,6 @@ int main(int argc, char* argv[])
 		solver.solve(cells, grid_x);
 		solver.solve(cells, grid_y);
 		solver.solve(cells, grid_z);
-
-		normalize_solution(cells, grid_x);
-		normalize_solution(cells, grid_y);
-		normalize_solution(cells, grid_z);
 
 		// check that parallel solutions with more cells have smaller norms
 		const double
