@@ -17,10 +17,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
+#include "array"
 #include "boost/lexical_cast.hpp"
 #include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 	/*
 	Common grid parameters
 	*/
-	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
+	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const unsigned int neighborhood_size = 1;
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
