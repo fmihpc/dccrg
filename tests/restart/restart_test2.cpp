@@ -1,5 +1,5 @@
 /*
-Program for testing dccrg restart using Conway's game of life.
+Program for testing dccrg restart using Conway's game of life, stretched geometry version.
 
 Copyright 2010, 2011, 2012, 2013, 2014 Finnish Meteorological Institute
 
@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
-#include "../../dccrg_cartesian_geometry.hpp"
+#include "../../dccrg_stretched_cartesian_geometry.hpp"
 
 // include restart cell before gol cell
 #include "cell.hpp"
@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 	}
 
 
-	Dccrg<Cell, Cartesian_Geometry> game_grid, reference_grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid, reference_grid;
 
 
 	/*
@@ -101,14 +101,13 @@ int main(int argc, char* argv[])
 	const boost::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const unsigned int neighborhood_size = 1;
 
-	Cartesian_Geometry::Parameters geom_params;
-	geom_params.start[0] =
-	geom_params.start[1] =
-	geom_params.start[2] = 0;
-	geom_params.level_0_cell_length[0] =
-	geom_params.level_0_cell_length[1] =
-	geom_params.level_0_cell_length[2] = 1.0 / grid_length[0];
-
+	Stretched_Cartesian_Geometry::Parameters geom_params;
+	geom_params.coordinates[2].push_back(-2);
+	geom_params.coordinates[2].push_back(-1);
+	for (size_t i = 0; i <= grid_length[0]; i++) {
+		geom_params.coordinates[0].push_back(i * 0.9);
+		geom_params.coordinates[1].push_back(i * 1.1);
+	}
 
 	/*
 	Setup reference grid and game
@@ -121,7 +120,7 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	Initialize<Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
+	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
 
 
 	/*
@@ -140,10 +139,10 @@ int main(int argc, char* argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		Initialize<Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
+		Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
 
 		// save initial state
-		IO<Cartesian_Geometry>::save(
+		IO<Stretched_Cartesian_Geometry>::save(
 			"gol_0.dc",
 			0,
 			game_grid
@@ -151,7 +150,7 @@ int main(int argc, char* argv[])
 
 	// ...or restart from saved game
 	} else {
-		step = IO<Cartesian_Geometry>::load(
+		step = IO<Stretched_Cartesian_Geometry>::load(
 			comm,
 			restart_name,
 			game_grid
@@ -159,7 +158,7 @@ int main(int argc, char* argv[])
 
 		// play the reference game to the same step
 		for (uint64_t i = 0; i < step; i++) {
-			Solve<Cartesian_Geometry>::solve(reference_grid);
+			Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
 		}
 	}
 
@@ -168,18 +167,18 @@ int main(int argc, char* argv[])
 	const uint64_t time_steps = 25;
 	while (step < time_steps) {
 
-		Refine<Cartesian_Geometry>::refine(game_grid, grid_length[0], step, comm_size);
+		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, grid_length[0], step, comm_size);
 
 		game_grid.balance_load();
 		game_grid.update_copies_of_remote_neighbors();
 		const vector<uint64_t> cells = game_grid.get_cells();
 
-		Solve<Cartesian_Geometry>::solve(game_grid);
-		Solve<Cartesian_Geometry>::solve(reference_grid);
+		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
+		Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
 
 		step++;
 
-		IO<Cartesian_Geometry>::save(
+		IO<Stretched_Cartesian_Geometry>::save(
 			"gol_" + boost::lexical_cast<std::string>(step) + ".dc",
 			step,
 			game_grid

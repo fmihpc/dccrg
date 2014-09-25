@@ -808,7 +808,7 @@ public:
 	*/
 	size_t data_size() const
 	{
-		size_t ret_val = 3 * sizeof(uint64_t);
+		size_t ret_val = sizeof(int) + 3 * sizeof(uint64_t);
 
 		for (size_t dimension = 0; dimension < this->parameters.coordinates.size(); dimension++) {
 			ret_val += this->parameters.coordinates[dimension].size() * sizeof(double);
