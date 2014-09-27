@@ -1661,6 +1661,66 @@ public:
 		const MPI_Comm& given_comm,
 		const char* const load_balancing_method,
 		const uint64_t sfc_caching_batches = 1,
+		const uint64_t number_of_cells = ~uint64_t(0)
+	) {
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+		return false;
+
+		#else
+
+		if (
+			!this->start_loading_grid_data(
+				name,
+				offset,
+				header,
+				given_comm,
+				load_balancing_method,
+				sfc_caching_batches,
+				number_of_cells
+			)
+		) {
+			return false;
+		}
+
+		if (!this->continue_loading_grid_data()) {
+			return false;
+		}
+
+		if (!this->finish_loading_grid_data()) {
+			return false;
+		}
+
+		return true;
+		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+	}
+
+
+	/*!
+	Initializes dccrg from given file with data starting at given offset in bytes.
+
+	Given header is read first at given offset which should have the same int and
+	MPI_Datatype data when the file was written.
+
+	After calling this function the cell data can start to be loaded with one or
+	more calls to continue_loading_grid_data().
+
+	Before doing anything else with the grid the function finish_loading_grid_data()
+	should be called, either after this function or after the last call to
+	continue_loading_grid_data().
+
+	Returns true on success, false otherwise.
+
+	\see
+	load_grid_data()
+	*/
+	bool start_loading_grid_data(
+		const std::string& name,
+		MPI_Offset offset,
+		boost::tuple<void*, int, MPI_Datatype> header,
+		const MPI_Comm& given_comm,
+		const char* const load_balancing_method,
+		const uint64_t sfc_caching_batches = 1,
 		const uint64_t /*number_of_cells*/ = ~uint64_t(0)
 	) {
 		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -1678,14 +1738,12 @@ public:
 			return false;
 		}
 
-		MPI_File file;
-
 		ret_val = MPI_File_open(
 			given_comm,
 			const_cast<char*>(name.c_str()),
 			MPI_MODE_RDONLY,
 			MPI_INFO_NULL,
-			&file
+			&(this->grid_data_file)
 		);
 		if (ret_val != MPI_SUCCESS) {
 			if (this->rank == 0) {
@@ -1712,7 +1770,7 @@ public:
 		}
 
 		ret_val = MPI_File_read_at_all(
-			file,
+			this->grid_data_file,
 			offset,
 			header.get<0>(),
 			header.get<1>(),
@@ -1754,7 +1812,7 @@ public:
 			endianness_read = 0;
 
 		ret_val = MPI_File_read_at_all(
-			file,
+			this->grid_data_file,
 			offset,
 			&endianness_read,
 			1,
@@ -1791,16 +1849,477 @@ public:
 			return false;
 		}
 
-		if (!this->initialize_from_file(sfc_caching_batches, file, offset)) {
-			if (this->rank == 0)  {
+		// initialize mapping
+		if (!this->mapping_rw.read(this->grid_data_file, offset)) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't initialize dccrg from file " << name
+					<< " Couldn't read mapping"
 					<< std::endl;
 			}
 			return false;
 		}
+		offset += this->mapping.data_size();
+
+		// initialize default neighborhood
+		unsigned int neighborhood_length = 0;
+		ret_val = MPI_File_read_at_all(
+			this->grid_data_file,
+			offset,
+			(void*) &neighborhood_length,
+			1,
+			MPI_UNSIGNED,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			if (rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read length of cells' neighborhoods: " << Error_String()(ret_val)
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += sizeof(unsigned int);
+		this->initialize_neighborhoods(neighborhood_length);
+
+		// initialize topology
+		if (!this->topology_rw.read(this->grid_data_file, offset)) {
+			if (rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read grid topology from file"
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += this->topology.data_size();
+
+		// initialize geometry
+		if (!this->geometry_rw.read(this->grid_data_file, offset)) {
+			if (this->rank == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't read geometry from file"
+					<< std::endl;
+			}
+			return false;
+		}
+		offset += this->geometry.data_size();
+
+		// initial cells must exist along with neighbor lists,
+		// etc. before loading the grid.
+		this->create_level_0_cells(sfc_caching_batches);
+		if (!this->initialize_neighbors()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't initialize neighbors"
+				<< std::endl;
+			return false;
+		}
+
+		// read the total number of cells in the file
+		uint64_t total_number_of_cells = 0;
+		ret_val = MPI_File_read_at_all(
+			this->grid_data_file,
+			offset,
+			&total_number_of_cells,
+			1,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << "Couldn't read total number of cells" << std::endl;
+			return false;
+		}
+		offset += sizeof(uint64_t);
+
+		// read cells and data displacements
+		std::vector<uint64_t> all_cells_and_data_displacements(2 * total_number_of_cells, error_cell);
+		ret_val = MPI_File_read_at_all(
+			this->grid_data_file,
+			offset,
+			&all_cells_and_data_displacements[0],
+			2 * total_number_of_cells,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << "Couldn't read number of cells" << std::endl;
+			return false;
+		}
+
+		#ifdef DEBUG
+		// check that correct cells were read properly
+		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
+			const uint64_t cell = all_cells_and_data_displacements[i];
+			if (cell == error_cell) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid cell in cell list at index " << i << ": " << cell
+					<< std::endl;
+				abort();
+			}
+		}
+		#endif
+
+		// remove all but local cell data displacements
+		this->cells_and_data_displacements.clear();
+		this->cells_and_data_displacements.reserve(this->cells.size());
+
+		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
+			const uint64_t
+				cell = all_cells_and_data_displacements[i],
+				offset = all_cells_and_data_displacements[i + 1];
+
+			if (this->cell_overlaps_local(cell)) {
+				this->cells_and_data_displacements.push_back(std::make_pair(cell, offset));
+			}
+		}
+		all_cells_and_data_displacements.clear();
+
+		// refine the grid to create cells that exist in the file
+		std::vector<uint64_t> final_cells;
+		final_cells.reserve(this->cells_and_data_displacements.size());
+		for (std::vector<std::pair<uint64_t, uint64_t> >::const_iterator
+			item = this->cells_and_data_displacements.begin();
+			item != this->cells_and_data_displacements.end();
+			item++
+		) {
+			final_cells.push_back(item->first);
+		}
+
+		if (!this->load_cells(final_cells)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't load grid"
+				<< std::endl;
+			abort();
+		}
+		final_cells.clear();
+
+		const uint64_t number_of_cells = this->cells.size();
+
+		if (number_of_cells != this->cells_and_data_displacements.size()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of cell data displacements: "
+				<< this->cells_and_data_displacements.size()
+				<< ", should be " << number_of_cells
+				<< std::endl;
+			abort();
+		}
 
 		this->initialized = true;
+
+		return true;
+		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+	}
+
+	/*!
+	Starts/continues reading cell data from given file.
+
+	Data for each cell in the file is assumed to be in format given by
+	each cells' get_mpi_datatype() member function which should return
+	the same MPI_Datatype as it did when saving grid data to given file.
+	If complete MPI_Datatype of cell data used when saving isn't known
+	in advance the saving datatype should be constructed in such a way
+	that data whose size is always known should be first. Then you can
+	call this function several times and give the correct MPI_Datatype
+	from each cell based on the data loaded by previous calls to this
+	function. For example if cell data consists of a vector of ints
+	you should add the number of ints as a size_t variable into the cell
+	and return the size_t variable along with the vector data but so
+	that size_t is earlier in the MPI_Datatype. In other words the
+	memory layout of the returned MPI_Datatype should be:
+	size_t, 1st int, 2nd int, ...
+
+	Before doing anything else with the grid the function finish_loading_grid_data()
+	should be called after this function.
+
+	Returns true on success, false otherwise.
+
+	\see
+	start_loading_grid_data()
+	finish_loading_grid_data()
+	*/
+	bool continue_loading_grid_data()
+	{
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+		return false;
+
+		#else
+
+		int ret_val = -1;
+
+		const uint64_t number_of_cells = this->cells.size();
+		if (number_of_cells != this->cells_and_data_displacements.size()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Incorrect number of cell data displacements: "
+				<< this->cells_and_data_displacements.size()
+				<< ", should be " << number_of_cells
+				<< std::endl;
+			abort();
+		}
+
+		// datatypes etc. of local cell data in memory
+		std::vector<void*> addresses(number_of_cells, NULL);
+		std::vector<int> counts(number_of_cells, -1);
+		std::vector<MPI_Datatype> mem_datatypes(number_of_cells, MPI_DATATYPE_NULL);
+		std::vector<MPI_Aint>
+			memory_displacements(number_of_cells, 0),
+			file_displacements(number_of_cells, 0);
+
+		// set file view representing local cell data
+		MPI_Datatype file_datatype;
+
+		if (number_of_cells == 0) {
+
+			MPI_Type_contiguous(0, MPI_BYTE, &file_datatype);
+
+		} else {
+
+			// get datatype info from local cells in memory
+			for (uint64_t i = 0; i < number_of_cells; i++) {
+				const uint64_t cell = this->cells_and_data_displacements[i].first;
+
+				boost::tie(
+					addresses[i],
+					counts[i],
+					mem_datatypes[i]
+				) = detail::get_cell_mpi_datatype(
+					this->cells.at(cell),
+					cell,
+					-1,
+					(int) this->rank,
+					true,
+					-1
+				);
+			}
+
+			// padding is not included in the file so maybe use contiguous datatypes
+			std::vector<MPI_Datatype> file_datatypes(mem_datatypes.size(), MPI_DATATYPE_NULL);
+			for (size_t i = 0; i < mem_datatypes.size(); i++) {
+				MPI_Datatype& mem_datatype = mem_datatypes[i];
+
+				if (Is_Named_Datatype()(mem_datatype)) {
+
+					file_datatypes[i] = mem_datatype;
+
+				} else {
+
+					int size_in_bytes;
+					ret_val = MPI_Type_size(mem_datatypes[i], &size_in_bytes);
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Process " << this->rank
+							<< " Couldn't get datatype size: "
+							<< Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+
+					ret_val =  MPI_Type_contiguous(size_in_bytes, MPI_BYTE, &(file_datatypes[i]));
+					if (ret_val != MPI_SUCCESS) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Process " << this->rank
+							<< " Couldn't create contiguous datatype: "
+							<< Error_String()(ret_val)
+							<< std::endl;
+						abort();
+					}
+				}
+			}
+
+			// displacements for cell data in memory are relative to first cell's data
+			for (size_t i = 0; i < number_of_cells; i++) {
+				memory_displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
+			}
+
+			// displacements for cell data in file are relative to start of file
+			for (uint64_t i = 0; i < number_of_cells; i++) {
+				file_displacements[i] = this->cells_and_data_displacements[i].second;
+
+				// move cell data offsets in case this function is called again
+				int size_in_bytes;
+				ret_val = MPI_Type_size(mem_datatypes[i], &size_in_bytes);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't get datatype size: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					abort();
+				}
+
+				this->cells_and_data_displacements[i].second += size_in_bytes;
+			}
+
+			ret_val = MPI_Type_create_struct(
+				number_of_cells,
+				&counts[0],
+				&file_displacements[0],
+				&file_datatypes[0],
+				&file_datatype
+			);
+			if (ret_val != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't create datatype for file view: "<< Error_String()(ret_val)
+					<< std::endl;
+				abort();
+			}
+		}
+
+		ret_val = MPI_Type_commit(&file_datatype);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't commit datatype for file view: " << Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+
+		ret_val = MPI_File_set_view(
+			this->grid_data_file,
+			0,
+			MPI_BYTE,
+			file_datatype,
+			const_cast<char*>("native"),
+			MPI_INFO_NULL
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set file view for cell data: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+
+		// create a datatype representing local cell data in memory
+		MPI_Datatype memory_datatype;
+
+		if (number_of_cells == 0) {
+
+			MPI_Type_contiguous(0, MPI_BYTE, &memory_datatype);
+			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Process " << this->rank
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+
+		} else {
+
+			if (MPI_Type_create_struct(
+				number_of_cells,
+				&counts[0],
+				&memory_displacements[0],
+				&mem_datatypes[0],
+				&memory_datatype) != MPI_SUCCESS
+			) {
+				std::cerr << "Process " << this->rank
+					<< " Couldn't create datatype for local cells"
+					<< std::endl;
+				abort();
+			}
+
+			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
+				std::cerr << "Process " << this->rank
+					<< " Couldn't commit datatype for file view"
+					<< std::endl;
+				abort();
+			}
+		}
+
+		// give a valid buffer to ...read_at_all even if no cells to read
+		if (number_of_cells == 0) {
+			addresses.push_back((void*) &number_of_cells);
+		}
+
+		ret_val = MPI_File_read_at_all(
+			this->grid_data_file,
+			0,
+			addresses[0],
+			1,
+			memory_datatype,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " couldn't read local cell data: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			abort();
+		}
+
+
+		/*
+		Deallocate datatypes
+		*/
+
+		ret_val = MPI_Type_free(&memory_datatype);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't free datatype for cell data in memory: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		ret_val = MPI_Type_free(&file_datatype);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't free datatype for cell data in file: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
+
+		BOOST_FOREACH(MPI_Datatype& datatype, mem_datatypes) {
+			if (!Is_Named_Datatype()(datatype)) {
+				ret_val = MPI_Type_free(&datatype);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't free user defined datatype: "
+						<< Error_String()(ret_val)
+						<< std::endl;
+					return false;
+				}
+			}
+		}
+
+		return true;
+		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+	}
+
+
+	/*!
+	Finalizes reading cell data from given file.
+
+	Returns true on success, false otherwise.
+
+	\see
+	start_loading_grid_data()
+	continue_loading_grid_data()
+	*/
+	bool finish_loading_grid_data()
+	{
+		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
+
+		return false;
+
+		#else
+
+		this->cells_and_data_displacements.clear();
+
+		int ret_val = MPI_File_close(&(this->grid_data_file));
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << this->rank
+				<< " Couldn't close input file: "
+				<< Error_String()(ret_val)
+				<< std::endl;
+			return false;
+		}
 
 		return true;
 		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
@@ -6094,6 +6613,18 @@ private:
 	bool balancing_load;
 
 
+	/*
+	Variables related to file I/O when loading grid data.
+	*/
+
+	MPI_File grid_data_file;
+
+	// each local cells' data offset in bytes when reading from a file
+	std::vector<std::pair<uint64_t, uint64_t> > cells_and_data_displacements;
+
+
+
+
 	/*!
 	Checks and initializes MPI related stuff.
 	*/
@@ -6548,406 +7079,6 @@ private:
 				<< "Couldn't set maximum refinement level to " << maximum_refinement_level
 				<< std::endl;
 			abort();
-		}
-
-		return true;
-	}
-
-
-	/*!
-	Same as initialize_from_arguments() but reads parameters from file.
-
-	File must be an open file and offset given in bytes.
-	*/
-	bool initialize_from_file(
-		const uint64_t sfc_caching_batches,
-		MPI_File file,
-		MPI_Offset offset
-	) {
-		int ret_val = -1;
-
-		// initialize mapping
-		if (!this->mapping_rw.read(file, offset)) {
-			if (rank == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't read mapping"
-					<< std::endl;
-			}
-			return false;
-		}
-		offset += this->mapping.data_size();
-
-		// initialize default neighborhood
-		unsigned int neighborhood_length = 0;
-		ret_val = MPI_File_read_at_all(
-			file,
-			offset,
-			(void*) &neighborhood_length,
-			1,
-			MPI_UNSIGNED,
-			MPI_STATUS_IGNORE
-		);
-		if (ret_val != MPI_SUCCESS) {
-			if (rank == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't read length of cells' neighborhoods: " << Error_String()(ret_val)
-					<< std::endl;
-			}
-			return false;
-		}
-		offset += sizeof(unsigned int);
-		this->initialize_neighborhoods(neighborhood_length);
-
-		// initialize topology
-		if (!this->topology_rw.read(file, offset)) {
-			if (rank == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't read grid topology from file"
-					<< std::endl;
-			}
-			return false;
-		}
-		offset += this->topology.data_size();
-
-		// initialize geometry
-		if (!this->geometry_rw.read(file, offset)) {
-			if (this->rank == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Couldn't read geometry from file"
-					<< std::endl;
-			}
-			return false;
-		}
-		offset += this->geometry.data_size();
-
-		// initial cells must exist along with neighbor lists,
-		// etc. before loading the grid.
-		this->create_level_0_cells(sfc_caching_batches);
-		if (!this->initialize_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't initialize neighbors"
-				<< std::endl;
-			return false;
-		}
-
-		// read the total number of cells in the file
-		uint64_t total_number_of_cells = 0;
-		ret_val = MPI_File_read_at_all(
-			file,
-			offset,
-			&total_number_of_cells,
-			1,
-			MPI_UINT64_T,
-			MPI_STATUS_IGNORE
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << "Couldn't read total number of cells" << std::endl;
-			return false;
-		}
-		offset += sizeof(uint64_t);
-
-		// read cells and data displacements
-		std::vector<uint64_t> all_cells_and_data_displacements(2 * total_number_of_cells, error_cell);
-		ret_val = MPI_File_read_at_all(
-			file,
-			offset,
-			&all_cells_and_data_displacements[0],
-			2 * total_number_of_cells,
-			MPI_UINT64_T,
-			MPI_STATUS_IGNORE
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << "Couldn't read number of cells" << std::endl;
-			return false;
-		}
-
-		#ifdef DEBUG
-		// check that correct cells were read properly
-		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
-			const uint64_t cell = all_cells_and_data_displacements[i];
-			if (cell == error_cell) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid cell in cell list at index " << i << ": " << cell
-					<< std::endl;
-				abort();
-			}
-		}
-		#endif
-
-		// remove all but local cell data displacements
-		std::vector<std::pair<uint64_t, uint64_t> > cells_and_data_displacements;
-		cells_and_data_displacements.reserve(this->cells.size());
-
-		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
-			const uint64_t
-				cell = all_cells_and_data_displacements[i],
-				offset = all_cells_and_data_displacements[i + 1];
-
-			if (this->cell_overlaps_local(cell)) {
-				cells_and_data_displacements.push_back(std::make_pair(cell, offset));
-			}
-		}
-		all_cells_and_data_displacements.clear();
-
-		// refine the grid to create cells that exist in the file
-		std::vector<uint64_t> final_cells;
-		final_cells.reserve(cells_and_data_displacements.size());
-		for (std::vector<std::pair<uint64_t, uint64_t> >::const_iterator
-			item = cells_and_data_displacements.begin();
-			item != cells_and_data_displacements.end();
-			item++
-		) {
-			final_cells.push_back(item->first);
-		}
-
-		if (!this->load_cells(final_cells)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't load grid"
-				<< std::endl;
-			abort();
-		}
-		final_cells.clear();
-
-		const uint64_t number_of_cells = cells_and_data_displacements.size();
-
-		#ifdef DEBUG
-		if (number_of_cells != cells_and_data_displacements.size()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Incorrect number of cell data displacements: "
-				<< cells_and_data_displacements.size()
-				<< ", should be " << number_of_cells
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-
-		// datatypes etc. of local cell data in memory
-		std::vector<void*> addresses(number_of_cells, NULL);
-		std::vector<int> counts(number_of_cells, -1);
-		std::vector<MPI_Datatype> mem_datatypes(number_of_cells, MPI_DATATYPE_NULL);
-		std::vector<MPI_Aint>
-			memory_displacements(number_of_cells, 0),
-			file_displacements(number_of_cells, 0);
-
-		// set file view representing local cell data
-		MPI_Datatype file_datatype;
-
-		if (number_of_cells == 0) {
-
-			MPI_Type_contiguous(0, MPI_BYTE, &file_datatype);
-
-		} else {
-
-			// get datatype info from local cells in memory
-			for (uint64_t i = 0; i < number_of_cells; i++) {
-				const uint64_t cell = cells_and_data_displacements[i].first;
-
-				boost::tie(
-					addresses[i],
-					counts[i],
-					mem_datatypes[i]
-				) = detail::get_cell_mpi_datatype(
-					this->cells.at(cell),
-					cell,
-					-1,
-					(int) this->rank,
-					true,
-					-1
-				);
-			}
-
-			// padding is not included in the file so maybe use contiguous datatypes
-			std::vector<MPI_Datatype> file_datatypes(mem_datatypes.size(), MPI_DATATYPE_NULL);
-			for (size_t i = 0; i < mem_datatypes.size(); i++) {
-				MPI_Datatype& mem_datatype = mem_datatypes[i];
-
-				if (Is_Named_Datatype()(mem_datatype)) {
-
-					file_datatypes[i] = mem_datatype;
-
-				} else {
-
-					int size_in_bytes;
-					ret_val = MPI_Type_size(mem_datatypes[i], &size_in_bytes);
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Process " << this->rank
-							<< " Couldn't get datatype size: "
-							<< Error_String()(ret_val)
-							<< std::endl;
-						abort();
-					}
-
-					ret_val =  MPI_Type_contiguous(size_in_bytes, MPI_BYTE, &(file_datatypes[i]));
-					if (ret_val != MPI_SUCCESS) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Process " << this->rank
-							<< " Couldn't create contiguous datatype: "
-							<< Error_String()(ret_val)
-							<< std::endl;
-						abort();
-					}
-				}
-			}
-
-			// displacements for cell data in memory are relative to first cell's data
-			for (size_t i = 0; i < number_of_cells; i++) {
-				memory_displacements[i] = (uint8_t*) addresses[i] - (uint8_t*) addresses[0];
-			}
-
-			// displacements for cell data in file are relative to start of file
-			for (uint64_t i = 0; i < number_of_cells; i++) {
-				file_displacements[i] = cells_and_data_displacements[i].second;
-			}
-
-			ret_val = MPI_Type_create_struct(
-				number_of_cells,
-				&counts[0],
-				&file_displacements[0],
-				&file_datatypes[0],
-				&file_datatype
-			);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< " Couldn't create datatype for file view: "<< Error_String()(ret_val)
-					<< std::endl;
-				abort();
-			}
-		}
-
-		ret_val = MPI_Type_commit(&file_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't commit datatype for file view: " << Error_String()(ret_val)
-				<< std::endl;
-			abort();
-		}
-
-		ret_val = MPI_File_set_view(
-			file,
-			0,
-			MPI_BYTE,
-			file_datatype,
-			const_cast<char*>("native"),
-			MPI_INFO_NULL
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't set file view for cell data: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			abort();
-		}
-
-		// create a datatype representing local cell data in memory
-		MPI_Datatype memory_datatype;
-
-		if (number_of_cells == 0) {
-
-			MPI_Type_contiguous(0, MPI_BYTE, &memory_datatype);
-			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< " Couldn't commit datatype for file view"
-					<< std::endl;
-				abort();
-			}
-
-		} else {
-
-			if (MPI_Type_create_struct(
-				number_of_cells,
-				&counts[0],
-				&memory_displacements[0],
-				&mem_datatypes[0],
-				&memory_datatype) != MPI_SUCCESS
-			) {
-				std::cerr << "Process " << this->rank
-					<< " Couldn't create datatype for local cells"
-					<< std::endl;
-				abort();
-			}
-
-			if (MPI_Type_commit(&memory_datatype) != MPI_SUCCESS) {
-				std::cerr << "Process " << this->rank
-					<< " Couldn't commit datatype for file view"
-					<< std::endl;
-				abort();
-			}
-		}
-
-		// give a valid buffer to ...read_at_all even if no cells to read
-		if (number_of_cells == 0) {
-			addresses.push_back((void*) &number_of_cells);
-		}
-
-		ret_val = MPI_File_read_at_all(
-			file,
-			0,
-			addresses[0],
-			1,
-			memory_datatype,
-			MPI_STATUS_IGNORE
-		);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " couldn't read local cell data: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			abort();
-		}
-
-
-		/*
-		Deallocate datatypes
-		*/
-
-		ret_val = MPI_Type_free(&memory_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't free datatype for cell data in memory: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
-		}
-
-		ret_val = MPI_Type_free(&file_datatype);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't free datatype for cell data in file: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
-		}
-
-		BOOST_FOREACH(MPI_Datatype& datatype, mem_datatypes) {
-			if (!Is_Named_Datatype()(datatype)) {
-				ret_val = MPI_Type_free(&datatype);
-				if (ret_val != MPI_SUCCESS) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << this->rank
-						<< " Couldn't free user defined datatype: "
-						<< Error_String()(ret_val)
-						<< std::endl;
-					return false;
-				}
-			}
-		}
-
-		ret_val = MPI_File_close(&file);
-		if (ret_val != MPI_SUCCESS) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Process " << this->rank
-				<< " Couldn't close input file: "
-				<< Error_String()(ret_val)
-				<< std::endl;
-			return false;
 		}
 
 		return true;
