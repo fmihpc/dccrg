@@ -43,6 +43,27 @@ using namespace boost::mpi;
 using namespace dccrg;
 
 
+/*
+Migrates cells off process 0.
+*/
+template <class Grid_T> void migrate_cells(Grid_T& grid)
+{
+	if (grid.get_comm_size() == 1) {
+		return;
+	}
+
+	if (grid.get_rank() == 0) {
+		const std::vector<uint64_t> cells = grid.get_cells();
+		BOOST_FOREACH(const uint64_t cell, cells) {
+			grid.pin(cell, 1);
+		}
+	}
+
+	grid.balance_load();
+	grid.unpin_local_cells();
+}
+
+
 int main(int argc, char* argv[])
 {
 	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
@@ -140,6 +161,8 @@ int main(int argc, char* argv[])
 			exit(EXIT_FAILURE);
 		}
 
+		migrate_cells(game_grid);
+
 		Initialize<Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
 
 		// save initial state
@@ -157,13 +180,13 @@ int main(int argc, char* argv[])
 			game_grid
 		);
 
+		migrate_cells(game_grid);
+
 		// play the reference game to the same step
 		for (uint64_t i = 0; i < step; i++) {
 			Solve<Cartesian_Geometry>::solve(reference_grid);
 		}
 	}
-
-	game_grid.balance_load();
 
 	const uint64_t time_steps = 25;
 	while (step < time_steps) {
