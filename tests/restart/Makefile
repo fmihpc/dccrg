@@ -7,7 +7,7 @@ INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 MPICXX = mpic++ $(FLAGS)
 CXX = g++ $(FLAGS)
 
-PROGRAMS = restart_test restart_test2 dc2vtk
+PROGRAMS = restart_test restart_test2 variable_cell_data dc2vtk
 
 HEADERS = \
 	../../dccrg.hpp \
@@ -30,6 +30,9 @@ restart_test: restart_test.cpp $(HEADERS) Makefile
 restart_test2: restart_test2.cpp $(HEADERS) Makefile
 	@echo "MPICXX restart_test2 " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS restart_test2.cpp $(INCLUDES) -o restart_test2
 
+variable_cell_data: variable_cell_data.cpp $(HEADERS) Makefile
+	@echo "MPICXX variable_cell_data " && $(MPICXX) -DDEBUG -DDCCRG_SEND_SINGLE_CELLS variable_cell_data.cpp $(INCLUDES) -o variable_cell_data
+
 dc2vtk: dc2vtk.cpp ../../dccrg_cartesian_geometry.hpp Makefile
 	@echo "MPICXX dc2vtk " && $(MPICXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
 
@@ -48,7 +51,7 @@ clean: data
 	@rm -f $(PROGRAMS)
 
 t: test
-test: restart_test restart_test2
+test: restart_test restart_test2 variable_cell_data
 	@echo "Running serial restart tests..."
 	@echo -n "GoL1 without restart: " && ./restart_test
 	@$(foreach dir, $(DIRS), mkdir -p $(dir);)
@@ -57,9 +60,11 @@ test: restart_test restart_test2
 	@echo -n "GoL2 without restart: " && ./restart_test2
 	@$(foreach dir, $(DIRS), mkdir -p $(dir);)
 	@$(foreach dir, $(DIRS), echo -n "Restarting from step $(dir): " && cd $(dir) && ../restart_test2 --restart ../gol_$(dir).dc && cd ..;)
+	@echo -n "Variable cell data without restart: " && ./variable_cell_data
+	@echo -n "Variable cell data with restart: " && ./variable_cell_data --restart variable_cell_data.dc
 
 pt: parallel-test
-parallel-test: restart_test restart_test2
+parallel-test: restart_test restart_test2 variable_cell_data
 	@echo "Running parallel restart tests using $(PROCS) processes..."
 	@echo -n "GoL1 without restart: " && mpirun -np 2 ./restart_test
 	@$(foreach dir, $(DIRS), mkdir -p $(dir);)
@@ -68,6 +73,8 @@ parallel-test: restart_test restart_test2
 	@echo -n "GoL2 without restart: " && mpirun -np 2 ./restart_test2
 	@$(foreach dir, $(DIRS), mkdir -p $(dir);)
 	@$(foreach dir, $(DIRS), echo -n "Restarting from step $(dir): " && cd $(dir) && mpirun -np $(PROCS) ../restart_test2 --restart ../gol_$(dir).dc && cd ..;)
+	@echo -n "Variable cell data without restart: " && mpirun -n $(PROCS) ./variable_cell_data
+	@echo -n "Variable cell data with restart: " && mpirun -n $(PROCS) ./variable_cell_data --restart variable_cell_data.dc
 
 # convert results to vtk files
 v: vtk

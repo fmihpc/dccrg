@@ -1705,9 +1705,9 @@ public:
 	After calling this function the cell data can start to be loaded with one or
 	more calls to continue_loading_grid_data().
 
-	Before doing anything else with the grid the function finish_loading_grid_data()
-	should be called, either after this function or after the last call to
-	continue_loading_grid_data().
+	Before doing any other collective operations with the grid, the function
+	finish_loading_grid_data() should be called, either after this function
+	or after the last call to continue_loading_grid_data().
 
 	Returns true on success, false otherwise.
 
