@@ -51,50 +51,6 @@ double get_rhs_value(const double x, const double y)
 
 
 /*
-Offsets solution in given grid so that average is equal to analytic solution.
-*/
-template<class Geometry> void normalize_solution(
-	const std::vector<uint64_t>& cells,
-	dccrg::Dccrg<Poisson_Cell, Geometry>& grid
-) {
-	if (cells.size() == 0) {
-		return;
-	}
-
-	double avg_solved = 0, avg_analytic = 0;
-	for(const auto& cell: cells) {
-
-		const std::array<double, 3> cell_center = grid.geometry.get_center(cell);
-		avg_analytic += get_solution_value(cell_center[0], cell_center[1]);
-
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		avg_solved += cell_data->solution;
-	}
-	avg_analytic /= cells.size();
-	avg_solved /= cells.size();
-
-	for(const auto& cell: cells) {
-		Poisson_Cell* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No data for last cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		cell_data->solution -= avg_solved - avg_analytic;
-	}
-}
-
-
-/*
 Returns the p-norm of the difference of solution from exact.
 */
 template<class Geometry> double get_p_norm(
@@ -142,9 +98,10 @@ int main(int argc, char* argv[])
 	    return EXIT_FAILURE;
 	}
 
-	int success = 0; // > 0 means failure
+	double old_norm = std::numeric_limits<double>::max();
 
-	const size_t max_number_of_cells = 64; // per dimension
+	const size_t max_number_of_cells = 128; // per dimension
+
 	for (size_t nr_of_cells = 8; nr_of_cells <= max_number_of_cells; nr_of_cells *= 2) {
 
 		const double
@@ -238,40 +195,29 @@ int main(int argc, char* argv[])
 
 		Poisson_Solve solver;
 		solver.solve(solve_cells, grid, cells_to_skip);
-		normalize_solution(solve_cells, grid);
 
 		const double
 			p_of_norm = 2,
 			norm  = get_p_norm(solve_cells, grid, p_of_norm);
 
-		if (
-			(nr_of_cells == 8 and norm > 0.51)
-			or (nr_of_cells == 16 and norm > 0.65)
-			or (nr_of_cells == 32 and norm > 0.47)
-			or (nr_of_cells == 64 and norm > 0.51)
-		) {
-			success = 1;
+		if (norm > old_norm) {
 			if (comm.rank() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
-					<< "-norm between solved and analytic is too large with "
-					<< nr_of_cells << " cells: " << norm
+					<< "-norm between x and analytic is too large with "
+					<< nr_of_cells  << " cells: " << norm
+					<< ", should be <= " << old_norm
 					<< std::endl;
 			}
-			break;
+			abort();
 		}
+
+		old_norm = norm;
 	}
 
-	if (success == 0) {
-		if (comm.rank() == 0) {
-			cout << "PASSED" << endl;
-		}
-		return EXIT_SUCCESS;
-	} else {
-		if (comm.rank() == 0) {
-			cout << "FAILED" << endl;
-		}
-		return EXIT_FAILURE;
+	if (comm.rank() == 0) {
+		cout << "PASSED" << endl;
 	}
+	return EXIT_SUCCESS;
 }
 

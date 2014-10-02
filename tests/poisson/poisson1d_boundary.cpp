@@ -41,12 +41,12 @@ int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
 
 double get_solution_value(const double x)
 {
-	return x*x + 3*x + 4;
+	return std::pow(std::sin(x), 2);
 }
 
-double get_rhs_value(const double)
+double get_rhs_value(const double x)
 {
-	return 2;
+	return 2 * (std::pow(std::cos(x), 2) - std::pow(std::sin(x), 2));
 }
 
 /*
@@ -72,7 +72,6 @@ template<class Geometry> double get_p_norm(
 
 		analytic_solution = get_solution_value(cell_center[0]);
 
-		//std::cout << cell_center[0] << " " << analytic_solution << " " << data->solution << std::endl;
 		local += std::pow(
 			fabs(data->solution - analytic_solution),
 			p_of_norm
@@ -102,11 +101,11 @@ int main(int argc, char* argv[])
 
 	double old_norm = std::numeric_limits<double>::max();
 
-	const size_t max_number_of_cells = 512;
+	const size_t max_number_of_cells = 4096;
 
-	for (size_t cells = 16; cells <= max_number_of_cells; cells *= 2) {
+	for (size_t cells = 8; cells <= max_number_of_cells; cells *= 2) {
 
-		const double cell_length = 4.0 / cells;
+		const double cell_length = 2 * M_PI / cells;
 
 		Dccrg<Poisson_Cell, Cartesian_Geometry> grid;
 
@@ -115,7 +114,7 @@ int main(int argc, char* argv[])
 		grid.initialize(grid_length, comm, "RANDOM", 0, 0, false, false, false);
 
 		Cartesian_Geometry::Parameters geom_params;
-		geom_params.start[0] = -2 - 2 * cell_length;
+		geom_params.start[0] = -2 * cell_length;
 		geom_params.start[1] =
 		geom_params.start[2] = 0;
 		geom_params.level_0_cell_length[0] = cell_length;
@@ -185,7 +184,7 @@ int main(int argc, char* argv[])
 			data->solution = get_solution_value(cell_center[0]);
 		}
 
-		Poisson_Solve solver;
+		Poisson_Solve solver(10000, 0, 1e-15, 2, 100, false);
 		solver.solve(solve_cells, grid, cells_to_skip);
 
 		// check that parallel solutions with more cells have smaller norms

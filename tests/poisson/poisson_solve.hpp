@@ -67,7 +67,8 @@ public:
 		this->f_y_pos        =
 		this->f_y_neg        =
 		this->f_z_pos        =
-		this->f_z_neg        = 0;
+		this->f_z_neg        =
+		this->cell_type      = 0;
 	}
 
 	double
@@ -102,7 +103,10 @@ public:
 		The neighbors' factors are used when calculating traspose(A) . i.
 		One factor per direction.
 		*/
-		f_x_pos, f_x_neg, f_y_pos, f_y_neg, f_z_pos, f_z_neg;
+		f_x_pos, f_x_neg, f_y_pos, f_y_neg, f_z_pos, f_z_neg,
+
+		// see cache_system_info()
+		cell_type;
 
 
 	/*
@@ -115,7 +119,9 @@ public:
 		// geometry factors
 		GEOMETRY  = 1,
 		// data related to initialization
-		INIT      = 2;
+		INIT      = 2,
+		// cell type data
+		TYPE      = 3;
 
 	// tells dccrg what to transfer, assumes no padding between variables
 	std::tuple<
@@ -144,6 +150,11 @@ public:
 			count = 1;
 			datatype = MPI_DOUBLE;
 			break;
+		case Poisson_Cell::TYPE:
+			address = &(this->cell_type);
+			count = 1;
+			datatype = MPI_DOUBLE;
+			break;
 		default:
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Invalid transfer switch: " << Poisson_Cell::transfer_switch
@@ -155,6 +166,15 @@ public:
 		return std::make_tuple(address, count, datatype);
 	}
 };
+
+
+// For internal use, see cache_system_info()
+// all geometric factors needed
+#define DCCRG_POISSON_SOLVE_CELL 0
+// only factors towards solve cells needed
+#define DCCRG_POISSON_BOUNDARY_CELL 1
+// geometric factors not needed
+#define DCCRG_POISSON_SKIP_CELL 2
 
 
 /*!
@@ -224,14 +244,14 @@ public:
 
 	Cells in cells_to_skip and missing neighbors in case the grid is not
 	periodic are assumed to be of equal size and have rhs of equal value
-	to their current neighbor. Cells given in cells to skip will be
+	to their current neighbor. Cells given in cells will be
 	removed from cells_to_skip before solving. Only local cells need to
 	be given in cells_to_skip, that data is updated between processes
 	internally.
 
 	Cells in given grid which do not appear in either cells or cells_to_skip
-	are considered boundary cells whose rhs will be used by the solver
-	but the solution can be left undefined and will not be changed.
+	are considered boundary cells whose rhs and solution will be used by the
+	solver and will not be changed.
 
 	If the structure of the grid has not changed since the last call
 	to this function (new cells haven't been created or existing ones removed,
@@ -287,6 +307,10 @@ public:
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
 
+				if (data->cell_type != DCCRG_POISSON_SOLVE_CELL) {
+					continue;
+				}
+
 				data->A_dot_p0 = data->scaling_factor * data->p0;
 
 				for(const auto& neigh_info: info.second) {
@@ -334,7 +358,9 @@ public:
 			double dot_p_l = 0, dot_p_g = 0;
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
-				dot_p_l += data->p1 * data->A_dot_p0;
+				if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+					dot_p_l += data->p1 * data->A_dot_p0;
+				}
 			}
 			MPI_Allreduce(&dot_p_l, &dot_p_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 			if (this->comm_rank == 0 && this->verbose) {
@@ -354,7 +380,9 @@ public:
 			// update solution
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
-				data->solution += alpha * data->p0;
+				if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+					data->solution += alpha * data->p0;
+				}
 			}
 
 			// update residual and possibly stop solving
@@ -371,7 +399,9 @@ public:
 				residual_min = residual;
 				for(const auto& info: this->cell_info) {
 					Poisson_Cell* const data = info.first;
-					data->best_solution = data->solution;
+					if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+						data->best_solution = data->solution;
+					}
 				}
 			}
 
@@ -391,12 +421,18 @@ public:
 			// update r0
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
-				data->r0 -= alpha * data->A_dot_p0;
+				if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+					data->r0 -= alpha * data->A_dot_p0;
+				}
 			}
 
 			// update r1
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
+
+				if (data->cell_type != DCCRG_POISSON_SOLVE_CELL) {
+					continue;
+				}
 
 				// A . p1
 				double A_dot_p1 = data->scaling_factor * data->p1;
@@ -459,7 +495,9 @@ public:
 			dot_r_l = dot_r_g = 0;
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
-				dot_r_l += data->r0 * data->r1;
+				if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+					dot_r_l += data->r0 * data->r1;
+				}
 			}
 			MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 			if (this->comm_rank == 0 && this->verbose) {
@@ -475,19 +513,25 @@ public:
 			// update p0, p1
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
-				data->p0 = data->r0 + beta * data->p0;
-				data->p1 = data->r1 + beta * data->p1;
+				if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+					data->p0 = data->r0 + beta * data->p0;
+					data->p1 = data->r1 + beta * data->p1;
+				}
 			}
 
 		} while (iteration < this->max_iterations);
 
 		if (this->comm_rank == 0 && this->verbose) {
-			std::cout << "iterations: " << iteration << ", residual: " << residual_min << std::endl;
+			std::cout << "iterations: " << iteration
+				<< ", residual: " << residual_min
+				<< std::endl;
 		}
 
 		for(const auto& info: this->cell_info) {
 			Poisson_Cell* const data = info.first;
-			data->solution = data->best_solution;
+			if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+				data->solution = data->best_solution;
+			}
 		}
 
 		MPI_Comm_free(&(this->comm));
@@ -520,12 +564,15 @@ public:
 
 			double norm_local = 0;
 
-			size_t error = 0;
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
 
+				if (data->cell_type != DCCRG_POISSON_SOLVE_CELL) {
+					continue;
+				}
+
 				if (data->scaling_factor == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__ << " " << error++ << std::endl;
+					std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 					abort();
 				}
 				const double inv_scaling_factor = -1.0 / data->scaling_factor;
@@ -534,7 +581,7 @@ public:
 				data->best_solution = -inv_scaling_factor * data->rhs;
 
 				for(const auto& neigh_info: info.second) {
-					Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
+					const Poisson_Cell* const neighbor_data = std::get<0>(neigh_info);
 
 					double multiplier = 0;
 					const int direction = std::get<1>(neigh_info);
@@ -585,7 +632,9 @@ public:
 
 			for(const auto& info: this->cell_info) {
 				Poisson_Cell* const data = info.first;
-				data->solution = data->best_solution;
+				if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+					data->solution = data->best_solution;
+				}
 			}
 		}
 
@@ -632,6 +681,7 @@ private:
 	int comm_rank;
 
 	bool verbose;
+
 
 	/*!
 	Returns global residual of the solution.
@@ -687,7 +737,8 @@ private:
 		for (size_t i = 0; i < neighbors.size(); i++) {
 			const uint64_t neighbor = neighbors[i].first;
 			const int direction = neighbors[i].second;
-			const std::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
+			const std::array<double, 3> neighbor_length
+				= grid.geometry.get_length(neighbor);
 			const double
 				neigh_x_half_size = neighbor_length[0] / 2.0,
 				neigh_y_half_size = neighbor_length[1] / 2.0,
@@ -790,18 +841,11 @@ private:
 		const std::vector<uint64_t>& cells_to_skip,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 	) {
-		// classify cells into different types
-		const double
-			// all geometric factors needed
-			solve_cell = 0,
-			// only factors towards solve cells needed
-			boundary_cell = 1,
-			// geometric factors not needed
-			skip_cell = 2;
+		/*
+		Classify cells into different types
+		*/
 
-		// classify all local cells as boundary by default
 		std::vector<uint64_t> all_cells = grid.get_cells();
-		std::sort(all_cells.begin(), all_cells.end());
 
 		for(const auto& cell: all_cells) {
 			if (grid.is_local(cell)) {
@@ -813,10 +857,10 @@ private:
 					abort();
 				}
 
-				// store classifications in p0
-				cell_data->p0 = boundary_cell;
+				cell_data->cell_type = DCCRG_POISSON_BOUNDARY_CELL;
 			}
 		}
+
 		for(const auto& cell_to_skip: cells_to_skip) {
 			if (grid.is_local(cell_to_skip)) {
 				Poisson_Cell* const cell_data = grid[cell_to_skip];
@@ -827,9 +871,10 @@ private:
 					abort();
 				}
 
-				cell_data->p0 = skip_cell;
+				cell_data->cell_type = DCCRG_POISSON_SKIP_CELL;
 			}
 		}
+
 		for(const auto& cell: cells) {
 			if (grid.is_local(cell)) {
 				Poisson_Cell* const cell_data = grid[cell];
@@ -840,10 +885,11 @@ private:
 					abort();
 				}
 
-				cell_data->p0 = solve_cell;
+				cell_data->cell_type = DCCRG_POISSON_SOLVE_CELL;
 			}
 		}
-		Poisson_Cell::transfer_switch = Poisson_Cell::SOLVING;
+
+		Poisson_Cell::transfer_switch = Poisson_Cell::TYPE;
 		grid.update_copies_of_remote_neighbors();
 
 		// calculate scaling factors and cache neighbor info
@@ -859,7 +905,7 @@ private:
 				abort();
 			}
 
-			if (cell_data->p0 == skip_cell) {
+			if (cell_data->cell_type == DCCRG_POISSON_SKIP_CELL) {
 				continue;
 			}
 
@@ -875,6 +921,7 @@ private:
 			std::vector<std::pair<uint64_t, int> > face_neighbors;
 			for (size_t i = 0; i < all_face_neighbors.size(); i++) {
 				const uint64_t neighbor = all_face_neighbors[i].first;
+
 				Poisson_Cell* const neighbor_data = grid[neighbor];
 				if (neighbor_data == NULL) {
 					std::cerr << __FILE__ << ":" << __LINE__
@@ -884,13 +931,13 @@ private:
 					abort();
 				}
 
-				if (neighbor_data->p0 == skip_cell) {
+				if (neighbor_data->cell_type == DCCRG_POISSON_SKIP_CELL) {
 					continue;
 				}
 
 				if (
-					cell_data->p0 == boundary_cell
-					and neighbor_data->p0 == boundary_cell
+					cell_data->cell_type == DCCRG_POISSON_BOUNDARY_CELL
+					and neighbor_data->cell_type == DCCRG_POISSON_BOUNDARY_CELL
 				) {
 					continue;
 				}
@@ -907,9 +954,7 @@ private:
 				const int neigh_ref_lvl = grid.get_refinement_level(neighbor);
 				if (neigh_ref_lvl > cell_ref_lvl) {
 					relative_ref_lvl = 1;
-				} else if (neigh_ref_lvl == cell_ref_lvl) {
-					relative_ref_lvl = 0;
-				} else {
+				} else if (neigh_ref_lvl < cell_ref_lvl) {
 					relative_ref_lvl = -1;
 				}
 				std::get<2>(temp_neigh_info) = relative_ref_lvl;
@@ -919,16 +964,16 @@ private:
 
 			if (face_neighbors.size() == 0) {
 				// don't consider cells without normal neighbors
-				cell_data->p0 = skip_cell;
+				cell_data->cell_type = DCCRG_POISSON_SKIP_CELL;
 				continue;
 			}
 
 			this->set_scaling_factor(cell, face_neighbors, grid);
 
 			// include boundary cells only as neighbors when solving
-			if (cell_data->p0 == boundary_cell) {
+			/*if (cell_data->cell_type == DCCRG_POISSON_BOUNDARY_CELL) {
 				continue;
-			}
+			}*/
 
 			this->cell_info.push_back(temp_cell_info);
 		}
@@ -953,6 +998,10 @@ private:
 		// residual == r0 = rhs - A . solution
 		for(const auto& info: this->cell_info) {
 			Poisson_Cell* const data = info.first;
+
+			if (data->cell_type != DCCRG_POISSON_SOLVE_CELL) {
+				continue;
+			}
 
 			data->r0 = data->rhs - data->scaling_factor * data->solution;
 
@@ -999,14 +1048,17 @@ private:
 			}
 
 			// initially all variables equal to residual
+			data->p0 =
+			data->p1 =
 			data->r1 = data->r0;
-			data->p0 = data->p1 = data->r0;
 		}
 
 		double dot_r_l = 0, dot_r_g = 0;
 		for(const auto& info: this->cell_info) {
 			Poisson_Cell* const data = info.first;
-			dot_r_l += data->r0 * data->r1;
+			if (data->cell_type == DCCRG_POISSON_SOLVE_CELL) {
+				dot_r_l += data->r0 * data->r1;
+			}
 		}
 		MPI_Allreduce(&dot_r_l, &dot_r_g, 1, MPI_DOUBLE, MPI_SUM, this->comm);
 
