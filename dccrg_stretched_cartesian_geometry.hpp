@@ -223,7 +223,7 @@ public:
 	bool set(const Cartesian_Geometry& other)
 	{
 		for (size_t dimension = 0; dimension < this->length.get().size(); dimension++) {
-			if (!this->length.get()[dimension] == other.length.get()[dimension]) {
+			if (this->length.get()[dimension] != other.length.get()[dimension]) {
 				std::cerr << "Geometries must have the same grid length but have "
 					<< this->length.get()[dimension] << " and "
 					<< other.length.get()[dimension] << " in dimension " << dimension
