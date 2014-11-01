@@ -26,7 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 /*!
 \mainpage Distributed Cartesian Cell-Refinable Grid.
 
-See https://gitorious.org/dccrg/pages/Basics for the basics and
+See https://github.com/fmihpc/dccrg/wiki/Basics for the basics and
 dccrg::Dccrg::Dccrg() for a starting point in the API.
 */
 

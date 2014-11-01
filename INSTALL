@@ -2,14 +2,11 @@ dccrg is a header only library so installation consists of
 putting the .hpp files in this directory somewhere where
 your compiler can find them.
 
-dccrg requires MPI-2, Zoltan and optionally boost::mpi
-which might be available from your distribution. If not
-you can compile them for example into your home
-directory. Installation instructions for several
-machines / systems are given in
-https://gitorious.org/dccrg/pages/Install
-boost::mpi is required if cell data is transferred
-using boost::mpi instead of MPI directly.
+dccrg requires MPI-2, boost and Zoltan which might be
+available from your distribution. If not you can compile
+them for example into your home directory. Installation
+instructions for several machines / systems are given in
+https://github.com/fmihpc/dccrg/wiki/Install
 With small modifications dccrg can also work with MPI-1,
 namely a few MPI-2 functions used by dccrg have to be
 renamed to their MPI-1 versions.
