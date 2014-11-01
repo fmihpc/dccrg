@@ -542,6 +542,7 @@ public:
 	A more robust but slower and less accurate version of solve().
 
 	Based on http://www.rsmas.miami.edu/personal/miskandarani/Courses/MSC321/Projects/prjpoisson.pdf
+	with corrected geometric factors in equations 15-18.
 	*/
 	template<class Geometry> void solve_failsafe(
 		const std::vector<uint64_t>& cells,
