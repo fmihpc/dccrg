@@ -1,18 +1,17 @@
-# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs
-INCLUDES = -I../.. -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
+FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
+INCLUDES = -I../.. -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 
 all: refine_simple unrefine_simple scalability
 
 refine_simple: refine_simple.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI refine_simple.cpp $(INCLUDES) -o refine_simple
+	$(CXX) refine_simple.cpp $(INCLUDES) -o refine_simple
 
 unrefine_simple: unrefine_simple.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI unrefine_simple.cpp $(INCLUDES) -o unrefine_simple
+	$(CXX) unrefine_simple.cpp $(INCLUDES) -o unrefine_simple
 
 scalability: scalability.cpp ../../dccrg.hpp Makefile
-	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI scalability.cpp $(INCLUDES) -o scalability
+	$(CXX) scalability.cpp $(INCLUDES) -o scalability
 
 c: clean
 clean:

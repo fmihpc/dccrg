@@ -1,6 +1,5 @@
-# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs -DDEBUG
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lboost_serialization -lzoltan
+FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 MPIRUN = mpirun -np 2
 RUN =
@@ -11,10 +10,10 @@ TEST_PROGRAMS = copy
 all: $(PROGRAMS)
 
 simple: simple.cpp ../../dccrg.hpp ../../dccrg_cartesian_geometry.hpp Makefile
-	$(CXX) $< $(INCLUDES) -o $@
+	$(CXX) $< $(INCLUDES) -DDEBUG -o $@
 
 copy: copy.cpp ../../dccrg.hpp ../../dccrg_cartesian_geometry.hpp Makefile
-	$(CXX) $< $(INCLUDES) -o $@
+	$(CXX) $< $(INCLUDES) -DDEBUG -o $@
 
 c: clean
 clean:

@@ -16,23 +16,20 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/foreach.hpp"
-#include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
-#include "stdint.h"
+#include "cstdint"
 #include "vector"
 
+#include "boost/program_options.hpp"
 #include "dccrg.hpp"
 #include "dccrg_cartesian_geometry.hpp"
+#include "mpi.h"
 
 #include "poisson_solve.hpp"
 #include "reference_poisson_solve.hpp"
 
-using namespace boost::mpi;
 using namespace dccrg;
 using namespace std;
 
@@ -52,7 +49,7 @@ template<class Geometry> double get_p_norm(
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 		Poisson_Cell* data = grid[cell];
 		local += std::pow(fabs(data->solution - reference.get_solution(cell - 1)), p_of_norm);
 	}
@@ -77,7 +74,7 @@ template<class Geometry> double get_p_norm(
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 		Poisson_Cell
 			*data1 = grid1[cell],
 			*data2 = grid2[cell];
@@ -127,7 +124,7 @@ template<class Geometry> void offset_solution(
 	MPI_Comm_free(&comm);
 
 	// offset solutions
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 		Poisson_Cell *data = grid[cell];
 		data->solution -= solution;
 	}
@@ -136,8 +133,16 @@ template<class Geometry> void offset_solution(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -208,8 +213,8 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
 
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
-		BOOST_FOREACH(const uint64_t cell, initial_cells) {
-			const int target_process = cell % comm.size();
+		for (const auto& cell: initial_cells) {
+			const int target_process = cell % comm_size;
 			grid_x.pin(cell, target_process);
 			grid_y.pin(cell, target_process);
 			grid_z.pin(cell, target_process);
@@ -224,7 +229,7 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t> cells = grid_x.get_cells();
 
 		// initialize parallel
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const auto& cell: cells) {
 			Poisson_Cell
 				*data_x = grid_x[cell],
 				*data_y = grid_y[cell],
@@ -248,7 +253,7 @@ int main(int argc, char* argv[])
 
 		// initialize serial
 		const std::vector<uint64_t> cells_serial = grid_serial.get_cells();
-		BOOST_FOREACH(const uint64_t cell, cells_serial) {
+		for (const auto& cell: cells_serial) {
 			Poisson_Cell* data = grid_serial[cell];
 			if (data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
@@ -280,9 +285,9 @@ int main(int argc, char* argv[])
 
 		if (norm_serial > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << comm.rank()
+					<< " Process " << rank
 					<< ": " << p_of_norm
 					<< "-norm between x and serial is too large with " << number_of_cells
 					<< " cells: " << norm_serial
@@ -301,9 +306,9 @@ int main(int argc, char* argv[])
 
 		if (norm_x > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << comm.rank()
+					<< " Process " << rank
 					<< ": " << p_of_norm
 					<< "-norm between x and reference is too large with " << number_of_cells
 					<< " cells: " << norm_x
@@ -312,9 +317,9 @@ int main(int argc, char* argv[])
 		}
 		if (norm_y > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << comm.rank()
+					<< " Process " << rank
 					<< ": " << p_of_norm
 					<< "-norm between y and reference is too large with " << number_of_cells
 					<< " cells: " << norm_y
@@ -323,9 +328,9 @@ int main(int argc, char* argv[])
 		}
 		if (norm_z > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << comm.rank()
+					<< " Process " << rank
 					<< ": " << p_of_norm
 					<< "-norm between z and reference is too large with " << number_of_cells
 					<< " cells: " << norm_z
@@ -335,7 +340,7 @@ int main(int argc, char* argv[])
 
 		if (norm_xy > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between x and y is too large: " << norm_xy
@@ -344,7 +349,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_xz > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between x and z differs too much: " << norm_xz
@@ -353,7 +358,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_yz > norm_threshold) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between y and z differs too much: " << norm_yz
@@ -367,13 +372,15 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	MPI_Finalize();
+
 	if (success == 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "PASSED" << endl;
 		}
 		return EXIT_SUCCESS;
 	} else {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;

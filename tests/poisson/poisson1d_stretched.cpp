@@ -146,8 +146,16 @@ template<class Geometry> double get_last_cell_solution(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -243,7 +251,7 @@ int main(int argc, char* argv[])
 
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
 		BOOST_FOREACH(const uint64_t cell, initial_cells) {
-			const int target_process = cell % comm.size();
+			const int target_process = cell % comm_size;
 			grid_stretched.pin(cell, target_process);
 			grid_reference.pin(cell, target_process);
 		}
@@ -292,7 +300,7 @@ int main(int argc, char* argv[])
 		if (number_of_cells == 8
 		&& norm_stretched > norm_reference) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " 2 norm of stretched solution from exact (" << norm_stretched
 					<< ") larger than 2 norm of reference from exact (" << norm_reference
@@ -303,7 +311,7 @@ int main(int argc, char* argv[])
 
 		if (norm_reference > old_norm_reference) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " 2 norm of reference solution from exact larger with " << number_of_cells
 					<< " cells (" << norm_reference << ") than with " << old_number_of_cells
@@ -378,13 +386,15 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	MPI_Finalize();
+
 	if (success == 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "PASSED" << endl;
 		}
 		return EXIT_SUCCESS;
 	} else {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;

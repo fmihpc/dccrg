@@ -2,7 +2,6 @@
 Tests the grid with variable amount of data in cells using serialization
 */
 
-#include "boost/mpi.hpp"
 #include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
@@ -15,23 +14,31 @@ Tests the grid with variable amount of data in cells using serialization
 #include "../../dccrg.hpp"
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
 
 struct CellData {
 
-	vector<double> variables;
+	std::vector<double> variables;
 
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & variables;
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple(this->variables.data(), int(this->variables.size()), MPI_DOUBLE);
 	}
 };
 
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -46,27 +53,26 @@ int main(int argc, char* argv[])
 
 	// populate the grid, number of variables in a cell is equal to its id
 	vector<uint64_t> cells = grid.get_cells();
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		CellData* cell_data = grid[*cell];
-		for (uint64_t i = 0; i < *cell; i++) {
-			cell_data->variables.push_back(*cell + i);
+	for (auto cell: cells) {
+		auto* const cell_data = grid[cell];
+		for (uint64_t i = 0; i < cell; i++) {
+			cell_data->variables.push_back(cell + i);
 		}
 	}
 
 	// print cell data
-	for (int proc = 0; proc < comm.size(); proc++) {
-		comm.barrier();
-		if (proc != comm.rank()) {
+	for (int proc = 0; proc < comm_size; proc++) {
+		MPI_Barrier(comm);
+		if (proc != rank) {
 			continue;
 		}
 
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (auto cell: cells) {
+			cout << "Cell " << cell << " data (on process " << rank << "): ";
 
-			cout << "Cell " << *cell << " data (on process " << comm.rank() << "): ";
-
-			CellData* cell_data = grid[*cell];
-			for (vector<double>::const_iterator variable = cell_data->variables.begin(); variable != cell_data->variables.end(); variable++) {
-				cout << *variable << " ";
+			const auto* const cell_data = grid[cell];
+			for (auto variable: cell_data->variables) {
+				cout << variable << " ";
 			}
 			cout << endl;
 		}
@@ -74,38 +80,48 @@ int main(int argc, char* argv[])
 		sleep(3);
 	}
 
-	grid.balance_load();
+	grid.initialize_balance_load(true);
+	// make room for incoming cell data
+	const auto& cells_to_receive = grid.get_cells_to_receive();
+	for (const auto& sender: cells_to_receive) {
+		for (const auto item: sender.second) {
+			const auto cell = item.first;
+			auto* const cell_data = grid[cell];
+			if (cell_data == NULL) { abort(); }
+			cell_data->variables.resize(cell);
+		}
+	}
+	grid.continue_balance_load();
+	grid.finish_balance_load();
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << endl;
 	}
 
 	cells = grid.get_cells();
 
 	// print cell data again
-	for (int proc = 0; proc < comm.size(); proc++) {
-		comm.barrier();
-		if (proc != comm.rank()) {
+	for (int proc = 0; proc < comm_size; proc++) {
+		MPI_Barrier(comm);
+		if (proc != rank) {
 			continue;
 		}
 
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (auto cell: cells) {
 
-			cout << "Cell " << *cell << " data (on process " << comm.rank() << "): ";
+			cout << "Cell " << cell << " data (on process " << rank << "): ";
 
-			CellData* cell_data = grid[*cell];
-			for (vector<double>::const_iterator
-				variable = cell_data->variables.begin();
-				variable != cell_data->variables.end();
-				variable++
-			) {
-				cout << *variable << " ";
+			const auto* const cell_data = grid[cell];
+			for (auto variable: cell_data->variables) {
+				cout << variable << " ";
 			}
 			cout << endl;
 		}
 		cout.flush();
 		sleep(3);
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

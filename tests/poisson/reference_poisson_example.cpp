@@ -21,13 +21,13 @@ int main()
 	solver.solve();
 
 	cout << "Charge:\n";
-	BOOST_FOREACH(const double charge, solver.get_complete_rhs()) {
+	for (const auto& charge: solver.get_complete_rhs()) {
 		cout << charge << " ";
 	}
 	cout << endl;
 
 	cout << "Potential:\n";
-	BOOST_FOREACH(const double potential, solver.get_complete_solution()) {
+	for (const auto& potential: solver.get_complete_solution()) {
 		cout << potential << " ";
 	}
 	cout << endl;

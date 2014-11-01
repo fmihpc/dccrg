@@ -17,11 +17,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "array"
-#include "boost/mpi.hpp"
 #include "cstdlib"
 #include "iostream"
 #include "tuple"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -32,33 +33,25 @@ struct Cell
 {
 	int data;
 
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	template<typename Archiver> void serialize(
-		Archiver& ar,
-		const unsigned int
-	) {
-		ar & data;
-	}
-
-	#else
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) &(this->data), 1, MPI_INT);
 	}
-
-	#endif	// ifndef DCCRG_CELL_DATA_SIZE_FROM_USER
 };
 
 
 int main(int argc, char* argv[])
 {
-	boost::mpi::environment env(argc, argv);
-	boost::mpi::communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -75,7 +68,7 @@ int main(int argc, char* argv[])
 
 	// default neighbor lists should have 5^3 - 1 = 124 neighbors
 	for (const uint64_t cell: cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell);
+		const auto* const neighbors = grid.get_neighbors_of(cell);
 		if (neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -83,7 +76,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell);
+		const auto* const neighbors_to = grid.get_neighbors_to(cell);
 		if (neighbors_to->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -105,8 +98,8 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const uint64_t cell: cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
+	for (const auto& cell: cells) {
+		const auto* const neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -115,7 +108,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
+		const auto* const neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -141,8 +134,8 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const uint64_t cell: cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
+	for (const auto& cell: cells) {
+		const auto* const neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -151,7 +144,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
+		const auto* const neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -182,8 +175,8 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const uint64_t cell: cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
+	for (const auto& cell: cells) {
+		const auto* const neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -192,7 +185,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
+		const auto* const neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -223,8 +216,8 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const uint64_t cell: cells) {
-		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
+	for (const auto& cell: cells) {
+		const auto* const neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -233,7 +226,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
+		const auto* const neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -265,9 +258,9 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const uint64_t cell: cells) {
+	for (const auto& cell: cells) {
 		// check number of neighbors
-		const vector<uint64_t>* neighbors = grid.get_neighbors_of(cell, hood_id);
+		const auto* const neighbors = grid.get_neighbors_of(cell, hood_id);
 		if (neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -276,7 +269,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 		}
-		const vector<uint64_t>* neighbors_to = grid.get_neighbors_to(cell, hood_id);
+		const auto* const neighbors_to = grid.get_neighbors_to(cell, hood_id);
 		if (neighbors_to->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell
@@ -286,7 +279,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 		// check ids and ordering of neighbors_of
-		const vector<uint64_t>* default_neighbors = grid.get_neighbors_of(cell);
+		const auto* const default_neighbors = grid.get_neighbors_of(cell);
 		if (default_neighbors->size() != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell
@@ -340,9 +333,11 @@ int main(int argc, char* argv[])
 	}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "PASSED" << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

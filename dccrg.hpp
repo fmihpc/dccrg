@@ -34,9 +34,6 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "algorithm"
 #include "array"
 #include "boost/iterator/filter_iterator.hpp"
-#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-#include "boost/mpi.hpp"
-#endif
 #include "cstdint"
 #include "cstdio"
 #include "cstdlib"
@@ -188,17 +185,6 @@ If needed, the arguments to get_mpi_datatype() provide additional information:
 	  being done, see add_neighborhood()
 		- neighborhood_id is undefined when saving/loading grid data
 		  from a file and balancing the computational load
-
-If DCCRG_TRANSFER_USING_BOOST_MPI is defined when compiling then
-Cell_Data must have the following method
-\verbatim
-template<typename Archiver> void serialize(
-	Archiver& ar,
-	const unsigned int version
-);
-\endverbatim
-used by boost::mpi. See User-defined data types in boost::mpi tutorial:
-http://www.boost.org/doc/libs/release/doc/html/mpi/tutorial.html
 
 Geometry class decides the physical size, shape, etc of the grid.
 
@@ -359,9 +345,6 @@ public:
 		comm(other.get_communicator()),
 		rank(uint64_t(other.get_rank())),
 		comm_size(uint64_t(other.get_comm_size())),
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		boost_comm(other.get_boost_comm()),
-		#endif
 		neighbors(other.get_cell_neighbor()),
 		neighborhood_of(other.get_neighborhood_of()),
 		neighborhood_to(other.get_neighborhood_to()),
@@ -994,8 +977,6 @@ public:
 
 	Must be called by all processes with identical arguments.
 	Returns true on success, false otherwise (one one or more processes).
-	Does nothing if DCCRG_TRANSFER_USING_BOOST_MPI was defined when
-	compiling and returns false.
 
 	During this function the receiving process given to the cells'
 	get_mpi_datatype function is -1 and receiving == false.
@@ -1025,12 +1006,6 @@ public:
 		uint8_t*D data of 2nd cell
 		...
 		*/
-
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		return false;
-
-		#else
 
 		int ret_val = -1;
 
@@ -1624,7 +1599,6 @@ public:
 		}
 
 		return true;
-		#endif
 	}
 
 
@@ -1642,9 +1616,7 @@ public:
 
 	Must be called by all processes of given_comm and with identical arguments.
 
-	Returns true on success.
-	Does nothing and returns false if DCCRG_TRANSFER_USING_BOOST_MPI
-	was defined when compiling.
+	Returns true on success and false otherwise.
 
 	During this function the sending process given to the cells'
 	mpi_datatype function is -1 and receiving == true.
@@ -1662,12 +1634,6 @@ public:
 		const uint64_t sfc_caching_batches = 1,
 		const uint64_t number_of_cells = ~uint64_t(0)
 	) {
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		return false;
-
-		#else
-
 		if (
 			!this->start_loading_grid_data(
 				name,
@@ -1691,7 +1657,6 @@ public:
 		}
 
 		return true;
-		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	}
 
 
@@ -1722,12 +1687,6 @@ public:
 		const uint64_t sfc_caching_batches = 1,
 		const uint64_t /*number_of_cells*/ = ~uint64_t(0)
 	) {
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		return false;
-
-		#else
-
 		int ret_val = -1;
 
 		if (!this->initialize_mpi(given_comm)) {
@@ -2002,7 +1961,6 @@ public:
 		this->initialized = true;
 
 		return true;
-		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	}
 
 	/*!
@@ -2034,12 +1992,6 @@ public:
 	*/
 	bool continue_loading_grid_data()
 	{
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		return false;
-
-		#else
-
 		int ret_val = -1;
 
 		const uint64_t number_of_cells = this->cells.size();
@@ -2285,7 +2237,6 @@ public:
 		}
 
 		return true;
-		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	}
 
 
@@ -2300,12 +2251,6 @@ public:
 	*/
 	bool finish_loading_grid_data()
 	{
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		return false;
-
-		#else
-
 		this->cells_and_data_displacements.clear();
 
 		int ret_val = MPI_File_close(&(this->grid_data_file));
@@ -2319,7 +2264,6 @@ public:
 		}
 
 		return true;
-		#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 	}
 
 
@@ -3097,7 +3041,7 @@ public:
 
 	Returns true on success, false otherwise.
 	*/
-	bool write_vtk_file(const char* file_name) const
+	bool write_vtk_file(const std::string& file_name) const
 	{
 		std::ofstream outfile(file_name);
 		if (!outfile.is_open()) {
@@ -3111,10 +3055,11 @@ public:
 			std::sort(leaf_cells.begin(), leaf_cells.end());
 		}
 
-		outfile << "# vtk DataFile Version 2.0" << std::endl;
-		outfile << "Cartesian cell refinable grid" << std::endl;
-		outfile << "ASCII" << std::endl;
-		outfile << "DATASET UNSTRUCTURED_GRID" << std::endl;
+		outfile <<
+			"# vtk DataFile Version 2.0\n"
+			"Cartesian cell refinable grid\n"
+			"ASCII\n"
+			"DATASET UNSTRUCTURED_GRID\n";
 
 		// write separate points for every cells corners
 		outfile << "POINTS " << leaf_cells.size() * 8 << " float" << std::endl;
@@ -3728,11 +3673,7 @@ public:
 			-2
 		);
 
-		this->wait_user_data_transfer_receives(
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->cells, this->cells_to_receive
-		#endif
-		);
+		this->wait_user_data_transfer_receives();
 
 		this->wait_user_data_transfer_sends();
 	}
@@ -5059,24 +5000,14 @@ public:
 		bool ret_val = true;
 
 		if (neighborhood_id == default_neighborhood_id) {
-			return this->wait_user_data_transfer_receives(
-				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-				this->remote_neighbors,
-				this->cells_to_receive
-				#endif
-			);
+			return this->wait_user_data_transfer_receives();
 		}
 
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
 			ret_val = false;
 		}
 
-		if (!this->wait_user_data_transfer_receives(
-			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-			this->remote_neighbors,
-			this->user_neigh_cells_to_receive.at(neighborhood_id)
-			#endif
-		)) {
+		if (!this->wait_user_data_transfer_receives()) {
 			ret_val = false;
 		}
 
@@ -6172,16 +6103,6 @@ public:
 		return int(this->comm_size);
 	}
 
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	/*!
-	Returns the boost communicator of this dccrg instance.
-	*/
-	boost::mpi::communicator get_boost_comm() const
-	{
-		return this->boost_comm;
-	}
-	#endif
-
 	/*!
 	Returns the storage of mostly local cell ids and their data.
 	*/
@@ -6449,6 +6370,28 @@ public:
 	}
 
 
+	/*!
+	Default constructs local copy of the data of remote neighbor cells.
+
+	Use this function to modify the default constructed incoming cells
+	before they start receiving data from other processes.
+
+	For example if the default constructed version of cell data class
+	doesn't return a correct MPI_Datatype when updating remote neighbor
+	data then call this beforehand and use get_remote_neighbors_to() to
+	get a list of cells which you should change.
+	*/
+	void allocate_copies_of_remote_neighbors()
+	{
+		for (const auto& sender : this->cells_to_receive) {
+			for (const auto& item: sender.second) {
+				this->remote_neighbors[item.first];
+			}
+		}
+	}
+
+
+
 
 private:
 	bool initialized;
@@ -6469,9 +6412,6 @@ private:
 	// the grid is distributed between these processes
 	MPI_Comm comm;
 	uint64_t rank, comm_size;
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	boost::mpi::communicator boost_comm;
-	#endif
 
 	// cells and their data on this process
 	std::unordered_map<uint64_t, Cell_Data> cells;
@@ -6541,13 +6481,7 @@ private:
 
 	std::unordered_map<
 		int,
-		std::vector<
-			#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-			boost::mpi::request
-			#else
-			MPI_Request
-			#endif
-		>
+		std::vector<MPI_Request>
 	> send_requests, receive_requests;
 
 	// cells whose data has to be received / sent by this process from the process as the key
@@ -6567,11 +6501,6 @@ private:
 
 	// cells added to / removed from this process by load balancing
 	std::unordered_set<uint64_t> added_cells, removed_cells;
-
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	// storage for cells' user data that awaits transfer to or from this process
-	std::unordered_map<int, std::vector<Cell_Data>> incoming_data, outgoing_data;
-	#endif
 
 	// cells to be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
@@ -6640,10 +6569,6 @@ private:
 				<< std::endl;
 			return false;
 		}
-
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->boost_comm = boost::mpi::communicator(this->comm, boost::mpi::comm_attach);
-		#endif
 
 		int temp_size = 0;
 		ret_val = MPI_Comm_size(this->comm, &temp_size);
@@ -8637,10 +8562,6 @@ private:
 		this->cells_to_receive.clear();
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->incoming_data.clear();
-		this->outgoing_data.clear();
-		#endif
 
 		#ifdef DEBUG
 		// check that cells_to_refine is identical between processes
@@ -9171,11 +9092,7 @@ private:
 		}
 		#endif
 
-		this->wait_user_data_transfer_receives(
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-		this->unrefined_cell_data, this->cells_to_receive
-		#endif
-		);
+		this->wait_user_data_transfer_receives();
 		this->wait_user_data_transfer_sends();
 		this->cells_to_send.clear();
 		this->cells_to_receive.clear();
@@ -9202,36 +9119,6 @@ private:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		return new_cells;
-	}
-
-
-	/*!
-	Default constructs local copy of the data of remote neighbor cells.
-
-	Use this function to modify the default constructed incoming cells
-	before they start receiving data from other processes.
-
-	For example if the default constructed version of cell data class
-	doesn't return a correct MPI_Datatype when updating remote neighbor
-	data then call this beforehand and use get_remote_neighbors_to() to
-	get a list of cells which you should change.
-	*/
-	void create_copies_of_remote_neighbors()
-	{
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
-			sender = this->cells_to_receive.begin();
-			sender != this->cells_to_receive.end();
-			sender++
-		) {
-			for (std::vector<std::pair<uint64_t, int>>::const_iterator
-				item = sender->second.begin();
-				item != sender->second.end();
-				item++
-			) {
-				const uint64_t cell = item->first;
-				this->remote_neighbors[cell];
-			}
-		}
 	}
 
 
@@ -9270,20 +9157,13 @@ private:
 		const std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>& receive_item,
 		const int neighborhood_id
 	) {
-		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
-		int ret_val = -1;
-		#endif
-
 		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
 			sender = receive_item.begin();
 			sender != receive_item.end();
 			sender++
 		) {
 			const int sending_process = sender->first;
-
-			#if defined(DEBUG) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
 			const size_t number_of_receives = sender->second.size();
-			#endif
 
 			#ifdef DEBUG
 			if (sending_process == (int) this->rank
@@ -9295,6 +9175,8 @@ private:
 				abort();
 			}
 			#endif
+
+			int ret_val = -1;
 
 			if (this->send_single_cells) {
 
@@ -9308,22 +9190,6 @@ private:
 					if (destination.count(cell) == 0) {
 						destination[cell];
 					}
-
-					#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-					this->receive_requests[sending_process].push_back(
-						this->boost_comm.irecv(
-							sending_process,
-							item->second,
-							destination.at(cell)
-						)
-					);
-
-					// prevent compiler from warning about not using neighborhood_id
-					int temp = neighborhood_id;
-					temp++;
-
-					#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 					this->receive_requests[sending_process].push_back(MPI_Request());
 
@@ -9391,26 +9257,9 @@ private:
 							abort();
 						}
 					}
-
-					#endif
 				}
 
 			} else { // if this->send_single_cells
-
-				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-				this->receive_requests[sending_process].push_back(
-					this->boost_comm.irecv(
-						sending_process,
-						0,
-						this->incoming_data[sending_process]
-					)
-				);
-
-				int temp = neighborhood_id;
-				temp++;
-
-				#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 				// reserve space for incoming user data in this end
 				// TODO: move into a separate function callable by user
@@ -9508,7 +9357,6 @@ private:
 						}
 					}
 				}
-				#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			}
 		}
 
@@ -9523,9 +9371,7 @@ private:
 		const std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>& send_item,
 		const int neighborhood_id
 	) {
-		#ifndef DCCRG_TRANSFER_USING_BOOST_MPI
 		int ret_val = -1;
-		#endif
 
 		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
 			receiver = send_item.begin();
@@ -9533,10 +9379,7 @@ private:
 			receiver++
 		) {
 			const int receiving_process = receiver->first;
-
-			#if defined(DEBUG) || !defined(DCCRG_TRANSFER_USING_BOOST_MPI)
 			const size_t number_of_sends = receiver->second.size();
-			#endif
 
 			#ifdef DEBUG
 			if (receiving_process == (int) this->rank
@@ -9556,22 +9399,6 @@ private:
 					item++
 				) {
 					const uint64_t cell = item->first;
-
-					#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-					this->send_requests[receiving_process].push_back(
-						this->boost_comm.isend(
-							receiving_process,
-							item->second,
-							this->cells.at(cell)
-						)
-					);
-
-					// prevent compiler from warning about not using neighborhood_id
-					int temp = neighborhood_id;
-					temp++;
-
-					#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 					this->send_requests[receiving_process].push_back(MPI_Request());
 
@@ -9639,45 +9466,9 @@ private:
 							abort();
 						}
 					}
-
-					#endif
 				}
 
 			} else { // if this->send_single_cells
-
-
-				#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-				// construct the outgoing data vector
-				for (std::vector<std::pair<uint64_t, int>>::const_iterator
-					item = receiver->second.begin();
-					item != receiver->second.end();
-					item++
-				) {
-					const uint64_t cell = item->first;
-					Cell_Data* user_data = &(this->cells.at(cell));
-					if (user_data == NULL) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " No data for cell " << cell
-							<< std::endl;
-						abort();
-					}
-					this->outgoing_data[receiving_process].push_back(*user_data);
-				}
-
-				// send all cells
-				this->send_requests[receiving_process].push_back(
-					this->boost_comm.isend(
-						receiving_process,
-						0,
-						this->outgoing_data[receiving_process]
-					)
-				);
-
-				int temp = neighborhood_id;
-				temp++;
-
-				#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 				// get mpi transfer info from cells
 				std::vector<void*> addresses(number_of_sends, NULL);
@@ -9767,8 +9558,6 @@ private:
 						}
 					}
 				}
-
-				#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 			}
 		}
 
@@ -9781,53 +9570,9 @@ private:
 
 	User data arriving to this process is saved in given destination.
 	*/
-	bool wait_user_data_transfer_receives(
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	std::unordered_map<uint64_t, Cell_Data>& destination,
-	const std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>& receive_item
-	#endif
-	) {
+	bool wait_user_data_transfer_receives()
+	{
 		bool success = true;
-
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		// wait for data to arrive
-		for (std::unordered_map<int, std::vector<boost::mpi::request>>::iterator
-			process = this->receive_requests.begin();
-			process != this->receive_requests.end();
-			process++
-		) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-		}
-
-		// incorporate received data
-		if (!this->send_single_cells) {
-
-			for (typename std::unordered_map<int, std::vector<Cell_Data>>::const_iterator
-				sender = this->incoming_data.begin();
-				sender != this->incoming_data.end();
-				sender++
-			) {
-				const int sending_process = sender->first;
-
-				size_t i = 0;
-				// cells were received in the following order
-				for (std::vector<std::pair<uint64_t, int>>::const_iterator
-					cell_item = receive_item.at(sending_process).begin();
-					cell_item != receive_item.at(sending_process).end();
-					cell_item++
-				) {
-					const uint64_t cell = cell_item->first;
-					// TODO move data instead of copying
-					destination[cell] = this->incoming_data.at(sending_process)[i];
-					i++;
-				}
-			}
-			this->incoming_data.clear();
-		}
-
-		#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
 		int ret_val = -1;
 
 		for (std::unordered_map<int, std::vector<MPI_Request>>::iterator
@@ -9852,8 +9597,6 @@ private:
 			}
 		}
 
-		#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
 		this->receive_requests.clear();
 
 		return success;
@@ -9865,22 +9608,6 @@ private:
 	*/
 	bool wait_user_data_transfer_sends()
 	{
-		#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-		for (std::unordered_map<int, std::vector<boost::mpi::request>>::iterator
-			process = this->send_requests.begin();
-			process != this->send_requests.end();
-			process++
-		) {
-			boost::mpi::wait_all(process->second.begin(), process->second.end());
-		}
-
-		if (!this->send_single_cells) {
-			this->outgoing_data.clear();
-		}
-
-		#else	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
 		for (std::unordered_map<int, std::vector<MPI_Request>>::iterator
 			process = this->send_requests.begin();
 			process != this->send_requests.end();
@@ -9904,8 +9631,6 @@ private:
 				}
 			}
 		}
-
-		#endif	// ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 		this->send_requests.clear();
 

@@ -1,10 +1,8 @@
-# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs
-BOOST_MPI_LIBS = -lboost_serialization -lboost_mpi
+FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
 INCLUDES = -I../.. -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 
-PROGRAMS = 2d_boost_mpi 2d_mpi 2d_boost_mpi_debug 2d_mpi_debug dc2vtk
+PROGRAMS = 2d_mpi 2d_mpi_debug dc2vtk
 
 HEADERS = \
 	../../dccrg.hpp \
@@ -21,14 +19,8 @@ HEADERS = \
 
 all: $(PROGRAMS)
 
-2d_boost_mpi: 2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDCCRG_TRANSFER_USING_BOOST_MPI 2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o 2d_boost_mpi
-
 2d_mpi: 2d.cpp $(HEADERS) Makefile
 	$(CXX) 2d.cpp $(INCLUDES) -o 2d_mpi
-
-2d_boost_mpi_debug: 2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DDCCRG_TRANSFER_USING_BOOST_MPI 2d.cpp $(INCLUDES) $(BOOST_MPI_LIBS) -o 2d_boost_mpi_debug
 
 2d_mpi_debug: 2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG 2d.cpp $(INCLUDES) -o 2d_mpi_debug

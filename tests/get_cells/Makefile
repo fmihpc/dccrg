@@ -1,6 +1,5 @@
-# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_serialization -lboost_mpi -lzoltan
+FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lzoltan
 MPICXX = mpic++ $(FLAGS)
 MPIRUN = mpirun -np 3
 

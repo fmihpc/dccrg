@@ -123,8 +123,16 @@ template<class Geometry> double get_p_norm(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -210,7 +218,7 @@ int main(int argc, char* argv[])
 
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
 		for(const auto& cell: initial_cells) {
-			const int target_process = cell % comm.size();
+			const int target_process = cell % comm_size;
 			grid_x.pin(cell, target_process);
 			grid_y.pin(cell, target_process);
 			grid_z.pin(cell, target_process);
@@ -276,7 +284,7 @@ int main(int argc, char* argv[])
 
 			if (norm_x > old_norm_n_n_x) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between x and analytic is too large with "
@@ -290,7 +298,7 @@ int main(int argc, char* argv[])
 
 			if (norm_y > old_norm_n_n_y) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between y and analytic is too large with "
@@ -304,7 +312,7 @@ int main(int argc, char* argv[])
 
 			if (norm_z > old_norm_n_n_z) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between z and analytic is too large with "
@@ -322,7 +330,7 @@ int main(int argc, char* argv[])
 
 			if (norm_x > old_norm_n_2n_x) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between x and analytic is too large with "
@@ -336,7 +344,7 @@ int main(int argc, char* argv[])
 
 			if (norm_y > old_norm_n_2n_y) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between y and analytic is too large with "
@@ -350,7 +358,7 @@ int main(int argc, char* argv[])
 
 			if (norm_z > old_norm_n_2n_z) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between z and analytic is too large with "
@@ -368,7 +376,7 @@ int main(int argc, char* argv[])
 
 			if (norm_x > old_norm_2n_n_x) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between x and analytic is too large with "
@@ -382,7 +390,7 @@ int main(int argc, char* argv[])
 
 			if (norm_y > old_norm_2n_n_y) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between y and analytic is too large with "
@@ -396,7 +404,7 @@ int main(int argc, char* argv[])
 
 			if (norm_z > old_norm_2n_n_z) {
 				success = 1;
-				if (comm.rank() == 0) {
+				if (rank == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " " << p_of_norm
 						<< "-norm between z and analytic is too large with "
@@ -415,13 +423,15 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	MPI_Finalize();
+
 	if (success == 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "PASSED" << endl;
 		}
 		return EXIT_SUCCESS;
 	} else {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;

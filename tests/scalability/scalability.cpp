@@ -50,27 +50,10 @@ public:
 		this->data.resize(Cell::data_size);
 	}
 
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	template<typename Archiver> void serialize(
-		Archiver& ar,
-		const unsigned int /*version*/
-	) {
-		ar & data;
-	}
-
-	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
-		return std::make_tuple((void*) &(this->data[0]), this->data.size(), MPI_UINT8_T);
+		return std::make_tuple(this->data.data(), this->data.size(), MPI_UINT8_T);
 	}
-
-	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 size_t Cell::data_size = 0;
@@ -83,12 +66,8 @@ size_t get_traffic_size(
 	const std::unordered_map<int, std::vector<std::pair<uint64_t, int> > >& lists
 ) {
 	double communication_size = 0;
-	for (std::unordered_map<int, std::vector<std::pair<uint64_t, int> > >::const_iterator
-		list = lists.begin();
-		list != lists.end();
-		list++
-	) {
-		communication_size += sizeof(uint8_t) * Cell::data_size * list->second.size();
+	for (const auto& item: lists) {
+		communication_size += sizeof(uint8_t) * Cell::data_size * item.second.size();
 	}
 
 	return communication_size;
@@ -106,9 +85,8 @@ template<class CellData> double solve(
 	timer t;
 	const double start_time = t.elapsed();
 
-	BOOST_FOREACH(uint64_t cell, cells) {
-		// get a pointer to current cell's data
-		CellData* cell_data = grid[cell];
+	for (const auto& cell: cells) {
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			cerr << __FILE__ << ":" << __LINE__
 				<< "No data for cell " << cell << endl;
@@ -129,8 +107,16 @@ template<class CellData> double solve(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -186,17 +172,19 @@ int main(int argc, char* argv[])
 
 	// print a help message if asked
 	if (option_variables.count("help") > 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << options << endl;
 		}
-		comm.barrier();
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
 	// warn if requested solution time too small
 	timer t;
 	if (solution_time < t.elapsed_min()) {
-		cout << "Warning: requested solution time is less than MPI_Wtime resolution, setting solution_time to: " << t.elapsed_min() << endl;
+		cout << "Warning: requested solution time is less than MPI_Wtime resolution, setting solution_time to: "
+			<< t.elapsed_min()
+			<< endl;
 		solution_time = t.elapsed_min();
 	}
 
@@ -205,7 +193,7 @@ int main(int argc, char* argv[])
 	// initialize
 	Dccrg<Cell> grid;
 
-	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
+	const std::array<uint64_t, 3> grid_length{{x_length, y_length, z_length}};
 	grid.initialize(
 		grid_length,
 		comm,
@@ -215,14 +203,15 @@ int main(int argc, char* argv[])
 	);
 	grid.balance_load();
 
-	vector<uint64_t> inner_cells = grid.get_local_cells_not_on_process_boundary();
-	vector<uint64_t> outer_cells = grid.get_local_cells_on_process_boundary();
+	vector<uint64_t>
+		inner_cells = grid.get_local_cells_not_on_process_boundary(),
+		outer_cells = grid.get_local_cells_on_process_boundary();
 
 	double total_solution_time = 0;
 	double sends_size = 0, receives_size = 0;
 	for (int timestep = 0; timestep < timesteps; timestep++) {
 
-		const std::unordered_map<int, std::vector<std::pair<uint64_t, int> > >
+		const auto
 			&sends	= grid.get_cells_to_send(),
 			&receives = grid.get_cells_to_receive();
 
@@ -238,22 +227,27 @@ int main(int argc, char* argv[])
 		grid.wait_remote_neighbor_copy_update_sends();
 	}
 
-	for (int process = 0; process < comm.size(); process++) {
-		comm.barrier();
-		if (comm.rank() == process) {
-			cout << "Process " << comm.rank()
+	for (int process = 0; process < comm_size; process++) {
+		MPI_Barrier(comm);
+		if (rank == process) {
+			cout << "Process " << rank
 				<< ": total solution time per timestep " << total_solution_time / timesteps
 				<< ", total bytes sent per timestep " << sends_size / timesteps
 				<< ", total bytes received per timestep " << receives_size / timesteps
 				<< endl;
 		}
-		comm.barrier();
+		MPI_Barrier(comm);
 	}
 
-	double total_transferred_bytes = all_reduce(comm, sends_size, plus<double>());
-	if (comm.rank() == 0) {
-		cout << "Total transferred bytes per timestep: " << total_transferred_bytes / timesteps << endl;
+	double transferred_bytes_local = sends_size, transferred_bytes = 0;
+	MPI_Reduce(&transferred_bytes_local, &transferred_bytes, 1, MPI_DOUBLE, MPI_SUM, 0, comm);
+	if (rank == 0) {
+		cout << "Total transferred bytes per timestep: "
+			<< transferred_bytes / timesteps
+			<< endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

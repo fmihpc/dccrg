@@ -16,59 +16,23 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/tuple/tuple.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "iostream"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
 
-
 using namespace std;
-using namespace boost;
 using namespace dccrg;
 
-
-class Cell
-{
-public:
-	int unused;
-
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	template<typename Archiver> void serialize(
-		Archiver& ar,
-		const unsigned int /*version*/
-	) {
-		ar & unused;
-	}
-
-	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+struct Cell {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
-		return std::make_tuple((void*) &(this->unused), 1, MPI_INT);
+		return std::make_tuple((void*) this, 0, MPI_BYTE);
 	}
-
-	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
 };
-
-
-struct is_larger {
-	is_larger(int given_x) : x(given_x) {}
-	bool operator()(int given_x)
-	{
-		return given_x > this->x;
-	}
-	int x;
-};
-
 
 int main(int argc, char* argv[])
 {

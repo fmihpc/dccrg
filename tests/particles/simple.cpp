@@ -52,38 +52,36 @@ void propagate_particles(Dccrg<Cell>& grid) {
 	const double vx = 0.1;
 
 	// propagate particles in local cells and copies of remote neighbors
-	vector<uint64_t> cells = grid.get_cells();
+	auto cells = grid.get_cells();
 	const std::unordered_set<uint64_t>& remote_neighbors
 		= grid.get_remote_cells_on_process_boundary_internal();
 	cells.insert(cells.begin(), remote_neighbors.begin(), remote_neighbors.end());
 
-	BOOST_FOREACH(const uint64_t& cell, cells) {
+	for (const uint64_t& cell: cells) {
 
-		Cell* cell_data = grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			cerr << __FILE__ << ":" << __LINE__ << " No data for cell " << cell << endl;
 			abort();
 		}
 
-		for (vector<std::array<double, 3> >::iterator
-			particle = cell_data->particles.begin();
-			particle != cell_data->particles.end();
-			particle++
-		) {
-			(*particle)[0] += vx;
+		for (auto& particle: cell_data->particles) {
+			particle[0] += vx;
 		}
 	}
 
 	// move particles to the particle list of the cell the particles are currently inside of
-	BOOST_FOREACH(const uint64_t& previous_cell, cells) {
+	for (const auto& previous_cell: cells) {
 
-		Cell* previous_data = grid[previous_cell];
+		auto* const previous_data = grid[previous_cell];
 		if (previous_data == NULL) {
-			cerr << __FILE__ << ":" << __LINE__ << " No data for cell " << previous_cell << endl;
+			cerr << __FILE__ << ":" << __LINE__
+				<< " No data for cell " << previous_cell
+				<< endl;
 			abort();
 		}
 
-		vector<std::array<double, 3> >::size_type i = 0;
+		vector<std::array<double, 3>>::size_type i = 0;
 		while (i < previous_data->particles.size()) {
 
 			// hande grid wrap around
@@ -101,7 +99,7 @@ void propagate_particles(Dccrg<Cell>& grid) {
 
 			// add particle to the current cell's list
 			if (grid.is_local(current_cell)) {
-				Cell* current_data = grid[current_cell];
+				auto* const current_data = grid[current_cell];
 				current_data->particles.push_back(previous_data->particles[i]);
 				current_data->number_of_particles = current_data->particles.size();
 			}
@@ -123,12 +121,12 @@ Saves the local grid and its particles to separate vtk files.
 
 Each process saves its own files.
 */
-void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
+void save(const int rank, const Dccrg<Cell>& grid, unsigned int step)
 {
 	// write the grid
 	const string grid_file_name(
 		lexical_cast<string>("simple_")
-		+ lexical_cast<string>(comm.rank()) + "_"
+		+ lexical_cast<string>(rank) + "_"
 		+ lexical_cast<string>(step) + "_grid.vtk"
 	);
 	grid.write_vtk_file(grid_file_name.c_str());
@@ -136,7 +134,7 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 	// write the particles
 	const string outname(
 		lexical_cast<string>("simple_")
-		+ lexical_cast<string>(comm.rank()) + "_"
+		+ lexical_cast<string>(rank) + "_"
 		+ lexical_cast<string>(step) + ".vtk"
 	);
 	ofstream outfile;
@@ -150,8 +148,8 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 
 	// calculate the total number of particles
 	uint64_t total_particles = 0;
-	BOOST_FOREACH(uint64_t cell, cells) {
-		Cell* cell_data = grid[cell];
+	for (const auto& cell: cells) {
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			cerr << __FILE__ << ":" << __LINE__ << ": no data for cell " << cell << endl;
 			abort();
@@ -163,9 +161,9 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 
 	// write out coordinates
 	uint64_t written_particles = 0;
-	BOOST_FOREACH(uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 
-		Cell* cell_data = grid[cell];
+		auto* const cell_data = grid[cell];
 		for (vector<std::array<double, 3> >::const_iterator
 			coordinates = cell_data->particles.begin();
 			coordinates != cell_data->particles.end();
@@ -198,14 +196,14 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 	outfile << "\nCELL_DATA " << total_particles
 		<< "\nSCALARS process int 1\nLOOKUP_TABLE default\n";
 	for (uint64_t i = 0; i < total_particles; i++) {
-		outfile << comm.rank() << " ";
+		outfile << rank << " ";
 	}
 	outfile << "\n";
 
 	// cell numbers of particles
 	outfile << "SCALARS cell int 1\nLOOKUP_TABLE default\n";
-	BOOST_FOREACH(uint64_t cell, cells) {
-		Cell* cell_data = grid[cell];
+	for (const auto& cell: cells) {
+		auto* const cell_data = grid[cell];
 		for (vector<std::array<double, 3> >::const_iterator
 			coordinates = cell_data->particles.begin();
 			coordinates != cell_data->particles.end();
@@ -222,8 +220,16 @@ void save(communicator comm, const Dccrg<Cell>& grid, unsigned int step)
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	// intialize Zoltan
 	float zoltan_version;
@@ -237,13 +243,13 @@ int main(int argc, char* argv[])
 	const std::array<uint64_t, 3> grid_length = {{3, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 1, 0, true, true, true);
 
-	const vector<uint64_t> cells = grid.get_cells();
+	const auto cells = grid.get_cells();
 
 	// initial condition
 	const unsigned int max_particles_per_cell = 5;
-	BOOST_FOREACH(uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 
-		Cell* cell_data = grid[cell];
+		auto* const cell_data = grid[cell];
 
 		const std::array<double, 3>
 			cell_min = grid.geometry.get_min(cell),
@@ -272,19 +278,19 @@ int main(int argc, char* argv[])
 
 	ofstream visit_particles, visit_grid;
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_particles.open(visit_particles_name.c_str());
-		visit_particles << "!NBLOCKS " << comm.size() << "\n";
+		visit_particles << "!NBLOCKS " << comm_size << "\n";
 		visit_grid.open(visit_grid_name.c_str());
-		visit_grid << "!NBLOCKS " << comm.size() << "\n";
+		visit_grid << "!NBLOCKS " << comm_size << "\n";
 	}
 
 	const unsigned int max_steps = 50;
 	for (unsigned int step = 0; step < max_steps; step++) {
 
 		// append current output file names to the visit files
-		if (comm.rank() == 0) {
-			for (int i = 0; i < comm.size(); i++) {
+		if (rank == 0) {
+			for (int i = 0; i < comm_size; i++) {
 				visit_particles << "simple_"
 					<< i << "_"
 					<< step << ".vtk\n";
@@ -294,7 +300,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		save(comm, grid, step);
+		save(rank, grid, step);
 
 		// reserve space for incoming particles in copies of remote neighbors
 		Cell::transfer_particles = false;
@@ -303,8 +309,8 @@ int main(int argc, char* argv[])
 		const std::unordered_set<uint64_t>& remote_neighbors
 			= grid.get_remote_cells_on_process_boundary_internal();
 
-		BOOST_FOREACH(uint64_t remote_neighbor, remote_neighbors) {
-			Cell* data = grid[remote_neighbor];
+		for (const auto& remote_neighbor: remote_neighbors) {
+			auto* const data = grid[remote_neighbor];
 			data->resize();
 		}
 
@@ -316,20 +322,22 @@ int main(int argc, char* argv[])
 	}
 
 	// append final output file names to the visit files
-	if (comm.rank() == 0) {
-		for (int i = 0; i < comm.size(); i++) {
+	if (rank == 0) {
+		for (int i = 0; i < comm_size; i++) {
 				visit_particles << "simple_"
-					<< comm.rank() << "_"
+					<< rank << "_"
 					<< max_steps << ".vtk\n";
 				visit_grid << "simple_"
-					<< comm.rank() << "_"
+					<< rank << "_"
 					<< max_steps << "_grid.vtk\n";
 		}
 		visit_particles.close();
 		visit_grid.close();
 	}
 
-	save(comm, grid, max_steps);
+	save(rank, grid, max_steps);
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

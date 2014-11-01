@@ -2,13 +2,16 @@
 As unrefined2d.cpp but pinns cells to particular processes.
 */
 
+#include "array"
 #include "algorithm"
-#include "boost/mpi.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "sstream"
 #include "unordered_set"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
@@ -16,38 +19,48 @@ As unrefined2d.cpp but pinns cells to particular processes.
 
 
 struct game_of_life_cell {
+	uint64_t
+		// total live neighbor count for all siblings
+		total_live_neighbor_count,
+		// must be next to live_unrefined_neighbors
+		is_alive;
 
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & is_alive;
-		ar & live_unrefined_neighbors[0] & live_unrefined_neighbors[1] & live_unrefined_neighbors[2];
-	}
-
-	bool is_alive;
-	// total live neighbor count for all siblings
-	unsigned int total_live_neighbor_count;
 	// record live neighbors of refined cells to calculate the above
-	uint64_t live_unrefined_neighbors[3];
+	std::array<uint64_t, 3> live_unrefined_neighbors;
+
 	// only count one sibling of an unrefined cell (their states of life should be identical)
-	uint64_t child_of_processed[8];
+	std::array<uint64_t, 8> child_of_processed;
+
+
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple(&(this->is_alive), 4, MPI_UINT64_T);
+	}
 };
 
 
 using namespace std;
-using namespace boost;
-using namespace boost::mpi;
 using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
@@ -56,99 +69,130 @@ int main(int argc, char* argv[])
 	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const double cell_length = 1.0 / grid_length[0];
 
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 		for (size_t i = 0; i <= grid_length[dimension]; i++) {
 			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-
-	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
-
 	game_grid.set_geometry(geom_params);
 
 	// create a blinker
 	#define BLINKER_START 198
-	uint64_t tmp1[] = {BLINKER_START, BLINKER_START + 1, BLINKER_START + 2};
-	vector<uint64_t> blinker_cells(tmp1, tmp1 + sizeof(tmp1) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = blinker_cells.begin(); cell != blinker_cells.end(); cell++) {
-		game_of_life_cell* cell_data = game_grid[*cell];
+	const vector<uint64_t> blinker_cells{
+		BLINKER_START,
+		BLINKER_START + 1,
+		BLINKER_START + 2
+	};
+	for (const auto& cell: blinker_cells) {
+		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
-		cell_data->is_alive = true;
+		cell_data->is_alive = 1;
 	}
 
 	// create a toad
 	#define TOAD_START 188
-	uint64_t tmp2[] = {TOAD_START, TOAD_START + 1, TOAD_START + 2, TOAD_START + 1 + grid_length[0], TOAD_START + 2 + grid_length[0], TOAD_START + 3 + grid_length[0]};
-	vector<uint64_t> toad_cells(tmp2, tmp2 + sizeof(tmp2) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = toad_cells.begin(); cell != toad_cells.end(); cell++) {
-		game_of_life_cell* cell_data = game_grid[*cell];
+	const vector<uint64_t> toad_cells{
+		TOAD_START,
+		TOAD_START + 1,
+		TOAD_START + 2,
+		TOAD_START + 1 + grid_length[0],
+		TOAD_START + 2 + grid_length[0],
+		TOAD_START + 3 + grid_length[0]
+	};
+	for (const auto& cell: toad_cells) {
+		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
-		cell_data->is_alive = true;
+		cell_data->is_alive = 1;
 	}
 
 	// create a beacon
 	#define BEACON_START 137
-	uint64_t tmp3[] = {BEACON_START, BEACON_START + 1, BEACON_START - grid_length[0], BEACON_START + 1 - grid_length[0], BEACON_START + 2 - 2 * grid_length[0], BEACON_START + 3 - 2 * grid_length[0], BEACON_START + 2 - 3 * grid_length[0], BEACON_START + 3 - 3 * grid_length[0]};
-	vector<uint64_t> beacon_cells(tmp3, tmp3 + sizeof(tmp3) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = beacon_cells.begin(); cell != beacon_cells.end(); cell++) {
-		game_of_life_cell* cell_data = game_grid[*cell];
+	const vector<uint64_t> beacon_cells{
+		BEACON_START,
+		BEACON_START + 1,
+		BEACON_START - grid_length[0],
+		BEACON_START + 1 - grid_length[0],
+		BEACON_START + 2 - 2 * grid_length[0],
+		BEACON_START + 3 - 2 * grid_length[0],
+		BEACON_START + 2 - 3 * grid_length[0],
+		BEACON_START + 3 - 3 * grid_length[0]
+	};
+	for (const auto& cell: beacon_cells) {
+		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
-		cell_data->is_alive = true;
+		cell_data->is_alive = 1;
 	}
 
 	// create a glider
 	#define GLIDER_START 143
-	uint64_t tmp4[] = {GLIDER_START + 1, GLIDER_START + 2 - grid_length[0], GLIDER_START - 2 * grid_length[0], GLIDER_START + 1 - 2 * grid_length[0], GLIDER_START + 2 - 2 * grid_length[0]};
-	vector<uint64_t> glider_cells(tmp4, tmp4 + sizeof(tmp4) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = glider_cells.begin(); cell != glider_cells.end(); cell++) {
-		game_of_life_cell* cell_data = game_grid[*cell];
+	const vector<uint64_t> glider_cells{
+		GLIDER_START + 1,
+		GLIDER_START + 2 - grid_length[0],
+		GLIDER_START - 2 * grid_length[0],
+		GLIDER_START + 1 - 2 * grid_length[0],
+		GLIDER_START + 2 - 2 * grid_length[0]
+	};
+	for (const auto& cell: glider_cells) {
+		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
-		cell_data->is_alive = true;
+		cell_data->is_alive = 1;
 	}
 
 	// create a block
 	#define BLOCK_START 47
-	uint64_t tmp5[] = {BLOCK_START, BLOCK_START + 1, BLOCK_START - grid_length[0], BLOCK_START + 1 - grid_length[0]};
-	vector<uint64_t> block_cells(tmp5, tmp5 + sizeof(tmp5) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = block_cells.begin(); cell != block_cells.end(); cell++) {
-		game_of_life_cell* cell_data = game_grid[*cell];
+	const vector<uint64_t> block_cells{
+		BLOCK_START,
+		BLOCK_START + 1,
+		BLOCK_START - grid_length[0],
+		BLOCK_START + 1 - grid_length[0]
+	};
+	for (const auto& cell: block_cells) {
+		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
-		cell_data->is_alive = true;
+		cell_data->is_alive = 1;
 	}
 
 	// create a beehive
 	#define BEEHIVE_START 51
-	uint64_t tmp6[] = {BEEHIVE_START - grid_length[0], BEEHIVE_START + 1, BEEHIVE_START + 2, BEEHIVE_START + 1 - 2 * grid_length[0], BEEHIVE_START + 2 - 2 * grid_length[0], BEEHIVE_START + 3 - grid_length[0]};
-	vector<uint64_t> beehive_cells(tmp6, tmp6 + sizeof(tmp6) / sizeof(uint64_t));
-	for (vector<uint64_t>::const_iterator cell = beehive_cells.begin(); cell != beehive_cells.end(); cell++) {
-		game_of_life_cell* cell_data = game_grid[*cell];
+	const vector<uint64_t> beehive_cells{
+		BEEHIVE_START - grid_length[0],
+		BEEHIVE_START + 1,
+		BEEHIVE_START + 2,
+		BEEHIVE_START + 1 - 2 * grid_length[0],
+		BEEHIVE_START + 2 - 2 * grid_length[0],
+		BEEHIVE_START + 3 - grid_length[0]
+	};
+	for (const auto& cell: beehive_cells) {
+		game_of_life_cell* cell_data = game_grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
-		cell_data->is_alive = true;
+		cell_data->is_alive = 1;
 	}
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "pinned_cells_" << comm.rank() << "_";
+	basename << "pinned_cells_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.open("pinned_cells.visit");
-		visit_file << "!NBLOCKS " << comm.size() << endl;
+		visit_file << "!NBLOCKS " << comm_size << endl;
 		cout << "step: ";
 		cout.flush();
 	}
@@ -158,13 +202,13 @@ int main(int argc, char* argv[])
 
 		// refine random unrefined cells and unrefine random refined cells
 		// TODO merge with identical code in unrefine2d, ...
-		vector<uint64_t> cells = game_grid.get_cells();
+		auto cells = game_grid.get_cells();
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
 
 			for (uint64_t i = 0, refined = 0;
-				i < cells.size() && refined <= grid_length[0] * grid_length[1] / (5 * comm.size());
+				i < cells.size() && refined <= grid_length[0] * grid_length[1] / (5 * comm_size);
 				i++
 			) {
 				if (game_grid.get_refinement_level(cells[i]) == 0) {
@@ -181,7 +225,7 @@ int main(int argc, char* argv[])
 		} else {
 
 			for (uint64_t i = 0, unrefined = 0;
-				i < cells.size() && unrefined <= grid_length[0] * grid_length[1] / (4 * comm.size());
+				i < cells.size() && unrefined <= grid_length[0] * grid_length[1] / (4 * comm_size);
 				i++
 			) {
 				if (game_grid.get_refinement_level(cells[i]) > 0) {
@@ -199,18 +243,18 @@ int main(int argc, char* argv[])
 		vector<uint64_t> new_cells = game_grid.stop_refining();
 
 		// assign parents' state to children
-		for (vector<uint64_t>::const_iterator new_cell = new_cells.begin(); new_cell != new_cells.end(); new_cell++) {
-			game_of_life_cell* new_cell_data = game_grid[*new_cell];
+		for (const auto& new_cell: new_cells) {
+			game_of_life_cell* new_cell_data = game_grid[new_cell];
 			if (new_cell_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
-					<< " No data for created cell " << *new_cell
+					<< " No data for created cell " << new_cell
 					<< endl;
 				abort();
 			}
-			game_of_life_cell* parent_data = game_grid[game_grid.get_parent(*new_cell)];
+			game_of_life_cell* parent_data = game_grid[game_grid.get_parent(new_cell)];
 			if (parent_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
-					<< " No data for parent cell " << game_grid.get_parent(*new_cell)
+					<< " No data for parent cell " << game_grid.get_parent(new_cell)
 					<< endl;
 				abort();
 			}
@@ -218,19 +262,20 @@ int main(int argc, char* argv[])
 		}
 
 		// "interpolate" parent cell's value from unrefined children
-		vector<uint64_t> removed_cells = game_grid.get_removed_cells();
-		for (vector<uint64_t>::const_iterator removed_cell = removed_cells.begin(); removed_cell != removed_cells.end(); removed_cell++) {
-			game_of_life_cell* removed_cell_data = game_grid[*removed_cell];
+		auto removed_cells = game_grid.get_removed_cells();
+		for (const auto& removed_cell: removed_cells) {
+			game_of_life_cell* removed_cell_data = game_grid[removed_cell];
 			if (removed_cell_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
-					<< " no data for removed cell after unrefining: " << *removed_cell
+					<< " no data for removed cell after unrefining: " << removed_cell
 					<< endl;
 				abort();
 			}
-			game_of_life_cell* parent_data = game_grid[game_grid.mapping.get_parent(*removed_cell)];
+			game_of_life_cell* parent_data = game_grid[game_grid.mapping.get_parent(removed_cell)];
 			if (parent_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
-					<< " no data for parent cell after unrefining: " << game_grid.mapping.get_parent(*removed_cell)
+					<< " no data for parent cell after unrefining: "
+					<< game_grid.mapping.get_parent(removed_cell)
 					<< endl;
 				abort();
 			}
@@ -240,12 +285,8 @@ int main(int argc, char* argv[])
 
 		// pin cells to process 0 either inside or outside the circle
 		cells = game_grid.get_cells();
-		for (vector<uint64_t>::const_iterator
-			cell = cells.begin();
-			cell != cells.end();
-			cell++
-		) {
-			const std::array<double, 3> cell_center = game_grid.geometry.get_center(*cell);
+		for (const auto& cell: cells) {
+			const std::array<double, 3> cell_center = game_grid.geometry.get_center(cell);
 
 			const double distance
 				= std::pow(cell_center[0] - 0.5, 2.0)
@@ -253,32 +294,32 @@ int main(int argc, char* argv[])
 
 			if (step % 2 == 0) {
 				if (distance <= 0.3 * 0.3) {
-					if (!game_grid.pin(*cell, 0)) {
+					if (!game_grid.pin(cell, 0)) {
 						cout << __FILE__ << ":" << __LINE__
-							<< " Couldn't pin cell " << *cell
+							<< " Couldn't pin cell " << cell
 							<< endl;
 						abort();
 					}
 				} else {
-					if (!game_grid.unpin(*cell)) {
+					if (!game_grid.unpin(cell)) {
 						cout << __FILE__ << ":" << __LINE__
-							<< " Couldn't unpin cell " << *cell
+							<< " Couldn't unpin cell " << cell
 							<< endl;
 						abort();
 					}
 				}
 			} else {
 				if (distance <= 0.3 * 0.3) {
-					if (!game_grid.unpin(*cell)) {
+					if (!game_grid.unpin(cell)) {
 						cout << __FILE__ << ":" << __LINE__
-							<< " Couldn't unpin cell " << *cell
+							<< " Couldn't unpin cell " << cell
 							<< endl;
 						abort();
 					}
 				} else {
-					if (!game_grid.pin(*cell, 0)) {
+					if (!game_grid.pin(cell, 0)) {
 						cout << __FILE__ << ":" << __LINE__
-							<< " Couldn't pin cell " << *cell
+							<< " Couldn't pin cell " << cell
 							<< endl;
 						abort();
 					}
@@ -289,10 +330,11 @@ int main(int argc, char* argv[])
 		game_grid.balance_load();
 		game_grid.update_copies_of_remote_neighbors();
 		cells = game_grid.get_cells();
-		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
+		// the library writes the grid into a file in ascending
+		// cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
 
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << step << " ";
 			cout.flush();
 		}
@@ -308,9 +350,11 @@ int main(int argc, char* argv[])
 		current_output_name += suffix.str();
 
 		// visualize the game with visit -o game_of_life_test.visit
-		if (comm.rank() == 0) {
-			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "pinned_cells_" << process << "_" << step_string.str() << suffix.str() << endl;
+		if (rank == 0) {
+			for (int process = 0; process < comm_size; process++) {
+				visit_file << "pinned_cells_" << process << "_"
+					<< step_string.str() << suffix.str()
+					<< endl;
 			}
 		}
 
@@ -323,11 +367,11 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 
-			if (cell_data->is_alive == true) {
+			if (cell_data->is_alive == 1) {
 				outfile << "1";
 			} else {
 				outfile << "0";
@@ -339,9 +383,9 @@ int main(int argc, char* argv[])
 		// write each cells total live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 
 			outfile << cell_data->total_live_neighbor_count << endl;
 
@@ -350,32 +394,32 @@ int main(int argc, char* argv[])
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
+		for (const auto& cell: cells) {
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process
 		outfile << "SCALARS process int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << comm.rank() << endl;
+		for (size_t i = 0; i < cells.size(); i++) {
+			outfile << rank << endl;
 		}
 
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << *cell << endl;
+		for (const auto& cell: cells) {
+			outfile << cell << endl;
 		}
 		outfile.close();
 
 		// get the neighbor counts of every cell
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 			if (cell_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for cell: " << *cell << endl;
+				cout << __FILE__ << ":" << __LINE__ << " no data for cell: " << cell << endl;
 				exit(EXIT_FAILURE);
 			}
 
@@ -389,23 +433,26 @@ int main(int argc, char* argv[])
 				cell_data->child_of_processed[i] = 0;
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
-			if (game_grid.get_refinement_level(*cell) == 0) {
+			if (game_grid.get_refinement_level(cell) == 0) {
 
-				for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+				for (const auto& neighbor: *neighbors) {
 
-					if (*neighbor == 0) {
+					if (neighbor == dccrg::error_cell) {
 						continue;
 					}
 
-					game_of_life_cell* neighbor_data = game_grid[*neighbor];
+					game_of_life_cell* neighbor_data = game_grid[neighbor];
 					if (neighbor_data == NULL) {
-						cout << __FILE__ << ":" << __LINE__ << " no data for neighbor of cell " << *cell << ": " << *neighbor << endl;
+						cout << __FILE__ << ":" << __LINE__
+							<< " no data for neighbor of cell " << cell
+							<< ": " << neighbor
+							<< endl;
 						exit(EXIT_FAILURE);
 					}
 
-					if (game_grid.get_refinement_level(*neighbor) == 0) {
+					if (game_grid.get_refinement_level(neighbor) == 0) {
 						if (neighbor_data->is_alive) {
 							cell_data->total_live_neighbor_count++;
 						}
@@ -413,7 +460,7 @@ int main(int argc, char* argv[])
 					} else {
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(*neighbor);
+						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell_data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -442,24 +489,27 @@ int main(int argc, char* argv[])
 			// refined cells total the neighbor counts of siblings
 			} else {
 
-				for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+				for (const auto& neighbor: *neighbors) {
 
-					if (*neighbor == 0) {
+					if (neighbor == dccrg::error_cell) {
 						continue;
 					}
 
-					game_of_life_cell* neighbor_data = game_grid[*neighbor];
+					game_of_life_cell* neighbor_data = game_grid[neighbor];
 					if (neighbor_data == NULL) {
-						cout << __FILE__ << ":" << __LINE__ << " no data for neighbor of refined cell " << *cell << ": " << *neighbor << endl;
+						cout << __FILE__ << ":" << __LINE__
+							<< " no data for neighbor of refined cell " << cell
+							<< ": " << neighbor
+							<< endl;
 						exit(EXIT_FAILURE);
 					}
 
-					if (game_grid.get_refinement_level(*neighbor) == 0) {
+					if (game_grid.get_refinement_level(neighbor) == 0) {
 						// TODO merge solver with the one in unrefined2d, etc
 						// larger neighbors appear several times in the neighbor list
 						bool neighbor_processed = false;
 						for (int i = 0; i < 8; i++) {
-							if (cell_data->child_of_processed[i] == *neighbor) {
+							if (cell_data->child_of_processed[i] == neighbor) {
 								neighbor_processed = true;
 								break;
 							}
@@ -470,7 +520,7 @@ int main(int argc, char* argv[])
 						} else {
 							for (int i = 0; i < 8; i++) {
 								if (cell_data->child_of_processed[i] == 0) {
-									cell_data->child_of_processed[i] = *neighbor;
+									cell_data->child_of_processed[i] = neighbor;
 									break;
 								}
 							}
@@ -479,7 +529,7 @@ int main(int argc, char* argv[])
 						if (neighbor_data->is_alive) {
 							for (int i = 0; i < 3; i++) {
 								if (cell_data->live_unrefined_neighbors[i] == 0) {
-									cell_data->live_unrefined_neighbors[i] = *neighbor;
+									cell_data->live_unrefined_neighbors[i] = neighbor;
 									break;
 								}
 							}
@@ -489,12 +539,12 @@ int main(int argc, char* argv[])
 					} else {
 
 						// ignore own siblings
-						if (game_grid.get_parent(*cell) == game_grid.get_parent(*neighbor)) {
+						if (game_grid.get_parent(cell) == game_grid.get_parent(neighbor)) {
 							continue;
 						}
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(*neighbor);
+						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell_data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -530,35 +580,35 @@ int main(int argc, char* argv[])
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			if (game_grid.get_refinement_level(*cell) == 0) {
+			if (game_grid.get_refinement_level(cell) == 0) {
 				continue;
 			}
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 
 			unordered_set<uint64_t> current_live_unrefined_neighbors;
 			for (int i = 0; i < 3; i++) {
 				current_live_unrefined_neighbors.insert(cell_data->live_unrefined_neighbors[i]);
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
+			for (const auto& neighbor: *neighbors) {
 
-				if (*neighbor == 0) {
+				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				if (game_grid.get_refinement_level(*neighbor) == 0) {
+				if (game_grid.get_refinement_level(neighbor) == 0) {
 					continue;
 				}
 
 				// total live neighbors counts only between siblings
-				if (game_grid.get_parent(*cell) != game_grid.get_parent(*neighbor)) {
+				if (game_grid.get_parent(cell) != game_grid.get_parent(neighbor)) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				game_of_life_cell* neighbor_data = game_grid[neighbor];
 				for (int i = 0; i < 3; i++) {
 					current_live_unrefined_neighbors.insert(neighbor_data->live_unrefined_neighbors[i]);
 				}
@@ -569,22 +619,23 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 
 			if (cell_data->total_live_neighbor_count == 3) {
-				cell_data->is_alive = true;
+				cell_data->is_alive = 1;
 			} else if (cell_data->total_live_neighbor_count != 2) {
-				cell_data->is_alive = false;
+				cell_data->is_alive = 0;
 			}
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.close();
 		cout << endl;
 	}
 
 	return EXIT_SUCCESS;
 }
+

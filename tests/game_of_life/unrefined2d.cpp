@@ -10,8 +10,9 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 #include "iostream"
 #include "string"
 #include "unordered_set"
-#include "zoltan.h"
 
+#include "mpi.h"
+#include "zoltan.h"
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
 
@@ -197,10 +198,10 @@ int main(int argc, char* argv[])
 		Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
 
 		// verify refined/unrefined game
-		const vector<uint64_t> cells = game_grid.get_cells();
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		const auto cells = game_grid.get_cells();
+		for (const auto& cell: cells) {
 
-			Cell* cell_data = game_grid[cell];
+			const auto* const cell_data = game_grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for cell " << cell
@@ -217,7 +218,7 @@ int main(int argc, char* argv[])
 				reference_cell = cell;
 			}
 
-			Cell* reference_data = reference_grid[reference_cell];
+			const auto* const reference_data = reference_grid[reference_cell];
 			if (reference_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for reference cell " << reference_cell

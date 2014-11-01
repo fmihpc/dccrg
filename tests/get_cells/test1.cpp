@@ -16,36 +16,47 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/assign/list_of.hpp"
-#include "boost/foreach.hpp"
-#include "boost/mpi.hpp"
 #include "cstdlib"
 #include "iostream"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #define DCCRG_TRANSFER_USING_BOOST_MPI
 #include "../../dccrg.hpp"
 
 using namespace std;
-using namespace boost;
-using namespace boost::assign;
-using namespace boost::mpi;
 using namespace dccrg;
+
+struct Cell {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple((void*) this, 0, MPI_BYTE);
+	}
+};
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
 
-	if (comm.size() < 2) {
-		if (comm.rank() == 0) {
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
+
+	if (comm_size < 2) {
+		if (rank == 0) {
 			cerr << "Must be run with at least 2 processes" << endl;
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;
 	}
 
-	Dccrg<int> grid;
+	Dccrg<Cell> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{7, 1, 1}};
 	grid.initialize(grid_length, comm, "RANDOM", 2);
@@ -55,7 +66,7 @@ int main(int argc, char* argv[])
 	// |0|0|1|0|1|0|0|
 	// --------------
 	const std::vector<uint64_t> initial_cells = grid.get_cells();
-	BOOST_FOREACH(const uint64_t cell, initial_cells) {
+	for (const auto& cell: initial_cells) {
 		if (cell == 3 || cell == 5) {
 			grid.pin(cell, 1);
 		} else {
@@ -103,31 +114,31 @@ int main(int argc, char* argv[])
 
 	// cells returned for different neighbor types
 	const std::vector<uint64_t>
-		no_neigh_cells = grid.get_cells(list_of(has_no_neighbor), true, neighborhood_id0),
-		one_neigh_cells = grid.get_cells(std::vector<int>(), true, neighborhood_id1),
-		two_neigh_cells = grid.get_cells(list_of(has_no_neighbor), true, neighborhood_id2),
-		local_neigh_of_cells = grid.get_cells(list_of(has_local_neighbor_of), true, neighborhood_id1),
-		local_neigh_to_cells = grid.get_cells(list_of(has_local_neighbor_to), true, neighborhood_id1),
-		remote_neigh_of_cells = grid.get_cells(list_of(has_remote_neighbor_of), true, neighborhood_id1),
-		remote_neigh_to_cells = grid.get_cells(list_of(has_remote_neighbor_to), true, neighborhood_id1),
+		no_neigh_cells = grid.get_cells({has_no_neighbor}, true, neighborhood_id0),
+		one_neigh_cells = grid.get_cells({}, true, neighborhood_id1),
+		two_neigh_cells = grid.get_cells({has_no_neighbor}, true, neighborhood_id2),
+		local_neigh_of_cells = grid.get_cells({has_local_neighbor_of}, true, neighborhood_id1),
+		local_neigh_to_cells = grid.get_cells({has_local_neighbor_to}, true, neighborhood_id1),
+		remote_neigh_of_cells = grid.get_cells({has_remote_neighbor_of}, true, neighborhood_id1),
+		remote_neigh_to_cells = grid.get_cells({has_remote_neighbor_to}, true, neighborhood_id1),
 		local_of_remote_to_cells
 			= grid.get_cells(
-				list_of(has_local_neighbor_of | has_remote_neighbor_to),
+				{has_local_neighbor_of | has_remote_neighbor_to},
 				true,
 				neighborhood_id1
 			),
 		local_to_remote_of_cells
 			= grid.get_cells(
-				list_of(has_local_neighbor_to | has_remote_neighbor_of),
+				{has_local_neighbor_to | has_remote_neighbor_of},
 				true,
 				neighborhood_id1
 			),
-		local_neigh_both_cells = grid.get_cells(list_of(has_local_neighbor_both), true, neighborhood_id1),
-		remote_neigh_both_cells = grid.get_cells(list_of(has_remote_neighbor_both), true, neighborhood_id1);
+		local_neigh_both_cells = grid.get_cells({has_local_neighbor_both}, true, neighborhood_id1),
+		remote_neigh_both_cells = grid.get_cells({has_remote_neighbor_both}, true, neighborhood_id1);
 
 	// number of unfiltered cells
 	const size_t nr_of_cells = one_neigh_cells.size();
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		if (nr_of_cells != 5) {
 			cerr << "Proc 0: Incorrect number of unfiltered cells: " << nr_of_cells
 				<< ", should be 5" << endl;
@@ -135,7 +146,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-	if (comm.rank() == 1) {
+	if (rank == 1) {
 		if (nr_of_cells != 2) {
 			cerr << "Proc 1: Incorrect number of unfiltered cells: " << nr_of_cells
 				<< ", should be 2" << endl;
@@ -143,9 +154,9 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-	if (comm.rank() >= 2) {
+	if (rank >= 2) {
 		if (nr_of_cells != 0) {
-			cerr << "Proc " << comm.rank() << ": Incorrect number of unfiltered cells: " << nr_of_cells
+			cerr << "Proc " << rank << ": Incorrect number of unfiltered cells: " << nr_of_cells
 				<< ", should be 0" << endl;
 			cout << "FAILED" << endl;
 			abort();
@@ -154,7 +165,7 @@ int main(int argc, char* argv[])
 
 	// no neighbors case
 	if (no_neigh_cells.size() != nr_of_cells) {
-		cerr << "Proc " << comm.rank()
+		cerr << "Proc " << rank
 			<< ": Incorrect number of cells without neighbors for neighborhood id 0: "
 			<< no_neigh_cells.size() << ", should be " << nr_of_cells
 			<< endl;
@@ -162,7 +173,7 @@ int main(int argc, char* argv[])
 		abort();
 	}
 	if (two_neigh_cells.size() != nr_of_cells) {
-		cerr << "Proc " << comm.rank()
+		cerr << "Proc " << rank
 			<< ": Incorrect number of cells without neighbors for neighborhood id 2: "
 			<< two_neigh_cells.size() << ", should be " << nr_of_cells
 			<< endl;
@@ -171,11 +182,12 @@ int main(int argc, char* argv[])
 	}
 
 	// rest of tests for processes 0 and 1 only
-	if (comm.rank() >= 2) {
+	if (rank >= 2) {
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		// reminder from above, cell ids start from 1, left to right
 		// 0010100
 		if (local_neigh_of_cells.size() != 1) {
@@ -270,9 +282,11 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "PASSED" << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

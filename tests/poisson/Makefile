@@ -1,11 +1,9 @@
 # use this many mpi processes in parallel tests
 PROCS := 6
 
-# boost causes too many warnings at least on gcc-4.8.2 without -Wno-...
-FLAGS = -O3 -W -Wall -Wextra -pedantic -std=c++0x -Wno-unused-local-typedefs
+FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
 INCLUDES = -I../.. -I../advection -I$$HOME/include -L$$HOME/lib
 LIBS = -lboost_program_options -lzoltan
-BOOST_MPI_LIBS = -lboost_serialization -lboost_mpi
 MPICXX = mpic++ $(FLAGS)
 CXX = g++ $(FLAGS)
 MPIRUN = mpirun -n $(PROCS)
@@ -48,28 +46,28 @@ HEADERS = \
 all: $(PROGRAMS)
 
 poisson1d_amr: poisson1d_amr.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson1d_boundary: poisson1d_boundary.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson1d_skip_cells: poisson1d_skip_cells.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson1d_stretched: poisson1d_stretched.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson1d: poisson1d.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson2d: poisson2d.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson2d_boundary: poisson2d_boundary.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 poisson3d: poisson3d.cpp $(HEADERS) Makefile
-	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) $(BOOST_MPI_LIBS) -o $@
+	@printf "MPICXX $@\n" && $(MPICXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@
 
 reference_poisson_example: reference_poisson_example.cpp reference_poisson_solve.hpp Makefile
 	@printf "CXX $@\n" && $(CXX) $(FLAGS) $(INCLUDES) $< $(LIBS) -o $@

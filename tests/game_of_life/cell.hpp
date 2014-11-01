@@ -20,17 +20,16 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define CELL_HPP
 
 #include "array"
-#include "mpi.h"
-#include "stdint.h"
+#include "cstdint"
 #include "tuple"
+
+#include "mpi.h"
 
 /*!
 Game of life cell with 8 * 13 bytes of data.
 */
-class Cell
+struct Cell
 {
-public:
-
 	/*!
 	data[0] > 0 if cell is alive
 	data[1] total number of live neighbors for all siblings
@@ -40,19 +39,6 @@ public:
 	            these record the parents of processed siblings
 	*/
 	std::array<uint64_t, 13> data;
-
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	template<typename Archiver> void serialize(
-		Archiver& ar,
-		const unsigned int /*version*/
-	) {
-		for (size_t i = 0; i < this->data.size(); i++) {
-			ar & data[i];
-		}
-	}
-
-	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 
 	std::tuple<
 		void*,
@@ -70,8 +56,6 @@ public:
 	) const {
 		return std::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
 	}
-
-	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 #endif

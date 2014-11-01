@@ -81,8 +81,16 @@ template<class Geometry> double get_p_norm(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -138,13 +146,13 @@ int main(int argc, char* argv[])
 			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 			// move cells in middle of grid to same process as in reference grid
 			if (indices[1] == 1 && indices[2] == 1) {
-				const int target_process = indices[0] % comm.size();
+				const int target_process = indices[0] % comm_size;
 				grid.pin(cell, target_process);
 			}
 		}
 		for(const auto& cell: initial_cells_reference) {
 			const dccrg::Types<3>::indices_t indices = grid_reference.mapping.get_indices(cell);
-			const int target_process = indices[0] % comm.size();
+			const int target_process = indices[0] % comm_size;
 			grid_reference.pin(cell, target_process);
 		}
 		grid          .balance_load(false);
@@ -214,7 +222,7 @@ int main(int argc, char* argv[])
 
 		if (norm > old_norm) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of solution larger from exact with " << number_of_cells
@@ -225,7 +233,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_reference > old_norm) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of reference solution larger from exact with " << number_of_cells
@@ -244,13 +252,15 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	MPI_Finalize();
+
 	if (success == 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "PASSED" << endl;
 		}
 		return EXIT_SUCCESS;
 	} else {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;

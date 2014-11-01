@@ -4,43 +4,51 @@ Returns EXIT_SUCCESS if everything went ok.
 */
 
 #include "algorithm"
-#include "boost/mpi.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "sstream"
 #include "unordered_set"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
 
 
 struct game_of_life_cell {
+	unsigned int is_alive, live_neighbor_count;
 
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & is_alive;
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple(&(this->is_alive), 1, MPI_UNSIGNED);
 	}
-
-	bool is_alive;
-	unsigned int live_neighbor_count;
 };
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
 
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
@@ -48,7 +56,7 @@ int main(int argc, char* argv[])
 
 	const std::array<uint64_t, 3> grid_length = {{34, 7, 1}};
 	game_grid.initialize(grid_length, comm, "HIER", 1);
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "Maximum refinement level of the grid: "
 			<< game_grid.get_maximum_refinement_level()
 			<< endl;
@@ -66,27 +74,27 @@ int main(int argc, char* argv[])
 	sort(cells.begin(), cells.end());
 
 	// initialize the game
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+	for (const auto& cell: cells) {
 
-		game_of_life_cell* cell_data = game_grid[*cell];
+		game_of_life_cell* cell_data = game_grid[cell];
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
-			cell_data->is_alive = true;
+			cell_data->is_alive = 1;
 		} else {
-			cell_data->is_alive = false;
+			cell_data->is_alive = 0;
 		}
 	}
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "hierarchical_test_" << comm.rank() << "_";
+	basename << "hierarchical_test_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.open("hierarchical_test.visit");
-		visit_file << "!NBLOCKS " << comm.size() << endl;
+		visit_file << "!NBLOCKS " << comm_size << endl;
 		cout << "step: ";
 	}
 
@@ -96,7 +104,7 @@ int main(int argc, char* argv[])
 		game_grid.start_remote_neighbor_copy_updates();
 		game_grid.wait_remote_neighbor_copy_updates();
 
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << step << " ";
 			cout.flush();
 		}
@@ -112,9 +120,11 @@ int main(int argc, char* argv[])
 		current_output_name += suffix.str();
 
 		// visualize the game with visit -o game_of_life_test.visit
-		if (comm.rank() == 0) {
-			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "hierarchical_test_" << process << "_" << step_string.str() << suffix.str() << endl;
+		if (rank == 0) {
+			for (int process = 0; process < comm_size; process++) {
+				visit_file << "hierarchical_test_" << process
+					<< "_" << step_string.str() << suffix.str()
+					<< endl;
 			}
 		}
 
@@ -128,11 +138,11 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 
-			if (cell_data->is_alive == true) {
+			if (cell_data->is_alive == 1) {
 				outfile << "1";
 			} else {
 				outfile << "0";
@@ -144,9 +154,9 @@ int main(int argc, char* argv[])
 		// write each cells live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (const auto& cell: cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			game_of_life_cell* cell_data = game_grid[cell];
 
 			outfile << cell_data->live_neighbor_count << endl;
 
@@ -155,48 +165,55 @@ int main(int argc, char* argv[])
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
+		for (const auto& cell: cells) {
+			const auto* const neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process
 		outfile << "SCALARS process int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << comm.rank() << endl;
+		for (size_t i = 0; i < cells.size(); i++) {
+			outfile << rank << endl;
 		}
 
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << *cell << endl;
+		for (const auto& cell: cells) {
+			outfile << cell << endl;
 		}
 		outfile.close();
 
 
 		// get the neighbor counts of every cell, starting with the cells whose neighbor data doesn't come from other processes
 		vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();
-		for (vector<uint64_t>::const_iterator cell = inner_cells.begin(); cell != inner_cells.end(); cell++) {
+		for (const auto& cell: inner_cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			auto* const cell_data = game_grid[cell];
 
 			cell_data->live_neighbor_count = 0;
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
+			const auto* const neighbors = game_grid.get_neighbors_of(cell);
 			if (neighbors == NULL) {
-				cout << "Process " << comm.rank() << ": neighbor list for cell " << *cell << " not available" << endl;
+				cout << "Process " << rank
+					<< ": neighbor list for cell " << cell
+					<< " not available"
+					<< endl;
 				exit(EXIT_FAILURE);
 			}
 
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
-				if (*neighbor == 0) {
+			for (const auto& neighbor: *neighbors) {
+				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				const auto* const neighbor_data = game_grid[neighbor];
 				if (neighbor_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbor " << *neighbor << " data for cell " << *cell << " not available" << endl;
+					cout << "Process " << rank
+						<< ": neighbor " << neighbor
+						<< " data for cell " << cell
+						<< " not available"
+						<< endl;
 					exit(EXIT_FAILURE);
 				}
 				if (neighbor_data->is_alive) {
@@ -206,25 +223,32 @@ int main(int argc, char* argv[])
 		}
 
 		vector<uint64_t> outer_cells = game_grid.get_local_cells_on_process_boundary();
-		for (vector<uint64_t>::const_iterator cell = outer_cells.begin(); cell != outer_cells.end(); cell++) {
+		for (const auto& cell: outer_cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			auto* const cell_data = game_grid[cell];
 
 			cell_data->live_neighbor_count = 0;
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
+			const auto* const neighbors = game_grid.get_neighbors_of(cell);
 			if (neighbors == NULL) {
-				cout << "Process " << comm.rank() << ": neighbor list for cell " << *cell << " not available" << endl;
+				cout << "Process " << rank
+					<< ": neighbor list for cell " << cell
+					<< " not available"
+					<< endl;
 				exit(EXIT_FAILURE);
 			}
 
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
-				if (*neighbor == 0) {
+			for (const auto& neighbor: *neighbors) {
+				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				const auto* const neighbor_data = game_grid[neighbor];
 				if (neighbor_data == NULL) {
-					cout << "Process " << comm.rank() << ": neighbor " << *neighbor << " data for cell " << *cell << " not available" << endl;
+					cout << "Process " << rank
+						<< ": neighbor " << neighbor
+						<< " data for cell " << cell
+						<< " not available"
+						<< endl;
 					exit(EXIT_FAILURE);
 				}
 				if (neighbor_data->is_alive) {
@@ -234,33 +258,35 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (vector<uint64_t>::const_iterator cell = inner_cells.begin(); cell != inner_cells.end(); cell++) {
+		for (const auto& cell: inner_cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			auto* const cell_data = game_grid[cell];
 
 			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = true;
+				cell_data->is_alive = 1;
 			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = false;
+				cell_data->is_alive = 0;
 			}
 		}
-		for (vector<uint64_t>::const_iterator cell = outer_cells.begin(); cell != outer_cells.end(); cell++) {
+		for (const auto& cell: outer_cells) {
 
-			game_of_life_cell* cell_data = game_grid[*cell];
+			auto* const cell_data = game_grid[cell];
 
 			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = true;
+				cell_data->is_alive = 1;
 			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = false;
+				cell_data->is_alive = 0;
 			}
 		}
 
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.close();
 		cout << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

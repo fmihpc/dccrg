@@ -2,11 +2,12 @@
 Tests the scalability of initializing the grid
 */
 
-#include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
+
+#include "boost/program_options.hpp"
+#include "boost/unordered_set.hpp"
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg_cartesian_geometry.hpp"
@@ -17,21 +18,28 @@ struct CellData {
 
 	double variables[3];
 
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & variables[0] & variables[1] & variables[2];
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple(&(this->variables), 3, MPI_DOUBLE);
 	}
 };
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
 
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = -1;
+	MPI_Comm_rank(comm, &rank);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -63,10 +71,10 @@ int main(int argc, char* argv[])
 
 	// print a help message if asked
 	if (option_variables.count("help") > 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << options << endl;
 		}
-		comm.barrier();
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
@@ -77,10 +85,12 @@ int main(int argc, char* argv[])
 	grid.initialize(grid_length, comm, "RCB", 1, 0);
 	clock_t after = clock();
 
-	cout << "Process " << comm.rank()
+	cout << "Process " << rank
 		<< ": grid initialization took " << double(after - before) / CLOCKS_PER_SEC
 		<< " seconds (total grid size " << x_length * y_length * z_length << ")"
 		<< endl;
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

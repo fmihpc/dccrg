@@ -63,7 +63,7 @@ template<class Geometry> void normalize_solution(
 	}
 
 	double avg_solved = 0, avg_analytic = 0, divisor = 0;
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 
 		const int ref_lvl = grid.get_refinement_level(cell);
 		if (ref_lvl < 0) {
@@ -97,7 +97,7 @@ template<class Geometry> void normalize_solution(
 	avg_analytic /= divisor;
 	avg_solved /= divisor;
 
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 		Poisson_Cell* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -122,7 +122,7 @@ template<class Geometry> double get_p_norm(
 ) {
 	double local = 0, global = 0;
 
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 		const std::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
 		if (grid.length.get()[0] > 1) {
@@ -154,8 +154,16 @@ template<class Geometry> double get_p_norm(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -215,7 +223,7 @@ int main(int argc, char* argv[])
 
 		// refine every other cell once
 		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
-		BOOST_FOREACH(const uint64_t cell, initial_cells) {
+		for (const auto& cell: initial_cells) {
 			if (cell % 2 == 0) {
 				grid_x.refine_completely(cell);
 				grid_y.refine_completely(cell);
@@ -232,16 +240,16 @@ int main(int argc, char* argv[])
 			refined_cells_y = grid_y.get_cells(),
 			refined_cells_z = grid_z.get_cells();
 
-		BOOST_FOREACH(const uint64_t cell, refined_cells_x) {
-			const int target_process = cell % comm.size();
+		for (const auto& cell: refined_cells_x) {
+			const int target_process = cell % comm_size;
 			grid_x.pin(cell, target_process);
 		}
-		BOOST_FOREACH(const uint64_t cell, refined_cells_y) {
-			const int target_process = cell % comm.size();
+		for (const auto& cell: refined_cells_y) {
+			const int target_process = cell % comm_size;
 			grid_y.pin(cell, target_process);
 		}
-		BOOST_FOREACH(const uint64_t cell, refined_cells_z) {
-			const int target_process = cell % comm.size();
+		for (const auto& cell: refined_cells_z) {
+			const int target_process = cell % comm_size;
 			grid_z.pin(cell, target_process);
 		}
 		grid_x.balance_load(false);
@@ -258,7 +266,7 @@ int main(int argc, char* argv[])
 			cells_reference = grid_reference.get_cells();
 
 		// initialize
-		BOOST_FOREACH(const uint64_t cell, cells_x) {
+		for (const auto& cell: cells_x) {
 			Poisson_Cell *data_x = grid_x[cell];
 
 			if (data_x == NULL) {
@@ -270,7 +278,7 @@ int main(int argc, char* argv[])
 			data_x->rhs = get_rhs_value(coord);
 			data_x->solution = 0;
 		}
-		BOOST_FOREACH(const uint64_t cell, cells_y) {
+		for (const auto& cell: cells_y) {
 			Poisson_Cell *data_y = grid_y[cell];
 
 			if (data_y == NULL) {
@@ -282,7 +290,7 @@ int main(int argc, char* argv[])
 			data_y->rhs = get_rhs_value(coord);
 			data_y->solution = 0;
 		}
-		BOOST_FOREACH(const uint64_t cell, cells_z) {
+		for (const auto& cell: cells_z) {
 			Poisson_Cell *data_z = grid_z[cell];
 
 			if (data_z == NULL) {
@@ -294,7 +302,7 @@ int main(int argc, char* argv[])
 			data_z->rhs = get_rhs_value(coord);
 			data_z->solution = 0;
 		}
-		BOOST_FOREACH(const uint64_t cell, cells_reference) {
+		for (const auto& cell: cells_reference) {
 			Poisson_Cell *data_reference = grid_reference[cell];
 
 			if (data_reference == NULL) {
@@ -326,7 +334,7 @@ int main(int argc, char* argv[])
 
 		if (norm_x > old_norm) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of x solution larger from exact with " << number_of_cells
@@ -337,7 +345,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_y > old_norm) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of y solution larger from exact with " << number_of_cells
@@ -348,7 +356,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_z > old_norm) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of z solution larger from exact with " << number_of_cells
@@ -361,7 +369,7 @@ int main(int argc, char* argv[])
 		// check that AMR solution is better than reference
 		if (norm_x > norm_reference) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of x solution (" << norm_x
@@ -373,7 +381,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_y > norm_reference) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of y solution (" << norm_y
@@ -385,7 +393,7 @@ int main(int argc, char* argv[])
 		}
 		if (norm_z > norm_reference) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< " norm of z solution (" << norm_z
@@ -405,13 +413,15 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	MPI_Finalize();
+
 	if (success == 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "PASSED" << endl;
 		}
 		return EXIT_SUCCESS;
 	} else {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;

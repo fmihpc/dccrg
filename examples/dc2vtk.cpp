@@ -9,149 +9,259 @@ visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
 #include "cstring"
 #include "fstream"
 #include "iostream"
+#include "mpi.h"
 #include "stdint.h"
 
-#include "../dccrg_length.hpp"
-#include "../dccrg_mapping.hpp"
-#include "../dccrg_no_geometry.hpp"
-#include "../dccrg_topology.hpp"
+#include "../dccrg_cartesian_geometry.hpp"
 
 using namespace std;
-using namespace dccrg;
 
 int main(int argc, char* argv[])
 {
-	size_t result;
+	int ret_val;
 
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	if (rank < 0) {
+		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+		abort();
+	}
+	MPI_Comm_size(comm, &comm_size);
+	if (comm_size < 0) {
+		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+		abort();
+	}
+
+	// each process converts its own files
 	for (int arg = 1; arg < argc; arg++) {
 
-		FILE* infile = fopen(argv[arg], "r");
-		if (infile == NULL) {
-			cerr << "Couldn't open file " << argv[arg] << endl;
+		if ((arg - 1) % comm_size != rank) {
 			continue;
 		}
 
-		uint64_t time_step;
-		result = fread(&time_step, sizeof(uint64_t), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read time step" << endl;
-			exit(EXIT_FAILURE);
+		const std::string name(argv[arg]);
+
+		MPI_File file;
+		MPI_Offset offset = 0;
+
+		ret_val = MPI_File_open(
+			MPI_COMM_SELF,
+			argv[arg],
+			MPI_MODE_RDONLY,
+			MPI_INFO_NULL,
+			&file
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't open file " << name
+				<< ": " << dccrg::Error_String()(ret_val)
+				<< std::endl;
+			continue;
 		}
+
+		/*
+		Header (time step) was saved first, starting at byte 0 in the file
+		*/
+		uint64_t time_step;
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			&time_step,
+			1,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't read time step from file " << name
+				<< ": " << dccrg::Error_String()(ret_val)
+				<< std::endl;
+			continue;
+		}
+		offset += sizeof(uint64_t);
 		//cout << "time step: " << time_step << endl;
 
-		double x_start;
-		result = fread(&x_start, sizeof(double), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read x_start" << endl;
-			exit(EXIT_FAILURE);
-		}
-		//cout << "x_start: " << x_start << endl;
+		/*
+		Format of the grid data file written by its save_grid_data() member function:
+		1. endianness
+		2. info for mapping cell ids to logical position & size
+		3. neighborhood size
+		4. grid topology
+		5. grid geometry
+		6. number of cells
+		7. list of cell ids and data offsets in file
+		8. cell data
+		*/
 
-		double y_start;
-		result = fread(&y_start, sizeof(double), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read y_start" << endl;
-			exit(EXIT_FAILURE);
-		}
-		//cout << "y_start: " << y_start  << endl;
+		// check endianness
+		uint64_t
+			endianness_original = 0x1234567890abcdef,
+			endianness_read = 0;
 
-		double z_start;
-		result = fread(&z_start, sizeof(double), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read z_start" << endl;
-			exit(EXIT_FAILURE);
+		ret_val = MPI_File_read_at(
+			file,
+			offset,
+			&endianness_read,
+			1,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		);
+		if (ret_val != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't read endianness check from file " << name
+				<< ": " << dccrg::Error_String()(ret_val)
+				<< std::endl;
+			continue;
 		}
-		//cout << "z_start: " << z_start  << endl;
+		offset += sizeof(uint64_t);
 
-		double cell_x_size;
-		result = fread(&cell_x_size, sizeof(double), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read cell_x_size" << endl;
-			exit(EXIT_FAILURE);
+		if (endianness_original != endianness_read) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " File " << name
+				<< " has wrong endianness, value from file is "
+				<< endianness_read
+				<< " but should be " << endianness_original
+				<< std::endl;
+			continue;
 		}
-		//cout << "cell_x_size: " << cell_x_size << endl;
 
-		double cell_y_size;
-		result = fread(&cell_y_size, sizeof(double), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read cell_y_size" << endl;
-			exit(EXIT_FAILURE);
+		// initialize mapping
+		dccrg::Mapping mapping;
+		if (!mapping.read(file, offset)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't read mapping from file " << name
+				<< std::endl;
+			continue;
 		}
-		//cout << "cell_y_size: " << cell_y_size << endl;
+		offset += mapping.data_size();
 
-		double cell_z_size;
-		result = fread(&cell_z_size, sizeof(double), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read cell_z_size" << endl;
-			exit(EXIT_FAILURE);
+		//cout << "x_length: " << mapping.length.get()[0] << "\n"
+		//	<< "y_length: " << mapping.length.get()[1] << "\n"
+		//	<< "z_length: " << mapping.length.get()[2] << "\n"
+		//	<< "max_ref_level: " << mapping.get_maximum_refinement_level()
+		//	<< endl;
+
+		// read neighborhood length
+		unsigned int neighborhood_length = 0;
+		if (MPI_File_read_at(
+			file,
+			offset,
+			(void*) &neighborhood_length,
+			1,
+			MPI_UNSIGNED,
+			MPI_STATUS_IGNORE
+		) != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't read length of cells' neighborhood from file " << name
+				<< std::endl;
+			continue;
 		}
-		//cout << "cell_z_size: " << cell_z_size << endl;
+		offset += sizeof(unsigned int);
 
-		uint64_t x_length;
-		result = fread(&x_length, sizeof(uint64_t), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read x_length" << endl;
-			exit(EXIT_FAILURE);
+		// initialize topology
+		dccrg::Grid_Topology topology;
+		if (!topology.read(file, offset)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't read grid topology from file " << name
+				<< std::endl;
+			continue;
 		}
-		//cout << "x_length: " << x_length << endl;
+		offset += topology.data_size();
 
-		uint64_t y_length;
-		result = fread(&y_length, sizeof(uint64_t), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read y_length" << endl;
-			exit(EXIT_FAILURE);
+		//cout << "periodic in x: " << topology.is_periodic(0) << "\n"
+		//	<< "periodic in y: " << topology.is_periodic(1) << "\n"
+		//	<< "periodic in z: " << topology.is_periodic(2) << "\n"
+		//	<< endl;
+
+		// initialize geometry
+		dccrg::Cartesian_Geometry geometry(mapping.length, mapping, topology);
+		if (!geometry.read(file, offset)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Process " << rank
+				<< " Couldn't read geometry from file"
+				<< std::endl;
+			continue;
 		}
-		//cout << "y_length: " << y_length << endl;
+		offset += geometry.data_size();
 
-		uint64_t z_length;
-		result = fread(&z_length, sizeof(uint64_t), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read z_length" << endl;
-			exit(EXIT_FAILURE);
+		//cout << "x_start: " << geometry.get_start()[0] << "\n"
+		//	<< "y_start: " << geometry.get_start()[1] << "\n"
+		//	<< "z_start: " << geometry.get_start()[2] << "\n"
+		//	<< "level 0 cell x size: " << geometry.get_level_0_cell_length()[0] << "\n"
+		//	<< "level 0 cell y size: " << geometry.get_level_0_cell_length()[1] << "\n"
+		//	<< "level 0 cell z size: " << geometry.get_level_0_cell_length()[2]
+		//	<< endl;
+
+		uint64_t number_of_cells;
+		if (MPI_File_read_at(
+			file,
+			offset,
+			&number_of_cells,
+			1,
+			MPI_UINT64_T,
+			MPI_STATUS_IGNORE
+		) != MPI_SUCCESS) {
+			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+			abort();
 		}
-		//cout << "z_length: " << z_length << endl;
+		offset += sizeof(uint64_t);
+		//cout << "number of cells: " << number_of_cells << endl;
 
-		int max_ref_level;
-		result = fread(&max_ref_level, sizeof(int), 1, infile);
-		if (result != 1) {
-			cerr << "Couldn't read maximum refinement level" << endl;
-			exit(EXIT_FAILURE);
-		}
-		//cout << "max_ref_level: " << max_ref_level << endl;
+		// read in game data (1st cell, is_alive 1st), (2nd cell, is_alive 2nd), ...
+		std::vector<std::pair<uint64_t, uint64_t> > cell_data(number_of_cells);
 
-		// read in game data
-		std::unordered_map<uint64_t, uint64_t> game_data;
-		do {
-			uint64_t cell;
-			result = fread(&cell, sizeof(uint64_t), 1, infile);
-			if (result != 1) {
-				break;
+		// read in cell list
+		for (uint64_t i = 0; i < number_of_cells; i++) {
+			if (MPI_File_read_at(
+				file,
+				offset,
+				&(cell_data[i].first),
+				1,
+				MPI_UINT64_T,
+				MPI_STATUS_IGNORE
+			) != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				abort();
 			}
+			offset += sizeof(uint64_t);
+			// skip data offset
+			offset += sizeof(uint64_t);
+		}
 
-			uint64_t is_alive;
-			result = fread(&is_alive, sizeof(uint64_t), 1, infile);
-			if (result != 1) {
-				cerr << "Couldn't read is_alive for cell " << cell << endl;
-				exit(EXIT_FAILURE);
+		// read in cell data
+		for (uint64_t i = 0; i < number_of_cells; i++) {
+			if (MPI_File_read_at(
+				file,
+				offset,
+				&(cell_data[i].second),
+				1,
+				MPI_UINT64_T,
+				MPI_STATUS_IGNORE
+			) != MPI_SUCCESS) {
+				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+				abort();
 			}
-
-			game_data[cell] = is_alive;
-		} while (result == 1);
-
-		// use default topology where the grid isn't periodic
-		const Grid_Topology topology;
-
-		// mapping of cell ids to their (logical) size and location
-		Mapping mapping;
-		const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
-		mapping.set_length(grid_length);
-		mapping.set_maximum_refinement_level(max_ref_level);
-
-		// No_Geometry doesn't change after being constructed
-		No_Geometry geometry(mapping.length, mapping, topology);
+			offset += sizeof(uint64_t);
+		}
+		MPI_File_close(&file);
 
 		// write the game data to a .vtk file
-		const string input_name(argv[arg]),
+		const string
+			input_name(argv[arg]),
 			current_output_name(input_name.substr(0, input_name.size() - 2) + "vtk");
 
 		std::ofstream outfile(current_output_name.c_str());
@@ -160,30 +270,20 @@ int main(int argc, char* argv[])
 			exit(EXIT_FAILURE);
 		}
 
-		outfile << "# vtk DataFile Version 2.0" << std::endl;
-		outfile << "Game of Life data" << std::endl;
-		outfile << "ASCII" << std::endl;
-		outfile << "DATASET UNSTRUCTURED_GRID" << std::endl;
-
-		// write cells in a known order
-		vector<uint64_t> cells;
-		cells.reserve(game_data.size());
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			data = game_data.begin();
-			data != game_data.end();
-			data++
-		) {
-			cells.push_back(data->first);
-		}
-		sort(cells.begin(), cells.end());
+		outfile
+			<< "# vtk DataFile Version 2.0\n"
+			<< "Game of Life data\n"
+			<< "ASCII\n"
+			<< "DATASET UNSTRUCTURED_GRID"
+			<< std::endl;
 
 		// write separate points for every cells' corners
-
-		outfile << "POINTS " << cells.size() * 8 << " float" << std::endl;
-		for (unsigned int i = 0; i < cells.size(); i++) {
+		outfile << "POINTS " << cell_data.size() * 8 << " float" << std::endl;
+		for (uint64_t i = 0; i < cell_data.size(); i++) {
+			const uint64_t cell = cell_data[i].first;
 			const std::array<double, 3>
-				cell_min = geometry.get_min(cells[i]),
-				cell_max = geometry.get_max(cells[i]);
+				cell_min = geometry.get_min(cell),
+				cell_max = geometry.get_max(cell);
 
 			outfile
 				<< cell_min[0] << " " << cell_min[1] << " " << cell_min[2] << "\n"
@@ -197,30 +297,31 @@ int main(int argc, char* argv[])
 		}
 
 		// map cells to written points
-		outfile << "CELLS " << cells.size() << " " << cells.size() * 9 << std::endl;
-		for (unsigned int j = 0; j < cells.size(); j++) {
+		outfile << "CELLS " << cell_data.size() << " " << cell_data.size() * 9 << "\n";
+		for (unsigned int j = 0; j < cell_data.size(); j++) {
 			outfile << "8 ";
 			for (int i = 0; i < 8; i++) {
 				 outfile << j * 8 + i << " ";
 			}
-			outfile << std::endl;
+			outfile << "\n";
 		}
 
 		// cell types
-		outfile << "CELL_TYPES " << cells.size() << std::endl;
-		for (unsigned int i = 0; i < cells.size(); i++) {
-			outfile << 11 << std::endl;
+		outfile << "CELL_TYPES " << cell_data.size() << "\n";
+		for (unsigned int i = 0; i < cell_data.size(); i++) {
+			outfile << 11 << "\n";
 		}
 
-		outfile << "CELL_DATA " << cells.size() << endl;
-		outfile << "SCALARS is_alive int 1" << endl;
-		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << game_data[*cell] << endl;
+		outfile << "CELL_DATA " << cell_data.size() << "\n";
+		outfile << "SCALARS is_alive int 1" << "\n";
+		outfile << "LOOKUP_TABLE default" << "\n";
+		for (uint64_t i = 0; i < cell_data.size(); i++) {
+			outfile << cell_data[i].second << "\n";
 		}
-
-		fclose(infile);
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }
+

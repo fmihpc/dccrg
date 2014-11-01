@@ -23,13 +23,13 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #include "cstdlib"
 #include "iomanip"
 #include "iostream"
-#include "mpi.h"
 #include "string"
 #include "unordered_set"
 #include "utility"
 #include "vector"
-#include "zoltan.h"
 
+#include "mpi.h"
+#include "zoltan.h"
 #include "dccrg.hpp"
 #include "dccrg_cartesian_geometry.hpp"
 
@@ -41,7 +41,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
 
 

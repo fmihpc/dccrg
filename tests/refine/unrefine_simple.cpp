@@ -2,12 +2,12 @@
 Tests the grid using simple refining and unrefining
 */
 
-#include "boost/array.hpp"
-#include "boost/mpi.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "sstream"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
@@ -15,13 +15,27 @@ Tests the grid using simple refining and unrefining
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
+
+struct Cell {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple(this, 0, MPI_BYTE);
+	}
+};
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	clock_t before, after;
 
@@ -30,14 +44,14 @@ int main(int argc, char* argv[])
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	Dccrg<int, Stretched_Cartesian_Geometry> grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
-	const std::array<uint64_t, 3> grid_length = {{GRID_SIZE, 1, 1}};
+	const std::array<uint64_t, 3> grid_length{{GRID_SIZE, 1, 1}};
 	#define NEIGHBORHOOD_SIZE 1
 	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE, 5);
 
@@ -52,7 +66,7 @@ int main(int argc, char* argv[])
 	geom_params.coordinates[2].push_back(1);
 	grid.set_geometry(geom_params);
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "Maximum refinement level of the grid: "
 			<< grid.get_maximum_refinement_level()
 			<< "\nNumber of cells: "
@@ -64,24 +78,24 @@ int main(int argc, char* argv[])
 
 	// every process outputs state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "unrefine_simple_" << comm.rank() << "_";
+	basename << "unrefine_simple_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize with visit -o game_of_life_test.visit
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.open("unrefine_simple.visit");
-		visit_file << "!NBLOCKS " << comm.size() << endl;
+		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 
 	#define TIME_STEPS 8
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "step " << step << endl;
 		}
 
 		grid.balance_load();
-		vector<uint64_t> cells = grid.get_cells();
+		auto cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
 
 		// write state into a file named according to the current time step
@@ -95,9 +109,11 @@ int main(int argc, char* argv[])
 		current_output_name += suffix.str();
 
 		// visualize with visit -o game_of_life_test.visit
-		if (comm.rank() == 0) {
-			for (int process = 0; process < comm.size(); process++) {
-				visit_file << "unrefine_simple_" << process << "_" << step_string.str() << suffix.str() << endl;
+		if (rank == 0) {
+			for (int process = 0; process < comm_size; process++) {
+				visit_file << "unrefine_simple_" << process
+					<< "_" << step_string.str() << suffix.str()
+					<< endl;
 			}
 		}
 
@@ -110,30 +126,30 @@ int main(int argc, char* argv[])
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = grid.get_neighbors_of(*cell);
+		for (const auto& cell: cells) {
+			const auto* const neighbors = grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process
 		outfile << "SCALARS process int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << comm.rank() << endl;
+		for (size_t i = 0; i < cells.size(); i++) {
+			outfile << rank << endl;
 		}
 
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << *cell << endl;
+		for (const auto& cell: cells) {
+			outfile << cell << endl;
 		}
 		outfile.close();
 
 		before = clock();
 
 		// refine / unrefine the smallest cell that is closest to the grid starting corner
-		const std::array<double, 3> adapt_coord = {{
+		const std::array<double, 3> adapt_coord{{
 			0.0001 * CELL_SIZE,
 			0.0001 * CELL_SIZE,
 			0.0001 * CELL_SIZE
@@ -144,17 +160,17 @@ int main(int argc, char* argv[])
 			grid.unrefine_completely_at(adapt_coord);
 		}
 
-		vector<uint64_t> new_cells = grid.stop_refining();
+		auto new_cells = grid.stop_refining();
 
 		after = clock();
-		cout << "Process " << comm.rank()
+		cout << "Process " << rank
 			<<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC
 			<< " seconds, " << new_cells.size()
 			<< " new cells created"
 			<< endl;
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.close();
 	}
 

@@ -4,35 +4,43 @@ The program doesn't scale, takes no input and produces no output.
 For good scaling see the file game_of_life.cpp, for output see the files game_of_life_with_output.cpp and dc2vtk.cpp
 */
 
-#include "boost/mpi.hpp"
 #include "cstdlib"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../dccrg.hpp"
 
 using namespace std;
-using namespace boost::mpi;
-using namespace dccrg;
 
 // store in every cell of the grid whether the cell is alive and the number of live neighbors it has
 struct game_of_life_cell {
+	unsigned int
+		is_alive = 0,
+		live_neighbor_count = 0;
 
-	// boost requires this from user data
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int /*version*/) {
-		ar & is_alive;
-		/* live_neighbor_count from neighboring cells is not used
-		ar & live_neighbor_count;*/
+	/*
+	Whenever cell data is transferred between MPI processes dccrg
+	passes on this data to MPI for sending/receiving the data.
+	*/
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() {
+		return std::make_tuple((void*) &(this->is_alive), 1, MPI_UNSIGNED);
 	}
-
-	bool is_alive;
-	unsigned int live_neighbor_count;
 };
 
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -40,17 +48,26 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<game_of_life_cell> game_grid;
+	dccrg::Dccrg<game_of_life_cell> game_grid;
 
-	// the cells that share a vertex are considered neighbors
-	#define NEIGHBORHOOD_SIZE 1
-	// don't allow refining cells into 8 smaller ones
-	#define MAX_REFINEMENT_LEVEL 0
+	const int
+		// the cells that share a vertex are considered neighbors
+		neighborhood_size = 1,
+		// don't allow refining cells into 8 smaller ones
+		maximum_refinement_level = 0;
+
 	// length of grid in cells of refinement level 0 (largest possible)
-	const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
-	// use the recursive coordinate bisection method for load
-	// balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
-	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
+	const std::array<uint64_t, 3> grid_length{{10, 10, 1}};
+
+	game_grid.initialize(
+		grid_length,
+		comm,
+		// use the recursive coordinate bisection method for load
+		// balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
+		"RCB",
+		neighborhood_size,
+		maximum_refinement_level
+	);
 
 	// since the grid doesn't change (isn't refined / unrefined)
 	// during the game, workload can be balanced just once in the beginning
@@ -58,65 +75,82 @@ int main(int argc, char* argv[])
 
 	// get the cells on this process just once, since the
 	// grid doesn't change during the game
-	vector<uint64_t> cells = game_grid.get_cells();
-
+	const vector<uint64_t> cells = game_grid.get_cells();
 
 	// initialize the game
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+	for (const auto& cell: cells) {
+		auto* const cell_data = game_grid[cell];
+		if (cell_data == nullptr) {
+			abort();
+		}
 
-		game_of_life_cell* cell_data = game_grid[*cell];
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
-			cell_data->is_alive = true;
+			cell_data->is_alive = 1;
 		} else {
-			cell_data->is_alive = false;
+			cell_data->is_alive = 0;
 		}
 	}
 
-	#define TURNS 100
-	for (int turn = 0; turn < TURNS; turn++) {
+	const int turns = 100;
+	for (int turn = 0; turn < turns; turn++) {
 
+		/*
+		Transfer data of cells, which are neighbors but reside
+		on different processes, between processes.
+		*/
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the neighbor counts for every local cell
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-
-			game_of_life_cell* cell_data = game_grid[*cell];
+		for (const auto& cell: cells) {
+			auto* const cell_data = game_grid[cell];
+			if (cell_data == nullptr) {
+				abort();
+			}
 
 			cell_data->live_neighbor_count = 0;
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
 
-			for (vector<uint64_t>::const_iterator neighbor = neighbors->begin(); neighbor != neighbors->end(); neighbor++) {
+			const auto* const neighbors = game_grid.get_neighbors_of(cell);
 
+			for (const auto& neighbor: *neighbors) {
 				/*
-				neighbors that would be outside of the grid
-				are recorded as 0, skip them
+				Skip neighbors that would be outside of
+				the grid and are recorded as error_cell
 				*/
-				if (*neighbor == 0) {
+				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[*neighbor];
-				if (neighbor_data->is_alive) {
+				const auto* const neighbor_data = game_grid[neighbor];
+				if (neighbor_data == nullptr) {
+					abort();
+				}
+
+				if (neighbor_data->is_alive > 0) {
 					cell_data->live_neighbor_count++;
 				}
 			}
 		}
 
 		// calculate the next turn
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-
-			game_of_life_cell* cell_data = game_grid[*cell];
+		for (const auto& cell: cells) {
+			auto* const cell_data = game_grid[cell];
+			if (cell_data == nullptr) {
+				abort();
+			}
 
 			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = true;
+				cell_data->is_alive = 1;
 			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = false;
+				cell_data->is_alive = 0;
 			}
 		}
 
 	}
 
+	MPI_Finalize();
+
 	return EXIT_SUCCESS;
 }
+

@@ -4,11 +4,13 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 
 #include "algorithm"
 #include "array"
-#include "boost/mpi.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
+#include "sstream"
 #include "unordered_set"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -16,30 +18,15 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 struct game_of_life_cell {
 	unsigned int data[2];
 
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	template<typename Archiver> void serialize(Archiver& ar, const unsigned int)
-	{
-		ar & data;
-	}
-
-	#else
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) &(this->data[0]), 1, MPI_UNSIGNED);
 	}
-
-	#endif
 };
 
 
-using namespace boost::mpi;
-using namespace dccrg;
 using namespace std;
+using namespace dccrg;
 
 
 /*!
@@ -154,8 +141,16 @@ std::unordered_set<uint64_t> get_live_cells(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -208,13 +203,13 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "general_neighborhood_" << comm.rank() << "_";
+	basename << "general_neighborhood_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		visit_file.open("general_neighborhood.visit");
-		visit_file << "!NBLOCKS " << comm.size() << endl;
+		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 
 	#define TIME_STEPS 36
@@ -265,8 +260,8 @@ int main(int argc, char* argv[])
 		current_output_name += suffix.str();
 
 		// visualize the game with visit -o game_of_life_test.visit
-		if (comm.rank() == 0) {
-			for (int process = 0; process < comm.size(); process++) {
+		if (rank == 0) {
+			for (int process = 0; process < comm_size; process++) {
 				visit_file << "general_neighborhood_" << process << "_" << step_string.str() << suffix.str() << endl;
 			}
 		}
@@ -314,7 +309,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS process int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (size_t i = 0; i < cells.size(); i++) {
-			outfile << comm.rank() << endl;
+			outfile << rank << endl;
 		}
 
 		// write each cells id
@@ -335,7 +330,7 @@ int main(int argc, char* argv[])
 			cell_data->data[1] = 0;
 			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell, neighborhood_id);
 			if (neighbors == NULL) {
-				cerr << "Process " << comm.rank() << ": No neighbor list for cell " << cell << endl;
+				cerr << "Process " << rank << ": No neighbor list for cell " << cell << endl;
 				abort();
 			}
 
@@ -346,7 +341,7 @@ int main(int argc, char* argv[])
 
 				game_of_life_cell* neighbor_data = game_grid[neighbor];
 				if (neighbor_data == NULL) {
-					cout << "Process " << comm.rank()
+					cout << "Process " << rank
 						<< ": neighbor " << neighbor
 						<< " data for cell " << cell
 						<< " not available"
@@ -375,9 +370,11 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "PASSED" << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

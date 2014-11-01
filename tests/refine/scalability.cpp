@@ -2,27 +2,42 @@
 Tests the speed of refining the grid in 3-d by refining random cells until enough cell exist
 */
 
-#include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "fstream"
 #include "functional"
 #include "iostream"
+#include "sstream"
+
+#include "boost/program_options.hpp"
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
+
+struct Cell {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
+		return std::make_tuple(this, 0, MPI_BYTE);
+	}
+};
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -71,15 +86,15 @@ int main(int argc, char* argv[])
 
 	// print a help message if asked
 	if (option_variables.count("help") > 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << options << endl;
 		}
-		comm.barrier();
+		MPI_Finalize();
 		return EXIT_SUCCESS;
 	}
 
 	// initialize
-	Dccrg<int> grid;
+	Dccrg<Cell> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 	grid.initialize(grid_length, comm, "RCB", neighborhood_size, maximum_refinement_level);
@@ -90,6 +105,7 @@ int main(int argc, char* argv[])
 
 	clock_t before, after, total = 0;
 
+	size_t local_cells = cells.size(), total_cells = 0;
 	do {
 		random_shuffle(cells.begin(), cells.end());
 
@@ -103,17 +119,23 @@ int main(int argc, char* argv[])
 		vector<uint64_t> new_cells = grid.stop_refining();
 		after = clock();
 		total += after - before;
-		cout << "Proc " << comm.rank() << ": " << new_cells.size() << " new cells" << endl;
+		cout << "Proc " << rank << ": " << new_cells.size() << " new cells" << endl;
 
 		cells = grid.get_cells();
-	} while (all_reduce(comm, cells.size(), plus<uint64_t>()) < maximum_cells);
 
-	cout << "Process " << comm.rank()
+		local_cells = cells.size();
+		total_cells = 0;
+		MPI_Allreduce(&local_cells, &total_cells, 1, MPI_UINT64_T, MPI_SUM, comm);
+	} while (total_cells < maximum_cells);
+
+	cout << "Process " << rank
 		<< ": " << cells.size() - initial_cells
 		<< " new cells created in " << double(total) / CLOCKS_PER_SEC
 		<< " s, (" << (cells.size() - initial_cells) / (double(total) / CLOCKS_PER_SEC)
 		<< " new cells / s)"
 		<< endl;
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

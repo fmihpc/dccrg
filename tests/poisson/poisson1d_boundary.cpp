@@ -18,7 +18,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "array"
-#include "boost/mpi.hpp"
 #include "cmath"
 #include "cstdint"
 #include "cstdlib"
@@ -27,11 +26,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dccrg.hpp"
 #include "dccrg_cartesian_geometry.hpp"
+#include "mpi.h"
 
 #include "poisson_solve.hpp"
 
 
-using namespace boost::mpi;
 using namespace dccrg;
 using namespace std;
 
@@ -88,8 +87,16 @@ template<class Geometry> double get_p_norm(
 
 int main(int argc, char* argv[])
 {
-	environment env(argc, argv);
-	communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -194,7 +201,7 @@ int main(int argc, char* argv[])
 
 		if (norm > old_norm) {
 			success = 1;
-			if (comm.rank() == 0) {
+			if (rank == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " " << p_of_norm
 					<< "-norm between x and analytic is too large with "
@@ -208,13 +215,15 @@ int main(int argc, char* argv[])
 		old_norm = norm;
 	}
 
+	MPI_Finalize();
+
 	if (success == 0) {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "PASSED" << endl;
 		}
 		return EXIT_SUCCESS;
 	} else {
-		if (comm.rank() == 0) {
+		if (rank == 0) {
 			cout << "FAILED" << endl;
 		}
 		return EXIT_FAILURE;
