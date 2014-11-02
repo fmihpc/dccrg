@@ -18,13 +18,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
-#include "boost/unordered_map.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "cstring"
 #include "fstream"
 #include "iostream"
-#include "stdint.h"
+#include "cstdint"
 
 #include "../../dccrg_cartesian_geometry.hpp"
 

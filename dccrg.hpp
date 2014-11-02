@@ -548,9 +548,6 @@ public:
 	By default returns all local cells.	Otherwise only those local cells are
 	returned which match one or more of the given criteria.
 
-	A list of criteria can be constructed in-place with boost::assign::list_of
-	when calling this function, see further down for examples.
-
 	Criteria represent which type of neighbors a cell must (and possibly must not)
 	have in order to be returned. Each criteria is a bitmask of possibly several
 	neighbor types.
@@ -566,29 +563,30 @@ public:
 		  consider cells on this process as a neighbor or are only considered
 		  as a neighbor by cells on this process, give exact_match = true and
 		  \verbatim
-		  list_of
-		  	(has_no_neighbor)
-		  	(has_local_neighbor_of)
-		  	(has_local_neighbor_to)
-		  	(has_local_neighbor_both)
+		  {
+		    has_no_neighbor,
+		    has_local_neighbor_of,
+		    has_local_neighbor_to,
+		    has_local_neighbor_both
+		  }
 		  \endverbatim
 		- are on the process boundary, i.e. consider a cell on another process
 		  as a neighbor or are considered as a neighbor by a cell on another
 		  process, give exact_match = false and
 		  \verbatim
-		  list_of(has_remote_neighbor_both)
+		  {has_remote_neighbor_both}
 		  \endverbatim
 		- are considered as a neighbor by at least one local and at least one
 		  remote cell but do not consider any local or remote cells as their
 		  neighbors, give exact_match = true and
 		  \verbatim
-		  list_of(has_local_neighor_to | has_remote_neighbor_to)
+		  {has_local_neighor_to | has_remote_neighbor_to}
 		  \endverbatim
 		- are considered as a neighbor by a local cell or by a remote cell
 		  but do not consider any local of remote cells as their neighbors, give
 		  exact_match = true and
 		  \verbatim
-		  list_of(has_local_neighor_to)(has_remote_neighbor_to)
+		  {has_local_neighor_to, has_remote_neighbor_to}
 		  \endverbatim
 
 	Cells' neighbors from the given neighborhood are used when checking for
@@ -8173,8 +8171,7 @@ private:
 	void induce_refines()
 	{
 		std::vector<uint64_t> new_refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
-		MPI_Comm non_boost_comm = this->comm;
-		while (All_Reduce()(new_refines.size(), non_boost_comm) > 0) {
+		while (All_Reduce()(new_refines.size(), this->comm) > 0) {
 
 			std::vector<std::vector<uint64_t>> all_new_refines;
 			All_Gather()(new_refines, all_new_refines, this->comm);
@@ -8657,7 +8654,7 @@ private:
 
 			// move user data of refined cells into refined_cell_data
 			if (this->rank == process_of_refined) {
-				// TODO: move data instead of copying, using boost::move or c++0x move?
+				// TODO: move data instead of copying
 				this->refined_cell_data[refined] = this->cells.at(refined);
 				this->cells.erase(refined);
 			}

@@ -20,11 +20,11 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_ADVECTION_SAVE_HPP
 
 
-#include "boost/array.hpp"
-#include "boost/mpi.hpp"
 #include "cstring"
 #include "string"
 #include "vector"
+
+#include "mpi.h"
 
 #include "dccrg.hpp"
 

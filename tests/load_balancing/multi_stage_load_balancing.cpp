@@ -7,13 +7,13 @@ known in advance.
 
 #include "algorithm"
 #include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
-#include "mpi.h"
 #include "vector"
-#include "stdint.h"
+#include "cstdint"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"

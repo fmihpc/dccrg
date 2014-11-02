@@ -17,39 +17,26 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 */
 
 
-#include "boost/tuple/tuple.hpp"
 #include "mpi.h"
 
 #include "../../dccrg_get_cell_datatype.hpp"
 
 struct Cell1 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) NULL, 1, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell2 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
 	{
 		return std::make_tuple((void*) NULL, 2, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell3 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -61,11 +48,7 @@ struct Cell3 {
 };
 
 struct Cell4 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -77,11 +60,7 @@ struct Cell4 {
 };
 
 struct Cell5 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -91,11 +70,7 @@ struct Cell5 {
 		return std::make_tuple((void*) NULL, 5, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -108,11 +83,7 @@ struct Cell5 {
 
 struct Cell6 {
 	// the one with arguments should take precedence
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -122,31 +93,19 @@ struct Cell6 {
 		return std::make_tuple((void*) NULL, 7, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
 	{
 		return std::make_tuple((void*) NULL, 8, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) NULL, 9, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell7 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -156,20 +115,12 @@ struct Cell7 {
 		return std::make_tuple((void*) NULL, 10, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
 	{
 		return std::make_tuple((void*) NULL, 11, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) NULL, 12, MPI_DATATYPE_NULL);
 	}

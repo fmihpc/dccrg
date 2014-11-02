@@ -24,23 +24,20 @@ but the used solver is probably the simplest possible.
 */
 
 #include "algorithm"
-#include "boost/array.hpp"
-#include "boost/foreach.hpp"
 #include "boost/lexical_cast.hpp"
 #include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "iomanip"
 #include "iostream"
-#include "mpi.h"
 #include "string"
 #include "utility"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "dccrg.hpp"
 #include "dccrg_cartesian_geometry.hpp"
-
 #include "adapter.hpp"
 #include "cell.hpp"
 #include "initialize.hpp"
@@ -49,7 +46,6 @@ but the used solver is probably the simplest possible.
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
 
 

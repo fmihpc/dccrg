@@ -22,7 +22,6 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "boost/format.hpp"
 #include "boost/program_options.hpp"
-#include "boost/tuple/tuple.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
@@ -49,51 +48,31 @@ class Poisson_Cell
 {
 public:
 
-	Poisson_Cell()
-	{
-		this->rhs            =
-		this->solution       =
-		this->best_solution  =
-		this->p0             =
-		this->p1             =
-		this->r0             =
-		this->r1             =
-		this->A_dot_p0       =
-		this->scaling_factor =
-		this->f_x_pos        =
-		this->f_x_neg        =
-		this->f_y_pos        =
-		this->f_y_neg        =
-		this->f_z_pos        =
-		this->f_z_neg        =
-		this->cell_type      = 0;
-	}
-
 	double
 		// rhs is b and solution is x in the equation Ax = b
-		rhs, solution,
+		rhs = 0, solution = 0,
 
 		// saved solution whenever minimum residual obtained
-		best_solution,
+		best_solution = 0,
 
 		/*
 		Same variables are used as in 2.7.6 of numerical recipes
 		with the modification that bold r is r0 and bold r with
 		dash on top is r1; same for p.
 		*/
-		p0, p1, r0, r1,
+		p0 = 0, p1 = 0, r0 = 0, r1 = 0,
 
 		/*
 		The recurrence in numerical recipes does A . p0 two times,
 		this variable caches the result from first to save CPU time.
 		*/
-		A_dot_p0,
+		A_dot_p0 = 0,
 
 		/*
 		Factor by which solution variables in this cell are scaled
 		so that diagonal of matrix A has only ones
 		*/
-		scaling_factor,
+		scaling_factor = 0,
 
 		/*
 		Factors that data in neighboring cells is multiplied with
@@ -101,10 +80,10 @@ public:
 		The neighbors' factors are used when calculating traspose(A) . i.
 		One factor per direction.
 		*/
-		f_x_pos, f_x_neg, f_y_pos, f_y_neg, f_z_pos, f_z_neg,
+		f_x_pos = 0, f_x_neg = 0, f_y_pos = 0, f_y_neg = 0, f_z_pos = 0, f_z_neg = 0,
 
 		// see cache_system_info()
-		cell_type;
+		cell_type = 0;
 
 
 	/*
@@ -122,11 +101,7 @@ public:
 		TYPE      = 3;
 
 	// tells dccrg what to transfer, assumes no padding between variables
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		void* address = NULL;
 		int count = -1;

@@ -19,11 +19,11 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CELL_HPP
 #define CELL_HPP
 
-#include "boost/array.hpp"
-#include "boost/tuple/tuple.hpp"
-#include "mpi.h"
+
 #include "vector"
 #include "iostream"
+
+#include "mpi.h"
 
 
 /*!
@@ -33,7 +33,7 @@ class Cell
 {
 public:
 
-	unsigned int number_of_particles;
+	unsigned int number_of_particles = 0;
 
 	// coordinates of particles in this cell
 	std::vector<std::array<double, 3> > particles;
@@ -46,22 +46,7 @@ public:
 	static bool transfer_particles;
 
 
-	Cell()
-	{
-		this->number_of_particles = 0;
-	}
-
-	~Cell()
-	{
-		this->number_of_particles = 0;
-	}
-
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		void* address = NULL;
 		int count = -1;

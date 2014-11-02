@@ -17,22 +17,22 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/mpi.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
 #include "stdint.h"
 #include "vector"
 
+#include "mpi.h"
+#include "zoltan.h"
+
 #include "dccrg.hpp"
 #include "dccrg_cartesian_geometry.hpp"
-
 #include "poisson_solve.hpp"
 
 
-using namespace boost::mpi;
-using namespace dccrg;
 using namespace std;
+using namespace dccrg;
 
 
 int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;

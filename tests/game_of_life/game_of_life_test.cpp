@@ -24,6 +24,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "fstream"
 #include "iostream"
 #include "unordered_set"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"

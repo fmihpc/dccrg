@@ -2,7 +2,6 @@
 Tests the speed of geometry operations with a constant cell size grid
 */
 
-#include "boost/array.hpp"
 #include "ctime"
 #include "iostream"
 #include "stdint.h"

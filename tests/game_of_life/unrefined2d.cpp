@@ -13,9 +13,9 @@ As refined2d.cpp but refines / unrefines the grid constantly and randomly
 
 #include "mpi.h"
 #include "zoltan.h"
+
 #include "../../dccrg_stretched_cartesian_geometry.hpp"
 #include "../../dccrg.hpp"
-
 #include "cell.hpp"
 #include "initialize.hpp"
 #include "refine.hpp"

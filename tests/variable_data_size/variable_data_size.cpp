@@ -2,12 +2,13 @@
 Tests the grid with variable amount of data in cells using serialization
 */
 
-#include "boost/unordered_set.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "iostream"
 #include "unistd.h"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg_stretched_cartesian_geometry.hpp"

@@ -6,7 +6,6 @@ Tests the scalability of initializing the grid
 #include "ctime"
 
 #include "boost/program_options.hpp"
-#include "boost/unordered_set.hpp"
 #include "mpi.h"
 #include "zoltan.h"
 

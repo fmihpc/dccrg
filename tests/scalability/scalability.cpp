@@ -16,10 +16,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/foreach.hpp"
-#include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
-#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "fstream"
@@ -27,13 +24,14 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "string"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
 
 
 using namespace std;
-using namespace boost::mpi;
 using namespace dccrg;
 
 
@@ -82,8 +80,7 @@ template<class CellData> double solve(
 	const vector<uint64_t>& cells,
 	Dccrg<CellData>& grid
 ) {
-	timer t;
-	const double start_time = t.elapsed();
+	const double start_time = MPI_Wtime();
 
 	for (const auto& cell: cells) {
 		auto* const cell_data = grid[cell];
@@ -94,14 +91,14 @@ template<class CellData> double solve(
 		}
 
 		// "solve" for given amount of time
-		const double end_time = t.elapsed() + solution_time;
-		double elapsed_time = t.elapsed();
+		const double end_time = MPI_Wtime() + solution_time;
+		double elapsed_time = MPI_Wtime();
 		while (elapsed_time < end_time) {
-			elapsed_time = t.elapsed();
+			elapsed_time = MPI_Wtime();
 		}
 	}
 
-	return t.elapsed() - start_time;
+	return MPI_Wtime() - start_time;
 }
 
 
@@ -180,12 +177,11 @@ int main(int argc, char* argv[])
 	}
 
 	// warn if requested solution time too small
-	timer t;
-	if (solution_time < t.elapsed_min()) {
+	if (solution_time < MPI_Wtick()) {
 		cout << "Warning: requested solution time is less than MPI_Wtime resolution, setting solution_time to: "
-			<< t.elapsed_min()
+			<< MPI_Wtick()
 			<< endl;
-		solution_time = t.elapsed_min();
+		solution_time = MPI_Wtick();
 	}
 
 	Cell::data_size = data_size;

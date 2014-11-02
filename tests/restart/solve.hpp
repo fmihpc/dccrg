@@ -19,10 +19,8 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef SOLVE_HPP
 #define SOLVE_HPP
 
-#include "boost/unordered_map.hpp"
-#include "boost/unordered_set.hpp"
 #include "iostream"
-#include "stdint.h"
+#include "cstdint"
 #include "vector"
 
 #include "../../dccrg.hpp"

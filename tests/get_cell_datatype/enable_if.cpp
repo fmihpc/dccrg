@@ -20,7 +20,6 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "boost/function_types/property_tags.hpp"
 #include "boost/mpl/vector.hpp"
 #include "boost/tti/has_member_function.hpp"
-#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "iostream"
 #include "mpi.h"
