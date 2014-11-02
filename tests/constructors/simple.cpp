@@ -2,13 +2,12 @@
 Tests how well dccrg avoids unnecessary construction / destruction of cell data.
 */
 
-#include "boost/foreach.hpp"
-#include "boost/mpi.hpp"
-#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "iostream"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -45,11 +44,7 @@ struct CellData {
 		return *this;
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) &(this->data), 1, MPI_DOUBLE);
 	}
@@ -57,8 +52,16 @@ struct CellData {
 
 int main(int argc, char* argv[])
 {
-	boost::mpi::environment env(argc, argv);
-	boost::mpi::communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -75,15 +78,18 @@ int main(int argc, char* argv[])
 	grid.initialize(grid_length, comm, "RCB", 1, 0);
 
 	cout << "\ngrid.get_cells:" << endl;
-	vector<uint64_t> cells = grid.get_cells();
+	const auto cells = grid.get_cells();
 
-	cout << "\nBOOST_FOREACH(const uint64_t& cell, cells):" << endl;
-	BOOST_FOREACH(const uint64_t& cell, cells) {
+	cout << "\nfor (const auto& cell: cells):" << endl;
+	for (const auto& cell: cells) {
 		cout << cell << " ";
 	}
 	cout << endl;
 
 	cout << "\nexiting:" << endl;
+
+	MPI_Finalize();
+
 	return EXIT_SUCCESS;
 }
 

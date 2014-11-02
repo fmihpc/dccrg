@@ -17,10 +17,7 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/foreach.hpp"
-#include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
@@ -32,7 +29,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "poisson_solve.hpp"
 
-using namespace boost::mpi;
 using namespace dccrg;
 using namespace std;
 

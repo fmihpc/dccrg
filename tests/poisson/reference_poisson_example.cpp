@@ -2,7 +2,6 @@
 Example of using the reference Poisson solver.
 */
 
-#include "boost/foreach.hpp"
 #include "cstdlib"
 #include "iostream"
 

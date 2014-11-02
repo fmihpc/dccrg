@@ -20,18 +20,13 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "boost/function_types/property_tags.hpp"
 #include "boost/mpl/vector.hpp"
 #include "boost/tti/has_member_function.hpp"
-#include "boost/static_assert.hpp"
 #include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "iostream"
 #include "mpi.h"
 
 struct Cell1 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -41,11 +36,7 @@ struct Cell1 {
 		return std::make_tuple((void*) NULL, 1, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
 		const int /*sender*/,
 		const int /*receiver*/,
@@ -55,31 +46,19 @@ struct Cell1 {
 		return std::make_tuple((void*) NULL, 2, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
 	{
 		return std::make_tuple((void*) NULL, 3, MPI_DATATYPE_NULL);
 	}
 
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) NULL, 4, MPI_DATATYPE_NULL);
 	}
 };
 
 struct Cell2 {
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) NULL, 5, MPI_DATATYPE_NULL);
 	}
@@ -97,7 +76,7 @@ int main(int /*argc*/, char** /*argv*/)
 	int count = -1;
 	MPI_Datatype datatype = MPI_DATATYPE_NULL;
 
-	BOOST_STATIC_ASSERT((
+	static_assert(
 		has_member_function_get_mpi_datatype<
 			Cell1,
 			std::tuple<void*, int, MPI_Datatype>,
@@ -109,8 +88,9 @@ int main(int /*argc*/, char** /*argv*/)
 				const int
 			>,
 			boost::function_types::const_qualified
-		>::value
-	));
+		>::value,
+		"Error"
+	);
 	const Cell1 c1_1;
 	std::tie(
 		address,
@@ -122,7 +102,7 @@ int main(int /*argc*/, char** /*argv*/)
 		abort();
 	}
 
-	BOOST_STATIC_ASSERT((
+	static_assert(
 		has_member_function_get_mpi_datatype<
 			Cell1,
 			std::tuple<void*, int, MPI_Datatype>,
@@ -133,8 +113,9 @@ int main(int /*argc*/, char** /*argv*/)
 				const bool,
 				const int
 			>
-		>::value
-	));
+		>::value,
+		"Error"
+	);
 	Cell1 c1_2;
 	std::tie(
 		address,
@@ -147,14 +128,15 @@ int main(int /*argc*/, char** /*argv*/)
 	}
 
 
-	BOOST_STATIC_ASSERT((
+	static_assert(
 		has_member_function_get_mpi_datatype<
 			Cell1,
 			std::tuple<void*, int, MPI_Datatype>,
 			boost::mpl::vector<>,
 			boost::function_types::const_qualified
-		>::value
-	));
+		>::value,
+		"Error"
+	);
 	const Cell1 c1_3;
 	std::tie(
 		address,
@@ -166,13 +148,14 @@ int main(int /*argc*/, char** /*argv*/)
 		abort();
 	}
 
-	BOOST_STATIC_ASSERT((
+	static_assert(
 		has_member_function_get_mpi_datatype<
 			Cell1,
 			std::tuple<void*, int, MPI_Datatype>,
 			boost::mpl::vector<>
-		>::value
-	));
+		>::value,
+		"Error"
+	);
 	Cell1 c1_4;
 	std::tie(
 		address,
@@ -185,13 +168,14 @@ int main(int /*argc*/, char** /*argv*/)
 	}
 
 
-	BOOST_STATIC_ASSERT((
+	static_assert(
 		has_member_function_get_mpi_datatype<
 			Cell2,
 			std::tuple<void*, int, MPI_Datatype>,
 			boost::mpl::vector<>
-		>::value
-	));
+		>::value,
+		"Error"
+	);
 	Cell2 c2_1;
 	std::tie(
 		address,
@@ -204,13 +188,14 @@ int main(int /*argc*/, char** /*argv*/)
 	}
 
 
-	BOOST_STATIC_ASSERT((
+	static_assert(
 		not has_member_function_get_mpi_datatype<
 			Cell3,
 			std::tuple<void*, int, MPI_Datatype>,
 			boost::mpl::vector<>
-		>::value
-	));
+		>::value,
+		"Error"
+	);
 
 
 	return EXIT_SUCCESS;

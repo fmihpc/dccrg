@@ -19,9 +19,9 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef RESTART_CELL_HPP
 #define RESTART_CELL_HPP
 
-#include "boost/array.hpp"
+#include "cstdint"
+
 #include "mpi.h"
-#include "stdint.h"
 
 /*!
 Game of life cell with 8 * 13 bytes of data.
@@ -43,17 +43,7 @@ public:
 	// == true when saving and restarting
 	static bool transfer_only_life;
 
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	#error DCCRG_TRANSFER_USING_BOOST_MPI cannot be defined when compiling this program
-
-	#else // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		if (Cell::transfer_only_life) {
 			return std::make_tuple((void*) &(this->data), 1, MPI_UINT64_T);
@@ -61,8 +51,6 @@ public:
 			return std::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
 		}
 	}
-
-	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 bool Cell::transfer_only_life = false;

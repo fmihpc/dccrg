@@ -20,13 +20,13 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_ADVECTION_SOLVE_HPP
 
 
-#include "boost/array.hpp"
-#include "boost/foreach.hpp"
 #include "cmath"
 #include "iostream"
 #include "limits"
 #include "string"
 #include "vector"
+
+#include "mpi.h"
 
 #include "dccrg.hpp"
 
@@ -49,7 +49,7 @@ public:
 		dccrg::Dccrg<CellData, Geometry>& grid
 	) {
 
-		BOOST_FOREACH(const uint64_t& cell, cells) {
+		for (const auto& cell: cells) {
 
 			if (!grid.is_local(cell)) {
 				std::cerr << __FILE__ << ":" << __LINE__
@@ -59,7 +59,7 @@ public:
 				abort();
 			}
 
-			CellData* cell_data = grid[cell];
+			auto* const cell_data = grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for cell " << cell
@@ -73,8 +73,7 @@ public:
 				cell_density = cell_data->density(),
 				cell_volume = cell_length[0] * cell_length[1] * cell_length[2];
 
-			const std::vector<std::pair<uint64_t, int> > neighbors_to_solve
-				= grid.get_face_neighbors_of(cell);
+			const auto neighbors_to_solve = grid.get_face_neighbors_of(cell);
 
 			for (size_t i = 0; i < neighbors_to_solve.size(); i++) {
 
@@ -86,7 +85,7 @@ public:
 					continue;
 				}
 
-				CellData* neighbor_data = grid[neighbor];
+				auto* const neighbor_data = grid[neighbor];
 				if (neighbor_data == NULL) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " No data for cell " << neighbor
@@ -215,8 +214,8 @@ public:
 	{
 		const std::vector<uint64_t> cells = grid.get_cells();
 
-		BOOST_FOREACH(const uint64_t& cell, cells) {
-			CellData* cell_data = grid[cell];
+		for (const auto& cell: cells) {
+			auto* const cell_data = grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< "No data for cell " << cell
@@ -244,26 +243,26 @@ public:
 		MPI_Comm& comm,
 		const dccrg::Dccrg<CellData, Geometry>& grid
 	) {
-		const std::vector<uint64_t> cells = grid.get_cells();
+		const auto cells = grid.get_cells();
 
 		double min_step = std::numeric_limits<double>::max();
 
-		BOOST_FOREACH(const uint64_t& cell_id, cells) {
+		for (const auto& cell: cells) {
 
-			CellData* cell = grid[cell_id];
-			if (cell == NULL) {
+			auto* const cell_data = grid[cell];
+			if (cell_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell " << cell_id
+					<< " No data for cell " << cell
 					<< std::endl;
 				abort();
 			}
 
 			const std::array<double, 3>
-				cell_length = grid.geometry.get_length(cell_id),
-				current_steps = {{
-					cell_length[0] / fabs(cell->vx()),
-					cell_length[1] / fabs(cell->vy()),
-					cell_length[2] / fabs(cell->vz())
+				cell_length = grid.geometry.get_length(cell),
+				current_steps{{
+					cell_length[0] / fabs(cell_data->vx()),
+					cell_length[1] / fabs(cell_data->vy()),
+					cell_length[2] / fabs(cell_data->vz())
 				}};
 
 			const double current_min_step =

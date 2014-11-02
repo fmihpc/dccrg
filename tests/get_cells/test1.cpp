@@ -22,7 +22,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "mpi.h"
 #include "zoltan.h"
 
-#define DCCRG_TRANSFER_USING_BOOST_MPI
 #include "../../dccrg.hpp"
 
 using namespace std;

@@ -19,9 +19,9 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef CELL_HPP
 #define CELL_HPP
 
-#include "boost/array.hpp"
+#include "cstdint"
+
 #include "mpi.h"
-#include "stdint.h"
 
 class Cell
 {
@@ -37,32 +37,13 @@ public:
 	*/
 	std::array<double, 6> data;
 
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-
-	template<typename Archiver> void serialize(
-		Archiver& ar,
-		const unsigned int /*version*/
-	) {
-		// transfer cell density and velocities to other processes
-		// TODO: only transfer velocities after they have changed
-		ar & data[0] & data[1] & data[2] & data[3];
-	}
-
-	#else
-
 	// returns MPI_Datatype corresponding to cell data to transfer
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		// transfer cell density and velocities to other processes
 		// TODO: only transfer velocities after they have changed
 		return std::make_tuple((void*) &(this->data), 4, MPI_DOUBLE);
 	}
-
-	#endif
 
 	/*
 	References to variables stored in the cell

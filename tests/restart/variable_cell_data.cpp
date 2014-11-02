@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "tuple"
 #include "vector"
 
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -42,10 +43,6 @@ public:
 	std::vector<int> data;
 
 	static bool transfer_all, transfer_data;
-
-	#ifdef DCCRG_TRANSFER_USING_BOOST_MPI
-	#error DCCRG_TRANSFER_USING_BOOST_MPI cannot be defined when compiling this program
-	#else
 
 	std::tuple<
 		void*,
@@ -87,8 +84,6 @@ public:
 			return std::make_tuple((void*) &(this->data_size), 1, MPI_UINT64_T);
 		}
 	}
-
-	#endif // ifdef DCCRG_TRANSFER_USING_BOOST_MPI
 };
 
 bool
@@ -104,7 +99,7 @@ template <class Grid_T> void migrate_cells(Grid_T& grid)
 	if (grid.get_rank() % 3 == 0) {
 		if (grid.get_comm_size() > grid.get_rank() + 1) {
 			const std::vector<uint64_t> cells = grid.get_cells();
-			for(const auto& cell: cells) {
+			for (const auto& cell: cells) {
 				grid.pin(cell, grid.get_rank() + 1);
 			}
 		}

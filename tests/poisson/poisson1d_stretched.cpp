@@ -16,26 +16,25 @@ You should have received a copy of the GNU Lesser General Public License
 along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "boost/array.hpp"
-#include "boost/foreach.hpp"
-#include "boost/lexical_cast.hpp"
-#include "boost/mpi.hpp"
-#include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
-#include "stdint.h"
+#include "cstdint"
 #include "vector"
+
+#include "boost/lexical_cast.hpp"
+#include "boost/program_options.hpp"
+#include "mpi.h"
+#include "zoltan.h"
 
 #include "dccrg_stretched_cartesian_geometry.hpp"
 #include "dccrg.hpp"
 
 #include "poisson_solve.hpp"
 
-using namespace boost::mpi;
-using namespace dccrg;
+
 using namespace std;
+using namespace dccrg;
 
 
 int Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
@@ -80,7 +79,7 @@ template<class Geometry> double get_p_norm(
 ) {
 	double local = 0, global = 0;
 
-	BOOST_FOREACH(const uint64_t cell, cells) {
+	for (const auto& cell: cells) {
 		// assumes grid is 1d
 		const std::array<double, 3> cell_center = grid.geometry.get_center(cell);
 		double coord = -1;
@@ -94,7 +93,7 @@ template<class Geometry> double get_p_norm(
 			coord = cell_center[2];
 		}
 
-		Poisson_Cell* data = grid[cell];
+		auto* const data = grid[cell];
 		local += std::pow(
 			fabs(data->solution - (get_solution_value(coord) + offset)),
 			p_of_norm
@@ -127,7 +126,7 @@ template<class Geometry> double get_last_cell_solution(
 	// proc with last cell tells others the solution in last cell
 	double solution = 0;
 	if (grid.is_local(last_cell)) {
-		Poisson_Cell* data = grid[last_cell];
+		auto* const data = grid[last_cell];
 		if (data == NULL) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for last cell " << last_cell
@@ -250,7 +249,7 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t> initial_cells = grid_stretched.get_cells();
 
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
-		BOOST_FOREACH(const uint64_t cell, initial_cells) {
+		for (const auto& cell: initial_cells) {
 			const int target_process = cell % comm_size;
 			grid_stretched.pin(cell, target_process);
 			grid_reference.pin(cell, target_process);
@@ -263,10 +262,10 @@ int main(int argc, char* argv[])
 		const std::vector<uint64_t> cells = grid_stretched.get_cells();
 
 		// initialize
-		BOOST_FOREACH(const uint64_t cell, cells) {
-			Poisson_Cell
-				*data_stretched = grid_stretched[cell],
-				*data_reference = grid_reference[cell];
+		for (const auto& cell: cells) {
+			auto
+				* const data_stretched = grid_stretched[cell],
+				* const data_reference = grid_reference[cell];
 
 			if (data_stretched == NULL || data_reference == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
@@ -351,8 +350,8 @@ int main(int argc, char* argv[])
 				"'-' using 1:2 pt 7 lt 3 t 'reference'\n";
 
 			// stretched
-			BOOST_FOREACH(const uint64_t cell, cells) {
-				Poisson_Cell* data_stretched = grid_stretched[cell];
+			for (const auto& cell: cells) {
+				auto* const data_stretched = grid_stretched[cell];
 
 				if (data_stretched == NULL) {
 					std::cerr << __FILE__ << ":" << __LINE__
@@ -368,7 +367,7 @@ int main(int argc, char* argv[])
 			plot_file << "end\n";
 
 			// reference
-			BOOST_FOREACH(const uint64_t cell, cells) {
+			for (const auto& cell: cells) {
 				Poisson_Cell* data_reference = grid_reference[cell];
 
 				if (data_reference == NULL) {

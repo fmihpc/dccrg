@@ -2,14 +2,12 @@
 Tests copy construction of dccrg.
 */
 
-#include "boost/foreach.hpp"
-#include "boost/mpi.hpp"
-#include "boost/tuple/tuple.hpp"
 #include "cstdlib"
 #include "ctime"
 #include "iostream"
-#include "mpi.h"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -22,15 +20,9 @@ using namespace std;
 Cell data in grid1.
 */
 struct Cell1 {
-	int data;
+	int data = -1;
 
-	Cell1() { data = -1; }
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype() const
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
 	{
 		return std::make_tuple((void*) &(this->data), 1, MPI_INT);
 	}
@@ -40,29 +32,26 @@ struct Cell1 {
 Cell data in grid2.
 */
 struct Cell2 {
-	double data;
+	double data = -2;
 
-	Cell2() { data = -2; }
-
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	> get_mpi_datatype(
-		const uint64_t /*cell_id*/,
-		const int /*sender*/,
-		const int /*receiver*/,
-		const bool /*receiving*/,
-		const int /*neighborhoo_id*/
-	) {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	{
 		return std::make_tuple(&(this->data), 1, MPI_DOUBLE);
 	}
 };
 
 int main(int argc, char* argv[])
 {
-	boost::mpi::environment env(argc, argv);
-	boost::mpi::communicator comm;
+	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
+		cerr << "Coudln't initialize MPI." << endl;
+		abort();
+	}
+
+	MPI_Comm comm = MPI_COMM_WORLD;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	MPI_Comm_size(comm, &comm_size);
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
@@ -90,9 +79,9 @@ int main(int argc, char* argv[])
 	// check that remote neighbor update works in original grid
 	// data in grid1 == process rank
 	const vector<uint64_t> cells1 = grid1.get_cells();
-	BOOST_FOREACH(const uint64_t cell, cells1) {
-		Cell1* cell_data = grid1[cell];
-		cell_data->data = comm.rank();
+	for (const auto& cell: cells1) {
+		auto* const cell_data = grid1[cell];
+		cell_data->data = rank;
 	}
 
 	grid1.update_copies_of_remote_neighbors();
@@ -103,8 +92,8 @@ int main(int argc, char* argv[])
 	const std::unordered_map<uint64_t, uint64_t>& cell_process1
 		= grid1.get_cell_process();
 
-	BOOST_FOREACH(const uint64_t cell, remote_neighbors1) {
-		Cell1* cell_data = grid1[cell];
+	for (const auto& cell: remote_neighbors1) {
+		auto* const cell_data = grid1[cell];
 		if (cell_data == NULL) {
 			cerr << "No data for cell " << cell << " in grid1" << endl;
 			abort();
@@ -121,17 +110,17 @@ int main(int argc, char* argv[])
 
 	// check copy constructor
 	dccrg::Dccrg<Cell2, dccrg::Stretched_Cartesian_Geometry> grid2(grid1);
-	const vector<uint64_t> cells2 = grid2.get_cells();
+	const auto cells2 = grid2.get_cells();
 
 	if (cells1.size() != cells2.size()) {
-		cerr << "Rank " << comm.rank() << ": Number of cells doesn't match" << endl;
+		cerr << "Rank " << rank << ": Number of cells doesn't match" << endl;
 		abort();
 	}
 
-	BOOST_FOREACH(const uint64_t cell, cells2) {
-		Cell2* cell_data = grid2[cell];
+	for (const auto& cell: cells2) {
+		auto* const cell_data = grid2[cell];
 		if (cell_data->data != -2) {
-			cerr << "Rank " << comm.rank()
+			cerr << "Rank " << rank
 				<< ": Wrong data in cell " << cell
 				<< ": " << cell_data->data
 				<< ", should be -2"
@@ -142,9 +131,9 @@ int main(int argc, char* argv[])
 
 	// check that remote neighbor update works in original grid
 	// data in grid2 == 2 * process rank
-	BOOST_FOREACH(const uint64_t cell, cells2) {
-		Cell2* cell_data = grid2[cell];
-		cell_data->data = 2 * comm.rank();
+	for (const auto& cell: cells2) {
+		auto* const cell_data = grid2[cell];
+		cell_data->data = 2 * rank;
 	}
 
 	grid2.update_copies_of_remote_neighbors();
@@ -155,8 +144,8 @@ int main(int argc, char* argv[])
 	const std::unordered_map<uint64_t, uint64_t>& cell_process2
 		= grid2.get_cell_process();
 
-	BOOST_FOREACH(const uint64_t cell, remote_neighbors2) {
-		Cell2* cell_data = grid2[cell];
+	for (const auto& cell: remote_neighbors2) {
+		auto* const cell_data = grid2[cell];
 		if (cell_data == NULL) {
 			cerr << "No data for cell " << cell << " in grid2" << endl;
 			abort();
@@ -171,9 +160,11 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (comm.rank() == 0) {
+	if (rank == 0) {
 		cout << "PASSED" << endl;
 	}
+
+	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }

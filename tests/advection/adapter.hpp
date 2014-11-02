@@ -20,7 +20,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_ADVECTION_ADAPTER_HPP
 
 
-#include "boost/unordered_set.hpp"
 #include "cmath"
 #include "iostream"
 #include "utility"
@@ -70,8 +69,8 @@ public:
 
 		const std::vector<uint64_t> cells = grid.get_cells();
 
-		BOOST_FOREACH(const uint64_t& cell, cells) {
-			CellData* cell_data = grid[cell];
+		for (const auto& cell: cells) {
+			auto* const cell_data = grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for cell " << cell
@@ -83,9 +82,9 @@ public:
 		}
 
 		// collect maximum relative differences
-		BOOST_FOREACH(const uint64_t& cell, cells) {
+		for (const auto& cell: cells) {
 
-			CellData* cell_data = grid[cell];
+			auto* const cell_data = grid[cell];
 
 			// get neighbors with which to compare
 			const std::vector<std::pair<uint64_t, int> >
@@ -94,7 +93,7 @@ public:
 			for (size_t i = 0; i < neighbors_to_compare.size(); i++) {
 
 				const uint64_t neighbor = neighbors_to_compare[i].first;
-				CellData* neighbor_data = grid[neighbor];
+				auto* const neighbor_data = grid[neighbor];
 				if (neighbor_data == NULL) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " No data for neighbor " << neighbor
@@ -116,15 +115,16 @@ public:
 		}
 
 		// decide whether to refine or unrefine cells
-		BOOST_FOREACH(const uint64_t& cell, cells) {
+		for (const auto& cell: cells) {
 
 			const int refinement_level = grid.get_refinement_level(cell);
 
 			// refine / unrefine if max relative difference larger / smaller than:
-			const double refine_diff = (refinement_level + 1) * diff_increase;
-			const double unrefine_diff = unrefine_sensitivity * refine_diff;
+			const double
+				refine_diff = (refinement_level + 1) * diff_increase,
+				unrefine_diff = unrefine_sensitivity * refine_diff;
 
-			const std::vector<uint64_t> siblings = grid.get_all_children(grid.get_parent(cell));
+			const auto siblings = grid.get_all_children(grid.get_parent(cell));
 			if (siblings.size() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No siblings for cell " << cell
@@ -132,7 +132,7 @@ public:
 				abort();
 			}
 
-			CellData* cell_data = grid[cell];
+			auto* const cell_data = grid[cell];
 
 			const double diff = cell_data->max_diff();
 
@@ -141,7 +141,7 @@ public:
 
 				cells_to_refine.insert(cell);
 
-				BOOST_FOREACH(const uint64_t& sibling, siblings) {
+				for (const auto& sibling: siblings) {
 					cells_to_unrefine.erase(sibling);
 					cells_not_to_unrefine.erase(sibling);
 				}
@@ -151,7 +151,7 @@ public:
 
 				bool dont_unrefine = true;
 
-				BOOST_FOREACH(const uint64_t& sibling, siblings) {
+				for (const auto& sibling: siblings) {
 					if (cells_to_refine.count(sibling) > 0
 					|| cells_not_to_unrefine.count(sibling) > 0) {
 						dont_unrefine = false;
@@ -162,7 +162,7 @@ public:
 				if (dont_unrefine && grid.get_refinement_level(cell) > 0) {
 					cells_not_to_unrefine.insert(cell);
 
-					BOOST_FOREACH(const uint64_t& sibling, siblings) {
+					for (const auto& sibling: siblings) {
 						cells_to_unrefine.erase(sibling);
 					}
 				}
@@ -172,7 +172,7 @@ public:
 
 				bool unrefine = true;
 
-				BOOST_FOREACH(const uint64_t& sibling, siblings) {
+				for (const auto& sibling: siblings) {
 					if (cells_to_refine.count(sibling) > 0
 					|| cells_not_to_unrefine.count(sibling) > 0) {
 						unrefine = false;
@@ -213,21 +213,21 @@ public:
 			failed_unrefines = 0,
 			failed_dont_unrefines = 0;
 
-		BOOST_FOREACH(const uint64_t& cell, cells_to_refine) {
+		for (const auto& cell: cells_to_refine) {
 			if (!grid.refine_completely(cell)) {
 				failed_refines++;
 			}
 		}
 		cells_to_refine.clear();
 
-		BOOST_FOREACH(const uint64_t& cell, cells_not_to_unrefine) {
+		for (const auto& cell: cells_not_to_unrefine) {
 			if (!grid.dont_unrefine(cell)) {
 				failed_dont_unrefines++;
 			}
 		}
 		cells_not_to_unrefine.clear();
 
-		BOOST_FOREACH(const uint64_t& cell, cells_to_unrefine) {
+		for (const auto& cell: cells_to_unrefine) {
 			if (!grid.unrefine_completely(cell)) {
 				failed_unrefines++;
 			}
@@ -241,8 +241,8 @@ public:
 		// assign parents' state to children
 		const std::vector<uint64_t> new_cells = grid.stop_refining();
 
-		BOOST_FOREACH(const uint64_t& new_cell, new_cells) {
-			CellData* new_cell_data = grid[new_cell];
+		for (const auto& new_cell: new_cells) {
+			auto* const new_cell_data = grid[new_cell];
 			if (new_cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for created cell " << new_cell
@@ -250,7 +250,7 @@ public:
 				abort();
 			}
 
-			CellData* parent_data = grid[grid.get_parent(new_cell)];
+			auto* const parent_data = grid[grid.get_parent(new_cell)];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for parent cell " << grid.get_parent(new_cell)
@@ -275,13 +275,13 @@ public:
 
 		// optimize by gathering all parents of removed cells
 		std::unordered_set<uint64_t> parents;
-		BOOST_FOREACH(const uint64_t& removed_cell, removed_cells) {
+		for (const auto& removed_cell: removed_cells) {
 			parents.insert(grid.mapping.get_parent(removed_cell));
 		}
 
 		// initialize parent data
-		BOOST_FOREACH(const uint64_t& parent, parents) {
-			CellData* parent_data = grid[parent];
+		for (const auto& parent: parents) {
+			auto* const parent_data = grid[parent];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for parent cell: " << parent
@@ -299,9 +299,9 @@ public:
 		}
 
 		// average parents' density from their children
-		BOOST_FOREACH(const uint64_t& removed_cell, removed_cells) {
+		for (const auto& removed_cell: removed_cells) {
 
-			CellData* removed_cell_data = grid[removed_cell];
+			auto* const removed_cell_data = grid[removed_cell];
 			if (removed_cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for removed cell after unrefining: " << removed_cell
@@ -309,7 +309,7 @@ public:
 				abort();
 			}
 
-			CellData* parent_data = grid[grid.mapping.get_parent(removed_cell)];
+			auto* const parent_data = grid[grid.mapping.get_parent(removed_cell)];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for parent cell after unrefining: "

@@ -19,12 +19,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "algorithm"
 #include "array"
 #include "boost/lexical_cast.hpp"
-#include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
 #include "string"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../../dccrg.hpp"
@@ -39,7 +40,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 using namespace std;
 using namespace boost;
-using namespace boost::mpi;
 using namespace dccrg;
 
 
@@ -185,9 +185,9 @@ int main(int argc, char* argv[])
 		);
 
 		// verify refined/unrefined game
-		BOOST_FOREACH(const uint64_t cell, cells) {
+		for (const auto& cell: cells) {
 
-			Cell* cell_data = game_grid[cell];
+			auto* const cell_data = game_grid[cell];
 			if (cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for cell " << cell
@@ -204,7 +204,7 @@ int main(int argc, char* argv[])
 				reference_cell = cell;
 			}
 
-			Cell* reference_data = reference_grid[reference_cell];
+			auto* const reference_data = reference_grid[reference_cell];
 			if (reference_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for reference cell " << reference_cell

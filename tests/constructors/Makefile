@@ -1,5 +1,5 @@
 FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_mpi -lboost_program_options -lzoltan
+INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 MPIRUN = mpirun -np 2
 RUN =

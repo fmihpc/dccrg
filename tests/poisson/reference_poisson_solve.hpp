@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef REFERENCE_POISSON_SOLVE_HPP
 #define REFERENCE_POISSON_SOLVE_HPP
 
-#include "boost/foreach.hpp"
 #include "cstdlib"
 #include "iostream"
 #include "vector"

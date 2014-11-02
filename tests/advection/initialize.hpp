@@ -19,8 +19,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DCCRG_ADVECTION_INITIALIZE_HPP
 #define DCCRG_ADVECTION_INITIALIZE_HPP
 
-#include "boost/array.hpp"
-#include "boost/foreach.hpp"
 #include "cmath"
 #include "iostream"
 #include "vector"
@@ -45,9 +43,9 @@ public:
 	{
 		const std::vector<uint64_t> cells = grid.get_cells();
 		// initialize own cells
-		BOOST_FOREACH(const uint64_t& cell_id, cells) {
+		for (const auto& cell_id: cells) {
 
-			CellData* cell = grid[cell_id];
+			auto* const cell = grid[cell_id];
 			if (cell == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< "No data for cell " << cell_id

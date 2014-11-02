@@ -20,10 +20,8 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #define SAVE_HPP
 
 #include "algorithm"
-#include "boost/foreach.hpp"
 #include "iostream"
-#include "stdint.h"
-#include "vector"
+#include "cstdint"
 
 #include "../../dccrg.hpp"
 
@@ -43,7 +41,7 @@ public:
 		const int process,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
-		std::vector<uint64_t> cells = game_grid.get_cells();
+		auto cells = game_grid.get_cells();
 		sort(cells.begin(), cells.end());
 
 		// write the grid into a file
@@ -55,24 +53,24 @@ public:
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		BOOST_FOREACH(uint64_t cell, cells) {
-			Cell* cell_data = game_grid[cell];
+		for (const auto& cell: cells) {
+			const auto* const cell_data = game_grid[cell];
 			outfile << cell_data->data[0] << std::endl;
 		}
 
 		// write each cells total live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		BOOST_FOREACH(uint64_t cell, cells) {
-			Cell* cell_data = game_grid[cell];
+		for (const auto& cell: cells) {
+			const auto* const cell_data = game_grid[cell];
 			outfile << cell_data->data[1] << std::endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		BOOST_FOREACH(uint64_t cell, cells) {
-			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
+		for (const auto& cell: cells) {
+			const auto* const neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << std::endl;
 		}
 
@@ -86,7 +84,7 @@ public:
 		// write each cells id
 		outfile << "SCALARS id int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		BOOST_FOREACH(uint64_t cell, cells) {
+		for (const auto& cell: cells) {
 			outfile << cell << std::endl;
 		}
 		outfile.close();

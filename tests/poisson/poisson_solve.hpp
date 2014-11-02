@@ -20,19 +20,17 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #ifndef DCCRG_POISSON_SOLVE_HPP
 #define DCCRG_POISSON_SOLVE_HPP
 
-#include "boost/foreach.hpp"
 #include "boost/format.hpp"
-#include "boost/mpi.hpp"
 #include "boost/program_options.hpp"
-#include "boost/static_assert.hpp"
 #include "boost/tuple/tuple.hpp"
 #include "cmath"
 #include "cstdlib"
 #include "iostream"
-#include "mpi.h"
-#include "stdint.h"
+#include "cstdint"
 #include "unordered_set"
 #include "vector"
+
+#include "mpi.h"
 
 #include "dccrg.hpp"
 

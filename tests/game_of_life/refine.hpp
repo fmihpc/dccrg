@@ -19,7 +19,6 @@ along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef REFINE_HPP
 #define REFINE_HPP
 
-#include "boost/foreach.hpp"
 #include "stdint.h"
 #include "vector"
 
@@ -79,19 +78,19 @@ public:
 			}
 		}
 
-		const std::vector<uint64_t> new_cells = grid.stop_refining();
+		const auto new_cells = grid.stop_refining();
 
 		// assign parents' state to children
-		BOOST_FOREACH(const uint64_t new_cell, new_cells) {
+		for (const auto& new_cell: new_cells) {
 
-			Cell* new_cell_data = grid[new_cell];
+			auto* const new_cell_data = grid[new_cell];
 			if (new_cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for created cell " << new_cell
 					<< std::endl;
 				abort();
 			}
-			Cell* parent_data = grid[grid.get_parent(new_cell)];
+			auto* const parent_data = grid[grid.get_parent(new_cell)];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for parent cell " << grid.get_parent(new_cell)
@@ -102,11 +101,11 @@ public:
 		}
 
 		// "interpolate" parent cell's value from unrefined children
-		const std::vector<uint64_t> removed_cells = grid.get_removed_cells();
+		const auto removed_cells = grid.get_removed_cells();
 
-		BOOST_FOREACH(const uint64_t removed_cell, removed_cells) {
+		for (const auto& removed_cell: removed_cells) {
 
-			Cell* removed_cell_data = grid[removed_cell];
+			auto* const removed_cell_data = grid[removed_cell];
 			if (removed_cell_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for removed cell after unrefining: "
@@ -115,7 +114,7 @@ public:
 				abort();
 			}
 
-			Cell* parent_data = grid[grid.mapping.get_parent(removed_cell)];
+			auto* const parent_data = grid[grid.mapping.get_parent(removed_cell)];
 			if (parent_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for parent cell after unrefining: "
