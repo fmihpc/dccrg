@@ -6,12 +6,12 @@ of dccrg and shows an example of how to output dccrg grid data into a file.
 #include "cstddef"
 #include "cstdio"
 #include "cstdlib"
-#include "cstring"
 #include "fstream"
 #include "iostream"
-#include "mpi.h"
 #include "sstream"
-#include "stdint.h"
+#include "cstdint"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #include "../dccrg.hpp"
@@ -47,9 +47,9 @@ void initialize_game(
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
-			cell_data->is_alive = true;
+			cell_data->is_alive = 1;
 		} else {
-			cell_data->is_alive = false;
+			cell_data->is_alive = 0;
 		}
 	}
 }
@@ -60,7 +60,7 @@ Calculates the number of live neihgbours for every cell given, all of which must
 */
 void get_live_neighbor_counts(
 	const vector<uint64_t>& cells,
-	const dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
+	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
 ) {
 	for (const auto& cell: cells) {
 		auto* const cell_data = game_grid[cell];
@@ -71,13 +71,16 @@ void get_live_neighbor_counts(
 		cell_data->live_neighbor_count = 0;
 
 		const auto* const neighbors = game_grid.get_neighbors_of(cell);
+		if (neighbors == nullptr) {
+			abort();
+		}
 
 		for (const auto& neighbor: *neighbors) {
 			if (neighbor == dccrg::error_cell) {
 				continue;
 			}
 
-			const auto* const neighbor_data = game_grid[cell];
+			const auto* const neighbor_data = game_grid[neighbor];
 			if (neighbor_data == nullptr) {
 				abort();
 			}
@@ -104,9 +107,9 @@ void apply_rules(
 		}
 
 		if (cell_data->live_neighbor_count == 3) {
-			cell_data->is_alive = true;
+			cell_data->is_alive = 1;
 		} else if (cell_data->live_neighbor_count != 2) {
-			cell_data->is_alive = false;
+			cell_data->is_alive = 0;
 		}
 	}
 }

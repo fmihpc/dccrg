@@ -1,0 +1,17 @@
+# Makefile for the case where all prerequisites are installed
+# into your home directory according to the instructions at
+# https://github.com/fmihpc/dccrg/wiki/Install
+CXX = c++
+MPICXX = $(HOME)/bin/mpic++
+
+RUN =
+MPIRUN = mpirun -n 5
+
+BOOST_CPPFLAGS = -I $(HOME)/include
+BOOST_LDFLAGS = -L $(HOME)/lib
+BOOST_LIBS = -lboost_program_options
+
+ZOLTAN_CPPFLAGS = -I $(HOME)/include
+ZOLTAN_LDFLAGS = -L $(HOME)/lib
+ZOLTAN_LIBS = -lzoltan
+

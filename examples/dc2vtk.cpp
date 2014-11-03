@@ -4,13 +4,13 @@ visualize for example with VisIt (https://wci.llnl.gov/codes/visit/)
 */
 
 #include "algorithm"
-#include "boost/unordered_map.hpp"
 #include "cstdlib"
 #include "cstring"
 #include "fstream"
 #include "iostream"
+#include "cstdint"
+
 #include "mpi.h"
-#include "stdint.h"
 
 #include "../dccrg_cartesian_geometry.hpp"
 
@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
 		//cout << "number of cells: " << number_of_cells << endl;
 
 		// read in game data (1st cell, is_alive 1st), (2nd cell, is_alive 2nd), ...
-		std::vector<std::pair<uint64_t, uint64_t> > cell_data(number_of_cells);
+		std::vector<std::pair<uint64_t, unsigned int>> cell_data(number_of_cells);
 
 		// read in cell list
 		for (uint64_t i = 0; i < number_of_cells; i++) {
@@ -249,13 +249,13 @@ int main(int argc, char* argv[])
 				offset,
 				&(cell_data[i].second),
 				1,
-				MPI_UINT64_T,
+				MPI_UNSIGNED,
 				MPI_STATUS_IGNORE
 			) != MPI_SUCCESS) {
 				std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 				abort();
 			}
-			offset += sizeof(uint64_t);
+			offset += sizeof(unsigned int);
 		}
 		MPI_File_close(&file);
 

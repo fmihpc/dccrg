@@ -1,10 +1,10 @@
-This directory contains some simple examples on how to use dccrg.
+This directory contains examples on how to use dccrg.
 
 If the prerequisites of dccrg are in the default system location
 or in your home directory you can compile the examples by
-running make in this directory. Otherwise modify the Makefile
-accordingly, for example, by changing the -I$$HOME/include and
--L$$HOME/lib items on the INCLUDES line.
+running make in this directory. Otherwise modify the environment
+makefile (default is ../makefiles/homedir) accordingly,
+for example, by changing the CPPFLAGS and LDFLAGS variables.
 
 simple_game_of_life demonstrates the basic usage of dccrg and
 doesn't produce any output.

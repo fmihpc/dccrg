@@ -1,0 +1,64 @@
+EXAMPLES_EXECUTABLES = \
+  examples/simple_game_of_life.exe \
+  examples/game_of_life.exe \
+  examples/game_of_life_with_output.exe \
+  examples/dc2vtk.exe
+
+examples/executables: $(EXAMPLES_EXECUTABLES)
+
+examples/results:
+	@printf "CLEAN RESULTS examples\n" && rm -f \
+	  examples/*.dc \
+	  examples/*.vtk
+
+examples/clean:
+	@printf "CLEAN examples\n" && rm -f \
+	  $(EXAMPLES_EXECUTABLES)
+
+
+EXECUTABLES += examples/executables
+RESULTS += example/results
+CLEAN += examples/clean
+
+
+EXAMPLES_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  examples/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+EXAMPLES_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS)
+
+EXAMPLES_COMPILE_COMMAND_GOL = \
+  $(EXAMPLES_COMPILE_COMMAND) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+examples/simple_game_of_life.exe: \
+  examples/simple_game_of_life.cpp \
+  $(EXAMPLES_COMMON_DEPS)
+	$(EXAMPLES_COMPILE_COMMAND_GOL)
+
+examples/game_of_life.exe: \
+  examples/game_of_life.cpp \
+  $(EXAMPLES_COMMON_DEPS)
+	$(EXAMPLES_COMPILE_COMMAND_GOL)
+
+examples/game_of_life_with_output.exe: \
+  examples/game_of_life_with_output.cpp \
+  $(EXAMPLES_COMMON_DEPS)
+	$(EXAMPLES_COMPILE_COMMAND_GOL)
+
+examples/dc2vtk.exe: \
+  examples/dc2vtk.cpp \
+  $(EXAMPLES_COMMON_DEPS)
+	$(EXAMPLES_COMPILE_COMMAND)
+
