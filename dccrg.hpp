@@ -668,6 +668,7 @@ public:
 
 			if (criteria.size() == 0) {
 				ret_val.push_back(cell);
+				continue;
 			}
 
 			if (this->is_neighbor_type_match(
