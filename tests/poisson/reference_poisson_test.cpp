@@ -1,7 +1,7 @@
 /*
 Test the reference Poisson solver.
 
-Copyright 2013, 2014 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3

@@ -1,7 +1,7 @@
 /*
 Functions for dccrg to obtain the MPI Datatype from cell data.
 
-Copyright 2014 Ilja Honkonen
+Copyright 2014, 2015 Ilja Honkonen
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3

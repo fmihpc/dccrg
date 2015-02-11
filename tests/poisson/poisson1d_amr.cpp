@@ -1,8 +1,8 @@
 /*
 Adaptive mesh refinement version of poisson1d.
 
-Copyright 2013, 2014 Finnish Meteorological Institute
-Copyright 2014 Ilja Honkonen
+Copyright 2013, 2014, 2015 Finnish Meteorological Institute
+Copyright 2014, 2015 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3

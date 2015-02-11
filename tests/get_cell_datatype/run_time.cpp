@@ -1,7 +1,7 @@
 /*
 Test for dccrg's get_cell_mpi_datatype logic.
 
-Copyright 2014 Ilja Honkonen
+Copyright 2014, 2015 Ilja Honkonen
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
