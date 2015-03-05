@@ -4650,86 +4650,11 @@ public:
 
 		bool ret_val = true;
 
-		if (neighborhood_id == default_neighborhood_id) {
-			return this->start_user_data_transfers(
-				this->remote_neighbors,
-				this->cells_to_receive,
-				this->cells_to_send,
-				neighborhood_id
-			);
-		}
-
-		if (this->user_hood_of.count(neighborhood_id) == 0) {
-
-			#ifdef DEBUG
-			if (this->user_hood_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
-
+		if (!this->start_remote_neighbor_copy_receives(neighborhood_id)) {
 			ret_val = false;
 		}
 
-		#ifdef DEBUG
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		if (!this->start_user_data_transfers(
-			this->remote_neighbors,
-			this->user_neigh_cells_to_receive.at(neighborhood_id),
-			this->user_neigh_cells_to_send.at(neighborhood_id),
-			neighborhood_id
-		)) {
+		if (!this->start_remote_neighbor_copy_sends(neighborhood_id)) {
 			ret_val = false;
 		}
 
@@ -4755,7 +4680,8 @@ public:
 		if (neighborhood_id == default_neighborhood_id) {
 			return this->start_user_data_receives(
 				this->remote_neighbors,
-				this->cells_to_receive
+				this->cells_to_receive,
+				neighborhood_id
 			);
 		}
 
@@ -4827,7 +4753,8 @@ public:
 
 		if (!this->start_user_data_receives(
 			this->remote_neighbors,
-			this->user_neigh_cells_to_receive.at(neighborhood_id)
+			this->user_neigh_cells_to_receive.at(neighborhood_id),
+			neighborhood_id
 		)) {
 			ret_val = false;
 		}
@@ -4856,7 +4783,7 @@ public:
 		bool ret_val = true;
 
 		if (neighborhood_id == default_neighborhood_id) {
-			return this->start_user_data_sends(this->cells_to_send);
+			return this->start_user_data_sends(this->cells_to_send, neighborhood_id);
 		}
 
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
@@ -4924,7 +4851,10 @@ public:
 		}
 		#endif
 
-		if (!this->start_user_data_sends(this->user_neigh_cells_to_send.at(neighborhood_id))) {
+		if (!this->start_user_data_sends(
+			this->user_neigh_cells_to_send.at(neighborhood_id),
+			neighborhood_id
+		)) {
 			ret_val = false;
 		}
 
