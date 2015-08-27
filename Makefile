@@ -1,5 +1,5 @@
-# to compile and test pick one makefile from makefiles directory
-# or write a new one for your environment
+# to compile and test pick one makefile from makefiles directory,
+# or write a new one for your environment, and put it here:
 ENVIRONMENT_MAKEFILE = makefiles/homedir
 
 #

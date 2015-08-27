@@ -40,12 +40,14 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "fstream"
 #include "functional"
 #include "limits"
-#include "mpi.h"
+#include "stdexcept"
 #include "tuple"
 #include "utility"
 #include "unordered_map"
 #include "unordered_set"
 #include "vector"
+
+#include "mpi.h"
 #include "zoltan.h"
 
 #ifdef USE_SFC
@@ -513,6 +515,10 @@ public:
 				<< std::endl;
 			return false;
 		}
+
+		allocate_copies_of_remote_neighbors();
+
+		update_cell_data_pointers(default_neighborhood_id);
 
 		this->initialized = true;
 
@@ -3841,6 +3847,11 @@ public:
 		}
 
 		this->recalculate_neighbor_update_send_receive_lists();
+		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_data_pointers(default_neighborhood_id);
+		for (const auto& item: this->user_neigh_of) {
+			this->update_cell_data_pointers(item.first);
+		}
 
 		#ifdef DEBUG
 		if (!this->is_consistent()) {
@@ -6320,6 +6331,32 @@ public:
 	}
 
 
+	/*!
+	Returns cached pointers of cells' data as well as their neighbors.
+
+	Each tuple consists of cell's id, pointer to its data and its offset
+	in case of a neighboring cell. Each cell with offset (0, 0, 0) is
+	followed by its neighbors in the same order as given by cells'
+	neighborhood. Neighbors smaller than cell are in order -x, -y, -z;
+	0, -y, -z; +x, -y, -z; -x, 0, -z... First are cells that are not
+	on processes boundary (but their neighbors might be), then a cell
+	with id dccrg::error_cell, then cells that are on process boundary.
+	*/
+	const std::vector<
+			std::tuple<
+				uint64_t,
+				Cell_Data*,
+				std::array<int, 3>
+		>
+	>& get_cell_data_pointers(const int neighborhood_id = default_neighborhood_id) const
+	{
+		if (this->cell_data_pointers.count(neighborhood_id) == 0) {
+			throw std::invalid_argument("Neighborhood with given id doesn't exist.");
+		}
+
+		return this->cell_data_pointers.at(neighborhood_id);
+	}
+
 
 
 private:
@@ -6467,6 +6504,17 @@ private:
 
 	bool balancing_load;
 
+	// cached pointers to user's cell data, neighbors and other info
+	std::unordered_map<
+		int, // neighborhood id
+		std::vector<
+			std::tuple<
+				uint64_t,
+				Cell_Data*,
+				std::array<int, 3>
+			>
+		>
+	> cell_data_pointers;
 
 	/*
 	Variables related to file I/O when loading grid data.
@@ -9835,6 +9883,76 @@ private:
 				return average_cell;
 			}
 		}
+	}
+
+
+	/*!
+	Updates pointers to cells' and their neighbors' data.
+
+	Repopulates this->cell_data_pointers.
+	*/
+	void update_cell_data_pointers(const int neighborhood_id)
+	{
+		if (
+			neighborhood_id != default_neighborhood_id
+			and this->user_neigh_of.count(neighborhood_id) > 0
+		) {
+			throw std::invalid_argument("Neighborhood with given id doesn't exist.");
+		}
+
+		auto append_to_pointers = [&neighborhood_id, this](const std::vector<uint64_t>& cell_ids)
+		{
+			auto& pointers = this->cell_data_pointers.at(neighborhood_id);
+
+			for (const auto& cell_id: cell_ids) {
+
+				if (this->cells.count(cell_id) == 0) {
+					throw std::runtime_error("No data for cell.");
+				}
+				Cell_Data* cell_data = &(this->cells.at(cell_id));
+				pointers.emplace_back(cell_id, cell_data, std::array<int, 3>{0, 0, 0});
+
+				const auto cell_i = this->mapping.get_indices(cell_id);
+				const auto cell_length = this->mapping.get_cell_length_in_indices(cell_id);
+
+				const auto* neighbors_of = this->get_neighbors_of(cell_id, neighborhood_id);
+				if (neighbors_of == nullptr) {
+					throw std::runtime_error("No neighbors of list.");
+				}
+				for (const auto& neighbor_id: *neighbors_of) {
+					if (neighbor_id == dccrg::error_cell) {
+						continue;
+					}
+
+					Cell_Data* neighbor_data = this->operator[](neighbor_id);
+					if (neighbor_data == nullptr) {
+						throw std::runtime_error("No data for neighbor.");
+					}
+					const auto neighbor_i = this->mapping.get_indices(neighbor_id);
+
+					const std::array<int, 3> offset{
+						int((neighbor_i[0] - cell_i[0]) / cell_length),
+						int((neighbor_i[1] - cell_i[1]) / cell_length),
+						int((neighbor_i[2] - cell_i[2]) / cell_length)
+					};
+
+					pointers.emplace_back(neighbor_id, neighbor_data, offset);
+				}
+			}
+		};
+
+		this->cell_data_pointers[neighborhood_id].clear();
+
+		append_to_pointers(
+			this->get_local_cells_not_on_process_boundary(neighborhood_id)
+		);
+
+		this->cell_data_pointers.at(neighborhood_id)
+			.emplace_back(dccrg::error_cell, nullptr, std::array<int, 3>{0, 0, 0});
+
+		append_to_pointers(
+			this->get_local_cells_on_process_boundary(neighborhood_id)
+		);
 	}
 
 
