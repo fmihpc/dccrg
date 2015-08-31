@@ -90,6 +90,7 @@ size_t get_live_neighbor_counts(
 		while (index < pointers.size()) {
 			const auto& neighbor_id = get<0>(pointers[index]);
 			if (neighbor_id == dccrg::error_cell) {
+				index--;
 				break;
 			}
 
@@ -100,6 +101,7 @@ size_t get_live_neighbor_counts(
 				and neigh_offset[1] == 0
 				and neigh_offset[2] == 0
 			) {
+				index--;
 				break;
 			}
 
