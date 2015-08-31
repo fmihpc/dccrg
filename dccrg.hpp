@@ -516,9 +516,8 @@ public:
 			return false;
 		}
 
-		allocate_copies_of_remote_neighbors();
-
-		update_cell_data_pointers(default_neighborhood_id);
+		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_data_pointers();
 
 		this->initialized = true;
 
@@ -3847,9 +3846,11 @@ public:
 		}
 
 		this->recalculate_neighbor_update_send_receive_lists();
+
 		this->allocate_copies_of_remote_neighbors();
-		this->update_cell_data_pointers(default_neighborhood_id);
-		for (const auto& item: this->user_neigh_of) {
+		this->update_cell_data_pointers();
+		for (const auto& item: this->user_hood_of) {
+			this->allocate_copies_of_remote_neighbors(item.first);
 			this->update_cell_data_pointers(item.first);
 		}
 
@@ -6321,9 +6322,24 @@ public:
 	data then call this beforehand and use get_remote_neighbors_to() to
 	get a list of cells which you should change.
 	*/
-	void allocate_copies_of_remote_neighbors()
+	void allocate_copies_of_remote_neighbors(const int neighborhood_id = default_neighborhood_id)
 	{
-		for (const auto& sender : this->cells_to_receive) {
+		if (
+			neighborhood_id != default_neighborhood_id
+			and this->user_hood_of.count(neighborhood_id) == 0
+		) {
+			throw std::invalid_argument("Neighborhood with given id doesn't exist.");
+		}
+
+		const auto& receives_to_use = [&neighborhood_id, this](){
+			if (neighborhood_id == default_neighborhood_id) {
+				return this->cells_to_receive;
+			} else {
+				return this->user_neigh_cells_to_receive.at(neighborhood_id);
+			}
+		}();
+
+		for (const auto& sender : receives_to_use) {
 			for (const auto& item: sender.second) {
 				this->remote_neighbors[item.first];
 			}
@@ -9094,6 +9110,13 @@ private:
 
 		this->recalculate_neighbor_update_send_receive_lists();
 
+		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_data_pointers();
+		for (const auto& item: this->user_hood_of) {
+			this->allocate_copies_of_remote_neighbors(item.first);
+			this->update_cell_data_pointers(item.first);
+		}
+
 		return new_cells;
 	}
 
@@ -9891,68 +9914,94 @@ private:
 
 	Repopulates this->cell_data_pointers.
 	*/
-	void update_cell_data_pointers(const int neighborhood_id)
+	void update_cell_data_pointers(const int neighborhood_id = default_neighborhood_id)
 	{
 		if (
 			neighborhood_id != default_neighborhood_id
-			and this->user_neigh_of.count(neighborhood_id) > 0
+			and this->user_hood_of.count(neighborhood_id) == 0
 		) {
 			throw std::invalid_argument("Neighborhood with given id doesn't exist.");
 		}
 
-		auto append_to_pointers = [&neighborhood_id, this](const std::vector<uint64_t>& cell_ids)
-		{
-			auto& pointers = this->cell_data_pointers.at(neighborhood_id);
-
-			for (const auto& cell_id: cell_ids) {
-
-				if (this->cells.count(cell_id) == 0) {
-					throw std::runtime_error("No data for cell.");
+		const auto& hood_of
+			= [&neighborhood_id, this](){
+				if (neighborhood_id == default_neighborhood_id) {
+					return this->neighborhood_of;
+				} else {
+					return this->user_hood_of.at(neighborhood_id);
 				}
-				Cell_Data* cell_data = &(this->cells.at(cell_id));
-				pointers.emplace_back(cell_id, cell_data, std::array<int, 3>{0, 0, 0});
+			}();
 
-				const auto cell_i = this->mapping.get_indices(cell_id);
-				const auto cell_length = this->mapping.get_cell_length_in_indices(cell_id);
+		auto cell_ids = this->get_local_cells_not_on_process_boundary(neighborhood_id);
+		cell_ids.push_back(error_cell);
+		for (const auto& cell_id: this->get_local_cells_on_process_boundary(neighborhood_id)) {
+			cell_ids.push_back(cell_id);
+		}
 
-				const auto* neighbors_of = this->get_neighbors_of(cell_id, neighborhood_id);
-				if (neighbors_of == nullptr) {
-					throw std::runtime_error("No neighbors of list.");
+		auto& pointers = this->cell_data_pointers[neighborhood_id];
+
+		pointers.clear();
+		for (const auto& cell_id: cell_ids) {
+
+			if (cell_id == error_cell) {
+				pointers.emplace_back(error_cell, nullptr, std::array<int, 3>{0, 0, 0});
+				continue;
+			}
+
+			if (this->cells.count(cell_id) == 0) {
+				throw std::runtime_error("No data for cell.");
+			}
+			Cell_Data* cell_data = &(this->cells.at(cell_id));
+			pointers.emplace_back(cell_id, cell_data, std::array<int, 3>{0, 0, 0});
+
+			const auto cell_ref_lvl = this->mapping.get_refinement_level(cell_id);
+
+			const auto* neighbors_of = this->get_neighbors_of(cell_id, neighborhood_id);
+			if (neighbors_of == nullptr) {
+				throw std::runtime_error("No neighbors of list.");
+			}
+
+			size_t hood_of_i = 0, processed_siblings = 0;
+			for (size_t neighbor_i = 0; neighbor_i < neighbors_of->size(); neighbor_i++) {
+				const auto& neighbor_id = (*neighbors_of)[neighbor_i];
+
+				if (neighbor_id == dccrg::error_cell) {
+					hood_of_i++;
+					continue;
 				}
-				for (const auto& neighbor_id: *neighbors_of) {
-					if (neighbor_id == dccrg::error_cell) {
-						continue;
+
+				if (hood_of_i >= hood_of.size()) {
+					throw std::out_of_range("Unexpected value for index of neighborhood list.");
+				}
+
+				Cell_Data* neighbor_data = this->operator[](neighbor_id);
+				if (neighbor_data == nullptr) {
+					throw std::runtime_error("No data for neighbor.");
+				}
+
+				pointers.emplace_back(
+					neighbor_id,
+					neighbor_data,
+					std::array<int, 3>{
+						hood_of[hood_of_i][0],
+						hood_of[hood_of_i][1],
+						hood_of[hood_of_i][2]
 					}
+				);
 
-					Cell_Data* neighbor_data = this->operator[](neighbor_id);
-					if (neighbor_data == nullptr) {
-						throw std::runtime_error("No data for neighbor.");
+				const auto neigh_ref_lvl = this->mapping.get_refinement_level(neighbor_id);
+
+				if (neigh_ref_lvl <= cell_ref_lvl) {
+					hood_of_i++;
+				} else {
+					processed_siblings++;
+					if (processed_siblings == 8) {
+						processed_siblings = 0;
+						hood_of_i++;
 					}
-					const auto neighbor_i = this->mapping.get_indices(neighbor_id);
-
-					const std::array<int, 3> offset{
-						int((neighbor_i[0] - cell_i[0]) / cell_length),
-						int((neighbor_i[1] - cell_i[1]) / cell_length),
-						int((neighbor_i[2] - cell_i[2]) / cell_length)
-					};
-
-					pointers.emplace_back(neighbor_id, neighbor_data, offset);
 				}
 			}
-		};
-
-		this->cell_data_pointers[neighborhood_id].clear();
-
-		append_to_pointers(
-			this->get_local_cells_not_on_process_boundary(neighborhood_id)
-		);
-
-		this->cell_data_pointers.at(neighborhood_id)
-			.emplace_back(dccrg::error_cell, nullptr, std::array<int, 3>{0, 0, 0});
-
-		append_to_pointers(
-			this->get_local_cells_on_process_boundary(neighborhood_id)
-		);
+		}
 	}
 
 

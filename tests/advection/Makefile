@@ -2,7 +2,7 @@ FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
 INCLUDES = -I../.. -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
 CXX = mpic++ $(FLAGS)
 
-PROGRAMS = 2d_mpi 2d_mpi_debug dc2vtk
+PROGRAMS = 2d_mpi 2d_mpi_debug 2d_optimized_mpi 2d_optimized_mpi_debug dc2vtk
 
 HEADERS = \
 	../../dccrg.hpp \
@@ -12,10 +12,13 @@ HEADERS = \
 	../../dccrg_topology.hpp \
 	../../dccrg_types.hpp \
 	adapter.hpp \
+	adapter_optimized.hpp \
 	cell.hpp \
 	initialize.hpp \
+	initialize_optimized.hpp \
 	save.hpp \
-	solve.hpp
+	solve.hpp \
+	solve_optimized.hpp
 
 all: $(PROGRAMS)
 
@@ -24,6 +27,12 @@ all: $(PROGRAMS)
 
 2d_mpi_debug: 2d.cpp $(HEADERS) Makefile
 	$(CXX) -DDEBUG 2d.cpp $(INCLUDES) -o 2d_mpi_debug
+
+2d_optimized_mpi: 2d_optimized.cpp $(HEADERS) Makefile
+	$(CXX) 2d_optimized.cpp $(INCLUDES) -o 2d_optimized_mpi
+
+2d_optimized_mpi_debug: 2d_optimized.cpp $(HEADERS) Makefile
+	$(CXX) -DDEBUG 2d_optimized.cpp $(INCLUDES) -o 2d_optimized_mpi_debug
 
 dc2vtk: dc2vtk.cpp ../../dccrg_cartesian_geometry.hpp Makefile
 	$(CXX) dc2vtk.cpp $(INCLUDES) -o dc2vtk
