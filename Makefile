@@ -32,7 +32,8 @@ DCCRG_HEADERS = \
 include \
   examples/project_makefile \
   tests/init/project_makefile \
-  tests/get_cell_datatype/project_makefile
+  tests/get_cell_datatype/project_makefile \
+  tests/constructors/project_makefile
 
 
 all: $(EXECUTABLES)
@@ -44,6 +45,7 @@ test: all $(TESTS)
 r: results
 results: $(RESULTS)
 
+# removes executables
 c: clean
 clean: results $(CLEAN)
 

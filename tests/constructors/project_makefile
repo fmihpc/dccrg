@@ -1,0 +1,54 @@
+TESTS_CONSTRUCTORS_EXECUTABLES = \
+  tests/constructors/simple.exe \
+  tests/constructors/copy.exe
+
+TESTS_CONSTRUCTORS_TESTS = \
+  tests/constructors/copy.tst
+
+tests/constructors/executables: $(TESTS_CONSTRUCTORS_EXECUTABLES)
+
+tests/constructors/tests: $(TESTS_CONSTRUCTORS_TESTS)
+
+tests/constructors/clean:
+	@printf "CLEAN tests/constructors\n" && rm -f \
+	  $(TESTS_CONSTRUCTORS_EXECUTABLES) \
+	  $(TESTS_CONSTRUCTORS_TESTS)
+
+
+EXECUTABLES += tests/constructors/executables
+TESTS += tests/constructors/tests
+CLEAN += tests/constructors/clean
+
+
+TESTS_CONSTRUCTORS_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/constructors/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_CONSTRUCTORS_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/constructors/simple.exe: \
+  tests/constructors/simple.cpp \
+  $(TESTS_CONSTRUCTORS_COMMON_DEPS)
+	$(TESTS_CONSTRUCTORS_COMPILE_COMMAND)
+
+tests/constructors/copy.exe: \
+  tests/constructors/copy.cpp \
+  $(TESTS_CONSTRUCTORS_COMMON_DEPS)
+	$(TESTS_CONSTRUCTORS_COMPILE_COMMAND)
+
+tests/constructors/copy.tst: \
+  tests/constructors/copy.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
