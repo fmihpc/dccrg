@@ -1,0 +1,48 @@
+TESTS_GET_CELLS_EXECUTABLES = \
+  tests/get_cells/test1.exe
+
+TESTS_GET_CELLS_TESTS = \
+  tests/get_cells/test1.tstN
+
+tests/get_cells/executables: $(TESTS_GET_CELLS_EXECUTABLES)
+
+tests/get_cells/tests: $(TESTS_GET_CELLS_TESTS)
+
+tests/get_cells/clean:
+	@printf "CLEAN tests/get_cells\n" && rm -f \
+	  $(TESTS_GET_CELLS_EXECUTABLES) \
+	  $(TESTS_GET_CELLS_TESTS)
+
+
+EXECUTABLES += tests/get_cells/executables
+TESTS += tests/get_cells/tests
+CLEAN += tests/get_cells/clean
+
+
+TESTS_GET_CELLS_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/get_cells/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_GET_CELLS_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/get_cells/test1.exe: \
+  tests/get_cells/test1.cpp \
+  $(TESTS_GET_CELLS_COMMON_DEPS)
+	$(TESTS_GET_CELLS_COMPILE_COMMAND)
+
+tests/get_cells/test1.tstN: \
+  tests/get_cells/test1.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+

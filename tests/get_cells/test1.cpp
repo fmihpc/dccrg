@@ -23,7 +23,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "mpi.h"
 #include "zoltan.h"
 
-#include "../../dccrg.hpp"
+#include "dccrg.hpp"
 
 using namespace std;
 using namespace dccrg;
@@ -280,10 +280,6 @@ int main(int argc, char* argv[])
 			std::cerr << __FILE__ << ":" << __LINE__ << endl;
 			abort();
 		}
-	}
-
-	if (rank == 0) {
-		cout << "PASSED" << endl;
 	}
 
 	MPI_Finalize();
