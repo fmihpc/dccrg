@@ -9,8 +9,8 @@ Tests the scalability of initializing the grid
 #include "mpi.h"
 #include "zoltan.h"
 
-#include "../../dccrg_cartesian_geometry.hpp"
-#include "../../dccrg.hpp"
+#include "dccrg_cartesian_geometry.hpp"
+#include "dccrg.hpp"
 
 
 struct CellData {

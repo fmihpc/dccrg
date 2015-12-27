@@ -1,0 +1,37 @@
+TESTS_INIT_EXECUTABLES = \
+  tests/init/init.exe
+
+tests/init/executables: $(TESTS_INIT_EXECUTABLES)
+
+tests/init/clean:
+	@printf "CLEAN tests/init\n" && rm -f \
+	  $(TESTS_INIT_EXECUTABLES)
+
+
+EXECUTABLES += tests/init/executables
+CLEAN += tests/init/clean
+
+
+TESTS_INIT_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/init/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_INIT_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/init/init.exe: \
+  tests/init/init.cpp \
+  $(TESTS_INIT_COMMON_DEPS)
+	$(TESTS_INIT_COMPILE_COMMAND)
+

@@ -7,6 +7,8 @@ MPICXX = $(HOME)/bin/mpic++
 RUN =
 MPIRUN = mpirun -n 5
 
+CPPFLAGS = -I .
+
 BOOST_CPPFLAGS = -I $(HOME)/include
 BOOST_LDFLAGS = -L $(HOME)/lib
 BOOST_LIBS = -lboost_program_options

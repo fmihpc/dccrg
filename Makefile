@@ -30,7 +30,8 @@ DCCRG_HEADERS = \
   dccrg_types.hpp
 
 include \
-  examples/project_makefile
+  examples/project_makefile \
+  tests/init/project_makefile
 
 
 all: $(EXECUTABLES)

@@ -1,12 +1,11 @@
-FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
-CXX = mpic++ $(FLAGS)
+all:
+	@$(MAKE) tests/init/executables -C ../..
 
-all: init
-
-init: init.cpp ../../dccrg.hpp ../../dccrg_cartesian_geometry.hpp Makefile
-	$(CXX) init.cpp $(INCLUDES) -o init
+r: results
+results:
+	@$(MAKE) tests/init/results -C ../..
 
 c: clean
 clean:
-	rm -f init
+	@$(MAKE) tests/init/clean -C ../..
+
