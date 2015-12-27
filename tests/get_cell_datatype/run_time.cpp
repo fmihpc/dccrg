@@ -19,7 +19,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "mpi.h"
 
-#include "../../dccrg_get_cell_datatype.hpp"
+#include "dccrg_get_cell_datatype.hpp"
 
 struct Cell1 {
 	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()

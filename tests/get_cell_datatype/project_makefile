@@ -1,0 +1,43 @@
+TESTS_GET_CELL_DATATYPE_EXECUTABLES = \
+  tests/get_cell_datatype/included.exe \
+  tests/get_cell_datatype/enable_if.exe \
+  tests/get_cell_datatype/run_time.exe
+
+tests/get_cell_datatype/executables: $(TESTS_GET_CELL_DATATYPE_EXECUTABLES)
+
+tests/get_cell_datatype/clean:
+	@printf "CLEAN tests/get_cell_datatype\n" && rm -f \
+	  $(TESTS_GET_CELL_DATATYPE_EXECUTABLES)
+
+
+EXECUTABLES += tests/get_cell_datatype/executables
+CLEAN += tests/get_cell_datatype/clean
+
+
+TESTS_GET_CELL_DATATYPE_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/get_cell_datatype/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_GET_CELL_DATATYPE_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS)
+
+tests/get_cell_datatype/included.exe: \
+  tests/get_cell_datatype/included.cpp \
+  $(TESTS_GET_CELL_DATATYPE_COMMON_DEPS)
+	$(TESTS_GET_CELL_DATATYPE_COMPILE_COMMAND)
+
+tests/get_cell_datatype/enable_if.exe: \
+  tests/get_cell_datatype/enable_if.cpp \
+  $(TESTS_GET_CELL_DATATYPE_COMMON_DEPS)
+	$(TESTS_GET_CELL_DATATYPE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
+
+tests/get_cell_datatype/run_time.exe: \
+  tests/get_cell_datatype/run_time.cpp \
+  $(TESTS_GET_CELL_DATATYPE_COMMON_DEPS)
+	$(TESTS_GET_CELL_DATATYPE_COMPILE_COMMAND)
+
