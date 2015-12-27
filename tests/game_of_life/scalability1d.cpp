@@ -1,5 +1,20 @@
 /*
-Tests the scalability of the grid in 2 D
+Test for scalability of dccrg in 2 D
+
+Copyright 2010, 2011, 2012, 2013, 2014,
+2015 Finnish Meteorological Institute
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License version 3
+as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
@@ -12,8 +27,8 @@ Tests the scalability of the grid in 2 D
 #include "mpi.h"
 #include "zoltan.h"
 
-#include "../../dccrg_stretched_cartesian_geometry.hpp"
-#include "../../dccrg.hpp"
+#include "dccrg_stretched_cartesian_geometry.hpp"
+#include "dccrg.hpp"
 
 
 struct game_of_life_cell {

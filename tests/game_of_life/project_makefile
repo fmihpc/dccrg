@@ -1,0 +1,169 @@
+TESTS_GAME_OF_LIFE_EXECUTABLES = \
+  tests/game_of_life/game_of_life_test.exe \
+  tests/game_of_life/scalability1d.exe \
+  tests/game_of_life/scalability.exe \
+  tests/game_of_life/scalability3d.exe \
+  tests/game_of_life/refined2d.exe \
+  tests/game_of_life/refined.exe \
+  tests/game_of_life/unrefined2d.exe \
+  tests/game_of_life/pinned_cells.exe \
+  tests/game_of_life/refined_scalability3d.exe \
+  tests/game_of_life/hierarchical_test.exe
+
+TESTS_GAME_OF_LIFE_TESTS = \
+  tests/game_of_life/game_of_life_test.tst1 \
+  tests/game_of_life/game_of_life_test.tstN \
+  tests/game_of_life/refined2d.tst1 \
+  tests/game_of_life/refined2d.tstN \
+  tests/game_of_life/refined.tst1 \
+  tests/game_of_life/refined.tstN \
+  tests/game_of_life/hierarchical_test.tst1 \
+  tests/game_of_life/hierarchical_test.tstN \
+  tests/game_of_life/unrefined2d.tst1 \
+  tests/game_of_life/unrefined2d.tstN \
+  tests/game_of_life/pinned_cells.tst1 \
+  tests/game_of_life/pinned_cells.tstN
+
+tests/game_of_life/executables: $(TESTS_GAME_OF_LIFE_EXECUTABLES)
+
+tests/game_of_life/tests: $(TESTS_GAME_OF_LIFE_TESTS)
+
+tests/game_of_life/results:
+	@printf "CLEAN results in tests/game_of_life\n" && rm -f \
+	  tests/game_of_life/*vtk \
+	  tests/game_of_life/*visit
+
+tests/game_of_life/clean:
+	@printf "CLEAN tests/game_of_life\n" && rm -f \
+	  $(TESTS_GAME_OF_LIFE_EXECUTABLES) \
+	  $(TESTS_GAME_OF_LIFE_TESTS)
+
+
+EXECUTABLES += tests/game_of_life/executables
+TESTS += tests/game_of_life/tests
+RESULTS += tests/game_of_life/results
+CLEAN += tests/game_of_life/clean
+
+
+TESTS_GAME_OF_LIFE_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/game_of_life/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_GAME_OF_LIFE_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS) \
+  -I tests/game_of_life
+
+
+tests/game_of_life/game_of_life_test.exe: \
+  tests/game_of_life/game_of_life_test.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
+
+tests/game_of_life/game_of_life_test.tst1: \
+  tests/game_of_life/game_of_life_test.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/game_of_life_test.tstN: \
+  tests/game_of_life/game_of_life_test.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/game_of_life/pinned_cells.exe: \
+  tests/game_of_life/pinned_cells.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+tests/game_of_life/pinned_cells.tst1: \
+  tests/game_of_life/pinned_cells.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/pinned_cells.tstN: \
+  tests/game_of_life/pinned_cells.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/game_of_life/scalability1d.exe: \
+  tests/game_of_life/scalability1d.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+tests/game_of_life/scalability.exe: \
+  tests/game_of_life/scalability.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+tests/game_of_life/scalability3d.exe: \
+  tests/game_of_life/scalability3d.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+
+tests/game_of_life/refined2d.exe: \
+  tests/game_of_life/refined2d.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+tests/game_of_life/refined2d.tst1: \
+  tests/game_of_life/refined2d.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/refined2d.tstN: \
+  tests/game_of_life/refined2d.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/game_of_life/refined.exe: \
+  tests/game_of_life/refined.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+tests/game_of_life/refined.tst1: \
+  tests/game_of_life/refined.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/refined.tstN: \
+  tests/game_of_life/refined.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/game_of_life/refined_scalability3d.exe: \
+  tests/game_of_life/refined_scalability3d.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+
+tests/game_of_life/hierarchical_test.exe: \
+  tests/game_of_life/hierarchical_test.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+
+tests/game_of_life/hierarchical_test.tst1: \
+  tests/game_of_life/hierarchical_test.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/hierarchical_test.tstN: \
+  tests/game_of_life/hierarchical_test.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/game_of_life/unrefined2d.exe: \
+  tests/game_of_life/unrefined2d.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
+
+tests/game_of_life/unrefined2d.tst1: \
+  tests/game_of_life/unrefined2d.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/unrefined2d.tstN: \
+  tests/game_of_life/unrefined2d.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+

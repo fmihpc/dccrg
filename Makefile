@@ -35,7 +35,8 @@ include \
   tests/get_cell_datatype/project_makefile \
   tests/constructors/project_makefile \
   tests/mpi_support/project_makefile \
-  tests/get_cells/project_makefile
+  tests/get_cells/project_makefile \
+  tests/game_of_life/project_makefile
 
 
 all: $(EXECUTABLES)

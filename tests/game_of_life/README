@@ -5,8 +5,7 @@ Running make test in this directory will test the basic
 functionality of dccrg automatically by running the
 most important tests using one and two MPI processes
 with mpirun. If successful all automatic tests should
-print PASSED to stdout. Edit the Makefile to use
-another program to launch the tests interactively.
+print PASSED to stdout.
 The automatic test programs game_of_life_test_* and
 unrefined2d_* also take command line arguments, run
 them with the --help argument to see supported options.

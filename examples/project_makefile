@@ -18,7 +18,7 @@ examples/clean:
 
 
 EXECUTABLES += examples/executables
-RESULTS += example/results
+RESULTS += examples/results
 CLEAN += examples/clean
 
 

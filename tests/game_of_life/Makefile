@@ -1,87 +1,15 @@
-FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lboost_program_options -lzoltan
-CXX = mpic++ $(FLAGS)
-MPIRUN = mpirun -np 2
-RUN =
-
-PROGRAMS = \
-	game_of_life_test_all_cells_mpi \
-	game_of_life_test_mpi \
-	unrefined2d_all_cells_mpi \
-	unrefined2d_mpi \
-	scalability \
-	scalability3d \
-	refined \
-	refined2d \
-	refined_scalability3d \
-	scalability1d \
-	hierarchical_test \
-	pinned_cells
-
-TEST_PROGRAMS = \
-	game_of_life_test_all_cells_mpi \
-	game_of_life_test_mpi \
-	unrefined2d_all_cells_mpi \
-	unrefined2d_mpi
-
-HEADERS = \
-	../../dccrg.hpp \
-	../../dccrg_cartesian_geometry.hpp \
-	../../dccrg_length.hpp \
-	../../dccrg_mapping.hpp \
-	../../dccrg_stretched_cartesian_geometry.hpp \
-	../../dccrg_topology.hpp \
-	../../dccrg_types.hpp \
-	cell.hpp initialize.hpp save.hpp solve.hpp
-
-all: $(PROGRAMS)
-
-game_of_life_test_all_cells_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_all_cells_mpi
-
-game_of_life_test_mpi: game_of_life_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DSEND_SINGLE_CELLS game_of_life_test.cpp $(INCLUDES) -o game_of_life_test_mpi
-
-scalability: scalability.cpp $(HEADERS) Makefile
-	$(CXX) scalability.cpp $(INCLUDES) -o scalability
-
-scalability3d: scalability3d.cpp $(HEADERS) Makefile
-	$(CXX) scalability3d.cpp $(INCLUDES) -o scalability3d
-
-scalability1d: scalability1d.cpp $(HEADERS) Makefile
-	$(CXX) scalability1d.cpp $(INCLUDES) -o scalability1d
-
-refined: refined.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG refined.cpp $(INCLUDES) -o refined
-
-refined2d: refined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG refined2d.cpp $(INCLUDES) -o refined2d
-
-unrefined2d_all_cells_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG unrefined2d.cpp $(INCLUDES) -o unrefined2d_all_cells_mpi
-
-unrefined2d_mpi: unrefined2d.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG -DSEND_SINGLE_CELLS unrefined2d.cpp $(INCLUDES) -o unrefined2d_mpi
-
-refined_scalability3d: refined_scalability3d.cpp $(HEADERS) Makefile
-	$(CXX) refined_scalability3d.cpp $(INCLUDES) -o refined_scalability3d
-
-hierarchical_test: hierarchical_test.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG hierarchical_test.cpp $(INCLUDES) -o hierarchical_test
-
-pinned_cells: pinned_cells.cpp $(HEADERS) Makefile
-	$(CXX) -DDEBUG pinned_cells.cpp $(INCLUDES) -o pinned_cells
-
-d: data
-data:
-	rm -f *.vtk *.visit
-
-c: clean
-clean: data
-	rm -f $(PROGRAMS)
+all:
+	@$(MAKE) tests/game_of_life/executables -C ../..
 
 t: test
-test: $(TEST_PROGRAMS)
-	@for i in $(TEST_PROGRAMS); do echo -n "RUN $$i... " && $(RUN) ./$$i; done
-	@for i in $(TEST_PROGRAMS); do echo -n "MPIRUN $$i... " && $(MPIRUN) $$i; done
+test:
+	@$(MAKE) tests/game_of_life/tests -C ../..
+
+r: results
+results:
+	@$(MAKE) tests/game_of_life/results -C ../..
+
+c: clean
+clean:
+	@$(MAKE) tests/game_of_life/clean -C ../..
 

@@ -2,6 +2,21 @@
 Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined behaviour:
 -siblings consider all of each others neighbors
 -neighbor counts are considered on the level of unrefined cells
+
+Copyright 2010, 2011, 2012, 2013, 2014,
+2015 Finnish Meteorological Institute
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License version 3
+as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
@@ -15,8 +30,8 @@ Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined
 #include "mpi.h"
 #include "zoltan.h"
 
-#include "../../dccrg_stretched_cartesian_geometry.hpp"
-#include "../../dccrg.hpp"
+#include "dccrg_stretched_cartesian_geometry.hpp"
+#include "dccrg.hpp"
 
 
 struct game_of_life_cell {
@@ -203,12 +218,12 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "refined2d_" << rank << "_";
+	basename << "tests/game_of_life/refined2d_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (rank == 0) {
-		visit_file.open("refined2d.visit");
+		visit_file.open("tests/game_of_life/refined2d.visit");
 		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 

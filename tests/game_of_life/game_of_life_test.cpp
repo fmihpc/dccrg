@@ -10,27 +10,27 @@ as published by the Free Software Foundation.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
 #include "array"
-#include "boost/lexical_cast.hpp"
-#include "boost/program_options.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
 #include "unordered_set"
 
+#include "boost/lexical_cast.hpp"
+#include "boost/program_options.hpp"
 #include "mpi.h"
 #include "zoltan.h"
 
-#include "../../dccrg_stretched_cartesian_geometry.hpp"
-#include "../../dccrg.hpp"
+#include "dccrg_stretched_cartesian_geometry.hpp"
+#include "dccrg.hpp"
 
 #include "cell.hpp"
 #include "initialize.hpp"
@@ -362,13 +362,13 @@ int main(int argc, char* argv[])
 	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
 
 	// every process outputs the game state into its own file
-	string basename("game_of_life_test_");
+	string basename("tests/game_of_life/game_of_life_test_");
 	basename.append(1, direction).append("_").append(lexical_cast<string>(rank)).append("_");
 
 	// visualize the game with visit -o game_of_life_test.visit
 	ofstream visit_file;
 	if (save && rank == 0) {
-		string visit_file_name("game_of_life_test_");
+		string visit_file_name("tests/game_of_life/game_of_life_test_");
 		visit_file_name += direction;
 		visit_file_name += ".visit";
 		visit_file.open(visit_file_name.c_str());
@@ -422,16 +422,8 @@ int main(int argc, char* argv[])
 		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
 	}
 
-	if (rank == 0) {
-		if (verbose) {
-			cout << endl;
-		}
-
-		cout << "PASSED" << endl;
-
-		if (save) {
-			visit_file.close();
-		}
+	if (rank == 0 and save) {
+		visit_file.close();
 	}
 
 	MPI_Finalize();

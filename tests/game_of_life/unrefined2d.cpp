@@ -1,21 +1,36 @@
 /*
 As refined2d.cpp but refines / unrefines the grid constantly and randomly
+
+Copyright 2010, 2011, 2012, 2013, 2014,
+2015 Finnish Meteorological Institute
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License version 3
+as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
-#include "boost/lexical_cast.hpp"
-#include "boost/program_options.hpp"
 #include "cstdlib"
 #include "fstream"
 #include "iostream"
 #include "string"
 #include "unordered_set"
 
+#include "boost/lexical_cast.hpp"
+#include "boost/program_options.hpp"
 #include "mpi.h"
 #include "zoltan.h"
 
-#include "../../dccrg_stretched_cartesian_geometry.hpp"
-#include "../../dccrg.hpp"
+#include "dccrg_stretched_cartesian_geometry.hpp"
+#include "dccrg.hpp"
 #include "cell.hpp"
 #include "initialize.hpp"
 #include "refine.hpp"
@@ -144,13 +159,13 @@ int main(int argc, char* argv[])
 	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
 
 	// every process outputs the game state into its own file
-	string basename("unrefined2d_");
+	string basename("tests/game_of_life/unrefined2d_");
 	basename.append(1, direction).append("_").append(lexical_cast<string>(rank)).append("_");
 
 	// visualize the game with visit -o game_of_life_test.visit
 	ofstream visit_file;
 	if (save && rank == 0) {
-		string visit_file_name("unrefined2d_");
+		string visit_file_name("tests/game_of_life/unrefined2d_");
 		visit_file_name += direction;
 		visit_file_name += ".visit";
 		visit_file.open(visit_file_name.c_str());
@@ -243,10 +258,6 @@ int main(int argc, char* argv[])
 		if (verbose) {
 			cout << endl;
 		}
-	}
-
-	if (rank == 0) {
-		cout << "PASSED" << endl;
 	}
 
 	MPI_Finalize();
