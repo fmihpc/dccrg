@@ -1,0 +1,64 @@
+TESTS_MPI_SUPPORT_EXECUTABLES = \
+  tests/mpi_support/all_gather.exe \
+  tests/mpi_support/some_reduce.exe
+
+TESTS_MPI_SUPPORT_TESTS = \
+  tests/mpi_support/all_gather.tst1 \
+  tests/mpi_support/all_gather.tstN \
+  tests/mpi_support/some_reduce.tst1 \
+  tests/mpi_support/some_reduce.tstN
+
+tests/mpi_support/executables: $(TESTS_MPI_SUPPORT_EXECUTABLES)
+
+tests/mpi_support/tests: $(TESTS_MPI_SUPPORT_TESTS)
+
+tests/mpi_support/clean:
+	@printf "CLEAN tests/mpi_support\n" && rm -f \
+	  $(TESTS_MPI_SUPPORT_EXECUTABLES) \
+	  $(TESTS_MPI_SUPPORT_TESTS)
+
+
+EXECUTABLES += tests/mpi_support/executables
+TESTS += tests/mpi_support/tests
+CLEAN += tests/mpi_support/clean
+
+
+TESTS_MPI_SUPPORT_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/mpi_support/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_MPI_SUPPORT_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS)
+
+tests/mpi_support/all_gather.exe: \
+  tests/mpi_support/all_gather.cpp \
+  $(TESTS_MPI_SUPPORT_COMMON_DEPS)
+	$(TESTS_MPI_SUPPORT_COMPILE_COMMAND)
+
+tests/mpi_support/all_gather.tst1: \
+  tests/mpi_support/all_gather.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/mpi_support/all_gather.tstN: \
+  tests/mpi_support/all_gather.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/mpi_support/some_reduce.exe: \
+  tests/mpi_support/some_reduce.cpp \
+  $(TESTS_MPI_SUPPORT_COMMON_DEPS)
+	$(TESTS_MPI_SUPPORT_COMPILE_COMMAND)
+
+tests/mpi_support/some_reduce.tst1: \
+  tests/mpi_support/some_reduce.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/mpi_support/some_reduce.tstN: \
+  tests/mpi_support/some_reduce.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+

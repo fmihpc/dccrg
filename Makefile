@@ -33,7 +33,8 @@ include \
   examples/project_makefile \
   tests/init/project_makefile \
   tests/get_cell_datatype/project_makefile \
-  tests/constructors/project_makefile
+  tests/constructors/project_makefile \
+  tests/mpi_support/project_makefile
 
 
 all: $(EXECUTABLES)
@@ -48,12 +49,4 @@ results: $(RESULTS)
 # removes executables
 c: clean
 clean: results $(CLEAN)
-
-
-# Rules to run tests common to all projects
-%.tst: %.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
-
-%.mtst: %.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
