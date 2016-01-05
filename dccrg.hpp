@@ -403,7 +403,7 @@ public:
 			cell_item != other.get_cell_data().end();
 			cell_item++
 		) {
-			this->cells[cell_item->first];
+			this->cell_data[cell_item->first];
 		}
 	}
 
@@ -630,7 +630,7 @@ public:
 			return ret_val;
 		}
 
-		for (const auto& item: this->cells) {
+		for (const auto& item: this->cell_data) {
 
 			const uint64_t cell = item.first;
 
@@ -708,8 +708,8 @@ public:
 	*/
 	Cell_Data* operator [] (const uint64_t cell) const
 	{
-		if (this->cells.count(cell) > 0) {
-			return (Cell_Data*) &(this->cells.at(cell));
+		if (this->cell_data.count(cell) > 0) {
+			return (Cell_Data*) &(this->cell_data.at(cell));
 		} else if (this->remote_neighbors.count(cell) > 0) {
 			return (Cell_Data*) &(this->remote_neighbors.at(cell));
 		} else if (this->refined_cell_data.count(cell) > 0) {
@@ -773,7 +773,7 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		if (this->cells.count(cell) > 0) {
+		if (this->cell_data.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
 				if (this->neighbors.count(cell) == 0) {
@@ -822,7 +822,7 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		if (this->cells.count(cell) > 0) {
+		if (this->cell_data.count(cell) > 0) {
 
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
@@ -1194,7 +1194,7 @@ public:
 		offset += this->geometry.data_size();
 
 		// write the total number of cells that will be written
-		uint64_t number_of_cells = this->cells.size();
+		uint64_t number_of_cells = this->cell_data.size();
 		const uint64_t total_number_of_cells
 			= All_Reduce()(number_of_cells, this->comm);
 
@@ -1246,7 +1246,7 @@ public:
 				counts[i],
 				mem_datatypes[i]
 			) = detail::get_cell_mpi_datatype(
-				this->cells.at(cell),
+				this->cell_data.at(cell),
 				cell,
 				(int) this->rank,
 				-1,
@@ -1919,7 +1919,7 @@ public:
 
 		// remove all but local cell data displacements
 		this->cells_and_data_displacements.clear();
-		this->cells_and_data_displacements.reserve(this->cells.size());
+		this->cells_and_data_displacements.reserve(this->cell_data.size());
 
 		for (size_t i = 0; i < all_cells_and_data_displacements.size(); i += 2) {
 			const uint64_t
@@ -1951,7 +1951,7 @@ public:
 		}
 		final_cells.clear();
 
-		const uint64_t number_of_cells = this->cells.size();
+		const uint64_t number_of_cells = this->cell_data.size();
 
 		if (number_of_cells != this->cells_and_data_displacements.size()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -1998,7 +1998,7 @@ public:
 	{
 		int ret_val = -1;
 
-		const uint64_t number_of_cells = this->cells.size();
+		const uint64_t number_of_cells = this->cell_data.size();
 		if (number_of_cells != this->cells_and_data_displacements.size()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of cell data displacements: "
@@ -2034,7 +2034,7 @@ public:
 					counts[i],
 					mem_datatypes[i]
 				) = detail::get_cell_mpi_datatype(
-					this->cells.at(cell),
+					this->cell_data.at(cell),
 					cell,
 					-1,
 					(int) this->rank,
@@ -2304,7 +2304,7 @@ public:
 			return false;
 		}
 
-		if (this->cells.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return false;
 		}
 
@@ -2395,7 +2395,7 @@ public:
 			return false;
 		}
 
-		if (this->cells.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return false;
 		}
 
@@ -2501,7 +2501,7 @@ public:
 			return false;
 		}
 
-		if (this->cells.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return false;
 		}
 
@@ -2559,7 +2559,7 @@ public:
 	) const {
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
-		if (this->cells.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return ret_val;
 		}
 
@@ -3229,7 +3229,7 @@ public:
 	*/
 	typename std::unordered_map<uint64_t, Cell_Data>::const_iterator begin() const
 	{
-		return this->cells.begin();
+		return this->cell_data.begin();
 	}
 
 	/*!
@@ -3241,7 +3241,7 @@ public:
 	*/
 	typename std::unordered_map<uint64_t, Cell_Data>::const_iterator end() const
 	{
-		return this->cells.end();
+		return this->cell_data.end();
 	}
 
 
@@ -3264,8 +3264,8 @@ public:
 	{
 		return boost::make_filter_iterator(
 			Is_Inner_Cell<Cell_Data, Geometry>(*this),
-			this->cells.begin(),
-			this->cells.end()
+			this->cell_data.begin(),
+			this->cell_data.end()
 		);
 	}
 
@@ -3279,8 +3279,8 @@ public:
 	{
 		return boost::make_filter_iterator(
 			Is_Inner_Cell<Cell_Data, Geometry>(*this),
-			this->cells.end(),
-			this->cells.end()
+			this->cell_data.end(),
+			this->cell_data.end()
 		);
 	}
 
@@ -3303,8 +3303,8 @@ public:
 	{
 		return boost::make_filter_iterator(
 			Is_Outer_Cell<Cell_Data, Geometry>(*this),
-			this->cells.begin(),
-			this->cells.end()
+			this->cell_data.begin(),
+			this->cell_data.end()
 		);
 	}
 
@@ -3318,8 +3318,8 @@ public:
 	{
 		return boost::make_filter_iterator(
 			Is_Outer_Cell<Cell_Data, Geometry>(*this),
-			this->cells.end(),
-			this->cells.end()
+			this->cell_data.end(),
+			this->cell_data.end()
 		);
 	}
 
@@ -3332,7 +3332,7 @@ public:
 	*/
 	size_t size() const
 	{
-		return this->cells.size();
+		return this->cell_data.size();
 	}
 
 
@@ -3559,7 +3559,7 @@ public:
 				cell_item != sender_item->second.end();
 				cell_item++
 			) {
-				this->cells[cell_item->first];
+				this->cell_data[cell_item->first];
 			}
 		}
 
@@ -3671,7 +3671,7 @@ public:
 		}
 
 		this->start_user_data_transfers(
-			this->cells,
+			this->cell_data,
 			this->cells_to_receive,
 			this->cells_to_send,
 			-2
@@ -3820,7 +3820,7 @@ public:
 
 		// free user data and neighbor lists of cells removed from this process
 		for (const uint64_t removed_cell: this->removed_cells) {
-			this->cells.erase(removed_cell);
+			this->cell_data.erase(removed_cell);
 			this->neighbors.erase(removed_cell);
 			this->neighbors_to.erase(removed_cell);
 
@@ -5390,7 +5390,7 @@ public:
 	bool unpin_local_cells()
 	{
 		#ifdef DEBUG
-		// check that all child cells on this process are also in this->cells.
+		// check that all child cells on this process are also in this->cell_data.
 		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
 			i = this->cell_process.begin();
 			i != this->cell_process.end();
@@ -5403,18 +5403,18 @@ public:
 			}
 
 			if (cell == this->get_child(cell)) {
-				if (this->cells.count(cell) == 0) {
+				if (this->cell_data.count(cell) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << cell
-						<< " should be in this->cells of process " << this->rank
+						<< " should be in this->cell_data of process " << this->rank
 						<< std::endl;
 					abort();
 				}
 			} else {
-				if (this->cells.count(cell) > 0) {
+				if (this->cell_data.count(cell) > 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << cell
-						<< " shouldn't be in this->cells of process " << this->rank
+						<< " shouldn't be in this->cell_data of process " << this->rank
 						<< std::endl;
 					abort();
 				}
@@ -5423,7 +5423,7 @@ public:
 		#endif
 
 		bool ret_val = true;
-		for (const auto& item: this->cells) {
+		for (const auto& item: this->cell_data) {
 			if (!this->unpin(item.first)) {
 				ret_val = false;
 			}
@@ -5513,7 +5513,7 @@ public:
 
 		if (neighborhood_id == default_neighborhood_id) {
 
-			for (const auto& item: this->cells) {
+			for (const auto& item: this->cell_data) {
 				const uint64_t cell = item.first;
 				if (this->local_cells_on_process_boundary.count(cell) == 0) {
 					ret_val.push_back(cell);
@@ -5522,7 +5522,7 @@ public:
 
 		} else if (this->user_hood_of.count(neighborhood_id) > 0) {
 
-			for (const auto& item: this->cells) {
+			for (const auto& item: this->cell_data) {
 				const uint64_t cell = item.first;
 				if (this->user_local_cells_on_process_boundary.at(neighborhood_id).count(cell) == 0) {
 					ret_val.push_back(cell);
@@ -5909,7 +5909,7 @@ public:
 			this->user_hood_to.at(neighborhood_id).push_back(neigh_item_to);
 		}
 
-		for (const auto& item: this->cells) {
+		for (const auto& item: this->cell_data) {
 			this->update_user_neighbors(item.first, neighborhood_id);
 		}
 
@@ -6049,7 +6049,7 @@ public:
 	*/
 	const std::unordered_map<uint64_t, Cell_Data>& get_cell_data() const
 	{
-		return this->cells;
+		return this->cell_data;
 	}
 
 	/*!
@@ -6396,7 +6396,7 @@ private:
 	uint64_t rank, comm_size;
 
 	// cells and their data on this process
-	std::unordered_map<uint64_t, Cell_Data> cells;
+	std::unordered_map<uint64_t, Cell_Data> cell_data;
 
 	// cell on this process and its neighbors
 	std::unordered_map<uint64_t, std::vector<uint64_t>> neighbors;
@@ -6870,7 +6870,7 @@ private:
 			for (uint64_t i = 0; i < cells_to_create; i++) {
 				this->cell_process[cell_to_create] = process;
 				if (process == this->rank) {
-					this->cells[cell_to_create];
+					this->cell_data[cell_to_create];
 				}
 				cell_to_create++;
 			}
@@ -6943,7 +6943,7 @@ private:
 
 				this->cell_process[cell_to_create] = process;
 				if (process == this->rank) {
-					this->cells[cell_to_create];
+					this->cell_data[cell_to_create];
 				}
 
 				sfc_index++;
@@ -7008,7 +7008,7 @@ private:
 	bool initialize_neighbors()
 	{
 		// update neighbor lists of created cells
-		for (const auto& item: this->cells) {
+		for (const auto& item: this->cell_data) {
 			this->neighbors[item.first]
 				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
 			this->neighbors_to[item.first]
@@ -7142,7 +7142,7 @@ private:
 			#ifdef DEBUG
 			// check that processes have the cells they're supposed to send
 			for (int i = 0; i < number_to_send; i++) {
-				if (this->cells.count(global_ids_to_send[i]) == 0) {
+				if (this->cell_data.count(global_ids_to_send[i]) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cannot send cell " << global_ids_to_send[i]
 						<< " to process " << receiver_processes[i]
@@ -7746,7 +7746,7 @@ private:
 	*/
 	void update_remote_neighbor_info(const uint64_t cell)
 	{
-		if (this->cells.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return;
 		}
 
@@ -7836,7 +7836,7 @@ private:
 	*/
 	void update_user_remote_neighbor_info(const uint64_t cell, const int neighborhood_id)
 	{
-		if (this->cells.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return;
 		}
 
@@ -7967,7 +7967,7 @@ private:
 		this->local_cells_on_process_boundary.clear();
 		this->remote_cells_on_process_boundary.clear();
 
-		for (const auto& item: this->cells) {
+		for (const auto& item: this->cell_data) {
 
 			if (item.first != this->get_child(item.first)) {
 				continue;
@@ -8006,7 +8006,7 @@ private:
 		this->user_local_cells_on_process_boundary[neighborhood_id].clear();
 		this->user_remote_cells_on_process_boundary[neighborhood_id].clear();
 
-		for (const auto& item: this->cells) {
+		for (const auto& item: this->cell_data) {
 
 			if (item.first != this->get_child(item.first)) {
 				continue;
@@ -8466,7 +8466,7 @@ private:
 			}
 
 			if (this->cell_process.at(unrefined) == this->rank
-			&& this->cells.count(unrefined) == 0) {
+			&& this->cell_data.count(unrefined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Cell " << unrefined
 					<< " to be unrefined has no data"
@@ -8617,7 +8617,7 @@ private:
 			}
 
 			if (this->rank == this->cell_process.at(refined)
-			&& this->cells.count(refined) == 0) {
+			&& this->cell_data.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Data for cell " << refined
 					<< " doesn't exist"
@@ -8650,8 +8650,8 @@ private:
 			// move user data of refined cells into refined_cell_data
 			if (this->rank == process_of_refined) {
 				// TODO: move data instead of copying
-				this->refined_cell_data[refined] = this->cells.at(refined);
-				this->cells.erase(refined);
+				this->refined_cell_data[refined] = this->cell_data.at(refined);
+				this->cell_data.erase(refined);
 			}
 
 			// add children of refined cells into the grid
@@ -8660,7 +8660,7 @@ private:
 				this->cell_process[child] = process_of_refined;
 
 				if (this->rank == process_of_refined) {
-					this->cells[child];
+					this->cell_data[child];
 					this->neighbors[child];
 					this->neighbors_to[child];
 					new_cells.push_back(child);
@@ -8851,7 +8851,7 @@ private:
 			&& this->rank == process_of_parent) {
 
 				#ifdef DEBUG
-				if (this->cells.count(unrefined) == 0) {
+				if (this->cell_data.count(unrefined) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << unrefined
 						<< " to be unrefined has no data"
@@ -8861,8 +8861,8 @@ private:
 				#endif
 
 				// TODO move data instead of copying
-				this->unrefined_cell_data[unrefined] = this->cells.at(unrefined);
-				this->cells.erase(unrefined);
+				this->unrefined_cell_data[unrefined] = this->cell_data.at(unrefined);
+				this->cell_data.erase(unrefined);
 
 			// send user data of removed cell to the parent's process
 			} else if (this->rank == process_of_unrefined) {
@@ -8984,7 +8984,7 @@ private:
 
 			// add user data and neighbor lists of local parents of unrefined cells
 			if (this->cell_process.at(parent) == this->rank) {
-				this->cells[parent];
+				this->cell_data[parent];
 				this->neighbors[parent] = new_neighbors_of;
 				this->neighbors_to[parent] = new_neighbors_to;
 
@@ -9096,13 +9096,13 @@ private:
 		}
 		#endif
 
-		// remove user data of unrefined cells from this->cells
+		// remove user data of unrefined cells from this->cell_data
 		for (std::unordered_set<uint64_t>::const_iterator
 			unrefined = all_to_unrefine.begin();
 			unrefined != all_to_unrefine.end();
 			unrefined++
 		) {
-			this->cells.erase(*unrefined);
+			this->cell_data.erase(*unrefined);
 		}
 
 		this->cells_to_refine.clear();
@@ -9410,7 +9410,7 @@ private:
 						count,
 						user_datatype
 					) = detail::get_cell_mpi_datatype(
-						this->cells.at(cell),
+						this->cell_data.at(cell),
 						cell,
 						(int) this->rank,
 						receiving_process,
@@ -9482,7 +9482,7 @@ private:
 						counts[i],
 						datatypes[i]
 					) = detail::get_cell_mpi_datatype(
-						this->cells.at(cell),
+						this->cell_data.at(cell),
 						cell,
 						(int) this->rank,
 						receiving_process,
@@ -9948,10 +9948,10 @@ private:
 				continue;
 			}
 
-			if (this->cells.count(cell_id) == 0) {
+			if (this->cell_data.count(cell_id) == 0) {
 				throw std::runtime_error("No data for cell.");
 			}
-			Cell_Data* cell_data = &(this->cells.at(cell_id));
+			Cell_Data* cell_data = &(this->cell_data.at(cell_id));
 			pointers.emplace_back(cell_id, cell_data, std::array<int, 3>{0, 0, 0});
 
 			const auto cell_ref_lvl = this->mapping.get_refinement_level(cell_id);
@@ -10035,7 +10035,7 @@ private:
 
 		for (int i = 0; i < number_of_cells; i++) {
 			uint64_t cell = uint64_t(global_ids[i]);
-			if (dccrg_instance->cells.count(cell) == 0) {
+			if (dccrg_instance->cell_data.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
 				std::cerr << "Process " << dccrg_instance->rank
 					<< ": Zoltan wanted the coordinates of a non-existing cell " << cell
@@ -10061,7 +10061,7 @@ private:
 		Dccrg<Cell_Data, Geometry>* dccrg_instance
 			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
-		return int(dccrg_instance->cells.size());
+		return int(dccrg_instance->cell_data.size());
 	}
 
 
@@ -10083,7 +10083,7 @@ private:
 		*error = ZOLTAN_OK;
 
 		int i = 0;
-		for (const auto& item: dccrg_instance->cells) {
+		for (const auto& item: dccrg_instance->cell_data) {
 
 			#ifdef DEBUG
 			if (item.first == 0) {
@@ -10126,7 +10126,7 @@ private:
 
 		for (int i = 0; i < number_of_cells; i++) {
 			uint64_t cell = uint64_t(global_ids[i]);
-			if (dccrg_instance->cells.count(cell) == 0) {
+			if (dccrg_instance->cell_data.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
 				std::cerr << "Process " << dccrg_instance->rank
 					<< ": Zoltan wanted the number of neighbors of a non-existing cell " << cell
@@ -10170,7 +10170,7 @@ private:
 		int current_neighbor_number = 0;
 		for (int i = 0; i < number_of_cells; i++) {
 			uint64_t cell = uint64_t(global_ids[i]);
-			if (dccrg_instance->cells.count(cell) == 0) {
+			if (dccrg_instance->cell_data.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
 				std::cerr << "Process " << dccrg_instance->rank
 					<< ": Zoltan wanted neighbor list of a non-existing cell " << cell
@@ -10219,11 +10219,11 @@ private:
 			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
-		*number_of_hyperedges = int(dccrg_instance->cells.size());
+		*number_of_hyperedges = int(dccrg_instance->cell_data.size());
 		*format = ZOLTAN_COMPRESSED_EDGE;
 
 		*number_of_connections = 0;
-		for (const auto& item: dccrg_instance->cells) {
+		for (const auto& item: dccrg_instance->cell_data) {
 
 			(*number_of_connections)++;
 
@@ -10264,9 +10264,9 @@ private:
 			return;
 		}
 
-		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
+		if ((unsigned int) number_of_hyperedges != dccrg_instance->cell_data.size()) {
 			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
-				<< " instead of " << dccrg_instance->cells.size()
+				<< " instead of " << dccrg_instance->cell_data.size()
 				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
@@ -10274,7 +10274,7 @@ private:
 
 		int i = 0;
 		int connection_number = 0;
-		for (const auto& item: dccrg_instance->cells) {
+		for (const auto& item: dccrg_instance->cell_data) {
 
 			hyperedges[i] = item.first;
 			hyperedge_connection_offsets[i] = connection_number;
@@ -10316,7 +10316,7 @@ private:
 			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
-		*number_of_edge_weights = int(dccrg_instance->cells.size());
+		*number_of_edge_weights = int(dccrg_instance->cell_data.size());
 		return;
 	}
 
@@ -10339,17 +10339,17 @@ private:
 			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
 		*error = ZOLTAN_OK;
 
-		if ((unsigned int) number_of_hyperedges != dccrg_instance->cells.size()) {
+		if ((unsigned int) number_of_hyperedges != dccrg_instance->cell_data.size()) {
 			std::cerr
 				<< "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
-				<< " instead of " << dccrg_instance->cells.size()
+				<< " instead of " << dccrg_instance->cell_data.size()
 				<< std::endl;
 			*error = ZOLTAN_FATAL;
 			return;
 		}
 
 		int i = 0;
-		for (const auto& item: dccrg_instance->cells) {
+		for (const auto& item: dccrg_instance->cell_data) {
 
 			hyperedges[i] = item.first;
 
@@ -10813,7 +10813,7 @@ private:
 
 				bool should_be_in_remote_cells = false;
 
-				for (const auto& cell: this->cells) {
+				for (const auto& cell: this->cell_data) {
 
 					if (cell.first != this->get_child(cell.first)) {
 						continue;
@@ -10838,7 +10838,7 @@ private:
 							<< " should be in remote_cells_on_process_boundary because:"
 							<< std::endl;
 
-						for (const auto& cell: this->cells) {
+						for (const auto& cell: this->cell_data) {
 							if (item->first == cell.first) {
 								std::cerr << __FILE__ << ":" << __LINE__
 									<< " Same cell."
@@ -10957,7 +10957,7 @@ private:
 		) {
 			if (item->second == this->rank
 			&& item->first == this->get_child(item->first)
-			&& this->cells.count(item->first) == 0) {
+			&& this->cell_data.count(item->first) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " User data for local cell " << item->first
 					<< " should exist"
@@ -10965,7 +10965,7 @@ private:
 				return false;
 			}
 			if (item->second != this->rank
-			&& this->cells.count(item->first) > 0) {
+			&& this->cell_data.count(item->first) > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " User data for local cell " << item->first
 					<< " shouldn't exist"
