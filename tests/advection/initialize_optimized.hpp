@@ -1,8 +1,8 @@
 /*
 Optimized version of initializer for advection tests of dccrg.
 
-Copyright 2012, 2013, 2014, 2015 Finnish Meteorological Institute
-Copyright 2015 Ilja Honkonen
+Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2015, 2016 Ilja Honkonen
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -10,11 +10,11 @@ as published by the Free Software Foundation.
 
 Dccrg is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with dccrg.  If not, see <http://www.gnu.org/licenses/>.
+along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #ifndef DCCRG_ADVECTION_INITIALIZE_OPTIMIZED_HPP

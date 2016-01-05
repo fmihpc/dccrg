@@ -3,7 +3,7 @@ Tests the grid with some simple game of life patters using a hierarchical load b
 Returns EXIT_SUCCESS if everything went ok.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015 Finnish Meteorological Institute
+2015, 2016 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3

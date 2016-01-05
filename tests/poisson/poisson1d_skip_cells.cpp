@@ -1,7 +1,7 @@
 /*
 Version of poisson1d that skip certain cells as defined by user.
 
-Copyright 2013, 2014, 2015 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015, 2016 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
