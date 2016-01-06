@@ -48,7 +48,7 @@ test: all $(TESTS)
 r: results
 results: $(RESULTS)
 
-# removes executables
+# removes executables and simulation results
 c: clean
 clean: results $(CLEAN)
 

@@ -33,7 +33,6 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 
 #include "algorithm"
 #include "array"
-#include "boost/iterator/filter_iterator.hpp"
 #include "cstdint"
 #include "cstdio"
 #include "cstdlib"
@@ -47,6 +46,7 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "unordered_set"
 #include "vector"
 
+#include "boost/iterator/filter_iterator.hpp"
 #include "mpi.h"
 #include "zoltan.h"
 
@@ -517,6 +517,7 @@ public:
 		}
 
 		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_pointers();
 		this->update_cell_data_pointers();
 
 		this->initialized = true;
@@ -3848,6 +3849,7 @@ public:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_pointers();
 		this->update_cell_data_pointers();
 		for (const auto& item: this->user_hood_of) {
 			this->allocate_copies_of_remote_neighbors(item.first);
@@ -6532,6 +6534,28 @@ private:
 		>
 	> cell_data_pointers;
 
+	// writable version of this->cells
+	std::vector<
+		std::tuple<
+			uint64_t,
+			Cell_Data*
+		>
+	> cells_rw;
+
+
+public:
+
+	//! list cell ids owned by this process and pointers to their data
+	const std::vector<
+		std::tuple<
+			uint64_t, //! unique id of cell
+			Cell_Data* //! pointer to user's cell data
+		>
+	>& cells = this->cells_rw;
+
+
+private:
+
 	/*
 	Variables related to file I/O when loading grid data.
 	*/
@@ -9111,6 +9135,7 @@ private:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_pointers();
 		this->update_cell_data_pointers();
 		for (const auto& item: this->user_hood_of) {
 			this->allocate_copies_of_remote_neighbors(item.first);
@@ -9905,6 +9930,18 @@ private:
 			} else {
 				return average_cell;
 			}
+		}
+	}
+
+
+	/*!
+	Updates this->cells_rw.
+	*/
+	void update_cell_pointers()
+	{
+		this->cells_rw.clear();
+		for (auto& item: this->cell_data) {
+			this->cells_rw.push_back(std::make_tuple(item.first, &item.second));
 		}
 	}
 

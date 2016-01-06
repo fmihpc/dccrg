@@ -73,17 +73,9 @@ int main(int argc, char* argv[])
 	// during the game, workload can be balanced just once in the beginning
 	game_grid.balance_load();
 
-	// get the cells on this process just once, since the
-	// grid doesn't change during the game
-	const vector<uint64_t> cells = game_grid.get_cells();
-
 	// initialize the game
-	for (const auto& cell: cells) {
-		auto* const cell_data = game_grid[cell];
-		if (cell_data == nullptr) {
-			abort();
-		}
-
+	for (const auto& item: game_grid.cells) {
+		auto* const cell_data = get<1>(item);
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -103,15 +95,12 @@ int main(int argc, char* argv[])
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the neighbor counts for every local cell
-		for (const auto& cell: cells) {
-			auto* const cell_data = game_grid[cell];
-			if (cell_data == nullptr) {
-				abort();
-			}
-
+		for (const auto& item: game_grid.cells) {
+			auto* const cell_data = get<1>(item);
 			cell_data->live_neighbor_count = 0;
 
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
+			const auto& cell_id = get<0>(item);
+			const auto* const neighbors = game_grid.get_neighbors_of(cell_id);
 
 			for (const auto& neighbor: *neighbors) {
 				/*
@@ -134,11 +123,8 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: cells) {
-			auto* const cell_data = game_grid[cell];
-			if (cell_data == nullptr) {
-				abort();
-			}
+		for (const auto& item: game_grid.cells) {
+			auto* const cell_data = get<1>(item);
 
 			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = 1;

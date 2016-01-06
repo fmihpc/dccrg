@@ -71,6 +71,9 @@ int main(int argc, char* argv[])
 	const std::array<uint64_t, 3> grid_length = {{5, 5, 3}};
 	const double cell_length = 1.0 / grid_length[0];
 
+	#define NEIGHBORHOOD_SIZE 1
+	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
 		for (size_t i = 0; i <= grid_length[dimension]; i++) {
@@ -78,9 +81,6 @@ int main(int argc, char* argv[])
 		}
 	}
 	game_grid.set_geometry(geom_params);
-
-	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	vector<uint64_t> cells = game_grid.get_cells();
 	if (rank == 0) {
@@ -92,18 +92,18 @@ int main(int argc, char* argv[])
 	// refine the grid increasingly in the z direction a few times
 	game_grid.balance_load();
 	cells = game_grid.get_cells();
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.geometry.get_center(*cell)[2] > 1 * 1.5 * cell_length) {
-			game_grid.refine_completely(*cell);
+	for (const auto& cell: cells) {
+		if (game_grid.geometry.get_center(cell)[2] > 1 * 1.5 * cell_length) {
+			game_grid.refine_completely(cell);
 		}
 	}
 	game_grid.stop_refining();
 	game_grid.balance_load();
 	cells = game_grid.get_cells();
 	cout << "Process " << rank << ": number of cells after refining: " << cells.size() << endl;
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-		if (game_grid.geometry.get_center(*cell)[2] > 2 * 1.5 * cell_length) {
-			game_grid.refine_completely(*cell);
+	for (const auto& cell: cells) {
+		if (game_grid.geometry.get_center(cell)[2] > 2 * 1.5 * cell_length) {
+			game_grid.refine_completely(cell);
 		}
 	}
 	game_grid.stop_refining();
@@ -112,14 +112,14 @@ int main(int argc, char* argv[])
 	cout << "Process " << rank << ": number of cells after refining: " << cells.size() << endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-
-		game_of_life_cell* cell_data = game_grid[*cell];
+	for (auto& item: game_grid.cells) {
+		const auto& cell = get<0>(item);
+		game_of_life_cell* cell_data = get<1>(item);
 		cell_data->live_neighbor_count = 0;
 
 		const std::array<double, 3>
-			cell_center = game_grid.geometry.get_center(*cell),
-			cell_length = game_grid.geometry.get_length(*cell);
+			cell_center = game_grid.geometry.get_center(cell),
+			cell_length = game_grid.geometry.get_length(cell);
 
 		if (fabs(0.5 + 0.1 * cell_length[1] - cell_center[1]) < 0.5 * cell_length[1]) {
 			cell_data->is_alive = 1;
@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
 
 		game_grid.balance_load();
 		game_grid.update_copies_of_remote_neighbors();
-		cells = game_grid.get_cells();
+		auto cells = game_grid.cells;
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
 
@@ -179,9 +179,8 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-
-			game_of_life_cell* cell_data = game_grid[*cell];
+		for (const auto& item: cells) {
+			const game_of_life_cell* const cell_data = get<1>(item);
 
 			if (cell_data->is_alive > 0) {
 				outfile << "1";
@@ -195,42 +194,41 @@ int main(int argc, char* argv[])
 		// write each cells live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-
-			game_of_life_cell* cell_data = game_grid[*cell];
-
+		for (const auto& item: cells) {
+			const game_of_life_cell* const cell_data = get<1>(item);
 			outfile << cell_data->live_neighbor_count << endl;
-
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
+		for (const auto& item: cells) {
+			const auto& cell = get<0>(item);
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
 		// write each cells process
 		outfile << "SCALARS process int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
+		for (size_t i = 0; i < cells.size(); i++) {
 			outfile << rank << endl;
 		}
 
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (vector<uint64_t>::const_iterator cell = cells.begin(); cell != cells.end(); cell++) {
-			outfile << *cell << endl;
+		for (auto& item: cells) {
+			const auto& cell = get<0>(item);
+			outfile << cell << endl;
 		}
 		outfile.close();
 
 		// get the neighbor counts of every cell
 		// FIXME: use the (at some point common) solver from (un)refined2d and only include x and y directions in neighborhood
-		for (const auto& cell: cells) {
-
-			auto* const cell_data = game_grid[cell];
+		for (auto& item: game_grid.cells) {
+			const auto& cell = get<0>(item);
+			auto* const cell_data = get<1>(item);
 
 			cell_data->live_neighbor_count = 0;
 			const auto* const neighbors = game_grid.get_neighbors_of(cell);
@@ -270,9 +268,8 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: cells) {
-
-			auto* const cell_data = game_grid[cell];
+		for (auto& item: game_grid.cells) {
+			auto* const cell_data = get<1>(item);
 
 			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = 1;

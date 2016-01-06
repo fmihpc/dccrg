@@ -19,10 +19,10 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #ifndef REFINE_HPP
 #define REFINE_HPP
 
-#include "stdint.h"
+#include "cstdint"
 #include "vector"
 
-#include "../../dccrg.hpp"
+#include "dccrg.hpp"
 
 #include "cell.hpp"
 
@@ -39,8 +39,10 @@ public:
 		const int step,
 		const int processes
 	) {
+		using std::get;
+
 		// refine random unrefined cells and unrefine random refined cells
-		std::vector<uint64_t> cells = grid.get_cells();
+		auto cells = grid.cells;
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
@@ -49,10 +51,11 @@ public:
 				i < int(cells.size()) && refined <= grid_size * grid_size / (5 * processes);
 				i++
 			) {
-				if (grid.get_refinement_level(cells[i]) == 0) {
-					if (!grid.refine_completely(cells[i])) {
+				const auto& cell_id = get<0>(cells[i]);
+				if (grid.get_refinement_level(cell_id) == 0) {
+					if (!grid.refine_completely(cell_id)) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Couldn't refine cell " << cells[i]
+							<< " Couldn't refine cell " << cell_id
 							<< std::endl;
 						abort();
 					}
@@ -66,10 +69,11 @@ public:
 				i < int(cells.size()) && unrefined <= grid_size * grid_size / (4 * processes);
 				i++
 			) {
-				if (grid.get_refinement_level(cells[i]) > 0) {
-					if (!grid.unrefine_completely(cells[i])) {
+				const auto& cell_id = get<0>(cells[i]);
+				if (grid.get_refinement_level(cell_id) > 0) {
+					if (!grid.unrefine_completely(cell_id)) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Couldn't unrefine cell " << cells[i]
+							<< " Couldn't unrefine cell " << cell_id
 							<< std::endl;
 						abort();
 					}

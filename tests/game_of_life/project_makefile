@@ -46,6 +46,10 @@ CLEAN += tests/game_of_life/clean
 
 
 TESTS_GAME_OF_LIFE_COMMON_DEPS = \
+  tests/game_of_life/cell.hpp \
+  tests/game_of_life/initialize.hpp \
+  tests/game_of_life/save.hpp \
+  tests/game_of_life/solve.hpp \
   $(DCCRG_HEADERS) \
   tests/game_of_life/project_makefile \
   $(ENVIRONMENT_MAKEFILE) \
@@ -108,6 +112,7 @@ tests/game_of_life/scalability3d.exe: \
 
 tests/game_of_life/refined2d.exe: \
   tests/game_of_life/refined2d.cpp \
+  tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
 	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
 
@@ -122,6 +127,7 @@ tests/game_of_life/refined2d.tstN: \
 
 tests/game_of_life/refined.exe: \
   tests/game_of_life/refined.cpp \
+  tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
 	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
 
@@ -136,6 +142,7 @@ tests/game_of_life/refined.tstN: \
 
 tests/game_of_life/refined_scalability3d.exe: \
   tests/game_of_life/refined_scalability3d.cpp \
+  tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
 	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
 
@@ -156,6 +163,7 @@ tests/game_of_life/hierarchical_test.tstN: \
 
 tests/game_of_life/unrefined2d.exe: \
   tests/game_of_life/unrefined2d.cpp \
+  tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
 	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
 

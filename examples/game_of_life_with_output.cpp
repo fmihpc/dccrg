@@ -32,18 +32,13 @@ struct game_of_life_cell {
 
 
 /*!
-Initializes the given cells, all of which must be local
+Initializes game.
 */
 void initialize_game(
-	const vector<uint64_t>& cells,
 	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
 ) {
-	for (const auto& cell: cells) {
-		auto* const cell_data = game_grid[cell];
-		if (cell_data == nullptr) {
-			abort();
-		}
-
+	for (const auto& item: game_grid.cells) {
+		auto* const cell_data = get<1>(item);
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -97,14 +92,10 @@ void get_live_neighbor_counts(
 Applies the game of life rules to every given cell, all of which must be local
 */
 void apply_rules(
-	const vector<uint64_t>& cells,
 	const dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
 ) {
-	for (const auto& cell: cells) {
-		auto* const cell_data = game_grid[cell];
-		if (cell_data == nullptr) {
-			abort();
-		}
+	for (const auto& item: game_grid.cells) {
+		auto* const cell_data = get<1>(item);
 
 		if (cell_data->live_neighbor_count == 3) {
 			cell_data->is_alive = 1;
@@ -198,8 +189,7 @@ int main(int argc, char* argv[])
 		inner_cells = game_grid.get_local_cells_not_on_process_boundary(),
 		outer_cells = game_grid.get_local_cells_on_process_boundary();
 
-	initialize_game(inner_cells, game_grid);
-	initialize_game(outer_cells, game_grid);
+	initialize_game(game_grid);
 
 	const int turns = 10;
 	for (int turn = 0; turn < turns; turn++) {
@@ -212,8 +202,7 @@ int main(int argc, char* argv[])
 		game_grid.wait_remote_neighbor_copy_updates();
 		get_live_neighbor_counts(outer_cells, game_grid);
 
-		apply_rules(inner_cells, game_grid);
-		apply_rules(outer_cells, game_grid);
+		apply_rules(game_grid);
 	}
 	write_game_data(turns, game_grid);
 

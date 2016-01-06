@@ -48,20 +48,11 @@ timestep == 0 means before any turns have been taken.
 */
 int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian_Geometry>& grid)
 {
-	vector<uint64_t> cells = grid.get_cells();
-	for (vector<uint64_t>::const_iterator
-		cell = cells.begin();
-		cell != cells.end();
-		cell++
-	) {
-		Cell* data = grid[*cell];
-		if (data == NULL) {
-			cerr << "No data for cell " << *cell << endl;
-			return EXIT_FAILURE;
-		}
-
+	for (const auto& item: grid.cells) {
+		const auto& cell = get<0>(item);
+		const Cell* const data = get<1>(item);
 		// check cells that are always supposed to be alive
-		switch (*cell) {
+		switch (cell) {
 		case 22:
 		case 23:
 		case 32:
@@ -82,7 +73,7 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		case 199:
 		case 206:
 			if (!data->data[0]) {
-				cerr << "Cell " << *cell
+				cerr << "Cell " << cell
 					<< " isn't alive on timestep " << timestep
 					<< endl;
 				return EXIT_FAILURE;
@@ -95,7 +86,7 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		// these are supposed to be alive every other turn
 		if (timestep % 2 == 0) {
 
-		switch (*cell) {
+		switch (cell) {
 		case 109:
 		case 123:
 		case 189:
@@ -105,7 +96,7 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		case 204:
 		case 205:
 			if (!data->data[0]) {
-				cerr << "Cell " << *cell
+				cerr << "Cell " << cell
 					<< " isn't alive on timestep " << timestep
 					<< endl;
 				return EXIT_FAILURE;
@@ -117,13 +108,13 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 
 		} else {
 
-		switch (*cell) {
+		switch (cell) {
 		case 174:
 		case 184:
 		case 214:
 		case 220:
 			if (!data->data[0]) {
-				cerr << "Cell " << *cell
+				cerr << "Cell " << cell
 					<< " isn't alive on timestep " << timestep
 					<< endl;
 				return EXIT_FAILURE;
@@ -139,14 +130,14 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		switch (timestep) {
 		/* can't be bothered manually for cases 1-19, use an automatic method later */
 		case 20:
-			switch (*cell) {
+			switch (cell) {
 			case 43:
 			case 44:
 			case 45:
 			case 60:
 			case 74:
 				if (!data->data[0]) {
-					cerr << "Cell " << *cell
+					cerr << "Cell " << cell
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -158,14 +149,14 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 21:
-			switch (*cell) {
+			switch (cell) {
 			case 29:
 			case 44:
 			case 45:
 			case 58:
 			case 60:
 				if (!data->data[0]) {
-					cerr << "Cell " << *cell
+					cerr << "Cell " << cell
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -177,14 +168,14 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 22:
-			switch (*cell) {
+			switch (cell) {
 			case 29:
 			case 30:
 			case 43:
 			case 45:
 			case 60:
 				if (!data->data[0]) {
-					cerr << "Cell " << *cell
+					cerr << "Cell " << cell
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -196,13 +187,13 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 23:
-			switch (*cell) {
+			switch (cell) {
 			case 29:
 			case 30:
 			case 45:
 			case 59:
 				if (!data->data[0]) {
-					cerr << "Cell " << *cell
+					cerr << "Cell " << cell
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -214,12 +205,12 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 24:
-			switch (*cell) {
+			switch (cell) {
 			case 29:
 			case 30:
 			case 45:
 				if (!data->data[0]) {
-					cerr << "Cell " << *cell
+					cerr << "Cell " << cell
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -384,16 +375,12 @@ int main(int argc, char* argv[])
 		game_grid.balance_load();
 		game_grid.start_remote_neighbor_copy_updates();
 		game_grid.wait_remote_neighbor_copy_updates();
-		vector<uint64_t> cells = game_grid.get_cells();
 
 		int result = check_game_of_life_state(step, game_grid);
 		if (grid_length[0] != 15 || result != EXIT_SUCCESS) {
 			cout << "Process " << rank << ": Game of Life test failed on timestep: " << step << endl;
 			abort();
 		}
-
-		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
-		sort(cells.begin(), cells.end());
 
 		if (verbose && rank == 0) {
 			cout << step << " ";

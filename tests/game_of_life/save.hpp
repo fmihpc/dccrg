@@ -23,7 +23,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "iostream"
 #include "cstdint"
 
-#include "../../dccrg.hpp"
+#include "dccrg.hpp"
 
 #include "cell.hpp"
 
@@ -41,7 +41,9 @@ public:
 		const int process,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
-		auto cells = game_grid.get_cells();
+		using std::get;
+
+		auto cells = game_grid.cells;
 		sort(cells.begin(), cells.end());
 
 		// write the grid into a file
@@ -53,24 +55,22 @@ public:
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& cell: cells) {
-			const auto* const cell_data = game_grid[cell];
-			outfile << cell_data->data[0] << std::endl;
+		for (const auto& item: cells) {
+			outfile << get<1>(item)->data[0] << std::endl;
 		}
 
 		// write each cells total live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& cell: cells) {
-			const auto* const cell_data = game_grid[cell];
-			outfile << cell_data->data[1] << std::endl;
+		for (const auto& item: cells) {
+			outfile << get<1>(item)->data[1] << std::endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& cell: cells) {
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
+		for (const auto& item: cells) {
+			const auto* const neighbors = game_grid.get_neighbors_of(get<0>(item));
 			outfile << neighbors->size() << std::endl;
 		}
 
@@ -84,8 +84,8 @@ public:
 		// write each cells id
 		outfile << "SCALARS id int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& cell: cells) {
-			outfile << cell << std::endl;
+		for (const auto& item: cells) {
+			outfile << get<0>(item) << std::endl;
 		}
 		outfile.close();
 	}

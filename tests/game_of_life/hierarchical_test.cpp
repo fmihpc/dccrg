@@ -85,13 +85,12 @@ int main(int argc, char* argv[])
 	game_grid.add_partitioning_option(1, "LB_METHOD", "HYPERGRAPH");
 
 	game_grid.balance_load();
-	vector<uint64_t> cells = game_grid.get_cells();
+	auto cells = game_grid.cells;
 	sort(cells.begin(), cells.end());
 
 	// initialize the game
-	for (const auto& cell: cells) {
-
-		game_of_life_cell* cell_data = game_grid[cell];
+	for (const auto& item: cells) {
+		game_of_life_cell* cell_data = get<1>(item);
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -153,9 +152,8 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-
-			game_of_life_cell* cell_data = game_grid[cell];
+		for (const auto& item: cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 
 			if (cell_data->is_alive == 1) {
 				outfile << "1";
@@ -169,19 +167,16 @@ int main(int argc, char* argv[])
 		// write each cells live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-
-			game_of_life_cell* cell_data = game_grid[cell];
-
+		for (const auto& item: cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 			outfile << cell_data->live_neighbor_count << endl;
-
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
+		for (const auto& item: cells) {
+			const auto* const neighbors = game_grid.get_neighbors_of(get<0>(item));
 			outfile << neighbors->size() << endl;
 		}
 
@@ -195,8 +190,8 @@ int main(int argc, char* argv[])
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-			outfile << cell << endl;
+		for (const auto& item: cells) {
+			outfile << get<0>(item) << endl;
 		}
 		outfile.close();
 
@@ -273,19 +268,8 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: inner_cells) {
-
-			auto* const cell_data = game_grid[cell];
-
-			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = 1;
-			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = 0;
-			}
-		}
-		for (const auto& cell: outer_cells) {
-
-			auto* const cell_data = game_grid[cell];
+		for (const auto& item: cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 
 			if (cell_data->live_neighbor_count == 3) {
 				cell_data->is_alive = 1;
@@ -293,7 +277,6 @@ int main(int argc, char* argv[])
 				cell_data->is_alive = 0;
 			}
 		}
-
 	}
 
 	if (rank == 0) {
@@ -305,3 +288,4 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
+

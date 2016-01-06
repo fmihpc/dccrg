@@ -6,6 +6,6 @@ results:
 	@$(MAKE) examples/results -C ..
 
 c: clean
-clean:
+clean: results
 	@$(MAKE) examples/clean -C ..
 

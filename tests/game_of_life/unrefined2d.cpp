@@ -213,16 +213,9 @@ int main(int argc, char* argv[])
 		Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
 
 		// verify refined/unrefined game
-		const auto cells = game_grid.get_cells();
-		for (const auto& cell: cells) {
-
-			const auto* const cell_data = game_grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell " << cell
-					<< std::endl;
-				abort();
-			}
+		for (const auto& item: game_grid.cells) {
+			const auto& cell = get<0>(item);
+			const auto* const cell_data = get<1>(item);
 
 			uint64_t reference_cell;
 
@@ -264,3 +257,4 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
+

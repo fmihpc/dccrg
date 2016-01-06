@@ -217,7 +217,7 @@ int main(int argc, char* argv[])
 
 		// refine random unrefined cells and unrefine random refined cells
 		// TODO merge with identical code in unrefine2d, ...
-		auto cells = game_grid.get_cells();
+		auto cells = game_grid.cells;
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
@@ -226,10 +226,11 @@ int main(int argc, char* argv[])
 				i < cells.size() && refined <= grid_length[0] * grid_length[1] / (5 * comm_size);
 				i++
 			) {
-				if (game_grid.get_refinement_level(cells[i]) == 0) {
-					if (!game_grid.refine_completely(cells[i])) {
+				const auto& cell_id = get<0>(cells[i]);
+				if (game_grid.get_refinement_level(cell_id) == 0) {
+					if (!game_grid.refine_completely(cell_id)) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Couldn't refine cell " << cells[i]
+							<< " Couldn't refine cell " << cell_id
 							<< std::endl;
 						abort();
 					}
@@ -243,10 +244,11 @@ int main(int argc, char* argv[])
 				i < cells.size() && unrefined <= grid_length[0] * grid_length[1] / (4 * comm_size);
 				i++
 			) {
-				if (game_grid.get_refinement_level(cells[i]) > 0) {
-					if (!game_grid.unrefine_completely(cells[i])) {
+				const auto& cell_id = get<0>(cells[i]);
+				if (game_grid.get_refinement_level(cell_id) > 0) {
+					if (!game_grid.unrefine_completely(cell_id)) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Couldn't unrefine cell " << cells[i]
+							<< " Couldn't unrefine cell " << cell_id
 							<< std::endl;
 						abort();
 					}
@@ -299,8 +301,8 @@ int main(int argc, char* argv[])
 		game_grid.clear_refined_unrefined_data();
 
 		// pin cells to process 0 either inside or outside the circle
-		cells = game_grid.get_cells();
-		for (const auto& cell: cells) {
+		for (const auto& item: game_grid.cells) {
+			const auto& cell = get<0>(item);
 			const std::array<double, 3> cell_center = game_grid.geometry.get_center(cell);
 
 			const double distance
@@ -344,7 +346,7 @@ int main(int argc, char* argv[])
 
 		game_grid.balance_load();
 		game_grid.update_copies_of_remote_neighbors();
-		cells = game_grid.get_cells();
+		cells = game_grid.cells;
 		// the library writes the grid into a file in ascending
 		// cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
@@ -382,9 +384,8 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-
-			game_of_life_cell* cell_data = game_grid[cell];
+		for (const auto& item: cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 
 			if (cell_data->is_alive == 1) {
 				outfile << "1";
@@ -398,19 +399,16 @@ int main(int argc, char* argv[])
 		// write each cells total live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-
-			game_of_life_cell* cell_data = game_grid[cell];
-
+		for (const auto& item: cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 			outfile << cell_data->total_live_neighbor_count << endl;
-
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
+		for (const auto& item: cells) {
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(get<0>(item));
 			outfile << neighbors->size() << endl;
 		}
 
@@ -424,19 +422,14 @@ int main(int argc, char* argv[])
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
-			outfile << cell << endl;
+		for (const auto& item: cells) {
+			outfile << get<0>(item) << endl;
 		}
 		outfile.close();
 
 		// get the neighbor counts of every cell
-		for (const auto& cell: cells) {
-
-			game_of_life_cell* cell_data = game_grid[cell];
-			if (cell_data == NULL) {
-				cout << __FILE__ << ":" << __LINE__ << " no data for cell: " << cell << endl;
-				exit(EXIT_FAILURE);
-			}
+		for (const auto& item: cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 
 			cell_data->total_live_neighbor_count = 0;
 
@@ -448,6 +441,7 @@ int main(int argc, char* argv[])
 				cell_data->child_of_processed[i] = 0;
 			}
 
+			const auto& cell = get<0>(item);
 			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(cell) == 0) {
@@ -595,12 +589,13 @@ int main(int argc, char* argv[])
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
-		for (const auto& cell: cells) {
-
+		for (const auto& item: cells) {
+			const auto& cell = get<0>(item);
 			if (game_grid.get_refinement_level(cell) == 0) {
 				continue;
 			}
-			game_of_life_cell* cell_data = game_grid[cell];
+
+			game_of_life_cell* cell_data = get<1>(item);
 
 			unordered_set<uint64_t> current_live_unrefined_neighbors;
 			for (int i = 0; i < 3; i++) {
@@ -634,9 +629,8 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: cells) {
-
-			game_of_life_cell* cell_data = game_grid[cell];
+		for (const auto& item: game_grid.cells) {
+			game_of_life_cell* cell_data = get<1>(item);
 
 			if (cell_data->total_live_neighbor_count == 3) {
 				cell_data->is_alive = 1;

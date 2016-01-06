@@ -10,6 +10,6 @@ results:
 	@$(MAKE) tests/game_of_life/results -C ../..
 
 c: clean
-clean:
+clean: results
 	@$(MAKE) tests/game_of_life/clean -C ../..
 

@@ -20,13 +20,13 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #ifndef SOLVE_HPP
 #define SOLVE_HPP
 
+#include "cstdint"
 #include "iostream"
-#include "stdint.h"
 #include "unordered_map"
 #include "unordered_set"
 #include "vector"
 
-#include "../../dccrg.hpp"
+#include "dccrg.hpp"
 
 #include "cell.hpp"
 
@@ -41,6 +41,8 @@ public:
 
 	static void solve(dccrg::Dccrg<Cell, UserGeometry>& game_grid)
 	{
+		using std::get;
+
 		// get the neighbor counts of every cell
 		for (const auto& item: game_grid) {
 			const uint64_t cell = item.first;
@@ -245,10 +247,8 @@ public:
 		}
 
 		// calculate the next turn
-		for (const auto& item: game_grid) {
-			const uint64_t cell = item.first;
-
-			Cell* cell_data = game_grid[cell];
+		for (auto& item: game_grid.cells) {
+			Cell* cell_data = get<1>(item);
 
 			if (cell_data->data[1] == 3) {
 				cell_data->data[0] = true;

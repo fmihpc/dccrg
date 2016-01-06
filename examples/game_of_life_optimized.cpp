@@ -30,26 +30,13 @@ struct game_of_life_cell {
 
 
 /*!
-Initializes the given cells, all of which must be local
+Initializes game.
 */
 void initialize_game(
 	dccrg::Dccrg<game_of_life_cell>& game_grid
 ) {
-	const auto& pointers = game_grid.get_cell_data_pointers();
-	for (size_t index = 0; index < pointers.size(); index++) {
-		const auto& cell_id = get<0>(pointers[index]);
-		const auto& offset = get<2>(pointers[index]);
-		if (
-			cell_id == dccrg::error_cell
-			// skip neighbors' pointers
-			or offset[0] != 0
-			or offset[1] != 0
-			or offset[2] != 0
-		) {
-			continue;
-		}
-
-		auto* const cell_data = get<1>(pointers[index]);
+	for (auto& item: game_grid.cells) {
+		auto* const cell_data = get<1>(item);
 		cell_data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -76,41 +63,25 @@ size_t get_live_neighbor_counts(
 	dccrg::Dccrg<game_of_life_cell>& game_grid
 ) {
 	const auto& pointers = game_grid.get_cell_data_pointers();
-	while (index < pointers.size() - 1) {
+	game_of_life_cell* current_cell_data = nullptr;
+	for ( ; index < pointers.size(); index++) {
 
 		const auto& cell_id = get<0>(pointers[index]);
 		if (cell_id == dccrg::error_cell) {
 			break;
 		}
 
-		auto* const cell_data = get<1>(pointers[index]);
-		cell_data->live_neighbor_count = 0;
-
-		index++;
-		while (index < pointers.size()) {
-			const auto& neighbor_id = get<0>(pointers[index]);
-			if (neighbor_id == dccrg::error_cell) {
-				index--;
-				break;
-			}
-
-			// reached end of neighbors of current cell
-			const auto& neigh_offset = get<2>(pointers[index]);
-			if (
-				neigh_offset[0] == 0
-				and neigh_offset[1] == 0
-				and neigh_offset[2] == 0
-			) {
-				index--;
-				break;
-			}
-
+		const auto& offset = get<2>(pointers[index]);
+		// processing a cell
+		if (offset[0] == 0 and offset[1] == 0 and offset[2] == 0) {
+			current_cell_data = get<1>(pointers[index]);
+			current_cell_data->live_neighbor_count = 0;
+		// processing a neighbor of current cell
+		} else {
 			const auto* const neighbor_data = get<1>(pointers[index]);
 			if (neighbor_data->is_alive) {
-				cell_data->live_neighbor_count++;
+				current_cell_data->live_neighbor_count++;
 			}
-
-			index++;
 		}
 	}
 
@@ -127,20 +98,8 @@ Returns last processed index + 1.
 void apply_rules(
 	dccrg::Dccrg<game_of_life_cell>& game_grid
 ) {
-	const auto& pointers = game_grid.get_cell_data_pointers();
-	for (size_t index = 0; index < pointers.size(); index++) {
-		const auto& cell_id = get<0>(pointers[index]);
-		const auto& offset = get<2>(pointers[index]);
-		if (
-			cell_id == dccrg::error_cell
-			or offset[0] != 0
-			or offset[1] != 0
-			or offset[2] != 0
-		) {
-			continue;
-		}
-
-		auto* const cell_data = get<1>(pointers[index]);
+	for (auto& item: game_grid.cells) {
+		auto* const cell_data = get<1>(item);
 		if (cell_data->live_neighbor_count == 3) {
 			cell_data->is_alive = 1;
 		} else if (cell_data->live_neighbor_count != 2) {
@@ -202,14 +161,13 @@ int main(int argc, char* argv[])
 
 	const int turns = 100;
 	for (int turn = 0; turn < turns; turn++) {
-
 		// start updating cell data from other processes
 		// and calculate the next turn for cells without
 		// neighbors on other processes in the meantime
 		game_grid.start_remote_neighbor_copy_updates();
 		const auto index = get_live_neighbor_counts(0, game_grid);
 
-		// wait for neighbor data updates to finish and the
+		// wait for neighbor data updates to finish and then
 		// calculate the next turn for rest of the cells on this process
 		game_grid.wait_remote_neighbor_copy_updates();
 		get_live_neighbor_counts(index + 1, game_grid);
