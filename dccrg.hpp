@@ -224,7 +224,7 @@ public:
 
 	\see Grid_Topology
 	*/
-	const Grid_Topology& topology;
+	const Grid_Topology& topology = this->topology_rw;
 
 	/*!
 	Public read-only version of the mapping of a
@@ -232,14 +232,14 @@ public:
 
 	\see Mapping
 	*/
-	const Mapping& mapping;
+	const Mapping& mapping = this->mapping_rw;
 
 	/*!
 	Public read-only version of the grid's length in cells of refinement level 0.
 
 	\see Grid_Length
 	*/
-	const Grid_Length& length;
+	const Grid_Length& length = this->mapping.length;
 
 
 private:
@@ -259,7 +259,7 @@ public:
 	Cartesian_Geometry
 	Dccrg()
 	*/
-	const Geometry& geometry;
+	const Geometry& geometry = this->geometry_rw;
 
 
 	/*!
@@ -297,11 +297,7 @@ public:
 	Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other)
 	*/
 	Dccrg() :
-		topology(topology_rw),
-		mapping(mapping_rw),
-		length(mapping.length),
-		geometry_rw(length, mapping, topology),
-		geometry(geometry_rw)
+		geometry_rw(length, mapping, topology)
 	{
 		this->initialized = false;
 		this->balancing_load = false;
@@ -334,11 +330,7 @@ public:
 	> Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other) :
 		topology_rw(other.topology),
 		mapping_rw(other.mapping),
-		topology(topology_rw),
-		mapping(mapping_rw),
-		length(mapping.length),
 		geometry_rw(length, mapping, topology),
-		geometry(geometry_rw),
 		initialized(other.get_initialized()),
 		neighborhood_length(other.get_neighborhood_length()),
 		max_tag(other.get_max_tag()),
