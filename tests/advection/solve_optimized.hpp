@@ -62,107 +62,91 @@ public:
 
 		const auto& cell_data_pointers = grid.get_cell_data_pointers();
 		size_t i = solve_index;
-		for ( ; i < cell_data_pointers.size(); i++) {
-			const auto& cell_id = get<0>(cell_data_pointers[i]);
+		CellData* cell_data = nullptr;
+		std::array<double, 3> cell_length{0, 0, 0};
+		double cell_volume = 0;
+		size_t processed_siblings = 0; // to be able to skip non-face neighbors
+		int cell_ref_lvl = -1;
 
-			if (cell_id == dccrg::error_cell) {
+		for ( ; i < cell_data_pointers.size(); i++) {
+			const auto& id = get<0>(cell_data_pointers[i]);
+			// reached end of inner cells in list
+			if (id == dccrg::error_cell) {
 				break;
 			}
 
 			const auto& offset = get<2>(cell_data_pointers[i]);
 
-			if (offset[0] != 0 or offset[1] != 0 or offset[2] != 0) {
-				throw std::runtime_error("Unexpected neighbor cell in cell data pointer cache.");
-			}
-
+			// processing (a new) cell
+			if (offset[0] == 0 and offset[1] == 0 and offset[2] == 0) {
 			#ifdef DEBUG
-			if (!grid.is_local(cell_id)) {
-				throw std::runtime_error("Unexpected remote cell.");
-			}
-			#endif
+				if (!grid.is_local(id)) {
+					throw std::runtime_error("Unexpected remote cell.");
+				}
+				#endif
 
-			auto* const cell_data = get<1>(cell_data_pointers[i]);
-
-			const std::array<double, 3> cell_length = grid.geometry.get_length(cell_id);
-
-			const double
-				cell_density = cell_data->density(),
+				cell_data = get<1>(cell_data_pointers[i]);
+				cell_length = grid.geometry.get_length(id);
 				cell_volume = cell_length[0] * cell_length[1] * cell_length[2];
+				cell_ref_lvl = grid.get_refinement_level(id);
 
-			size_t processed_siblings = 0; // to be able to skip non-face neighbors
-			const auto cell_ref_lvl = grid.get_refinement_level(cell_id);
-
-			i++;
-			while (i < cell_data_pointers.size()) {
-
-				const auto& neighbor = get<0>(cell_data_pointers[i]);
-				if (neighbor == dccrg::error_cell) {
-					i--;
-					break;
-				}
-
-				const auto& neigh_offset = get<2>(cell_data_pointers[i]);
-
-				if (neigh_offset[0] == 0 and neigh_offset[1] == 0 and neigh_offset[2] == 0) {
-					i--;
-					break;
-				}
+			// processing a cell's neighbor
+			} else {
 
 				int direction = 0;
 				bool skip_sibling = true;
-				if (neigh_offset[0] == 1 and neigh_offset[1] == 0 and neigh_offset[2] == 0) {
+				if (offset[0] == 1 and offset[1] == 0 and offset[2] == 0) {
 					direction = 1;
 					/*
-					Skip smaller non-face neighbors, they are cached in order
+					Skip smaller non-face neighbors, they appear in order
 					-x, -y, -z; +x, -y, -z; -x, +y, -z; ...; +x, +y, +z
 					*/
 					if (processed_siblings % 2 <= 2 / 2 - 1) {
 						skip_sibling = false;
 					}
 				}
-				if (neigh_offset[0] == -1 and neigh_offset[1] == 0 and neigh_offset[2] == 0) {
+				if (offset[0] == -1 and offset[1] == 0 and offset[2] == 0) {
 					direction = -1;
 					if (processed_siblings % 2 >= 2 / 2) {
 						skip_sibling = false;
 					}
 				}
-				if (neigh_offset[0] == 0 and neigh_offset[1] == 1 and neigh_offset[2] == 0) {
+				if (offset[0] == 0 and offset[1] == 1 and offset[2] == 0) {
 					direction = 2;
 					if (processed_siblings % 4 <= 4 / 2 - 1) {
 						skip_sibling = false;
 					}
 				}
-				if (neigh_offset[0] == 0 and neigh_offset[1] == -1 and neigh_offset[2] == 0) {
+				if (offset[0] == 0 and offset[1] == -1 and offset[2] == 0) {
 					direction = -2;
 					if (processed_siblings % 4 >= 4 / 2) {
 						skip_sibling = false;
 					}
 				}
-				if (neigh_offset[0] == 0 and neigh_offset[1] == 0 and neigh_offset[2] == 1) {
+				if (offset[0] == 0 and offset[1] == 0 and offset[2] == 1) {
 					direction = 3;
 					if (processed_siblings % 8 <= 8 / 2 - 1) {
 						skip_sibling = false;
 					}
 				}
-				if (neigh_offset[0] == 0 and neigh_offset[1] == 0 and neigh_offset[2] == -1) {
+				if (offset[0] == 0 and offset[1] == 0 and offset[2] == -1) {
 					direction = -3;
 					if (processed_siblings % 8 >= 8 / 2) {
 						skip_sibling = false;
 					}
 				}
 
+				// skip diagonal and other neighbors
 				if (direction == 0) {
-					i++;
 					continue;
 				}
 
 				// solve flux between two local cells only in positive direction
-				if (grid.is_local(neighbor) && direction < 0) {
-					i++;
+				if (grid.is_local(id) && direction < 0) {
 					continue;
 				}
 
-				const auto neigh_ref_lvl = grid.get_refinement_level(neighbor);
+				const auto neigh_ref_lvl = grid.get_refinement_level(id);
 				if (neigh_ref_lvl <= cell_ref_lvl) {
 					processed_siblings = 0;
 				} else {
@@ -172,18 +156,12 @@ public:
 					}
 
 					if (skip_sibling) {
-						i++;
 						continue;
 					}
 				}
 
-				auto* const neighbor_data = get<1>(cell_data_pointers[i]);
-
-				const std::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor);
-
-				const double
-					neighbor_density = neighbor_data->density(),
-					neighbor_volume = neighbor_length[0] * neighbor_length[1] * neighbor_length[2];
+				const std::array<double, 3> neighbor_length = grid.geometry.get_length(id);
+				const double neighbor_volume = neighbor_length[0] * neighbor_length[1] * neighbor_length[2];
 
 				// get area shared between cell and current neighbor
 				double min_area = -1;
@@ -219,6 +197,7 @@ public:
 				double flux = 0;
 
 				// velocity interpolated to shared face
+				auto* const neighbor_data = get<1>(cell_data_pointers[i]);
 				const double
 					vx = (cell_length[0] * neighbor_data->vx() + neighbor_length[0] * cell_data->vx())
 						/ (cell_length[0] + neighbor_length[0]),
@@ -230,49 +209,49 @@ public:
 				switch (direction) {
 				case +1:
 					if (vx >= 0) {
-						flux = cell_density * dt * vx * min_area;
+						flux = cell_data->density() * dt * vx * min_area;
 					} else {
-						flux = neighbor_density * dt * vx * min_area;
+						flux = neighbor_data->density() * dt * vx * min_area;
 					}
 					break;
 
 				case +2:
 					if (vy >= 0) {
-						flux = cell_density * dt * vy * min_area;
+						flux = cell_data->density() * dt * vy * min_area;
 					} else {
-						flux = neighbor_density * dt * vy * min_area;
+						flux = neighbor_data->density() * dt * vy * min_area;
 					}
 					break;
 
 				case +3:
 					if (vz >= 0) {
-						flux = cell_density * dt * vz * min_area;
+						flux = cell_data->density() * dt * vz * min_area;
 					} else {
-						flux = neighbor_density * dt * vz * min_area;
+						flux = neighbor_data->density() * dt * vz * min_area;
 					}
 					break;
 
 				case -1:
 					if (vx >= 0) {
-						flux = neighbor_density * dt * vx * min_area;
+						flux = neighbor_data->density() * dt * vx * min_area;
 					} else {
-						flux = cell_density * dt * vx * min_area;
+						flux = cell_data->density() * dt * vx * min_area;
 					}
 					break;
 
 				case -2:
 					if (vy >= 0) {
-						flux = neighbor_density * dt * vy * min_area;
+						flux = neighbor_data->density() * dt * vy * min_area;
 					} else {
-						flux = cell_density * dt * vy * min_area;
+						flux = cell_data->density() * dt * vy * min_area;
 					}
 					break;
 
 				case -3:
 					if (vz >= 0) {
-						flux = neighbor_density * dt * vz * min_area;
+						flux = neighbor_data->density() * dt * vz * min_area;
 					} else {
-						flux = cell_density * dt * vz * min_area;
+						flux = cell_data->density() * dt * vz * min_area;
 					}
 					break;
 				}
@@ -285,8 +264,6 @@ public:
 					cell_data->flux() += flux / cell_volume;
 					neighbor_data->flux() -= flux / neighbor_volume;
 				}
-
-				i++;
 			}
 		}
 
@@ -303,18 +280,7 @@ public:
 	> static void apply_fluxes(dccrg::Dccrg<CellData, Geometry>& grid)
 	{
 		using std::get;
-		for (auto& item: grid.get_cell_data_pointers()) {
-			const auto& cell_id = get<0>(item);
-
-			if (cell_id == dccrg::error_cell) {
-				continue;
-			}
-
-			const auto& offset = get<2>(item);
-			if (offset[0] != 0 or offset[1] != 0 or offset[2] != 0) {
-				continue;
-			}
-
+		for (auto& item: grid.cells) {
 			auto* const cell_data = get<1>(item);
 			cell_data->density() += cell_data->flux();
 			cell_data->flux() = 0;
@@ -340,18 +306,8 @@ public:
 
 		using std::get;
 
-		for (auto& item: grid.get_cell_data_pointers()) {
+		for (auto& item: grid.cells) {
 			const auto& cell_id = get<0>(item);
-
-			if (cell_id == dccrg::error_cell) {
-				continue;
-			}
-
-			const auto& offset = get<2>(item);
-			if (offset[0] != 0 or offset[1] != 0 or offset[2] != 0) {
-				continue;
-			}
-
 			const auto* const cell_data = get<1>(item);
 
 			const std::array<double, 3>
