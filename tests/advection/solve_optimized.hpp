@@ -79,7 +79,7 @@ public:
 
 			// processing (a new) cell
 			if (offset[0] == 0 and offset[1] == 0 and offset[2] == 0) {
-			#ifdef DEBUG
+				#ifdef DEBUG
 				if (!grid.is_local(id)) {
 					throw std::runtime_error("Unexpected remote cell.");
 				}
@@ -94,7 +94,9 @@ public:
 			} else {
 
 				int direction = 0;
+				// process only face neighbors
 				bool skip_sibling = true;
+
 				if (offset[0] == 1 and offset[1] == 0 and offset[2] == 0) {
 					direction = 1;
 					/*
