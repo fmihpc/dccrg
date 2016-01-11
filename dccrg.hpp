@@ -8816,7 +8816,7 @@ private:
 				}
 
 				if (this->cell_process.at(sibling) == this->rank
-				&& this->cells.count(sibling) == 0) {
+				&& this->cell_data.count(sibling) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Cell " << sibling
 						<< " has no data"
