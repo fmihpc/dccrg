@@ -35,7 +35,11 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "cell.hpp"
 #include "initialize.hpp"
 #include "save.hpp"
+#ifdef OPTIMIZED
+#include "solve_optimized.hpp"
+#else
 #include "solve.hpp"
+#endif
 
 using namespace std;
 using namespace boost;
@@ -322,7 +326,7 @@ int main(int argc, char* argv[])
 	}
 
 	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
+	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 0);
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -406,7 +410,7 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
+		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(game_grid);
 	}
 
 	if (rank == 0 and save) {

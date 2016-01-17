@@ -33,13 +33,12 @@ struct Cell
 {
 	/*!
 	data[0] > 0 if cell is alive
-	data[1] total number of live neighbors for all siblings
-	The following are used only with cell refinement
-	data[2..4] live neighbors of refined cells to calculate the above
-	data[5..12] process only one sibling (assume identical state),
-	            these record the parents of processed siblings
+	data[1..8] record which neighbors are alive,
+	           with adaptive mesh refinement record
+	           live (grand...)parents of refinement
+	           level 0
 	*/
-	std::array<uint64_t, 13> data;
+	std::array<uint64_t, 9> data;
 
 	std::tuple<
 		void*,
@@ -55,7 +54,7 @@ struct Cell
 		const int /*neighborhood_id*/
 		#endif
 	) const {
-		return std::make_tuple((void*) &(this->data), 13, MPI_UINT64_T);
+		return std::make_tuple((void*) &(this->data), this->data.size(), MPI_UINT64_T);
 	}
 };
 

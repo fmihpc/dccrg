@@ -65,7 +65,6 @@ public:
 		CellData* cell_data = nullptr;
 		std::array<double, 3> cell_length{0, 0, 0};
 		double cell_volume = 0;
-		size_t processed_siblings = 0; // to be able to skip non-face neighbors
 		int cell_ref_lvl = -1;
 
 		for ( ; i < cell_data_pointers.size(); i++) {
@@ -94,50 +93,24 @@ public:
 			} else {
 
 				int direction = 0;
-				// process only face neighbors
-				bool skip_sibling = true;
-
 				if (offset[0] == 1 and offset[1] == 0 and offset[2] == 0) {
 					direction = 1;
-					/*
-					Skip smaller non-face neighbors, they appear in order
-					-x, -y, -z; +x, -y, -z; -x, +y, -z; ...; +x, +y, +z
-					*/
-					if (processed_siblings % 2 <= 2 / 2 - 1) {
-						skip_sibling = false;
-					}
 				}
 				if (offset[0] == -1 and offset[1] == 0 and offset[2] == 0) {
 					direction = -1;
-					if (processed_siblings % 2 >= 2 / 2) {
-						skip_sibling = false;
-					}
 				}
 				if (offset[0] == 0 and offset[1] == 1 and offset[2] == 0) {
 					direction = 2;
-					if (processed_siblings % 4 <= 4 / 2 - 1) {
-						skip_sibling = false;
-					}
 				}
 				if (offset[0] == 0 and offset[1] == -1 and offset[2] == 0) {
 					direction = -2;
-					if (processed_siblings % 4 >= 4 / 2) {
-						skip_sibling = false;
-					}
 				}
 				if (offset[0] == 0 and offset[1] == 0 and offset[2] == 1) {
 					direction = 3;
-					if (processed_siblings % 8 <= 8 / 2 - 1) {
-						skip_sibling = false;
-					}
 				}
 				if (offset[0] == 0 and offset[1] == 0 and offset[2] == -1) {
 					direction = -3;
-					if (processed_siblings % 8 >= 8 / 2) {
-						skip_sibling = false;
-					}
 				}
-
 				// skip diagonal and other neighbors
 				if (direction == 0) {
 					continue;
@@ -148,20 +121,35 @@ public:
 					continue;
 				}
 
+				std::vector<size_t> face_neighbor_indices;
+
 				const auto neigh_ref_lvl = grid.get_refinement_level(id);
 				if (neigh_ref_lvl <= cell_ref_lvl) {
-					processed_siblings = 0;
+					face_neighbor_indices.push_back(i);
 				} else {
-					processed_siblings++;
-					if (processed_siblings == 8) {
-						processed_siblings = 0;
+					if (direction == 1) {
+						for (auto j: {0, 2, 4, 6}) { face_neighbor_indices.push_back(i + j); }
+					}
+					if (direction == -1) {
+						for (auto j: {1, 3, 5, 7}) { face_neighbor_indices.push_back(i + j); }
+					}
+					if (direction == 2) {
+						for (auto j: {0, 1, 4, 5}) { face_neighbor_indices.push_back(i + j); }
+					}
+					if (direction == -2) {
+						for (auto j: {2, 3, 6, 7}) { face_neighbor_indices.push_back(i + j); }
+					}
+					if (direction == 3) {
+						for (auto j: {0, 1, 2, 3}) { face_neighbor_indices.push_back(i + j); }
+					}
+					if (direction == -3) {
+						for (auto j: {4, 5, 6, 7}) { face_neighbor_indices.push_back(i + j); }
 					}
 
-					if (skip_sibling) {
-						continue;
-					}
+					i += 7;
 				}
 
+				// assume identical sizes and shapes for siblings
 				const std::array<double, 3> neighbor_length = grid.geometry.get_length(id);
 				const double neighbor_volume = neighbor_length[0] * neighbor_length[1] * neighbor_length[2];
 
@@ -198,73 +186,76 @@ public:
 				// positive flux through a face goes into positive direction
 				double flux = 0;
 
-				// velocity interpolated to shared face
-				auto* const neighbor_data = get<1>(cell_data_pointers[i]);
-				const double
-					vx = (cell_length[0] * neighbor_data->vx() + neighbor_length[0] * cell_data->vx())
-						/ (cell_length[0] + neighbor_length[0]),
-					vy = (cell_length[1] * neighbor_data->vy() + neighbor_length[1] * cell_data->vy())
-						/ (cell_length[1] + neighbor_length[1]),
-					vz = (cell_length[2] * neighbor_data->vz() + neighbor_length[2] * cell_data->vz())
-						/ (cell_length[2] + neighbor_length[2]);
+				for (const auto& face_neighbor_i: face_neighbor_indices) {
 
-				switch (direction) {
-				case +1:
-					if (vx >= 0) {
-						flux = cell_data->density() * dt * vx * min_area;
-					} else {
-						flux = neighbor_data->density() * dt * vx * min_area;
+					// velocity interpolated to shared face
+					auto* const neighbor_data = get<1>(cell_data_pointers[face_neighbor_i]);
+					const double
+						vx = (cell_length[0] * neighbor_data->vx() + neighbor_length[0] * cell_data->vx())
+							/ (cell_length[0] + neighbor_length[0]),
+						vy = (cell_length[1] * neighbor_data->vy() + neighbor_length[1] * cell_data->vy())
+							/ (cell_length[1] + neighbor_length[1]),
+						vz = (cell_length[2] * neighbor_data->vz() + neighbor_length[2] * cell_data->vz())
+							/ (cell_length[2] + neighbor_length[2]);
+
+					switch (direction) {
+					case +1:
+						if (vx >= 0) {
+							flux = cell_data->density() * dt * vx * min_area;
+						} else {
+							flux = neighbor_data->density() * dt * vx * min_area;
+						}
+						break;
+
+					case +2:
+						if (vy >= 0) {
+							flux = cell_data->density() * dt * vy * min_area;
+						} else {
+							flux = neighbor_data->density() * dt * vy * min_area;
+						}
+						break;
+
+					case +3:
+						if (vz >= 0) {
+							flux = cell_data->density() * dt * vz * min_area;
+						} else {
+							flux = neighbor_data->density() * dt * vz * min_area;
+						}
+						break;
+
+					case -1:
+						if (vx >= 0) {
+							flux = neighbor_data->density() * dt * vx * min_area;
+						} else {
+							flux = cell_data->density() * dt * vx * min_area;
+						}
+						break;
+
+					case -2:
+						if (vy >= 0) {
+							flux = neighbor_data->density() * dt * vy * min_area;
+						} else {
+							flux = cell_data->density() * dt * vy * min_area;
+						}
+						break;
+
+					case -3:
+						if (vz >= 0) {
+							flux = neighbor_data->density() * dt * vz * min_area;
+						} else {
+							flux = cell_data->density() * dt * vz * min_area;
+						}
+						break;
 					}
-					break;
 
-				case +2:
-					if (vy >= 0) {
-						flux = cell_data->density() * dt * vy * min_area;
+					// save flux
+					if (direction > 0) {
+						cell_data->flux() -= flux / cell_volume;
+						neighbor_data->flux() += flux / neighbor_volume;
 					} else {
-						flux = neighbor_data->density() * dt * vy * min_area;
+						cell_data->flux() += flux / cell_volume;
+						neighbor_data->flux() -= flux / neighbor_volume;
 					}
-					break;
-
-				case +3:
-					if (vz >= 0) {
-						flux = cell_data->density() * dt * vz * min_area;
-					} else {
-						flux = neighbor_data->density() * dt * vz * min_area;
-					}
-					break;
-
-				case -1:
-					if (vx >= 0) {
-						flux = neighbor_data->density() * dt * vx * min_area;
-					} else {
-						flux = cell_data->density() * dt * vx * min_area;
-					}
-					break;
-
-				case -2:
-					if (vy >= 0) {
-						flux = neighbor_data->density() * dt * vy * min_area;
-					} else {
-						flux = cell_data->density() * dt * vy * min_area;
-					}
-					break;
-
-				case -3:
-					if (vz >= 0) {
-						flux = neighbor_data->density() * dt * vz * min_area;
-					} else {
-						flux = cell_data->density() * dt * vz * min_area;
-					}
-					break;
-				}
-
-				// save flux
-				if (direction > 0) {
-					cell_data->flux() -= flux / cell_volume;
-					neighbor_data->flux() += flux / neighbor_volume;
-				} else {
-					cell_data->flux() += flux / cell_volume;
-					neighbor_data->flux() -= flux / neighbor_volume;
 				}
 			}
 		}

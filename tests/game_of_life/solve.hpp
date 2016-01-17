@@ -39,7 +39,7 @@ template<class UserGeometry> class Solve
 {
 public:
 
-	static void solve(dccrg::Dccrg<Cell, UserGeometry>& game_grid)
+	static void get_live_neighbors(dccrg::Dccrg<Cell, UserGeometry>& game_grid)
 	{
 		using std::get;
 
@@ -47,154 +47,62 @@ public:
 		for (const auto& item: game_grid) {
 			const uint64_t cell = item.first;
 
-			Cell* cell_data = game_grid[cell];
-			if (cell_data == NULL) {
+			auto* const cell_data = game_grid[cell];
+			if (cell_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for cell: " << cell
 					<< std::endl;
 				abort();
 			}
 
-			for (int i = 0; i < 12; i++) {
-				cell_data->data[1 + i] = 0;
+			for (int i = 1; i < cell_data->data.size(); i++) {
+				cell_data->data[i] = 0;
 			}
 
-			const std::vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
-			// unrefined cells just consider neighbor counts at the level of unrefined cells
-			if (game_grid.get_refinement_level(cell) == 0) {
+			const auto& cell_parent_id = game_grid.mapping.get_level_0_parent(cell);
 
-				for (const uint64_t neighbor: *neighbors) {
-					if (neighbor == dccrg::error_cell) {
-						continue;
-					}
-
-					Cell* neighbor_data = game_grid[neighbor];
-					if (neighbor_data == NULL) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " no data for neighbor of cell " << cell
-							<< ": " << neighbor
-							<< std::endl;
-						abort();
-					}
-
-					if (game_grid.get_refinement_level(neighbor) == 0) {
-						if (neighbor_data->data[0]) {
-							cell_data->data[1]++;
-						}
-					// consider only one sibling...
-					} else {
-
-						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
-						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == parent_of_neighbor) {
-								sibling_processed = true;
-								break;
-							}
-						}
-
-						// ...by recording its parent
-						if (sibling_processed) {
-							continue;
-						} else {
-							for (int i = 0; i < 8; i++) {
-								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = parent_of_neighbor;
-									break;
-								}
-							}
-						}
-
-						if (neighbor_data->data[0]) {
-							cell_data->data[1]++;
-						}
-					}
+			const std::vector<uint64_t>* const neighbors = game_grid.get_neighbors_of(cell);
+			for (const uint64_t neighbor: *neighbors) {
+				if (neighbor == dccrg::error_cell) {
+					continue;
 				}
 
-			// refined cells total the neighbor counts of siblings
-			} else {
+				const auto& neighbor_parent_id = game_grid.mapping.get_level_0_parent(neighbor);
+				if (neighbor_parent_id == cell_parent_id) {
+					continue;
+				}
 
-				for (const uint64_t neighbor: *neighbors) {
-					if (neighbor == dccrg::error_cell) {
-						continue;
+				const auto* const neighbor_data = game_grid[neighbor];
+				if (neighbor_data == nullptr) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " no data for neighbor of cell " << cell
+						<< ": " << neighbor
+						<< std::endl;
+					abort();
+				}
+
+				// check that neighbor hasn't been recorded as alive
+				if (neighbor_data->data[0] == 0) {
+					for (size_t i = 1; i < cell_data->data.size(); i++) {
+						if (cell_data->data[i] == neighbor_parent_id) {
+							std::cerr << "Neighbor " << neighbor
+								<< " of cell " << cell
+								<< " at index " << i
+								<< " should not be alive."
+								<< std::endl;
+							abort();
+						}
 					}
-
-					Cell* neighbor_data = game_grid[neighbor];
-					if (neighbor_data == NULL) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " no data for neighbor of refined cell " << cell
-							<< ": " << neighbor
-							<< std::endl;
-						abort();
-					}
-
-					if (game_grid.get_refinement_level(neighbor) == 0) {
-
-						// larger neighbors appear several times in the neighbor list
-						bool neighbor_processed = false;
-						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == neighbor) {
-								neighbor_processed = true;
-								break;
-							}
-						}
-
-						if (neighbor_processed) {
-							continue;
-						} else {
-							for (int i = 0; i < 8; i++) {
-								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = neighbor;
-									break;
-								}
-							}
-						}
-
-						if (neighbor_data->data[0]) {
-							for (int i = 0; i < 3; i++) {
-								if (cell_data->data[2 + i] == 0) {
-									cell_data->data[2 + i] = neighbor;
-									break;
-								}
-							}
-						}
-
-					// consider only one sibling of all parents of neighboring cells...
-					} else {
-
-						// ignore own siblings
-						if (game_grid.get_parent(cell) == game_grid.get_parent(neighbor)) {
-							continue;
-						}
-
-						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
-						for (int i = 0; i < 8; i++) {
-							if (cell_data->data[5 + i] == parent_of_neighbor) {
-								sibling_processed = true;
-								break;
-							}
-						}
-
-						if (sibling_processed) {
-							continue;
-						} else {
-							for (int i = 0; i < 8; i++) {
-								if (cell_data->data[5 + i] == 0) {
-									cell_data->data[5 + i] = parent_of_neighbor;
-									break;
-								}
-							}
-						}
-
-						// ...by recording which parents have been considered
-						if (neighbor_data->data[0]) {
-							for (int i = 0; i < 3; i++) {
-								if (cell_data->data[2 + i] == 0) {
-									cell_data->data[2 + i] = parent_of_neighbor;
-									break;
-								}
-							}
+				} else {
+					for (size_t i = 1; i < cell_data->data.size(); i++) {
+						if (cell_data->data[i] == neighbor_parent_id) {
+							break;
+						} else if (cell_data->data[i] == dccrg::error_cell) {
+							cell_data->data[i] = neighbor_parent_id;
+							break;
+						} else if (i == cell_data->data.size() - 1) {
+							std::cerr << "No more room in live neighbor list." << std::endl;
+							abort();
 						}
 					}
 				}
@@ -203,57 +111,62 @@ public:
 		}
 		game_grid.update_copies_of_remote_neighbors();
 
-		// get the total neighbor counts of refined cells
+		// spread live neighbor info between siblings
 		for (const auto& item: game_grid) {
-			const uint64_t cell = item.first;
 
-			if (game_grid.get_refinement_level(cell) == 0) {
-				continue;
-			}
-			Cell* cell_data = game_grid[cell];
-
-			std::unordered_set<uint64_t> current_live_unrefined_neighbors;
-			for (int i = 0; i < 3; i++) {
-				current_live_unrefined_neighbors.insert(cell_data->data[2 + i]);
-			}
+			const auto& cell = item.first;
+			const auto& cell_parent_id = game_grid.mapping.get_level_0_parent(cell);
+			auto* const cell_data = game_grid[cell];
 
 			const std::vector<uint64_t>* const neighbors = game_grid.get_neighbors_of(cell);
-			if (neighbors == NULL) {
-				abort();
-			}
-
 			for (const uint64_t neighbor: *neighbors) {
 				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				if (game_grid.get_refinement_level(neighbor) == 0) {
+				if (cell_parent_id != game_grid.mapping.get_level_0_parent(neighbor)) {
 					continue;
 				}
 
-				// total live neighbors counts only between siblings
-				if (game_grid.get_parent(cell) != game_grid.get_parent(neighbor)) {
-					continue;
-				}
+				const auto* const neighbor_data = game_grid[neighbor];
+				for (size_t i = 1; i < neighbor_data->data.size(); i++) {
+					if (neighbor_data->data[i] == dccrg::error_cell) {
+						break;
+					}
 
-				Cell* neighbor_data = game_grid[neighbor];
-				for (int i = 0; i < 3; i++) {
-					current_live_unrefined_neighbors.insert(neighbor_data->data[2 + i]);
+					for (size_t j = 1; j < cell_data->data.size(); j++) {
+						if (cell_data->data[j] == dccrg::error_cell) {
+							cell_data->data[j] = neighbor_data->data[i];
+							break;
+						} else if (cell_data->data[j] == neighbor_data->data[i]) {
+							break;
+						} else if (j == cell_data->data.size() - 1) {
+							std::cerr << "No room in live neighbor list of cell " << cell
+								<< " while trying to insert " << neighbor_data->data[i]
+								<< " at index " << i << " in original list"
+								<< std::endl;
+							abort();
+						}
+					}
 				}
 			}
-
-			current_live_unrefined_neighbors.erase(0);
-			cell_data->data[1] += current_live_unrefined_neighbors.size();
 		}
 
 		// calculate the next turn
 		for (auto& item: game_grid.cells) {
-			Cell* cell_data = get<1>(item);
+			auto* const cell_data = get<1>(item);
 
-			if (cell_data->data[1] == 3) {
-				cell_data->data[0] = true;
-			} else if (cell_data->data[1] != 2) {
-				cell_data->data[0] = false;
+			size_t live_neighbors = 0;
+			for (size_t i = 1; i < cell_data->data.size(); i++) {
+				if (cell_data->data[i] != dccrg::error_cell) {
+					live_neighbors++;
+				}
+				cell_data->data[i] = dccrg::error_cell;
+			}
+			if (live_neighbors == 3) {
+				cell_data->data[0] = 1;
+			} else if (live_neighbors != 2) {
+				cell_data->data[0] = 0;
 			}
 		}
 	}

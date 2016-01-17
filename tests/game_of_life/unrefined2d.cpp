@@ -35,10 +35,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "initialize.hpp"
 #include "refine.hpp"
 #include "save.hpp"
+#ifdef OPTIMIZED
+#include "solve_optimized.hpp"
+#else
 #include "solve.hpp"
+#endif
 
 using namespace std;
-using namespace boost;
 using namespace dccrg;
 
 int main(int argc, char* argv[])
@@ -134,9 +137,9 @@ int main(int argc, char* argv[])
 	}
 
 	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
+	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 1);
 	// play complete reference game on each process
-	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size);
+	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size, 0);
 
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
@@ -160,7 +163,7 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	string basename("tests/game_of_life/unrefined2d_");
-	basename.append(1, direction).append("_").append(lexical_cast<string>(rank)).append("_");
+	basename.append(1, direction).append("_").append(boost::lexical_cast<string>(rank)).append("_");
 
 	// visualize the game with visit -o game_of_life_test.visit
 	ofstream visit_file;
@@ -193,7 +196,7 @@ int main(int argc, char* argv[])
 		if (save) {
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
-			output_name.append(lexical_cast<string>(step)).append(".vtk");
+			output_name.append(boost::lexical_cast<string>(step)).append(".vtk");
 			Save<Stretched_Cartesian_Geometry>::save(output_name, rank, game_grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
@@ -202,15 +205,15 @@ int main(int argc, char* argv[])
 					visit_file << "unrefined2d_"
 						<< direction << "_"
 						<< process << "_"
-						<< lexical_cast<string>(step)
+						<< boost::lexical_cast<string>(step)
 						<< ".vtk"
 						<< endl;
 				}
 			}
 		}
 
-		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
-		Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
+		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(game_grid);
+		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(reference_grid);
 
 		// verify refined/unrefined game
 		for (const auto& item: game_grid.cells) {

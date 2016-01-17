@@ -73,7 +73,7 @@ public:
 
 		const auto& cell_data_pointers = grid.get_cell_data_pointers();
 
-		for (auto& item: cell_data_pointers) {
+		for (auto& item: grid.cells) {
 			const auto& cell_id = get<0>(item);
 
 			if (cell_id == dccrg::error_cell) {
