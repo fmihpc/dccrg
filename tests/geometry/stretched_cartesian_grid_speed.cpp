@@ -2,20 +2,20 @@
 Tests the speed of geometry operations with a constant cell size grid
 */
 
+#include "cstdint"
 #include "ctime"
 #include "iostream"
-#include "stdint.h"
 #include "vector"
 
-#include "../../dccrg_length.hpp"
-#include "../../dccrg_mapping.hpp"
-#include "../../dccrg_stretched_cartesian_geometry.hpp"
-#include "../../dccrg_topology.hpp"
+#include "dccrg_length.hpp"
+#include "dccrg_mapping.hpp"
+#include "dccrg_stretched_cartesian_geometry.hpp"
+#include "dccrg_topology.hpp"
 
 using namespace std;
 using namespace dccrg;
 
-int main(void)
+int main()
 {
 	clock_t before, after;
 

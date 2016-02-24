@@ -41,10 +41,8 @@ public:
 		const int process,
 		dccrg::Dccrg<Cell, UserGeometry>& game_grid
 	) {
-		using std::get;
-
 		auto cells = game_grid.cells;
-		sort(cells.begin(), cells.end());
+		std::sort(cells.begin(), cells.end());
 
 		// write the grid into a file
 		game_grid.write_vtk_file(name.c_str());
@@ -55,22 +53,22 @@ public:
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& item: cells) {
-			outfile << get<1>(item)->data[0] << std::endl;
+		for (const auto& cell: cells) {
+			outfile << cell.data->data[0] << std::endl;
 		}
 
 		// write each cells total live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& item: cells) {
-			outfile << get<1>(item)->data[1] << std::endl;
+		for (const auto& cell: cells) {
+			outfile << cell.data->data[1] << std::endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& item: cells) {
-			const auto* const neighbors = game_grid.get_neighbors_of(get<0>(item));
+		for (const auto& cell: cells) {
+			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << std::endl;
 		}
 
@@ -84,8 +82,8 @@ public:
 		// write each cells id
 		outfile << "SCALARS id int 1" << std::endl;
 		outfile << "LOOKUP_TABLE default" << std::endl;
-		for (const auto& item: cells) {
-			outfile << get<0>(item) << std::endl;
+		for (const auto& cell: cells) {
+			outfile << cell.id << std::endl;
 		}
 		outfile.close();
 	}

@@ -35,16 +35,13 @@ public:
 
 	static void initialize(dccrg::Dccrg<Cell, UserGeometry>& game_grid, const uint64_t grid_size)
 	{
-		using std::get;
-
 		if (grid_size == 0) {
 			assert(false);
 		}
 
-		for (auto& item: game_grid.cells) {
-			auto* const cell_data = get<1>(item);
-			for (size_t i = 0; i < cell_data->data.size(); i++) {
-				cell_data->data[i] = 0;
+		for (auto& cell: game_grid.cells) {
+			for (size_t i = 0; i < cell.data->data.size(); i++) {
+				cell.data->data[i] = 0;
 			}
 		}
 

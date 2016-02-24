@@ -1,15 +1,11 @@
-FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lzoltan
-MPICXX = mpic++ $(FLAGS)
+all:
+	@$(MAKE) tests/geometry/executables -C ../..
 
-all: cartesian_grid_speed stretched_cartesian_grid_speed
-
-cartesian_grid_speed: cartesian_grid_speed.cpp ../../dccrg_cartesian_geometry.hpp Makefile
-	$(MPICXX) cartesian_grid_speed.cpp $(INCLUDES) -o cartesian_grid_speed
-
-stretched_cartesian_grid_speed: stretched_cartesian_grid_speed.cpp ../../dccrg_stretched_cartesian_geometry.hpp Makefile
-	$(MPICXX) stretched_cartesian_grid_speed.cpp $(INCLUDES) -o stretched_cartesian_grid_speed
+t: test
+test:
+	@$(MAKE) tests/geometry/tests -C ../..
 
 c: clean
 clean:
-	rm -f cartesian_grid_speed stretched_cartesian_grid_speed
+	@$(MAKE) tests/geometry/clean -C ../..
+

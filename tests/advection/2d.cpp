@@ -302,9 +302,9 @@ int main(int argc, char* argv[])
 
 	// save initial state
 	#ifndef DEBUG
-	const string base_output_name("2d_");
+	const string base_output_name("tests/advection/2d_");
 	#else
-	const string base_output_name("2d_debug_");
+	const string base_output_name("tests/advection/2d_debug_");
 	#endif
 	unsigned int files_saved = 0;
 	if (save_n > -1) {

@@ -35,14 +35,13 @@ Initializes game.
 void initialize_game(
 	dccrg::Dccrg<game_of_life_cell>& game_grid
 ) {
-	for (auto& item: game_grid.cells) {
-		auto* const cell_data = get<1>(item);
-		cell_data->live_neighbor_count = 0;
+	for (auto& cell: game_grid.cells) {
+		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
-			cell_data->is_alive = 1;
+			cell.data->is_alive = 1;
 		} else {
-			cell_data->is_alive = 0;
+			cell.data->is_alive = 0;
 		}
 	}
 }
@@ -98,12 +97,11 @@ Returns last processed index + 1.
 void apply_rules(
 	dccrg::Dccrg<game_of_life_cell>& game_grid
 ) {
-	for (auto& item: game_grid.cells) {
-		auto* const cell_data = get<1>(item);
-		if (cell_data->live_neighbor_count == 3) {
-			cell_data->is_alive = 1;
-		} else if (cell_data->live_neighbor_count != 2) {
-			cell_data->is_alive = 0;
+	for (auto& cell: game_grid.cells) {
+		if (cell.data->live_neighbor_count == 3) {
+			cell.data->is_alive = 1;
+		} else if (cell.data->live_neighbor_count != 2) {
+			cell.data->is_alive = 0;
 		}
 	}
 }

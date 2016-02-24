@@ -69,6 +69,9 @@ TESTS_GAME_OF_LIFE_COMPILE_COMMAND = \
   $(ZOLTAN_CPPFLAGS) \
   $(ZOLTAN_LDFLAGS) \
   $(ZOLTAN_LIBS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
   -I tests/game_of_life
 
 

@@ -74,14 +74,13 @@ int main(int argc, char* argv[])
 	game_grid.balance_load();
 
 	// initialize the game
-	for (const auto& item: game_grid.cells) {
-		auto* const cell_data = get<1>(item);
-		cell_data->live_neighbor_count = 0;
+	for (const auto& cell: game_grid.cells) {
+		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
-			cell_data->is_alive = 1;
+			cell.data->is_alive = 1;
 		} else {
-			cell_data->is_alive = 0;
+			cell.data->is_alive = 0;
 		}
 	}
 
@@ -95,12 +94,10 @@ int main(int argc, char* argv[])
 		game_grid.update_copies_of_remote_neighbors();
 
 		// get the neighbor counts for every local cell
-		for (const auto& item: game_grid.cells) {
-			auto* const cell_data = get<1>(item);
-			cell_data->live_neighbor_count = 0;
+		for (const auto& cell: game_grid.cells) {
+			cell.data->live_neighbor_count = 0;
 
-			const auto& cell_id = get<0>(item);
-			const auto* const neighbors = game_grid.get_neighbors_of(cell_id);
+			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
 
 			for (const auto& neighbor: *neighbors) {
 				/*
@@ -117,19 +114,17 @@ int main(int argc, char* argv[])
 				}
 
 				if (neighbor_data->is_alive > 0) {
-					cell_data->live_neighbor_count++;
+					cell.data->live_neighbor_count++;
 				}
 			}
 		}
 
 		// calculate the next turn
-		for (const auto& item: game_grid.cells) {
-			auto* const cell_data = get<1>(item);
-
-			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = 1;
-			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = 0;
+		for (const auto& cell: game_grid.cells) {
+			if (cell.data->live_neighbor_count == 3) {
+				cell.data->is_alive = 1;
+			} else if (cell.data->live_neighbor_count != 2) {
+				cell.data->is_alive = 0;
 			}
 		}
 

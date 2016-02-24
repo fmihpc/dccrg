@@ -52,11 +52,9 @@ timestep == 0 means before any turns have been taken.
 */
 int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian_Geometry>& grid)
 {
-	for (const auto& item: grid.cells) {
-		const auto& cell = get<0>(item);
-		const Cell* const data = get<1>(item);
+	for (const auto& cell: grid.cells) {
 		// check cells that are always supposed to be alive
-		switch (cell) {
+		switch (cell.id) {
 		case 22:
 		case 23:
 		case 32:
@@ -76,8 +74,8 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		case 188:
 		case 199:
 		case 206:
-			if (!data->data[0]) {
-				cerr << "Cell " << cell
+			if (!cell.data->data[0]) {
+				cerr << "Cell " << cell.id
 					<< " isn't alive on timestep " << timestep
 					<< endl;
 				return EXIT_FAILURE;
@@ -90,7 +88,7 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		// these are supposed to be alive every other turn
 		if (timestep % 2 == 0) {
 
-		switch (cell) {
+		switch (cell.id) {
 		case 109:
 		case 123:
 		case 189:
@@ -99,8 +97,8 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		case 200:
 		case 204:
 		case 205:
-			if (!data->data[0]) {
-				cerr << "Cell " << cell
+			if (!cell.data->data[0]) {
+				cerr << "Cell " << cell.id
 					<< " isn't alive on timestep " << timestep
 					<< endl;
 				return EXIT_FAILURE;
@@ -112,13 +110,13 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 
 		} else {
 
-		switch (cell) {
+		switch (cell.id) {
 		case 174:
 		case 184:
 		case 214:
 		case 220:
-			if (!data->data[0]) {
-				cerr << "Cell " << cell
+			if (!cell.data->data[0]) {
+				cerr << "Cell " << cell.id
 					<< " isn't alive on timestep " << timestep
 					<< endl;
 				return EXIT_FAILURE;
@@ -134,14 +132,14 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 		switch (timestep) {
 		/* can't be bothered manually for cases 1-19, use an automatic method later */
 		case 20:
-			switch (cell) {
+			switch (cell.id) {
 			case 43:
 			case 44:
 			case 45:
 			case 60:
 			case 74:
-				if (!data->data[0]) {
-					cerr << "Cell " << cell
+				if (!cell.data->data[0]) {
+					cerr << "Cell " << cell.id
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -153,14 +151,14 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 21:
-			switch (cell) {
+			switch (cell.id) {
 			case 29:
 			case 44:
 			case 45:
 			case 58:
 			case 60:
-				if (!data->data[0]) {
-					cerr << "Cell " << cell
+				if (!cell.data->data[0]) {
+					cerr << "Cell " << cell.id
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -172,14 +170,14 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 22:
-			switch (cell) {
+			switch (cell.id) {
 			case 29:
 			case 30:
 			case 43:
 			case 45:
 			case 60:
-				if (!data->data[0]) {
-					cerr << "Cell " << cell
+				if (!cell.data->data[0]) {
+					cerr << "Cell " << cell.id
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -191,13 +189,13 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 23:
-			switch (cell) {
+			switch (cell.id) {
 			case 29:
 			case 30:
 			case 45:
 			case 59:
-				if (!data->data[0]) {
-					cerr << "Cell " << cell
+				if (!cell.data->data[0]) {
+					cerr << "Cell " << cell.id
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;
@@ -209,12 +207,12 @@ int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian
 			break;
 
 		case 24:
-			switch (cell) {
+			switch (cell.id) {
 			case 29:
 			case 30:
 			case 45:
-				if (!data->data[0]) {
-					cerr << "Cell " << cell
+				if (!cell.data->data[0]) {
+					cerr << "Cell " << cell.id
 						<< " isn't alive on timestep " << timestep
 						<< endl;
 					return EXIT_FAILURE;

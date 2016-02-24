@@ -6526,24 +6526,40 @@ private:
 		>
 	> cell_data_pointers;
 
-	// writable version of this->cells
-	std::vector<
-		std::tuple<
-			uint64_t,
-			Cell_Data*
-		>
-	> cells_rw;
 
+	// writable version of this->cells
+	struct Cells_Item
+	{
+		uint64_t id;
+		Cell_Data* data;
+
+		friend bool operator < (const Cells_Item& a, const Cells_Item& b)
+		{
+			return a.id < b.id;
+		}
+	};
+	std::vector<Cells_Item> cells_rw;
 
 public:
+	/*!
+	Cells owned by this process
 
-	//! list cell ids owned by this process and pointers to their data
-	const std::vector<
-		std::tuple<
-			uint64_t, //! unique id of cell
-			Cell_Data* //! pointer to user's cell data
-		>
-	>& cells = this->cells_rw;
+	Provides fast iteration over cells owned by this process.
+	The following members are available in item:
+		- id, unique id of cell
+		- data, pointer to cell's data
+
+	Example where every process prints the id and address of every local cell:
+	\verbatim
+	struct Cell_Data {...};
+	dccrg<Cell_Data> grid;
+	...
+	for (const auto& cell: grid.cells) {
+		cout << "Data of cell " << cell.id << " is stored at " << cell.data << endl;
+	}
+	\endverbatim
+	*/
+	const std::vector<Cells_Item>& cells = this->cells_rw;
 
 
 private:
@@ -9933,7 +9949,7 @@ private:
 	{
 		this->cells_rw.clear();
 		for (auto& item: this->cell_data) {
-			this->cells_rw.push_back(std::make_tuple(item.first, &item.second));
+			this->cells_rw.push_back({item.first, &item.second});
 		}
 	}
 

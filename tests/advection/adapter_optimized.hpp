@@ -73,15 +73,8 @@ public:
 
 		const auto& cell_data_pointers = grid.get_cell_data_pointers();
 
-		for (auto& item: grid.cells) {
-			const auto& cell_id = get<0>(item);
-
-			if (cell_id == dccrg::error_cell) {
-				continue;
-			}
-
-			auto* const cell_data = get<1>(item);
-			cell_data->max_diff() = 0;
+		for (auto& cell: grid.cells) {
+			cell.data->max_diff() = 0;
 		}
 
 		// collect maximum relative differences
@@ -201,40 +194,27 @@ public:
 		}
 
 		// decide whether to refine or unrefine cells
-		for (size_t i = 0; i < cell_data_pointers.size(); i++) {
-			const auto& cell = get<0>(cell_data_pointers[i]);
-
-			if (cell == dccrg::error_cell) {
-				continue;
-			}
-
-			const auto& offset = get<2>(cell_data_pointers[i]);
-			if (offset[0] != 0 or offset[1] != 0 or offset[2] != 0) {
-				continue;
-			}
-			const int refinement_level = grid.get_refinement_level(cell);
-
+		for (auto& cell: grid.cells) {
+			const int refinement_level = grid.get_refinement_level(cell.id);
 			// refine / unrefine if max relative difference larger / smaller than:
 			const double
 				refine_diff = (refinement_level + 1) * diff_increase,
 				unrefine_diff = unrefine_sensitivity * refine_diff;
 
-			const auto siblings = grid.get_all_children(grid.get_parent(cell));
+			const auto siblings = grid.get_all_children(grid.get_parent(cell.id));
 			if (siblings.size() == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No siblings for cell " << cell
+					<< " No siblings for cell " << cell.id
 					<< std::endl;
 				abort();
 			}
 
-			auto* const cell_data = get<1>(cell_data_pointers[i]);
-
-			const double diff = cell_data->max_diff();
+			const double diff = cell.data->max_diff();
 
 			// refine
 			if (diff > refine_diff) {
 
-				cells_to_refine.insert(cell);
+				cells_to_refine.insert(cell.id);
 
 				for (const auto& sibling: siblings) {
 					cells_to_unrefine.erase(sibling);
@@ -254,8 +234,8 @@ public:
 					}
 				}
 
-				if (dont_unrefine && grid.get_refinement_level(cell) > 0) {
-					cells_not_to_unrefine.insert(cell);
+				if (dont_unrefine && grid.get_refinement_level(cell.id) > 0) {
+					cells_not_to_unrefine.insert(cell.id);
 
 					for (const auto& sibling: siblings) {
 						cells_to_unrefine.erase(sibling);
@@ -275,9 +255,9 @@ public:
 					}
 				}
 
-				if (unrefine && grid.get_refinement_level(cell) > 0) {
-					cells_to_unrefine.insert(cell);
-				}			
+				if (unrefine && grid.get_refinement_level(cell.id) > 0) {
+					cells_to_unrefine.insert(cell.id);
+				}
 			}
 		}
 	}

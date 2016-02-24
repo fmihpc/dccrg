@@ -216,30 +216,24 @@ int main(int argc, char* argv[])
 		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(reference_grid);
 
 		// verify refined/unrefined game
-		for (const auto& item: game_grid.cells) {
-			const auto& cell = get<0>(item);
-			const auto* const cell_data = get<1>(item);
-
-			uint64_t reference_cell;
-
-			const int refinement_level = game_grid.get_refinement_level(cell);
+		for (const auto& cell: game_grid.cells) {
+			uint64_t reference_cell_id = cell.id;
+			const int refinement_level = game_grid.get_refinement_level(cell.id);
 			if (refinement_level > 0) {
-				reference_cell = game_grid.mapping.get_parent(cell);
-			} else {
-				reference_cell = cell;
+				reference_cell_id = game_grid.mapping.get_parent(cell.id);
 			}
 
-			const auto* const reference_data = reference_grid[reference_cell];
+			const auto* const reference_data = reference_grid[reference_cell_id];
 			if (reference_data == NULL) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for reference cell " << reference_cell
+					<< " No data for reference cell " << reference_cell_id
 					<< std::endl;
 				abort();
 			}
 
-			if (cell_data->data[0] != reference_data->data[0]) {
+			if (cell.data->data[0] != reference_data->data[0]) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell's " << cell << " life doesn't agree with reference."
+					<< " Cell's " << cell.id << " life doesn't agree with reference."
 					<< std::endl;
 				abort();
 			}

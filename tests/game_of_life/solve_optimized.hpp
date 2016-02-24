@@ -203,6 +203,7 @@ public:
 
 		const auto& cache_size = game_grid.get_cell_data_pointers().size();
 
+
 		size_t i = 0;
 		while (i < cache_size) {
 			i = get_live_neighbors(game_grid, i);
@@ -220,20 +221,18 @@ public:
 		}
 
 		// calculate the next turn
-		for (auto& item: game_grid.cells) {
-			auto* const cell_data = get<1>(item);
-
+		for (auto& cell: game_grid.cells) {
 			size_t live_neighbors = 0;
-			for (size_t i = 1; i < cell_data->data.size(); i++) {
-				if (cell_data->data[i] != dccrg::error_cell) {
+			for (size_t i = 1; i < cell.data->data.size(); i++) {
+				if (cell.data->data[i] != dccrg::error_cell) {
 					live_neighbors++;
 				}
-				cell_data->data[i] = dccrg::error_cell;
+				cell.data->data[i] = dccrg::error_cell;
 			}
 			if (live_neighbors == 3) {
-				cell_data->data[0] = 1;
+				cell.data->data[0] = 1;
 			} else if (live_neighbors != 2) {
-				cell_data->data[0] = 0;
+				cell.data->data[0] = 0;
 			}
 		}
 	}

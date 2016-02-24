@@ -273,10 +273,9 @@ public:
 	> static void apply_fluxes(dccrg::Dccrg<CellData, Geometry>& grid)
 	{
 		using std::get;
-		for (auto& item: grid.cells) {
-			auto* const cell_data = get<1>(item);
-			cell_data->density() += cell_data->flux();
-			cell_data->flux() = 0;
+		for (auto& cell: grid.cells) {
+			cell.data->density() += cell.data->flux();
+			cell.data->flux() = 0;
 		}
 	}
 
@@ -297,18 +296,13 @@ public:
 	) {
 		double min_step = std::numeric_limits<double>::max();
 
-		using std::get;
-
-		for (auto& item: grid.cells) {
-			const auto& cell_id = get<0>(item);
-			const auto* const cell_data = get<1>(item);
-
+		for (auto& cell: grid.cells) {
 			const std::array<double, 3>
-				cell_length = grid.geometry.get_length(cell_id),
+				cell_length = grid.geometry.get_length(cell.id),
 				current_steps{{
-					cell_length[0] / fabs(cell_data->vx()),
-					cell_length[1] / fabs(cell_data->vy()),
-					cell_length[2] / fabs(cell_data->vz())
+					cell_length[0] / fabs(cell.data->vx()),
+					cell_length[1] / fabs(cell.data->vy()),
+					cell_length[2] / fabs(cell.data->vz())
 				}};
 
 			const double current_min_step =
