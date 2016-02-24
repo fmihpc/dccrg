@@ -1,0 +1,57 @@
+TESTS_GEOMETRY_EXECUTABLES = \
+  tests/geometry/cartesian_grid_speed.exe \
+  tests/geometry/stretched_cartesian_grid_speed.exe
+
+TESTS_GEOMETRY_TESTS = \
+  tests/geometry/cartesian_grid_speed.tst \
+  tests/geometry/stretched_cartesian_grid_speed.tst
+
+tests/geometry/executables: $(TESTS_GEOMETRY_EXECUTABLES)
+
+tests/geometry/tests: $(TESTS_GEOMETRY_TESTS)
+
+tests/geometry/clean:
+	@printf "CLEAN tests/geometry\n" && rm -f \
+	  $(TESTS_GEOMETRY_EXECUTABLES) \
+	  $(TESTS_GEOMETRY_TESTS)
+
+
+EXECUTABLES += tests/geometry/executables
+TESTS += tests/geometry/tests
+CLEAN += tests/geometry/clean
+
+
+TESTS_GEOMETRY_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/geometry/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_GEOMETRY_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/geometry/cartesian_grid_speed.exe: \
+  tests/geometry/cartesian_grid_speed.cpp \
+  $(TESTS_GEOMETRY_COMMON_DEPS)
+	$(TESTS_GEOMETRY_COMPILE_COMMAND)
+
+tests/geometry/cartesian_grid_speed.tst: \
+  tests/geometry/cartesian_grid_speed.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/geometry/stretched_cartesian_grid_speed.exe: \
+  tests/geometry/stretched_cartesian_grid_speed.cpp \
+  $(TESTS_GEOMETRY_COMMON_DEPS)
+	$(TESTS_GEOMETRY_COMPILE_COMMAND)
+
+tests/geometry/stretched_cartesian_grid_speed.tst: \
+  tests/geometry/stretched_cartesian_grid_speed.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+

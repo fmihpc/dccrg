@@ -1,0 +1,109 @@
+TESTS_ADVECTION_EXECUTABLES = \
+  tests/advection/2d_mpi.exe \
+  tests/advection/2d_mpi_debug.exe \
+  tests/advection/2d_optimized_mpi.exe \
+  tests/advection/2d_optimized_mpi_debug.exe \
+  tests/advection/dc2vtk.exe
+
+TESTS_ADVECTION_TESTS = \
+  tests/advection/2d_mpi.mtst \
+  tests/advection/2d_optimized_mpi.tst
+
+tests/advection/executables: $(TESTS_ADVECTION_EXECUTABLES)
+
+tests/advection/tests: $(TESTS_ADVECTION_TESTS)
+
+tests/advection/results:
+	@printf "CLEAN results in tests/advection\n" && rm -f \
+	  tests/advection/*dc \
+	  tests/advection/*vtk \
+	  tests/advection/*visit
+
+tests/advection/clean:
+	@printf "CLEAN tests/advection\n" && rm -f \
+	  $(TESTS_ADVECTION_EXECUTABLES) \
+	  $(TESTS_ADVECTION_TESTS)
+
+
+EXECUTABLES += tests/advection/executables
+TESTS += tests/advection/tests
+RESULTS += tests/advection/results
+CLEAN += tests/advection/clean
+
+
+TESTS_ADVECTION_COMMON_DEPS = \
+  tests/advection/adapter.hpp \
+  tests/advection/adapter_optimized.hpp \
+  tests/advection/cell.hpp \
+  tests/advection/initialize.hpp \
+  tests/advection/initialize_optimized.hpp \
+  tests/advection/save.hpp \
+  tests/advection/solve.hpp \
+  tests/advection/solve_optimized.hpp \
+  $(DCCRG_HEADERS) \
+  tests/advection/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_ADVECTION_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  -I tests/advection
+
+tests/advection/2d_mpi.exe: \
+  tests/advection/2d.cpp \
+  $(TESTS_ADVECTION_COMMON_DEPS)
+	$(TESTS_ADVECTION_COMPILE_COMMAND)
+
+#tests/advection/2d_mpi.tst: \
+#  tests/advection/2d_mpi.exe
+#	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/advection/2d_mpi.mtst: \
+  tests/advection/2d_mpi.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/advection/2d_mpi_debug.exe: \
+  tests/advection/2d.cpp \
+  $(TESTS_ADVECTION_COMMON_DEPS)
+	$(TESTS_ADVECTION_COMPILE_COMMAND) -DDEBUG
+
+tests/advection/2d_mpi_debug.tst: \
+  tests/advection/2d_mpi_debug.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/advection/2d_optimized_mpi.exe: \
+  tests/advection/2d_optimized.cpp \
+  $(TESTS_ADVECTION_COMMON_DEPS)
+	$(TESTS_ADVECTION_COMPILE_COMMAND)
+
+tests/advection/2d_optimized_mpi.tst: \
+  tests/advection/2d_optimized_mpi.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/advection/2d_optimized_mpi_debug.exe: \
+  tests/advection/2d_optimized.cpp \
+  $(TESTS_ADVECTION_COMMON_DEPS)
+	$(TESTS_ADVECTION_COMPILE_COMMAND) -DDEBUG
+
+tests/advection/2d_optimized_mpi_debug.tst: \
+  tests/advection/2d_optimized_mpi_debug.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/advection/dc2vtk.exe: \
+  tests/advection/dc2vtk.cpp \
+  $(TESTS_ADVECTION_COMMON_DEPS)
+	$(TESTS_ADVECTION_COMPILE_COMMAND)
+

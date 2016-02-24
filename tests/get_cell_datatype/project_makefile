@@ -12,8 +12,8 @@ tests/get_cell_datatype/tests: $(TESTS_GET_CELL_DATATYPE_TESTS)
 
 tests/get_cell_datatype/clean:
 	@printf "CLEAN tests/get_cell_datatype\n" && rm -f \
-	  $(TESTS_GET_CELL_DATATYPE_EXECUTABLES)
-
+	  $(TESTS_GET_CELL_DATATYPE_EXECUTABLES) \
+	  $(TESTS_GET_CELL_DATATYPE_TESTS)
 
 EXECUTABLES += tests/get_cell_datatype/executables
 TESTS += tests/get_cell_datatype/tests
