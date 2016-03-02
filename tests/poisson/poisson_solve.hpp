@@ -207,6 +207,17 @@ public:
 	}
 
 
+	void set_max_iterations(const unsigned int given_iterations)
+	{
+		this->max_iterations = given_iterations;
+	}
+
+	void set_min_iterations(const unsigned int given_iterations)
+	{
+		this->min_iterations = given_iterations;
+	}
+
+
 	/*!
 	Solves the Poisson's equation in given cells.
 
