@@ -249,7 +249,7 @@ public:
 		this->comm = grid.get_communicator();
 		this->comm_rank = grid.get_rank();
 
-		if (!cache_is_up_to_date) {
+		if (not cache_is_up_to_date) {
 			this->cache_system_info(cells, cells_to_skip, grid);
 		}
 
@@ -520,12 +520,15 @@ public:
 	template<class Geometry> void solve_failsafe(
 		const std::vector<uint64_t>& cells,
 		dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
-		const std::vector<uint64_t>& cells_to_skip = std::vector<uint64_t>()
+		const std::vector<uint64_t>& cells_to_skip = std::vector<uint64_t>(),
+		const bool cache_is_up_to_date = false
 	) {
 		this->comm = grid.get_communicator();
 		this->comm_rank = grid.get_rank();
 
-		this->cache_system_info(cells, cells_to_skip, grid);
+		if (not cache_is_up_to_date) {
+			this->cache_system_info(cells, cells_to_skip, grid);
+		}
 
 		// only solution is needed from other processes
 		Poisson_Cell::transfer_switch = Poisson_Cell::INIT;
