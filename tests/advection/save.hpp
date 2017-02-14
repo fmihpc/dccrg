@@ -2,6 +2,7 @@
 Saver class for the advection test program of dccrg.
 
 Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2017 Ilja Honkonen
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -20,6 +21,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_ADVECTION_SAVE_HPP
 
 
+#include "cerrno"
 #include "cstring"
 #include "string"
 #include "vector"
@@ -86,16 +88,26 @@ public:
 
 		// MPI_File_open wants a non-constant string
 		char* output_name_c_string = new char [output_name.size() + 1];
+		if (output_name_c_string == nullptr) {
+			if (rank == 0) {
+				std::cerr << "Couldn't allocate memory for output file name" << std::endl;
+			}
+			abort();
+		}
 		output_name.copy(output_name_c_string, output_name.size());
 		output_name_c_string[output_name.size()] = '\0';
 
-		/*
-		Contrary to what http://www.open-mpi.org/doc/v1.4/man3/MPI_File_open.3.php writes,
-		MPI_File_open doesn't truncate the file with OpenMPI 1.4.1 on Ubuntu, so use a
-		fopen call first (http://www.opengroup.org/onlinepubs/009695399/functions/fopen.html)
-		*/
+		// remove existing content
 		if (rank == 0) {
 			FILE* i = fopen(output_name_c_string, "w");
+			if (i == nullptr) {
+				if (rank == 0) {
+					std::cerr << "Couldn't remove existing content from file " << output_name
+						<< ": " << std::strerror(errno)
+						<< std::endl;
+				}
+				abort();
+			}
 			fflush(i);
 			fclose(i);
 		}
