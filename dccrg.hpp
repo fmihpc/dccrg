@@ -5261,8 +5261,8 @@ public:
 			return value;
 		}
 
-		if (this->partitioning_options.count(name) > 0) {
-			value = this->partitioning_options.at(name);
+		if (this->partitioning_options.at(hierarchial_partitioning_level).count(name) > 0) {
+			value = this->partitioning_options.at(hierarchial_partitioning_level).at(name);
 		}
 
 		return value;
