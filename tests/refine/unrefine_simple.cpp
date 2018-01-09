@@ -174,6 +174,8 @@ int main(int argc, char* argv[])
 		visit_file.close();
 	}
 
+	MPI_Finalize();
+
 	return EXIT_SUCCESS;
 }
 

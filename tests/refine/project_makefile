@@ -1,0 +1,67 @@
+TESTS_REFINE_EXECUTABLES = \
+  tests/refine/refine_simple.exe \
+  tests/refine/unrefine_simple.exe
+
+tests/refine/executables: $(TESTS_REFINE_EXECUTABLES)
+
+TESTS_REFINE_TESTS = \
+  tests/refine/refine_simple.tst \
+  tests/refine/refine_simple.mtst \
+  tests/refine/unrefine_simple.tst \
+  tests/refine/unrefine_simple.mtst
+
+tests/refine/tests: $(TESTS_REFINE_TESTS)
+
+tests/refine/clean:
+	@printf "CLEAN tests/refine\n" && rm -f \
+	  $(TESTS_REFINE_EXECUTABLES) $(TESTS_REFINE_TESTS)
+
+EXECUTABLES += tests/refine/executables
+TESTS += tests/refine/tests
+CLEAN += tests/refine/clean
+
+
+TESTS_REFINE_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/refine/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_REFINE_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/refine/refine_simple.exe: \
+  tests/refine/refine_simple.cpp \
+  $(TESTS_REFINE_COMMON_DEPS)
+	$(TESTS_REFINE_COMPILE_COMMAND)
+
+tests/refine/refine_simple.tst: \
+  tests/refine/refine_simple.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/refine/refine_simple.mtst: \
+  tests/refine/refine_simple.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/refine/unrefine_simple.exe: \
+  tests/refine/unrefine_simple.cpp \
+  $(TESTS_REFINE_COMMON_DEPS)
+	$(TESTS_REFINE_COMPILE_COMMAND)
+
+tests/refine/unrefine_simple.tst: \
+  tests/refine/unrefine_simple.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/refine/unrefine_simple.mtst: \
+  tests/refine/unrefine_simple.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

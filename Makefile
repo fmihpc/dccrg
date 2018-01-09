@@ -39,20 +39,21 @@ include \
   tests/get_cells/project_makefile \
   tests/geometry/project_makefile \
   tests/load_balancing/project_makefile \
+  tests/refine/project_makefile \
   tests/game_of_life/project_makefile \
   tests/advection/project_makefile
 
 
 all: $(EXECUTABLES)
 
+# executes all tests
 t: test
-test: all $(TESTS)
+test: $(TESTS)
 
-# removes simulation results
+# removes all simulation results
 r: results
 results: $(RESULTS)
 
-# removes executables and simulation results
+# removes all executables and other non-source files
 c: clean
 clean: results $(CLEAN)
-
