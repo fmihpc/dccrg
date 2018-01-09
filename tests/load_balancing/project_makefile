@@ -1,0 +1,66 @@
+TESTS_LOAD_BALANCING_EXECUTABLES = \
+  tests/load_balancing/load_balancing_test.exe \
+  tests/load_balancing/multi_stage_load_balancing.exe
+
+tests/load_balancing/executables: $(TESTS_LOAD_BALANCING_EXECUTABLES)
+
+TESTS_LOAD_BALANCING_TESTS = \
+  tests/load_balancing/load_balancing_test.tst \
+  tests/load_balancing/load_balancing_test.mtst \
+  tests/load_balancing/multi_stage_load_balancing.tst \
+  tests/load_balancing/multi_stage_load_balancing.mtst
+
+tests/load_balancing/tests: $(TESTS_LOAD_BALANCING_TESTS)
+
+tests/load_balancing/clean:
+	@printf "CLEAN tests/load_balancing\n" && rm -f \
+	  $(TESTS_LOAD_BALANCING_EXECUTABLES) $(TESTS_LOAD_BALANCING_TESTS)
+
+
+EXECUTABLES += tests/load_balancing/executables
+CLEAN += tests/load_balancing/clean
+
+
+TESTS_LOAD_BALANCING_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/load_balancing/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_LOAD_BALANCING_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/load_balancing/load_balancing_test.exe: \
+  tests/load_balancing/load_balancing_test.cpp \
+  $(TESTS_LOAD_BALANCING_COMMON_DEPS)
+	$(TESTS_LOAD_BALANCING_COMPILE_COMMAND)
+
+tests/load_balancing/load_balancing_test.tst: \
+  tests/load_balancing/load_balancing_test.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/load_balancing/load_balancing_test.mtst: \
+  tests/load_balancing/load_balancing_test.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+tests/load_balancing/multi_stage_load_balancing.exe: \
+  tests/load_balancing/multi_stage_load_balancing.cpp \
+  $(TESTS_LOAD_BALANCING_COMMON_DEPS)
+	$(TESTS_LOAD_BALANCING_COMPILE_COMMAND)
+
+tests/load_balancing/multi_stage_load_balancing.tst: \
+  tests/load_balancing/multi_stage_load_balancing.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/load_balancing/multi_stage_load_balancing.mtst: \
+  tests/load_balancing/multi_stage_load_balancing.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

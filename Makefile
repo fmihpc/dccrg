@@ -38,6 +38,7 @@ include \
   tests/mpi_support/project_makefile \
   tests/get_cells/project_makefile \
   tests/geometry/project_makefile \
+  tests/load_balancing/project_makefile \
   tests/game_of_life/project_makefile \
   tests/advection/project_makefile
 
