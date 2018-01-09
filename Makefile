@@ -32,6 +32,7 @@ DCCRG_HEADERS = \
 include \
   examples/project_makefile \
   tests/init/project_makefile \
+  tests/iterators/project_makefile \
   tests/get_cell_datatype/project_makefile \
   tests/constructors/project_makefile \
   tests/mpi_support/project_makefile \

@@ -1,0 +1,50 @@
+TESTS_ITERATORS_EXECUTABLES = \
+  tests/iterators/test1.exe
+
+TESTS_ITERATORS_TESTS = \
+  tests/iterators/test1.tst \
+  tests/iterators/test1.mtst
+
+tests/iterators/executables: $(TESTS_ITERATORS_EXECUTABLES)
+
+tests/iterators/clean:
+	@printf "CLEAN tests/iterators\n" && rm -f \
+	  $(TESTS_ITERATORS_EXECUTABLES) $(TESTS_ITERATORS_TESTS)
+
+tests/iterators/tests: $(TESTS_ITERATORS_TESTS)
+
+EXECUTABLES += tests/iterators/executables
+TESTS += tests/iterators/tests
+CLEAN += tests/iterators/clean
+
+
+TESTS_ITERATORS_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/iterators/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_ITERATORS_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/iterators/test1.exe: \
+  tests/iterators/test1.cpp \
+  $(TESTS_ITERATORS_COMMON_DEPS)
+	$(TESTS_ITERATORS_COMPILE_COMMAND)
+
+tests/iterators/test1.tst: \
+  tests/iterators/test1.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/iterators/test1.mtst: \
+  tests/iterators/test1.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
