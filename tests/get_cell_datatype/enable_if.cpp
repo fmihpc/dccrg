@@ -1,7 +1,7 @@
 /*
 Tests for enable_if machinery for dccrg.
 
-Copyright 2014, 2015, 2016 Ilja Honkonen
+Copyright 2014, 2015, 2016, 2018 Ilja Honkonen
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -19,6 +19,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "cstdlib"
 #include "iostream"
+#include "tuple"
 
 #include "boost/function_types/property_tags.hpp"
 #include "boost/mpl/vector.hpp"
