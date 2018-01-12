@@ -1,0 +1,62 @@
+TESTS_ADDITIONAL_CELL_DATA_EXECUTABLES = \
+  tests/additional_cell_data/test1.exe \
+  tests/additional_cell_data/test2.exe
+
+TESTS_ADDITIONAL_CELL_DATA_TESTS = \
+  tests/additional_cell_data/test1.tst \
+  tests/additional_cell_data/test2.tst \
+  tests/additional_cell_data/test2.mtst
+
+tests/additional_cell_data/executables: $(TESTS_ADDITIONAL_CELL_DATA_EXECUTABLES)
+
+tests/additional_cell_data/clean:
+	@printf "CLEAN tests/additional_cell_data\n" && rm -f \
+	  $(TESTS_ADDITIONAL_CELL_DATA_EXECUTABLES) $(TESTS_ADDITIONAL_CELL_DATA_TESTS)
+
+tests/additional_cell_data/tests: $(TESTS_ADDITIONAL_CELL_DATA_TESTS)
+
+EXECUTABLES += tests/additional_cell_data/executables
+TESTS += tests/additional_cell_data/tests
+CLEAN += tests/additional_cell_data/clean
+
+
+TESTS_ADDITIONAL_CELL_DATA_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/additional_cell_data/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_ADDITIONAL_CELL_DATA_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/additional_cell_data/test1.exe: \
+  tests/additional_cell_data/test1.cpp \
+  $(TESTS_ADDITIONAL_CELL_DATA_COMMON_DEPS)
+	$(TESTS_ADDITIONAL_CELL_DATA_COMPILE_COMMAND)
+
+tests/additional_cell_data/test1.tst: \
+  tests/additional_cell_data/test1.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/additional_cell_data/test2.exe: \
+  tests/additional_cell_data/test2.cpp \
+  $(TESTS_ADDITIONAL_CELL_DATA_COMMON_DEPS)
+	$(TESTS_ADDITIONAL_CELL_DATA_COMPILE_COMMAND)
+
+tests/additional_cell_data/test2.tst: \
+  tests/additional_cell_data/test2.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/additional_cell_data/test2.mtst: \
+  tests/additional_cell_data/test2.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

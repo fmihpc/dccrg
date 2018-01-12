@@ -6444,7 +6444,6 @@ private:
 	> cell_data_pointers;
 
 
-	// writable version of this->cells
 	struct Cells_Item : Additional_Cell_Items...
 	{
 		uint64_t id;
@@ -6454,7 +6453,26 @@ private:
 		{
 			return a.id < b.id;
 		}
+
+		// everything done in update_caller() with two or more arguments
+		template<class Grid, class Cell, class...> void update_caller(const Grid&, const Cell&) {}
+
+		template<
+			class Grid,
+			class Cell,
+			class A,
+			class... B
+		> void update_caller(
+			const Grid& grid,
+			const Cell& cell,
+			const A& a,
+			const B&... b
+		) {
+			A::update(grid, cell, a);
+			update_caller(grid, cell, b...);
+		}
 	};
+	// writable version of this->cells
 	std::vector<Cells_Item> cells_rw;
 
 public:
@@ -9869,6 +9887,9 @@ private:
 			Cells_Item new_cells_item{};
 			new_cells_item.id = item.first;
 			new_cells_item.data = &item.second;
+
+			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
+
 			this->cells_rw.push_back(new_cells_item);
 		}
 	}
