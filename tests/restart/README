@@ -5,17 +5,9 @@ Restart files are written using the same functionality
 as remote neighbor updates, i.e. the MPI datatype
 returned by each local cell is used to write the
 grid to a file using parallel I/O. The same applies to
-loading the grid from a file. Currently the MPI
-datatype of each cell is queried only once so
-the amount of data per cell must be known before,
-for example, any data is read from the file when loading.
-At some point support for multiple rounds of file
-I/O will be added so it will be possible to have
-a variable amount of data in each cell.
+loading the grid from a file.
 
 Running make test will use Conway's game of life to
-test saving and loading of the game using a serial program.
-Running make parallel-test will test saving/loading using
-mpirun with two processes. Edit the makefile to use
-another program to launch the tests interactively.
-If successful each test will print PASSED to stdout.
+test saving and loading of the game using a serial program
+and using mpirun with two processes. If successful each
+test will print PASS to stdout.

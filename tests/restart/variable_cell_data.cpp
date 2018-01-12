@@ -322,10 +322,6 @@ int main(int argc, char* argv[])
 		grid.finish_loading_grid_data();
 	}
 
-	if (rank == 0) {
-		cout << "PASSED" << endl;
-	}
-
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;
