@@ -20,7 +20,6 @@ DCCRG_HEADERS = \
   dccrg_cartesian_geometry.hpp \
   dccrg_get_cell_datatype.hpp \
   dccrg.hpp \
-  dccrg_iterator_support.hpp \
   dccrg_length.hpp \
   dccrg_mapping.hpp \
   dccrg_mpi_support.hpp \
@@ -32,7 +31,6 @@ DCCRG_HEADERS = \
 include \
   examples/project_makefile \
   tests/init/project_makefile \
-  tests/iterators/project_makefile \
   tests/get_cell_datatype/project_makefile \
   tests/constructors/project_makefile \
   tests/mpi_support/project_makefile \
