@@ -46,7 +46,6 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "unordered_set"
 #include "vector"
 
-#include "boost/iterator/filter_iterator.hpp"
 #include "mpi.h"
 #include "zoltan.h"
 
@@ -67,7 +66,6 @@ MPI_UNSIGNED_LONG in the following:
 
 #include "dccrg_get_cell_datatype.hpp"
 #include "dccrg_no_geometry.hpp"
-#include "dccrg_iterator_support.hpp"
 #include "dccrg_mapping.hpp"
 #include "dccrg_mpi_support.hpp"
 #include "dccrg_topology.hpp"
@@ -140,6 +138,12 @@ static const int
 	has_remote_neighbor_both = has_remote_neighbor_of | has_remote_neighbor_to;
 
 
+/*! Required for compiler to know what to expect */
+template <
+	class Cell_Data,
+	class Geometry = No_Geometry,
+	class Additional_Cell_Items = std::tuple<>
+> class Dccrg;
 
 /*!
 \brief Main class of dccrg, instantiate and initialize() to create a parallel simulation grid.
@@ -195,36 +199,34 @@ Dccrg() to get started with the %dccrg API.
 */
 template <
 	class Cell_Data,
-	class Geometry = No_Geometry
-> class Dccrg
-{
+	class Geometry,
+	class... Additional_Cell_Items
+> class Dccrg<
+	Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+> {
 
-/*
-Supporting classes must be initialized in a particular order
-and the actual order is defined by their order in this source file.
-*/
 private:
-
 	/*!
 	Read-write version of topology for internal use.
 	*/
 	Grid_Topology topology_rw;
 
-	/*!
-	Read-write version of cell id mapping for internal use.
-	*/
-	Mapping mapping_rw;
-
-
 public:
-
-
 	/*!
 	Public read-only version of the grid's topology.
 
 	\see Grid_Topology
 	*/
 	const Grid_Topology& topology = this->topology_rw;
+
+private:
+	/*!
+	Read-write version of cell id mapping for internal use.
+	*/
+	Mapping mapping_rw;
+
+public:
+
 
 	/*!
 	Public read-only version of the mapping of a
@@ -3215,8 +3217,6 @@ public:
 	Returns a begin const_iterator to the internal storage of local cells and their data.
 
 	\see
-	begin_inner()
-	begin_outer()
 	end()
 	get_cells()
 	*/
@@ -3227,93 +3227,10 @@ public:
 
 	/*!
 	Returns an end const_iterator to the internal storage of local cells and their data.
-
-	\see
-	end_inner()
-	end_outer()
 	*/
 	typename std::unordered_map<uint64_t, Cell_Data>::const_iterator end() const
 	{
 		return this->cell_data.end();
-	}
-
-
-	/*!
-	Type of the iterator for inner cells of the process.
-	*/
-	typedef boost::filter_iterator<
-		Is_Inner_Cell<Cell_Data, Geometry>,
-		typename std::unordered_map<uint64_t, Cell_Data>::const_iterator
-	> inner_iterator;
-
-	/*!
-	Same as begin() but for local cells not on the process boundary.
-
-	\see
-	end_inner()
-	get_local_cells_not_on_process_boundary()
-	*/
-	inner_iterator begin_inner() const
-	{
-		return boost::make_filter_iterator(
-			Is_Inner_Cell<Cell_Data, Geometry>(*this),
-			this->cell_data.begin(),
-			this->cell_data.end()
-		);
-	}
-
-	/*!
-	Same as end() but for local cells not on the process boundary.
-
-	\see
-	begin_inner()
-	*/
-	inner_iterator end_inner() const
-	{
-		return boost::make_filter_iterator(
-			Is_Inner_Cell<Cell_Data, Geometry>(*this),
-			this->cell_data.end(),
-			this->cell_data.end()
-		);
-	}
-
-	/*!
-	Type of the iterator for outer cells of the process.
-	*/
-	typedef boost::filter_iterator<
-		Is_Outer_Cell<Cell_Data, Geometry>,
-		typename std::unordered_map<uint64_t, Cell_Data>::const_iterator
-	> outer_iterator;
-
-	/*!
-	Same as begin() but for local cells on the process boundary.
-
-	\see
-	end_outer()
-	get_local_cells_on_process_boundary()
-	*/
-	outer_iterator begin_outer() const
-	{
-		return boost::make_filter_iterator(
-			Is_Outer_Cell<Cell_Data, Geometry>(*this),
-			this->cell_data.begin(),
-			this->cell_data.end()
-		);
-	}
-
-	/*!
-	Same as end() but for local cells on the process boundary.
-
-	\see
-	begin_outer()
-	*/
-	outer_iterator end_outer() const
-	{
-		return boost::make_filter_iterator(
-			Is_Outer_Cell<Cell_Data, Geometry>(*this),
-			this->cell_data.end(),
-			this->cell_data.end()
-		);
 	}
 
 
@@ -6528,7 +6445,7 @@ private:
 
 
 	// writable version of this->cells
-	struct Cells_Item
+	struct Cells_Item : Additional_Cell_Items...
 	{
 		uint64_t id;
 		Cell_Data* data;
@@ -6702,79 +6619,79 @@ private:
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_number_of_cells,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_number_of_cells,
 			this
 		);
 
 		Zoltan_Set_Obj_List_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_cell_list,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_cell_list,
 			this
 		);
 
 		Zoltan_Set_Num_Geom_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_grid_dimensionality,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_grid_dimensionality,
 			NULL
 		);
 
 		Zoltan_Set_Geom_Multi_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_with_cell_coordinates,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_with_cell_coordinates,
 			this
 		);
 
 		Zoltan_Set_Num_Edges_Multi_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_number_of_neighbors_for_cells,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_number_of_neighbors_for_cells,
 			this
 		);
 
 		Zoltan_Set_Edge_List_Multi_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_neighbor_lists,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_neighbor_lists,
 			this
 		);
 
 		Zoltan_Set_HG_Size_CS_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_number_of_hyperedges,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_number_of_hyperedges,
 			this
 		);
 
 		Zoltan_Set_HG_CS_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_hyperedge_lists,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_hyperedge_lists,
 			this
 		);
 
 		Zoltan_Set_HG_Size_Edge_Wts_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_number_of_edge_weights,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_number_of_edge_weights,
 			this
 		);
 
 		Zoltan_Set_HG_Edge_Wts_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::fill_edge_weights,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_edge_weights,
 			this
 		);
 
 		Zoltan_Set_Hier_Num_Levels_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_number_of_load_balancing_hierarchies,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_number_of_load_balancing_hierarchies,
 			this
 		);
 
 		Zoltan_Set_Hier_Part_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::get_part_number,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_part_number,
 			this
 		);
 
 		Zoltan_Set_Hier_Method_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry>::set_partitioning_options,
+			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::set_partitioning_options,
 			this
 		);
 
@@ -9949,7 +9866,10 @@ private:
 	{
 		this->cells_rw.clear();
 		for (auto& item: this->cell_data) {
-			this->cells_rw.push_back({item.first, &item.second});
+			Cells_Item new_cells_item{};
+			new_cells_item.id = item.first;
+			new_cells_item.data = &item.second;
+			this->cells_rw.push_back(new_cells_item);
 		}
 	}
 
@@ -10074,8 +9994,8 @@ private:
 		double *geom_vec,
 		int *error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -10103,8 +10023,8 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->cell_data.size());
 	}
@@ -10123,8 +10043,8 @@ private:
 		float* object_weights,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -10165,8 +10085,8 @@ private:
 		int* number_of_neighbors,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -10208,8 +10128,8 @@ private:
 		int number_of_weights_per_edge,
 		float* edge_weights, int* error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbor_number = 0;
@@ -10260,8 +10180,8 @@ private:
 		int* number_of_connections,
 		int* format, int* error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = int(dccrg_instance->cell_data.size());
@@ -10298,8 +10218,8 @@ private:
 		ZOLTAN_ID_PTR connections,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
@@ -10357,8 +10277,8 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = int(dccrg_instance->cell_data.size());
@@ -10380,8 +10300,8 @@ private:
 		float* hyperedge_weights,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cell_data.size()) {
@@ -10423,8 +10343,8 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->processes_per_part.size());
 	}
@@ -10435,8 +10355,8 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
@@ -10477,8 +10397,8 @@ private:
 			return;
 		}
 
-		Dccrg<Cell_Data, Geometry>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry> *>(data);
+		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
+			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
