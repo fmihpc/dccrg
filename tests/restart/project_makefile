@@ -59,7 +59,7 @@ tests/restart/restart_test.tst: \
 	@cd tests/restart && rm -f gol*dc && $(foreach dir, $(DIRS), rm -rf $(dir);)
 
 tests/restart/restart_test.mtst: \
-  tests/restart/restart_test.exe
+  tests/restart/restart_test.exe tests/restart/restart_test.tst
 	@echo -n "MPIRUN $< without restart... " && cd tests/restart && $(MPIRUN) ./restart_test.exe && echo PASS
 	@cd tests/restart && $(foreach dir, $(DIRS), mkdir -p $(dir);)
 	@cd tests/restart && $(foreach dir, $(DIRS), echo -n "MPIRUN restart from step $(dir): " && cd $(dir) && $(MPIRUN) ../restart_test.exe --restart ../gol_$(dir).dc && echo PASS && cd .. &&) touch restart_test.mtst
@@ -72,14 +72,14 @@ tests/restart/restart_test2.exe: \
 	$(TESTS_RESTART_COMPILE_COMMAND)
 
 tests/restart/restart_test2.tst: \
-  tests/restart/restart_test2.exe
+  tests/restart/restart_test2.exe tests/restart/restart_test.mtst
 	@echo -n "RUN $< without restart... " && cd tests/restart && $(RUN) ./restart_test2.exe && echo PASS
 	@cd tests/restart && $(foreach dir, $(DIRS), mkdir -p $(dir);)
 	@cd tests/restart && $(foreach dir, $(DIRS), echo -n "RUN restart from step $(dir): " && cd $(dir) && $(RUN) ../restart_test2.exe --restart ../gol_$(dir).dc && echo PASS && cd .. &&) touch restart_test2.tst
 	@cd tests/restart && rm -f gol*dc && $(foreach dir, $(DIRS), rm -rf $(dir);)
 
 tests/restart/restart_test2.mtst: \
-  tests/restart/restart_test2.exe
+  tests/restart/restart_test2.exe tests/restart/restart_test2.tst
 	@echo -n "MPIRUN $< without restart... " && cd tests/restart && $(MPIRUN) ./restart_test2.exe && echo PASS
 	@cd tests/restart && $(foreach dir, $(DIRS), mkdir -p $(dir);)
 	@cd tests/restart && $(foreach dir, $(DIRS), echo -n "MPIRUN restart from step $(dir): " && cd $(dir) && $(MPIRUN) ../restart_test2.exe --restart ../gol_$(dir).dc && echo PASS && cd .. &&) touch restart_test2.mtst
@@ -98,7 +98,7 @@ tests/restart/variable_cell_data.tst: \
 	@cd tests/restart && rm -f variable_cell_data.dc
 
 tests/restart/variable_cell_data.mtst: \
-  tests/restart/variable_cell_data.exe
+  tests/restart/variable_cell_data.exe tests/restart/variable_cell_data.tst
 	@echo -n "MPIRUN $< without restart...  " && cd tests/restart && $(MPIRUN) ./variable_cell_data.exe && echo PASS
 	@echo -n "MPIRUN $< with restart...  " && cd tests/restart && $(MPIRUN) ./variable_cell_data.exe --restart variable_cell_data.dc && echo PASS && touch variable_cell_data.mtst
 	@cd tests/restart && rm -f variable_cell_data.dc
