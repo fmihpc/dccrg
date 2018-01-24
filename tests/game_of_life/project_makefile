@@ -62,7 +62,7 @@ TESTS_GAME_OF_LIFE_COMMON_DEPS = \
   Makefile
 
 TESTS_GAME_OF_LIFE_COMPILE_COMMAND = \
-  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \
@@ -82,11 +82,11 @@ tests/game_of_life/game_of_life_test.exe: \
 
 tests/game_of_life/game_of_life_test.tst1: \
   tests/game_of_life/game_of_life_test.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/game_of_life_test.tstN: \
   tests/game_of_life/game_of_life_test.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/game_of_life_test_optimized.exe: \
@@ -97,11 +97,11 @@ tests/game_of_life/game_of_life_test_optimized.exe: \
 
 tests/game_of_life/game_of_life_test_optimized.tst1: \
   tests/game_of_life/game_of_life_test_optimized.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/game_of_life_test_optimized.tstN: \
   tests/game_of_life/game_of_life_test_optimized.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/pinned_cells.exe: \
@@ -111,11 +111,11 @@ tests/game_of_life/pinned_cells.exe: \
 
 tests/game_of_life/pinned_cells.tst1: \
   tests/game_of_life/pinned_cells.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/pinned_cells.tstN: \
   tests/game_of_life/pinned_cells.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/scalability1d.exe: \
@@ -142,11 +142,11 @@ tests/game_of_life/refined2d.exe: \
 
 tests/game_of_life/refined2d.tst1: \
   tests/game_of_life/refined2d.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/refined2d.tstN: \
   tests/game_of_life/refined2d.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/refined.exe: \
@@ -157,11 +157,11 @@ tests/game_of_life/refined.exe: \
 
 tests/game_of_life/refined.tst1: \
   tests/game_of_life/refined.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/refined.tstN: \
   tests/game_of_life/refined.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/refined_scalability3d.exe: \
@@ -178,11 +178,11 @@ tests/game_of_life/hierarchical_test.exe: \
 
 tests/game_of_life/hierarchical_test.tst1: \
   tests/game_of_life/hierarchical_test.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/hierarchical_test.tstN: \
   tests/game_of_life/hierarchical_test.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/unrefined2d.exe: \
@@ -193,11 +193,11 @@ tests/game_of_life/unrefined2d.exe: \
 
 tests/game_of_life/unrefined2d.tst1: \
   tests/game_of_life/unrefined2d.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/unrefined2d.tstN: \
   tests/game_of_life/unrefined2d.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
 tests/game_of_life/unrefined2d_optimized.exe: \
@@ -209,9 +209,9 @@ tests/game_of_life/unrefined2d_optimized.exe: \
 
 tests/game_of_life/unrefined2d_optimized.tst1: \
   tests/game_of_life/unrefined2d_optimized.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/game_of_life/unrefined2d_optimized.tstN: \
   tests/game_of_life/unrefined2d_optimized.exe
-	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
