@@ -38,6 +38,7 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "cstdlib"
 #include "fstream"
 #include "functional"
+#include "iterator"
 #include "limits"
 #include "stdexcept"
 #include "tuple"
@@ -6454,7 +6455,7 @@ private:
 			return a.id < b.id;
 		}
 
-		// everything done in update_caller() with two or more arguments
+		// everything done in update_caller() with three or more arguments
 		template<class Grid, class Cell, class...> void update_caller(const Grid&, const Cell&) {}
 
 		template<
@@ -6496,6 +6497,39 @@ public:
 	*/
 	const std::vector<Cells_Item>& cells = this->cells_rw;
 
+
+	/*!
+	Holds iterators for fast iteration over a subset of cells owned by this process.
+
+	Example:
+	\verbatim
+	struct Cell_Data {...};
+	dccrg<Cell_Data> grid;
+	...
+	for (const auto& cell: grid.inner_cells) {
+		use data of neighbors of cell here...
+	}
+	grid.update_copies_of_remote_neighbors();
+	for (const auto& cell: grid.outer_cells) {
+		use data of neighbors of cell here...
+	}
+	\endverbatim
+	*/
+	struct Cells_Iterator {
+		typename std::vector<Cells_Item>::const_iterator begin_, end_ /*TODO: = nullptr (c++14)*/;
+		typename std::vector<Cells_Item>::const_iterator begin() const { return this->begin_; }
+		typename std::vector<Cells_Item>::const_iterator end() const { return this->end_; }
+	};
+
+	Cells_Iterator
+		//! iterator over local cells without neighbors on other processes
+		inner_cells{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over local cells with neighbor(s) on other processes
+		outer_cells{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over local cells
+		local_cells{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over copies of cells of other processes that have neighbor(s) on this process
+		remote_cells{this->cells.cbegin(), this->cells.cbegin()};
 
 private:
 
@@ -9883,7 +9917,16 @@ private:
 	void update_cell_pointers()
 	{
 		this->cells_rw.clear();
+
+		size_t nr_inner = 0, nr_outer = 0, nr_remote = 0;
+
+		// local cells without remote neighbors
 		for (auto& item: this->cell_data) {
+			if (this->local_cells_on_process_boundary.count(item.first) > 0) {
+				continue;
+			}
+			nr_inner++;
+
 			Cells_Item new_cells_item{};
 			new_cells_item.id = item.first;
 			new_cells_item.data = &item.second;
@@ -9892,6 +9935,41 @@ private:
 
 			this->cells_rw.push_back(new_cells_item);
 		}
+
+		// local cells with remote neighbor(s)
+		for (auto& item: this->cell_data) {
+			if (this->local_cells_on_process_boundary.count(item.first) == 0) {
+				continue;
+			}
+			nr_outer++;
+
+			Cells_Item new_cells_item{};
+			new_cells_item.id = item.first;
+			new_cells_item.data = &item.second;
+
+			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
+
+			this->cells_rw.push_back(new_cells_item);
+		}
+
+		// TODO: remote cells with local neighbor(s)
+
+		// update iterators
+		this->inner_cells.begin_  =
+		this->inner_cells.end_    =
+		this->outer_cells.begin_  =
+		this->outer_cells.end_    =
+		this->local_cells.begin_  =
+		this->local_cells.end_    =
+		this->remote_cells.begin_ =
+		this->remote_cells.end_   = this->cells.cbegin();
+
+		std::advance(this->inner_cells.end_, nr_inner);
+		std::advance(this->outer_cells.begin_, nr_inner);
+		std::advance(this->outer_cells.end_, nr_inner + nr_outer);
+		std::advance(this->local_cells.end_, nr_inner + nr_outer);
+		std::advance(this->remote_cells.begin_, nr_inner + nr_outer);
+		std::advance(this->remote_cells.end_, nr_inner + nr_outer + nr_remote);
 	}
 
 
