@@ -75,6 +75,9 @@ int main(int argc, char* argv[])
 
 	const std::array<uint64_t, 3> grid_length = {{1000, 1000, 1}};
 	const double cell_length = 1.0 / grid_length[0];
+	#define NEIGHBORHOOD_SIZE 1
+	#define MAX_REFINEMENT_LEVEL 0
+	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -84,9 +87,6 @@ int main(int argc, char* argv[])
 	}
 	game_grid.set_geometry(geom_params);
 
-	#define NEIGHBORHOOD_SIZE 1
-	#define MAX_REFINEMENT_LEVEL 0
-	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 	if (rank == 0) {
 		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level() << endl;
 		cout << "Number of cells: "
@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
 
 	MPI_Barrier(comm);
 
-	#define TIME_STEPS 100
+	#define TIME_STEPS 10
 	before = time(NULL);
 	for (int step = 0; step < TIME_STEPS; step++) {
 
@@ -163,27 +163,19 @@ int main(int argc, char* argv[])
 		Get the neighbor counts of every cell, starting with the cells whose neighbor data
 		doesn't come from other processes
 		*/
-		for (vector<uint64_t>::const_iterator
-			cell = inner_cells.begin();
-			cell != inner_cells.end();
-			cell++
-		) {
-			game_of_life_cell* cell_data = game_grid[*cell];
-			cell_data->data[1] = 0;
+		for (const auto& cell: game_grid.inner_cells) {
+			//game_of_life_cell* cell_data = game_grid[*cell];
+			cell.data->data[1] = 0;
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(*cell);
-			for (vector<uint64_t>::const_iterator
-				neighbor = neighbors->begin();
-				neighbor != neighbors->end();
-				neighbor++
-			) {
-				if (*neighbor == 0) {
+			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell.id);
+			for (const auto& neighbor: *neighbors) {
+				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[*neighbor];
+				game_of_life_cell* neighbor_data = game_grid[neighbor];
 				if (neighbor_data->data[0] == 1) {
-					cell_data->data[1]++;
+					cell.data->data[1]++;
 				}
 			}
 		}
