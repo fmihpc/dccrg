@@ -3,6 +3,7 @@ Program for testing dccrg using Conway's game of life.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
 2015, 2016 Finnish Meteorological Institute
+Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -52,7 +53,7 @@ timestep == 0 means before any turns have been taken.
 */
 int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian_Geometry>& grid)
 {
-	for (const auto& cell: grid.cells) {
+	for (const auto& cell: grid.local_cells) {
 		// check cells that are always supposed to be alive
 		switch (cell.id) {
 		case 22:
@@ -248,7 +249,7 @@ int main(int argc, char* argv[])
 	Options
 	*/
 	char direction;
-	bool save = false, verbose = false;
+	bool save_results = false, verbose = false;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
@@ -278,7 +279,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (option_variables.count("save") > 0) {
-		save = true;
+		save_results = true;
 	}
 
 	// intialize Zoltan
@@ -292,7 +293,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grid
-	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
 
 	const uint64_t base_length = 15;
 	const double cell_length = 1.0 / base_length;
@@ -324,7 +325,7 @@ int main(int argc, char* argv[])
 	}
 
 	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 0);
+	grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 0);
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -333,26 +334,26 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (!game_grid.set_geometry(geom_params)) {
+	if (!grid.set_geometry(geom_params)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
 
 	#ifdef SEND_SINGLE_CELLS
-	game_grid.set_send_single_cells(true);
+	grid.set_send_single_cells(true);
 	#endif
 
 	if (verbose && rank == 0) {
-		cout << "Maximum refinement level of the grid: " << game_grid.get_maximum_refinement_level()
+		cout << "Maximum refinement level of the grid: " << grid.get_maximum_refinement_level()
 			<< "\nNumber of cells: "
 			<< (geom_params.coordinates[0].size() - 1)
 				* (geom_params.coordinates[1].size() - 1)
 				* (geom_params.coordinates[2].size() - 1)
-			<< "\nSending single cells: " << boolalpha << game_grid.get_send_single_cells()
+			<< "\nSending single cells: " << boolalpha << grid.get_send_single_cells()
 			<< endl << endl;
 	}
 
-	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
+	initialize(grid, base_length);
 
 	// every process outputs the game state into its own file
 	string basename("tests/game_of_life/game_of_life_test_");
@@ -360,7 +361,7 @@ int main(int argc, char* argv[])
 
 	// visualize the game with visit -o game_of_life_test.visit
 	ofstream visit_file;
-	if (save && rank == 0) {
+	if (save_results && rank == 0) {
 		string visit_file_name("tests/game_of_life/game_of_life_test_");
 		visit_file_name += direction;
 		visit_file_name += ".visit";
@@ -374,12 +375,12 @@ int main(int argc, char* argv[])
 	}
 	for (int step = 0; step < time_steps; step++) {
 
-		game_grid.balance_load();
-		game_grid.start_remote_neighbor_copy_updates();
-		game_grid.wait_remote_neighbor_copy_updates();
+		grid.balance_load();
+		grid.start_remote_neighbor_copy_updates();
+		grid.wait_remote_neighbor_copy_updates();
 
-		int result = check_game_of_life_state(step, game_grid);
-		if (grid_length[0] != 15 || result != EXIT_SUCCESS) {
+		int result = check_game_of_life_state(step, grid);
+		if ((grid_length[0] != 15 and grid_length[1] != 15) or result != EXIT_SUCCESS) {
 			cout << "Process " << rank << ": Game of Life test failed on timestep: " << step << endl;
 			abort();
 		}
@@ -389,11 +390,11 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		if (save) {
+		if (save_results) {
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
 			output_name.append(lexical_cast<string>(step)).append(".vtk");
-			Save<Stretched_Cartesian_Geometry>::save(output_name, rank, game_grid);
+			save(output_name, rank, grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
 			if (rank == 0) {
@@ -408,10 +409,10 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(game_grid);
+		get_live_neighbors(grid);
 	}
 
-	if (rank == 0 and save) {
+	if (rank == 0 and save_results) {
 		visit_file.close();
 	}
 
@@ -419,4 +420,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

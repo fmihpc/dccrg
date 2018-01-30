@@ -3,7 +3,7 @@ A distributed cartesian cell-refinable grid.
 
 Copyright 2009, 2010, 2011, 2012, 2013,
 2014, 2015, 2016 Finnish Meteorological Institute
-Copyright 2014, 2015, 2016 Ilja Honkonen
+Copyright 2014, 2015, 2016, 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -40,6 +40,7 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "functional"
 #include "iterator"
 #include "limits"
+#include "set"
 #include "stdexcept"
 #include "tuple"
 #include "utility"
@@ -772,7 +773,7 @@ public:
 		if (this->cell_data.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
-				if (this->neighbors.count(cell) == 0) {
+				if (this->neighbors_of.count(cell) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
 						<< ": Neighbor list for cell " << cell
@@ -782,7 +783,7 @@ public:
 				}
 				#endif
 
-				return &(this->neighbors.at(cell));
+				return &(this->neighbors_of.at(cell));
 
 			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
 
@@ -2328,7 +2329,7 @@ public:
 			this->cells_to_unrefine.erase(sibling);
 		}
 
-		for(const auto& neighbor: this->neighbors.at(cell)) {
+		for(const auto& neighbor: this->neighbors_of.at(cell)) {
 
 			if (this->mapping.get_refinement_level(neighbor) <= refinement_level) {
 				const std::vector<uint64_t> neighbor_siblings
@@ -2604,11 +2605,11 @@ public:
 
 		for (size_t
 			neighbor_i = 0;
-			neighbor_i < this->neighbors.at(cell).size();
+			neighbor_i < this->neighbors_of.at(cell).size();
 			neighbor_i++
 		) {
 
-			const uint64_t neighbor = this->neighbors.at(cell)[neighbor_i];
+			const uint64_t neighbor = this->neighbors_of.at(cell)[neighbor_i];
 
 			if (neighbor == error_cell) {
 				for (size_t i = 0; i < current_index.size(); i++) {
@@ -2646,7 +2647,7 @@ public:
 						const uint64_t neighs_in_offset = uint64_t(1) << 3;
 
 						#ifdef DEBUG
-						if (this->neighbors.at(cell).size() < neighbor_i + neighs_in_offset) {
+						if (this->neighbors_of.at(cell).size() < neighbor_i + neighs_in_offset) {
 							std::cerr << __FILE__ << ":" << __LINE__
 								<< " Invalid number of neighbors for cell " << cell
 								<< " while processing dimension " << dimension
@@ -2659,8 +2660,8 @@ public:
 
 						// see find_neighbors_of(...) for the order of these
 						const std::vector<uint64_t> dir_neighs(
-							this->neighbors.at(cell).begin() + neighbor_i,
-							this->neighbors.at(cell).begin() + neighbor_i + neighs_in_offset
+							this->neighbors_of.at(cell).begin() + neighbor_i,
+							this->neighbors_of.at(cell).begin() + neighbor_i + neighs_in_offset
 						);
 
 						// neighbor at offset    0, 1, 2, 3, 4, 5, 6, 7 is
@@ -2746,7 +2747,7 @@ public:
 
 		const std::vector<uint64_t>& neighs_of
 			= (neighborhood_id == default_neighborhood_id)
-			? this->neighbors.at(cell)
+			? this->neighbors_of.at(cell)
 			: this->user_neigh_of.at(neighborhood_id).at(cell);
 
 		for(const auto& neighbor: neighs_of) {
@@ -2877,7 +2878,7 @@ public:
 			}
 
 			const int current_refinement_level
-				= this->mapping.get_refinement_level(this->neighbors.at(cell)[index]);
+				= this->mapping.get_refinement_level(this->neighbors_of.at(cell)[index]);
 
 			if (i == current_i && j == current_j && k == current_k) {
 
@@ -2885,13 +2886,13 @@ public:
 				if (current_refinement_level == -1) {
 					return_neighbors.push_back(0);
 				} else {
-					return_neighbors.push_back(this->neighbors.at(cell)[index]);
+					return_neighbors.push_back(this->neighbors_of.at(cell)[index]);
 
 					if (current_refinement_level > refinement_level) {
 						return_neighbors.reserve(8);
 						for (int i = 1; i < 8; i++) {
 							index++;
-							return_neighbors.push_back(this->neighbors.at(cell)[index]);
+							return_neighbors.push_back(this->neighbors_of.at(cell)[index]);
 						}
 					}
 				}
@@ -2945,7 +2946,7 @@ public:
 
 		const std::vector<uint64_t>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
-			? this->neighbors.at(cell)
+			? this->neighbors_of.at(cell)
 			: this->user_neigh_of.at(neighborhood_id).at(cell);
 
 		for(const auto& neighbor: neighbors_ref) {
@@ -3211,39 +3212,6 @@ public:
 		}
 
 		return ret_val;
-	}
-
-
-	/*!
-	Returns a begin const_iterator to the internal storage of local cells and their data.
-
-	\see
-	end()
-	get_cells()
-	*/
-	typename std::unordered_map<uint64_t, Cell_Data>::const_iterator begin() const
-	{
-		return this->cell_data.begin();
-	}
-
-	/*!
-	Returns an end const_iterator to the internal storage of local cells and their data.
-	*/
-	typename std::unordered_map<uint64_t, Cell_Data>::const_iterator end() const
-	{
-		return this->cell_data.end();
-	}
-
-
-	/*!
-	Returns the number of local cells without children, e.g. leaf cells.
-
-	\see
-	get_cells()
-	*/
-	size_t size() const
-	{
-		return this->cell_data.size();
 	}
 
 
@@ -3714,7 +3682,7 @@ public:
 			}
 
 			// TODO: use this->update_neighbors(added_cell)
-			this->neighbors[added_cell]
+			this->neighbors_of[added_cell]
 				= this->find_neighbors_of(added_cell, this->neighborhood_of, this->max_ref_lvl_diff);
 			this->neighbors_to[added_cell]
 				= this->find_neighbors_to(added_cell, this->neighborhood_to);
@@ -3732,7 +3700,7 @@ public:
 		// free user data and neighbor lists of cells removed from this process
 		for (const uint64_t removed_cell: this->removed_cells) {
 			this->cell_data.erase(removed_cell);
-			this->neighbors.erase(removed_cell);
+			this->neighbors_of.erase(removed_cell);
 			this->neighbors_to.erase(removed_cell);
 
 			// also user neighbor lists
@@ -6286,6 +6254,41 @@ public:
 	}
 
 
+	/*!
+	Returns offset of cell @to from cell @from using size of from as unit.
+
+	Returns the multiplier of size of @from which when added to position
+	of @from will be the position of @to.
+	*/
+	std::array<int, 3> get_offset(const uint64_t from, const uint64_t to)
+	{
+		const auto
+			from_i = this->mapping.get_indices(from),
+			to_i = this->mapping.get_indices(to);
+		const std::array<int64_t, 3> diff{
+			int64_t(to_i[0]) - int64_t(from_i[0]),
+			int64_t(to_i[1]) - int64_t(from_i[1]),
+			int64_t(to_i[2]) - int64_t(from_i[2])
+		};
+		const int64_t from_len = this->mapping.get_cell_length_in_indices(from);
+
+		for (size_t i = 0; i < 3; i++) {
+			if (
+				diff[i] / from_len > std::numeric_limits<int>::max() - 1
+				or diff[i] / from_len < std::numeric_limits<int>::lowest() + 1
+			) {
+				throw std::invalid_argument("Offset cannot be represented by int: " + std::to_string(diff[i] / from_len));
+			}
+		}
+
+		return {
+			// stackoverflow.com/questions/2745074
+			int(diff[0] / from_len) + (diff[0] % from_len != 0),
+			int(diff[1] / from_len) + (diff[1] % from_len != 0),
+			int(diff[2] / from_len) + (diff[2] % from_len != 0)
+		};
+	}
+
 
 private:
 	bool initialized;
@@ -6310,8 +6313,13 @@ private:
 	// cells and their data on this process
 	std::unordered_map<uint64_t, Cell_Data> cell_data;
 
-	// cell on this process and its neighbors
-	std::unordered_map<uint64_t, std::vector<uint64_t>> neighbors;
+	/*!
+	Cell on this process and cells it considers as neighbors
+
+	Owner(s) of neighbors_of send user data of neighbors_of to owner
+	of the cell during remote neighbor data update.
+	*/
+	std::unordered_map<uint64_t, std::vector<uint64_t>> neighbors_of;
 
 	/*
 	Offsets of cells that are considered as neighbors of a cell and
@@ -6445,10 +6453,67 @@ private:
 	> cell_data_pointers;
 
 
-	struct Cells_Item : Additional_Cell_Items...
-	{
+	//! stores begin and end iterators for range-based for loop
+	template<class T> struct Iterator_Storage {
+		typename std::vector<T>::const_iterator begin_, end_ /*TODO: = nullptr (c++14)*/;
+		typename std::vector<T>::const_iterator begin() const { return this->begin_; }
+		typename std::vector<T>::const_iterator end() const { return this->end_; }
+	};
+
+
+private:
+	struct Neighbors_Item {
 		uint64_t id;
 		Cell_Data* data;
+		/*!
+		Offset from cell, in units of cell's size
+
+		Offset of a face neighbor is always 1 regardless of denominator
+		(in one dimension, 0 in others).
+
+		Examples:
+		\verbatim
+		indices           |0|1|2|3|4|5|6|7|8|9|...
+		cell              |---|
+		offset (denom = 2)    |1|2|3|4|5|6|...
+		       (denom = 1)    | 1 | 2 | 3 | 4 |...
+		       (denom = 1)    |   1   |   3   |...
+
+		cell              |-------|
+		offset (denom = 4)        |1|2|3|4|5|...
+		offset (denom = 2)        | 1 | 2 |...
+		\endverbatim
+		*/
+		int x, y, z;
+		/*!
+		Denominator / divisor of offset from cell.
+
+		Value is 2 for neighbor 1/2 the size of cell, 4 for neighbor 1/4 the
+		size of cell, etc. Value is 1 if neighbor is larger than cell.
+		*/
+		int denom;
+	};
+
+	std::vector<Neighbors_Item> neighbors_rw;
+
+public:
+	/*!
+	Neighbors of cells owned by this process.
+
+	See \cells for iterating over neighbors of specific cells.
+	*/
+	const std::vector<Neighbors_Item>& neighbors = this->neighbors_rw;
+
+private:
+	struct Cells_Item : Additional_Cell_Items...
+	{
+		uint64_t id = error_cell;
+		Cell_Data* data = nullptr;
+		Iterator_Storage<Neighbors_Item>
+			//! iterator to cells considered as neighbor by this cell
+			neighbors_of,
+			//! iterator to cells that consider this one as neighbor
+			neighbors_to;
 
 		friend bool operator < (const Cells_Item& a, const Cells_Item& b)
 		{
@@ -6497,7 +6562,6 @@ public:
 	*/
 	const std::vector<Cells_Item>& cells = this->cells_rw;
 
-
 	/*!
 	Holds iterators for fast iteration over a subset of cells owned by this process.
 
@@ -6515,13 +6579,7 @@ public:
 	}
 	\endverbatim
 	*/
-	struct Cells_Iterator {
-		typename std::vector<Cells_Item>::const_iterator begin_, end_ /*TODO: = nullptr (c++14)*/;
-		typename std::vector<Cells_Item>::const_iterator begin() const { return this->begin_; }
-		typename std::vector<Cells_Item>::const_iterator end() const { return this->end_; }
-	};
-
-	Cells_Iterator
+	Iterator_Storage<Cells_Item>
 		//! iterator over local cells without neighbors on other processes
 		inner_cells{this->cells.cbegin(), this->cells.cbegin()},
 		//! iterator over local cells with neighbor(s) on other processes
@@ -6530,6 +6588,7 @@ public:
 		local_cells{this->cells.cbegin(), this->cells.cbegin()},
 		//! iterator over copies of cells of other processes that have neighbor(s) on this process
 		remote_cells{this->cells.cbegin(), this->cells.cbegin()};
+
 
 private:
 
@@ -7010,7 +7069,7 @@ private:
 	{
 		// update neighbor lists of created cells
 		for (const auto& item: this->cell_data) {
-			this->neighbors[item.first]
+			this->neighbors_of[item.first]
 				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
 			this->neighbors_to[item.first]
 				= this->find_neighbors_to(item.first, this->neighborhood_to);
@@ -7361,7 +7420,7 @@ private:
 				abort();
 			}
 
-			if (this->neighbors.count(cell) == 0) {
+			if (this->neighbors_of.count(cell) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No neighbor_of list for cell " << cell
 					<< std::endl;
@@ -7379,7 +7438,7 @@ private:
 			const int current_process = int(this->rank);
 
 			// data must be received from neighbors_of
-			for (const uint64_t neighbor: this->neighbors.at(cell)) {
+			for (const uint64_t neighbor: this->neighbors_of.at(cell)) {
 
 				if (neighbor == error_cell) {
 					continue;
@@ -7672,8 +7731,8 @@ private:
 			return;
 		}
 
-		this->neighbors.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
-		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors.at(cell));
+		this->neighbors_of.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
+		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors_of.at(cell));
 
 		#ifdef DEBUG
 		if (
@@ -7759,7 +7818,7 @@ private:
 		this->local_cells_on_process_boundary.erase(cell);
 
 		#ifdef DEBUG
-		if (this->neighbors.count(cell) == 0) {
+		if (this->neighbors_of.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Neighbor list for cell " << cell
 				<< " doesn't exist"
@@ -7777,7 +7836,7 @@ private:
 		#endif
 
 		// neighbors of given cell
-		for (const uint64_t neighbor: this->neighbors.at(cell)) {
+		for (const uint64_t neighbor: this->neighbors_of.at(cell)) {
 
 			if (neighbor == error_cell) {
 				continue;
@@ -8179,7 +8238,7 @@ private:
 			for (const uint64_t refined: all_new_refines.at(this->rank)) {
 
 				// refine local neighbors that are too large
-				for (const uint64_t neighbor: this->neighbors.at(refined)) {
+				for (const uint64_t neighbor: this->neighbors_of.at(refined)) {
 
 					if (neighbor == 0) {
 						continue;
@@ -8628,7 +8687,7 @@ private:
 
 
 			if (this->cell_process.at(refined) == this->rank
-			&& this->neighbors.count(refined) == 0) {
+			&& this->neighbors_of.count(refined) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Neighbor list for cell " << refined
 					<< " doesn't exist"
@@ -8662,7 +8721,7 @@ private:
 
 				if (this->rank == process_of_refined) {
 					this->cell_data[child];
-					this->neighbors[child];
+					this->neighbors_of[child];
 					this->neighbors_to[child];
 					new_cells.push_back(child);
 				}
@@ -8699,7 +8758,7 @@ private:
 				}
 
 				// update neighbor lists of all the parent's neighbors
-				for (const uint64_t neighbor: this->neighbors.at(refined)) {
+				for (const uint64_t neighbor: this->neighbors_of.at(refined)) {
 					if (neighbor == 0) {
 						continue;
 					}
@@ -8986,7 +9045,7 @@ private:
 			// add user data and neighbor lists of local parents of unrefined cells
 			if (this->cell_process.at(parent) == this->rank) {
 				this->cell_data[parent];
-				this->neighbors[parent] = new_neighbors_of;
+				this->neighbors_of[parent] = new_neighbors_of;
 				this->neighbors_to[parent] = new_neighbors_to;
 
 				// add user neighbor lists
@@ -9019,7 +9078,7 @@ private:
 			if (this->cell_process.at(refined) == this->rank) {
 
 				#ifdef DEBUG
-				if (this->neighbors.count(refined) == 0) {
+				if (this->neighbors_of.count(refined) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Neighbor list for cell " << refined
 						<< " doesn't exist"
@@ -9036,7 +9095,7 @@ private:
 				}
 				#endif
 
-				this->neighbors.erase(refined);
+				this->neighbors_of.erase(refined);
 				this->neighbors_to.erase(refined);
 
 				// remove also from user's neighborhood
@@ -9053,7 +9112,7 @@ private:
 
 		// remove neighbor lists of removed cells
 		for (const uint64_t unrefined: all_to_unrefine) {
-			this->neighbors.erase(unrefined);
+			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
 			// also from user neighborhood
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -9917,39 +9976,157 @@ private:
 	void update_cell_pointers()
 	{
 		this->cells_rw.clear();
+		this->neighbors_rw.clear();
+
+		this->cells_rw.reserve(this->cell_data.size());
+		this->neighbors_rw.reserve(2 * this->cell_data.size());
 
 		size_t nr_inner = 0, nr_outer = 0, nr_remote = 0;
 
+		std::vector<uint64_t> ordered_cells;
+		ordered_cells.reserve(this->cell_data.size());
+
 		// local cells without remote neighbors
-		for (auto& item: this->cell_data) {
+		for (const auto& item: this->cell_data) {
 			if (this->local_cells_on_process_boundary.count(item.first) > 0) {
 				continue;
 			}
+			ordered_cells.push_back(item.first);
 			nr_inner++;
+		}
+		// local cells with remote neighbor(s)
+		for (const auto& item: this->cell_data) {
+			if (this->local_cells_on_process_boundary.count(item.first) == 0) {
+				continue;
+			}
+			ordered_cells.push_back(item.first);
+			nr_outer++;
+		}
+
+		/*
+		Cannot store iterators to vector while adding items,
+		fill out iterators from this after cell loop.
+
+		[0] == number of previous cells' neighbors
+		[1] == number of only neighbors of items
+		[2] == number of both neighbors of and to items
+		[3] == number of only neighbors to items
+		*/
+		std::vector<std::array<size_t, 4>> nr_neighbors(ordered_cells.size());
+
+		for (size_t i = 0; i < ordered_cells.size(); i++) {
+			const auto cell = ordered_cells[i];
+			if (cell == error_cell) {
+				std::cerr << __FILE__ "(" << __LINE__ << ")" << std::endl;
+				abort();
+			}
 
 			Cells_Item new_cells_item{};
-			new_cells_item.id = item.first;
-			new_cells_item.data = &item.second;
+			new_cells_item.id = cell;
+			new_cells_item.data = &(this->cell_data.at(cell));
 
+			const auto
+				*neighbors_of = this->get_neighbors_of(cell),
+				*neighbors_to = this->get_neighbors_to(cell);
+			if (neighbors_of == nullptr) {
+				throw std::runtime_error("No neighbors of list.");
+			}
+			if (neighbors_to == nullptr) {
+				throw std::runtime_error("No neighbors to list.");
+			}
+
+			nr_neighbors[i][0] = this->neighbors_rw.size();
+
+			std::set<uint64_t>
+				neighbors_of_s(neighbors_of->cbegin(), neighbors_of->cend()),
+				neighbors_to_s(neighbors_to->cbegin(), neighbors_to->cend()),
+				only_neighbors_of, only_neighbors_to, neighbors_both;
+			neighbors_of_s.erase(error_cell);
+			neighbors_to_s.erase(error_cell);
+
+			std::set_difference(
+				neighbors_of_s.cbegin(), neighbors_of_s.cend(),
+				neighbors_to_s.cbegin(), neighbors_to_s.cend(),
+				std::inserter(only_neighbors_of, only_neighbors_of.begin())
+			);
+			nr_neighbors[i][1] = only_neighbors_of.size();
+
+			std::set_difference(
+				neighbors_to_s.cbegin(), neighbors_to_s.cend(),
+				neighbors_of_s.cbegin(), neighbors_of_s.cend(),
+				std::inserter(only_neighbors_to, only_neighbors_to.begin())
+			);
+			nr_neighbors[i][3] = only_neighbors_to.size();
+
+			std::set_intersection(
+				neighbors_of_s.cbegin(), neighbors_of_s.cend(),
+				neighbors_to_s.cbegin(), neighbors_to_s.cend(),
+				std::inserter(neighbors_both, neighbors_both.begin())
+			);
+			nr_neighbors[i][2] = neighbors_both.size();
+
+			std::vector<uint64_t> all_neighbors(
+				only_neighbors_of.cbegin(),
+				only_neighbors_of.cend()
+			);
+			all_neighbors.insert(
+				all_neighbors.end(),
+				neighbors_both.cbegin(),
+				neighbors_both.cend()
+			);
+			all_neighbors.insert(
+				all_neighbors.end(),
+				only_neighbors_to.cbegin(),
+				only_neighbors_to.cend()
+			);
+
+			const int cell_ref_lvl = this->mapping.get_refinement_level(cell);
+			for (const auto& neighbor: all_neighbors) {
+				const auto offset = get_offset(cell, neighbor);
+				const int neigh_ref_lvl = this->mapping.get_refinement_level(neighbor);
+				const int denom = [cell_ref_lvl, neigh_ref_lvl]() {
+					if (neigh_ref_lvl <= cell_ref_lvl) {
+						return 1;
+					} else {
+						return 1 << (neigh_ref_lvl - cell_ref_lvl);
+					}
+				}();
+
+				this->neighbors_rw.push_back({
+					neighbor,
+					this->operator[](neighbor),
+					offset[0], offset[1], offset[2],
+					denom
+				});
+			}
+
+			// call user-defined update function(s)
 			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
 
 			this->cells_rw.push_back(new_cells_item);
 		}
 
-		// local cells with remote neighbor(s)
-		for (auto& item: this->cell_data) {
-			if (this->local_cells_on_process_boundary.count(item.first) == 0) {
-				continue;
-			}
-			nr_outer++;
-
-			Cells_Item new_cells_item{};
-			new_cells_item.id = item.first;
-			new_cells_item.data = &item.second;
-
-			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
-
-			this->cells_rw.push_back(new_cells_item);
+		for (size_t i = 0; i < this->cells_rw.size(); i++) {
+			this->cells_rw[i].neighbors_of.begin_ =
+			this->cells_rw[i].neighbors_of.end_   =
+			this->cells_rw[i].neighbors_to.begin_ =
+			this->cells_rw[i].neighbors_to.end_   = this->neighbors.cbegin();
+			std::advance(
+				this->cells_rw[i].neighbors_of.begin_,
+				nr_neighbors[i][0]
+			);
+			std::advance(
+				this->cells_rw[i].neighbors_of.end_,
+				nr_neighbors[i][0] + nr_neighbors[i][1] + nr_neighbors[i][2]
+			);
+			std::advance(
+				this->cells_rw[i].neighbors_to.begin_,
+				nr_neighbors[i][0] + nr_neighbors[i][1]
+			);
+			std::advance(
+				this->cells_rw[i].neighbors_to.end_,
+				nr_neighbors[i][0] + nr_neighbors[i][1] + nr_neighbors[i][2] + nr_neighbors[i][3]
+			);
 		}
 
 		// TODO: remote cells with local neighbor(s)
@@ -10199,7 +10376,7 @@ private:
 			}
 
 			number_of_neighbors[i] = 0;
-			for (const uint64_t neighbor: dccrg_instance->neighbors.at(cell)) {
+			for (const uint64_t neighbor: dccrg_instance->neighbors_of.at(cell)) {
 				if (neighbor != 0
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
@@ -10244,7 +10421,7 @@ private:
 
 			number_of_neighbors[i] = 0;
 
-			for (const uint64_t neighbor: dccrg_instance->neighbors.at(cell)) {
+			for (const uint64_t neighbor: dccrg_instance->neighbors_of.at(cell)) {
 
 				if (neighbor == 0
 				/* Zoltan 3.501 crashes in hierarchial
@@ -10291,7 +10468,7 @@ private:
 
 			(*number_of_connections)++;
 
-			for (const uint64_t neighbor: dccrg_instance->neighbors.at(item.first)) {
+			for (const uint64_t neighbor: dccrg_instance->neighbors_of.at(item.first)) {
 				if (neighbor != 0
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
@@ -10346,7 +10523,7 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const uint64_t neighbor: dccrg_instance->neighbors.at(item.first)) {
+			for (const uint64_t neighbor: dccrg_instance->neighbors_of.at(item.first)) {
 				if (neighbor == 0
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
@@ -10420,7 +10597,7 @@ private:
 			if (number_of_weights_per_hyperedge > 0) {
 				int number_of_hyperedges = 0;
 
-				for (const uint64_t neighbor: dccrg_instance->neighbors.at(item.first)) {
+				for (const uint64_t neighbor: dccrg_instance->neighbors_of.at(item.first)) {
 					if (neighbor != 0
 					/* Zoltan 3.501 crashes in hierarchial
 					if a cell is a neighbor to itself (periodic grid) */
@@ -10815,8 +10992,8 @@ private:
 		}
 
 		std::vector<uint64_t> all_neighbors(
-			this->neighbors.at(cell).begin(),
-			this->neighbors.at(cell).end()
+			this->neighbors_of.at(cell).begin(),
+			this->neighbors_of.at(cell).end()
 		);
 		all_neighbors.insert(
 			all_neighbors.end(),
