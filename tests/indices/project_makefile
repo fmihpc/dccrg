@@ -1,0 +1,47 @@
+TESTS_INDICES_EXECUTABLES = \
+  tests/indices/get_offset.exe
+
+TESTS_INDICES_TESTS = \
+  tests/indices/get_offset.tst
+
+tests/indices/executables: $(TESTS_INDICES_EXECUTABLES)
+
+tests/indices/tests: $(TESTS_INDICES_TESTS)
+
+tests/indices/clean:
+	@printf "CLEAN tests/indices\n" && rm -f \
+	  $(TESTS_INDICES_EXECUTABLES) \
+	  $(TESTS_INDICES_TESTS)
+
+
+EXECUTABLES += tests/indices/executables
+TESTS += tests/indices/tests
+CLEAN += tests/indices/clean
+
+
+TESTS_INDICES_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/indices/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_INDICES_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/indices/get_offset.exe: \
+  tests/indices/get_offset.cpp \
+  $(TESTS_INDICES_COMMON_DEPS)
+	$(TESTS_INDICES_COMPILE_COMMAND)
+
+tests/indices/get_offset.tst: \
+  tests/indices/get_offset.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
