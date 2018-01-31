@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 	Options
 	*/
 	char direction;
-	bool save = false, verbose = false;
+	bool save_results = false, verbose = false;
 	boost::program_options::options_description options("Usage: program_name [options], where options are:");
 	options.add_options()
 		("help", "print this help message")
@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (option_variables.count("save") > 0) {
-		save = true;
+		save_results = true;
 	}
 
 	// initialize Zoltan
@@ -158,8 +158,8 @@ int main(int argc, char* argv[])
 	}
 
 
-	Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
-	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
+	initialize(game_grid, grid_length[0]);
+	initialize(reference_grid, grid_length[0]);
 
 	// every process outputs the game state into its own file
 	string basename("tests/game_of_life/unrefined2d_");
@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
 
 	// visualize the game with visit -o game_of_life_test.visit
 	ofstream visit_file;
-	if (save && rank == 0) {
+	if (save_results && rank == 0) {
 		string visit_file_name("tests/game_of_life/unrefined2d_");
 		visit_file_name += direction;
 		visit_file_name += ".visit";
@@ -193,11 +193,11 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		if (save) {
+		if (save_results) {
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
 			output_name.append(boost::lexical_cast<string>(step)).append(".vtk");
-			Save<Stretched_Cartesian_Geometry>::save(output_name, rank, game_grid);
+			save(output_name, rank, game_grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
 			if (rank == 0) {
@@ -212,8 +212,8 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(game_grid);
-		Solve<Stretched_Cartesian_Geometry>::get_live_neighbors(reference_grid);
+		get_live_neighbors(game_grid);
+		get_live_neighbors(reference_grid);
 
 		// verify refined/unrefined game
 		for (const auto& cell: game_grid.cells) {
@@ -241,7 +241,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (rank == 0) {
-		if (save) {
+		if (save_results) {
 			visit_file.close();
 		}
 
