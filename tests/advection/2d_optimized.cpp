@@ -272,7 +272,7 @@ int main(int argc, char* argv[])
 
 	// prerefine up to maximum refinement level
 	for (int ref_lvl = 0; ref_lvl < max_ref_lvl; ref_lvl++) {
-		Adapter().check_for_adaptation(
+		check_for_adaptation(
 			relative_diff / grid.get_maximum_refinement_level(),
 			diff_threshold,
 			unrefine_sensitivity,
@@ -283,7 +283,7 @@ int main(int argc, char* argv[])
 		);
 
 		const std::pair<uint64_t, uint64_t> adapted_cells
-			= Adapter().adapt_grid(
+			= adapt_grid(
 				cells_to_refine,
 				cells_not_to_unrefine,
 				cells_to_unrefine,
@@ -293,7 +293,7 @@ int main(int argc, char* argv[])
 		removed_cells += adapted_cells.second;
 
 		// apply initial condition on a finer grid
-		Initialize()(grid);
+		initialize(grid);
 	}
 
 	double dt = Solver().max_time_step(comm, grid);

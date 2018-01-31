@@ -337,38 +337,27 @@ public:
 }; // class Solver
 
 
-class Velocity
+double vx(const double y)
 {
-public:
+	return -y + 0.5;
+}
 
-	static double vx(const double y)
-	{
-		return -y + 0.5;
-	}
-
-	static double vy(const double x)
-	{
-		return +x - 0.5;
-	}
-
-	static double vz(const double /*a*/)
-	{
-		return 0;
-	}
-};
-
-
-class File_Namer
+double vy(const double x)
 {
-public:
+	return +x - 0.5;
+}
 
-	std::string operator()(const double time_step, const std::string& basename)
-	{
-		std::ostringstream step_string;
-		step_string << std::setw(7) << std::setfill('0') << int(time_step * 1000) << "_ms";
-		return basename + step_string.str();
-	}
-};
+double vz(const double /*a*/)
+{
+	return 0;
+}
+
+
+std::string get_filename(const double time_step, const std::string& basename)
+{
+	std::ostringstream step_string;
+	step_string << std::setw(7) << std::setfill('0') << int(time_step * 1000) << "_ms";
+	return basename + step_string.str();
+}
 
 #endif
-
