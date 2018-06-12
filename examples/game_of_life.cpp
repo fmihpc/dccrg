@@ -63,7 +63,9 @@ void get_live_neighbor_counts(
 
 		const auto* const neighbors = game_grid.get_neighbors_of(cell);
 
-		for (const auto& neighbor: *neighbors) {
+		for (const auto& neighbor_i: *neighbors) {
+			const auto& neighbor = neighbor_i.first;
+
 			if (neighbor == dccrg::error_cell) {
 				continue;
 			}

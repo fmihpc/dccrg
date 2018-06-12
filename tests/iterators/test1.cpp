@@ -1,7 +1,8 @@
 /*
 Program for testing dccrg iterators.
 
-Copyright 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015, 2016, 2018 Finnish Meteorological Institute
+Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -18,6 +19,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include "cstdlib"
 #include "iostream"
+#include "set"
 
 #include "mpi.h"
 #include "zoltan.h"
@@ -61,32 +63,65 @@ int main(int argc, char* argv[])
 
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
+		set<uint64_t> inner_ref, outer_ref;
+		for (const auto& cell: grid.cells) {
+			if (not grid.is_local(cell.id)) {
+				continue;
+			}
 
-		grid.balance_load();
+			const auto* const neighbors_of = grid.get_neighbors_of(cell.id);
+			if (neighbors_of == nullptr) {
+				cout << "No neighbors_of for cell " << cell.id << endl;
+				abort();
+			}
 
-		const vector<uint64_t>
-			inner_temp = grid.get_local_cells_not_on_process_boundary(),
-			outer_temp = grid.get_local_cells_on_process_boundary();
+			bool local = true;
+			for (const auto& neighbor: *neighbors_of) {
+				if (neighbor.first == dccrg::error_cell) {
+					continue;
+				}
+				if (not grid.is_local(neighbor.first)) {
+					local = false;
+					break;
+				}
+			}
 
-		const std::unordered_set<uint64_t>
-			inner_cells(inner_temp.begin(), inner_temp.end()),
-			outer_cells(outer_temp.begin(), outer_temp.end());
+			const auto* const neighbors_to = grid.get_neighbors_to(cell.id);
+			if (neighbors_to == nullptr) {
+				cout << "No neighbors_to for cell " << cell.id << endl;
+				abort();
+			}
+
+			for (const auto& neighbor: *neighbors_to) {
+				if (neighbor.first == dccrg::error_cell) {
+					continue;
+				}
+				if (not grid.is_local(neighbor.first)) {
+					local = false;
+					break;
+				}
+			}
+
+			if (local) {
+				inner_ref.insert(cell.id);
+			} else {
+				outer_ref.insert(cell.id);
+			}
+		}
 
 		// check that inner cell iterator works
-		for (auto item = grid.begin_inner(); item != grid.end_inner(); item++) {
-			const uint64_t cell = item->first;
-
-			if (inner_cells.count(cell) == 0) {
-				cout << "FAILED" << endl;
-				cerr << "Cell " << cell
+		for (const auto& cell: grid.inner_cells) {
+			if (inner_ref.count(cell.id) == 0) {
+				cout << "FAILED on turn " << i << endl;
+				cerr << "Cell " << cell.id
 					<< " is not in inner cells"
 					<< endl;
 				abort();
 			}
 
-			if (outer_cells.count(cell) > 0) {
-				cout << "FAILED" << endl;
-				cerr << "Cell " << cell
+			if (outer_ref.count(cell.id) > 0) {
+				cout << "FAILED on turn " << i << endl;
+				cerr << "Cell " << cell.id
 					<< " is in outer cells"
 					<< endl;
 				abort();
@@ -94,25 +129,25 @@ int main(int argc, char* argv[])
 		}
 
 		// check that outer cell iterator works
-		for (auto item = grid.begin_outer(); item != grid.end_outer(); item++) {
-			const uint64_t cell = item->first;
-
-			if (inner_cells.count(cell) > 0) {
-				cout << "FAILED" << endl;
-				cerr << "Cell " << cell
+		for (const auto& cell: grid.outer_cells) {
+			if (inner_ref.count(cell.id) > 0) {
+				cout << "FAILED on turn " << i << endl;
+				cerr << "Cell " << cell.id
 					<< " is in inner cells"
 					<< endl;
 				abort();
 			}
 
-			if (outer_cells.count(cell) == 0) {
-				cout << "FAILED" << endl;
-				cerr << "Cell " << cell
+			if (outer_ref.count(cell.id) == 0) {
+				cout << "FAILED on turn " << i << endl;
+				cerr << "Cell " << cell.id
 					<< " is not in outer cells"
 					<< endl;
 				abort();
 			}
 		}
+
+		grid.balance_load();
 	}
 
 	if (rank == 0) {

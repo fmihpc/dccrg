@@ -48,43 +48,19 @@ void initialize_game(
 
 
 /*!
-Calculates the number of live neihgbors for every cell starting at given index
-in dccrg's cached data pointers vector.
-
-Stops when encounters a dccrg::error_cell or advances to the end of the vector.
-Cells not on process boundary are first after which there is one dccrg::error_cell
-and then cell on process boundary.
-
-Returns last processed index + 1.
+Calculates the number of live neihgbors for given cells.
 */
-size_t get_live_neighbor_counts(
-	size_t index,
-	dccrg::Dccrg<game_of_life_cell>& game_grid
+template<class Cell_Iter> void get_live_neighbor_counts(
+	const Cell_Iter& cells
 ) {
-	const auto& pointers = game_grid.get_cell_data_pointers();
-	game_of_life_cell* current_cell_data = nullptr;
-	for ( ; index < pointers.size(); index++) {
-
-		const auto& cell_id = get<0>(pointers[index]);
-		if (cell_id == dccrg::error_cell) {
-			break;
-		}
-
-		const auto& offset = get<2>(pointers[index]);
-		// processing a cell
-		if (offset[0] == 0 and offset[1] == 0 and offset[2] == 0) {
-			current_cell_data = get<1>(pointers[index]);
-			current_cell_data->live_neighbor_count = 0;
-		// processing a neighbor of current cell
-		} else {
-			const auto* const neighbor_data = get<1>(pointers[index]);
-			if (neighbor_data->is_alive) {
-				current_cell_data->live_neighbor_count++;
+	for (const auto& cell: cells) {
+		cell.data->live_neighbor_count = 0;
+		for (const auto& neighbor: cell.neighbors_of) {
+			if (neighbor.data->is_alive) {
+				cell.data->live_neighbor_count++;
 			}
 		}
 	}
-
-	return index;
 }
 
 
@@ -97,7 +73,7 @@ Returns last processed index + 1.
 void apply_rules(
 	dccrg::Dccrg<game_of_life_cell>& game_grid
 ) {
-	for (auto& cell: game_grid.cells) {
+	for (const auto& cell: game_grid.local_cells) {
 		if (cell.data->live_neighbor_count == 3) {
 			cell.data->is_alive = 1;
 		} else if (cell.data->live_neighbor_count != 2) {
@@ -163,12 +139,12 @@ int main(int argc, char* argv[])
 		// and calculate the next turn for cells without
 		// neighbors on other processes in the meantime
 		game_grid.start_remote_neighbor_copy_updates();
-		const auto index = get_live_neighbor_counts(0, game_grid);
+		get_live_neighbor_counts(game_grid.inner_cells);
 
 		// wait for neighbor data updates to finish and then
 		// calculate the next turn for rest of the cells on this process
 		game_grid.wait_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(index + 1, game_grid);
+		get_live_neighbor_counts(game_grid.outer_cells);
 
 		// update the state of life for all local cells
 		apply_rules(game_grid);
