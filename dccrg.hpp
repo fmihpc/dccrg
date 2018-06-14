@@ -40,6 +40,7 @@ dccrg::Dccrg::Dccrg() for a starting point in the API.
 #include "functional"
 #include "iterator"
 #include "limits"
+#include "map"
 #include "set"
 #include "stdexcept"
 #include "tuple"
@@ -464,6 +465,8 @@ public:
 		const bool periodic_in_z = false,
 		const uint64_t sfc_caching_batches = 1
 	) {
+		using std::to_string;
+
 		if (this->initialized) {
 			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
 			return false;
@@ -513,7 +516,15 @@ public:
 		}
 
 		this->allocate_copies_of_remote_neighbors();
-		this->update_cell_pointers();
+		try {
+			this->update_cell_pointers();
+		} catch (const std::exception& e) {
+			throw std::runtime_error(
+				__FILE__ "(" + to_string(__LINE__) + ") "
+				+ "Couldn't update cell pointers: "
+				+ e.what()
+			);
+		}
 
 		this->initialized = true;
 
@@ -5755,6 +5766,8 @@ public:
 	Can be used to reduce the amount of data transferred between
 	processes if Cell_Data from the full neighborhood isn't needed.
 
+	Returns true on success and false on failure.
+
 	\see
 	initialize()
 	remove_neighborhood()
@@ -10088,8 +10101,9 @@ private:
 		}
 
 		/*
-		Cannot store iterators to vector while adding items,
-		fill out iterators from this after cell loop.
+		Cannot store iterators to neighbors_rw vector while
+		adding items, fill out iterators from this after
+		cell loop.
 
 		[0] == number of previous cells' neighbors
 		[1] == number of only neighbors_of items
@@ -10099,6 +10113,8 @@ private:
 		std::vector<std::array<size_t, 4>> nr_neighbors(ordered_cells.size());
 
 		for (size_t i = 0; i < ordered_cells.size(); i++) {
+			nr_neighbors[i][0] = this->neighbors_rw.size();
+
 			const auto cell = ordered_cells[i];
 			if (cell == error_cell) {
 				std::cerr << __FILE__ "(" << __LINE__ << ")" << std::endl;
@@ -10107,8 +10123,18 @@ private:
 
 			Cells_Item new_cells_item{};
 			new_cells_item.id = cell;
-			new_cells_item.data = &(this->cell_data.at(cell));
+			if (this->cell_data.count(cell) == 0) {
+				std::cerr << __FILE__ "(" << __LINE__ << ")" << std::endl;
+				abort();
+			}
+			new_cells_item.data = this->operator[](cell);
+			// call user-defined update function(s)
+			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
+			this->cells_rw.push_back(new_cells_item);
 
+			/*
+			Prepare data for creating cell's neighbor iterators
+			*/
 			const auto
 				*neighbors_of = this->get_neighbors_of(cell),
 				*neighbors_to = this->get_neighbors_to(cell);
@@ -10119,47 +10145,91 @@ private:
 				throw std::runtime_error("No neighbors to list.");
 			}
 
-			nr_neighbors[i][0] = this->neighbors_rw.size();
+			std::set<uint64_t> ids_of, ids_to;
+			for (const auto& n: *neighbors_of) {
+				if (n.first != error_cell) {
+					ids_of.insert(n.first);
+				}
+			}
+			for (const auto& n: *neighbors_to) {
+				if (n.first != error_cell) {
+					ids_to.insert(n.first);
+				}
+			}
+			ids_of.erase(error_cell);
+			ids_to.erase(error_cell);
 
-			std::unordered_map<uint64_t, std::array<int, 4>>
-				only_neighbors_of, only_neighbors_to, neighbors_both;
+			std::set<uint64_t> only_neighbors_of, only_neighbors_to, neighbors_both;
 
 			std::set_difference(
-				neighbors_of->cbegin(), neighbors_of->cend(),
-				neighbors_to->cbegin(), neighbors_to->cend(),
+				ids_of.cbegin(), ids_of.cend(),
+				ids_to.cbegin(), ids_to.cend(),
 				std::inserter(only_neighbors_of, only_neighbors_of.begin())
 			);
 			nr_neighbors[i][1] = only_neighbors_of.size();
 
-			std::set_difference(
-				neighbors_to->cbegin(), neighbors_to->cend(),
-				neighbors_of->cbegin(), neighbors_of->cend(),
-				std::inserter(only_neighbors_to, only_neighbors_to.begin())
-			);
-			nr_neighbors[i][3] = only_neighbors_to.size();
-
 			std::set_intersection(
-				neighbors_of->cbegin(), neighbors_of->cend(),
-				neighbors_to->cbegin(), neighbors_to->cend(),
+				ids_of.cbegin(), ids_of.cend(),
+				ids_to.cbegin(), ids_to.cend(),
 				std::inserter(neighbors_both, neighbors_both.begin())
 			);
 			nr_neighbors[i][2] = neighbors_both.size();
 
-			std::vector<std::pair<uint64_t, std::array<int, 4>>> all_neighbors;
-			for (const auto& i: only_neighbors_of) {
-				all_neighbors.push_back(i);
+			std::set_difference(
+				ids_to.cbegin(), ids_to.cend(),
+				ids_of.cbegin(), ids_of.cend(),
+				std::inserter(only_neighbors_to, only_neighbors_to.begin())
+			);
+			nr_neighbors[i][3] = only_neighbors_to.size();
+
+			// add cell's neighbors
+			std::map<uint64_t, std::array<int, 4>> all_neighbors;
+			for (const auto& n: *neighbors_of) {
+				if (n.first == error_cell) {
+					continue;
+				}
+				all_neighbors[n.first] = n.second;
 			}
-			for (const auto& i: neighbors_both) {
-				all_neighbors.push_back(i);
-			}
-			for (const auto& i: only_neighbors_to) {
-				all_neighbors.push_back(i);
+			for (const auto& n: *neighbors_to) {
+				if (n.first == error_cell) {
+					continue;
+				}
+				all_neighbors[n.first] = n.second;
 			}
 
-			// call user-defined update function(s)
-			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
-
-			this->cells_rw.push_back(new_cells_item);
+			for (const auto& neighbor_id: only_neighbors_of) {
+				const auto& offsets = all_neighbors.at(neighbor_id);
+				Neighbors_Item item{};
+				item.id = neighbor_id;
+				item.data = this->operator[](item.id);
+				item.x = offsets[0];
+				item.y = offsets[1];
+				item.z = offsets[2];
+				item.denom = offsets[3];
+				this->neighbors_rw.push_back(item);
+			}
+			for (const auto& neighbor_id: neighbors_both) {
+				const auto& offsets = all_neighbors.at(neighbor_id);
+				Neighbors_Item item{};
+				item.id = neighbor_id;
+				item.data = this->operator[](item.id);
+				item.x = offsets[0];
+				item.y = offsets[1];
+				item.z = offsets[2];
+				item.denom = offsets[3];
+				this->neighbors_rw.push_back(item);
+			}
+			for (const auto& neighbor_id: only_neighbors_to) {
+				const auto& offsets = all_neighbors.at(neighbor_id);
+				Neighbors_Item item{};
+				item.id = neighbor_id;
+				item.data = this->operator[](item.id);
+				item.x = offsets[0];
+				item.y = offsets[1];
+				item.z = offsets[2];
+				item.denom = offsets[3];
+				this->neighbors_rw.push_back(item);
+			}
 		}
 
 		for (size_t i = 0; i < this->cells_rw.size(); i++) {
@@ -10185,7 +10255,7 @@ private:
 			);
 		}
 
-		// TODO: remote cells with local neighbor(s)
+		// TODO: add remote cells with local neighbor(s)
 
 		// update iterators
 		this->inner_cells.begin_  =

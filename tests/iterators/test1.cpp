@@ -112,7 +112,7 @@ int main(int argc, char* argv[])
 		// check that inner cell iterator works
 		for (const auto& cell: grid.inner_cells) {
 			if (inner_ref.count(cell.id) == 0) {
-				cout << "FAILED on turn " << i << endl;
+				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is not in inner cells"
 					<< endl;
@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 			}
 
 			if (outer_ref.count(cell.id) > 0) {
-				cout << "FAILED on turn " << i << endl;
+				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is in outer cells"
 					<< endl;
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
 		// check that outer cell iterator works
 		for (const auto& cell: grid.outer_cells) {
 			if (inner_ref.count(cell.id) > 0) {
-				cout << "FAILED on turn " << i << endl;
+				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is in inner cells"
 					<< endl;
@@ -139,7 +139,7 @@ int main(int argc, char* argv[])
 			}
 
 			if (outer_ref.count(cell.id) == 0) {
-				cout << "FAILED on turn " << i << endl;
+				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is not in outer cells"
 					<< endl;
@@ -158,4 +158,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-
