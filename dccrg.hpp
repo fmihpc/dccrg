@@ -344,7 +344,6 @@ public:
 		comm(other.get_communicator()),
 		rank(uint64_t(other.get_rank())),
 		comm_size(uint64_t(other.get_comm_size())),
-		neighbors(other.get_cell_neighbor()),
 		neighborhood_of(other.get_neighborhood_of()),
 		neighborhood_to(other.get_neighborhood_to()),
 		user_hood_of(other.get_user_hood_of()),
@@ -6033,15 +6032,6 @@ public:
 	const std::unordered_map<uint64_t, Cell_Data>& get_cell_data() const
 	{
 		return this->cell_data;
-	}
-
-	/*!
-	Returns neighbor lists of local cells.
-	At some point also neighbor lists of some other processes' cells might be included.
-	*/
-	const std::unordered_map<uint64_t, std::vector<uint64_t>>& get_cell_neighbor() const
-	{
-		return this->neighbors;
 	}
 
 	/*!

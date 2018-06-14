@@ -150,10 +150,6 @@ int main(int argc, char* argv[])
 		grid.balance_load();
 	}
 
-	if (rank == 0) {
-		cout << "PASSED" << endl;
-	}
-
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;

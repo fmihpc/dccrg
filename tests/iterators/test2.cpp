@@ -113,10 +113,6 @@ int main(int argc, char* argv[])
 		cerr << "Failed to add neighborhood with id 0" << endl;
 	}*/
 
-	if (rank == 0) {
-		cout << "PASSED" << endl;
-	}
-
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;
