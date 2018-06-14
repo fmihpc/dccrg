@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (rank == 0) {
-		visit_file.open("refine_simple.visit");
+		visit_file.open("tests/refine/refine_simple.visit");
 		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 
@@ -93,7 +93,7 @@ int main(int argc, char* argv[])
 		sort(cells.begin(), cells.end());
 
 		// write the game state into a file named according to the current time step
-		string current_output_name("");
+		string current_output_name("tests/refine/");
 		ostringstream step_string;
 		step_string.fill('0');
 		step_string.width(5);
@@ -149,11 +149,11 @@ int main(int argc, char* argv[])
 		}
 		for (const auto& c: cells) {
 			const auto* const neighbors = grid.get_neighbors_of(c);
-			vector<uint64_t> sorted_neighbors(neighbors->begin(), neighbors->end());
+			auto sorted_neighbors{*neighbors};
 			sort(sorted_neighbors.begin(), sorted_neighbors.end());
 			cout << "Cell " << c << " neighbors (" << sorted_neighbors.size() << "): ";
 			for (const auto& n: sorted_neighbors) {
-				cout << n << " ";
+				cout << n.first << " ";
 			}
 			cout << endl;
 		}

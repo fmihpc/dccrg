@@ -4396,23 +4396,30 @@ public:
 	Given list is assumed to have all neighbors_to of given cell that are
 	as large or smaller than given cell.
 	*/
-	std::vector<uint64_t> find_neighbors_to(
+	std::vector<
+		std::pair<
+			uint64_t,
+			std::array<int, 4>
+		>
+	> find_neighbors_to(
 		const uint64_t cell,
 		const std::vector<uint64_t>& found_neighbors_of
 	) const {
-		std::vector<uint64_t> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 
-		if (cell == 0
-		|| cell > this->mapping.get_last_cell()
-		|| this->cell_process.count(cell) == 0
-		|| cell != this->get_child(cell)) {
+		if (
+			cell == 0
+			or cell > this->mapping.get_last_cell()
+			or this->cell_process.count(cell) == 0
+			or cell != this->get_child(cell)
+		) {
 			return return_neighbors;
 		}
 
 		// get neighbors_to of given cell, first from its neighbors_of
-		std::unordered_set<uint64_t> unique_neighbors_to;
+		std::set<uint64_t> unique_neighbors_to;
 
-		for (const uint64_t neighbor_of: found_neighbors_of) {
+		for (const auto neighbor_of: found_neighbors_of) {
 			// neighbors_to doesn't store cells that would be outside of the grid
 			if (neighbor_of == 0) {
 				continue;
@@ -4483,11 +4490,9 @@ public:
 		}
 
 		return_neighbors.reserve(unique_neighbors_to.size());
-		return_neighbors.insert(
-			return_neighbors.begin(),
-			unique_neighbors_to.begin(),
-			unique_neighbors_to.end()
-		);
+		for (const auto& n: unique_neighbors_to) {
+			return_neighbors.push_back({n, {0, 0, 0, 0}});
+		}
 
 		return return_neighbors;
 	}
@@ -7816,7 +7821,11 @@ private:
 		}
 
 		this->neighbors_of.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
-		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighbors_of.at(cell));
+		std::vector<uint64_t> found_neighbors_of;
+		for (const auto& i: this->neighbors_of.at(cell)) {
+			found_neighbors_of.push_back(i.first);
+		}
+		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, found_neighbors_of);
 
 		#ifdef DEBUG
 		if (
@@ -8326,7 +8335,8 @@ private:
 			for (const uint64_t refined: all_new_refines.at(this->rank)) {
 
 				// refine local neighbors that are too large
-				for (const uint64_t neighbor: this->neighbors_of.at(refined)) {
+				for (const auto& neighbor_i: this->neighbors_of.at(refined)) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == 0) {
 						continue;
@@ -8352,7 +8362,8 @@ private:
 					}
 				}
 
-				for (const uint64_t neighbor_to: this->neighbors_to.at(refined)) {
+				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
+					const auto& neighbor_to = neighbor_to_i.first;
 
 					if (neighbor_to == 0) {
 						continue;
@@ -8556,7 +8567,7 @@ private:
 			}
 			#endif
 
-			const std::vector<uint64_t> neighbors
+			const auto neighbors
 				= this->find_neighbors_of(
 					parent,
 					this->neighborhood_of,
@@ -8564,7 +8575,8 @@ private:
 					true
 				);
 
-			for (const uint64_t neighbor: neighbors) {
+			for (const auto& neighbor_i: neighbors) {
+				const auto& neighbor = neighbor_i.first;
 
 				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
@@ -8846,7 +8858,9 @@ private:
 				}
 
 				// update neighbor lists of all the parent's neighbors
-				for (const uint64_t neighbor: this->neighbors_of.at(refined)) {
+				for (const auto& neighbor_i: this->neighbors_of.at(refined)) {
+					const auto& neighbor = neighbor_i.first;
+
 					if (neighbor == 0) {
 						continue;
 					}
@@ -8856,7 +8870,8 @@ private:
 					}
 				}
 
-				for (const uint64_t neighbor_to: this->neighbors_to.at(refined)) {
+				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
+					const auto& neighbor_to = neighbor_to_i.first;
 					if (this->cell_process.at(neighbor_to) == this->rank) {
 						update_neighbors.insert(neighbor_to);
 					}
@@ -8871,7 +8886,7 @@ private:
 				No need to update local neighbors_to of refined cell, if they are larger
 				they will also be refined and updated.
 				*/
-				const std::vector<uint64_t> neighbors
+				const auto neighbors
 					= this->find_neighbors_of(
 						refined,
 						this->neighborhood_of,
@@ -8879,7 +8894,9 @@ private:
 						true
 					);
 
-				for (const uint64_t neighbor: neighbors) {
+				for (const auto& neighbor_i: neighbors) {
+					const auto& neighbor = neighbor_i.first;
+
 					if (neighbor == 0) {
 						continue;
 					}
@@ -9108,10 +9125,11 @@ private:
 			}
 			#endif
 
-			const std::vector<uint64_t> new_neighbors_of
+			const auto new_neighbors_of
 				= this->find_neighbors_of(parent, this->neighborhood_of, this->max_ref_lvl_diff);
 
-			for (const uint64_t neighbor: new_neighbors_of) {
+			for (const auto& neighbor_i: new_neighbors_of) {
+				const auto& neighbor = neighbor_i.first;
 
 				if (neighbor == 0) {
 					continue;
@@ -9122,9 +9140,10 @@ private:
 				}
 			}
 
-			const std::vector<uint64_t> new_neighbors_to
+			const auto new_neighbors_to
 				= this->find_neighbors_to(parent, this->neighborhood_to);
-			for (const uint64_t neighbor: new_neighbors_to) {
+			for (const auto& neighbor_i: new_neighbors_to) {
+				const auto& neighbor = neighbor_i.first;
 				if (this->cell_process.at(neighbor) == this->rank) {
 					update_neighbors.insert(neighbor);
 				}

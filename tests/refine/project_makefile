@@ -8,7 +8,9 @@ TESTS_REFINE_TESTS = \
   tests/refine/refine_simple.tst \
   tests/refine/refine_simple.mtst \
   tests/refine/unrefine_simple.tst \
-  tests/refine/unrefine_simple.mtst
+  tests/refine/unrefine_simple.mtst \
+  tests/refine/refine*vtk \
+  tests/refine/refine*visit
 
 tests/refine/tests: $(TESTS_REFINE_TESTS)
 
