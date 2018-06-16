@@ -8345,7 +8345,7 @@ private:
 				for (const auto& neighbor_i: this->neighbors_of.at(refined)) {
 					const auto& neighbor = neighbor_i.first;
 
-					if (neighbor == 0) {
+					if (neighbor == error_cell) {
 						continue;
 					}
 
