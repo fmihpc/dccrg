@@ -4150,7 +4150,14 @@ public:
 
 				// TODO: don't assume max ref lvl diff of 1
 				if (current_neighbors.size() != 8) {
-					std::cerr << __FILE__ << ":" << __LINE__ << "Internal error" << std::endl;
+					std::cerr << __FILE__ "(" << __LINE__ << "): "
+						<< "Unexpected number of neighbors on process " << this->rank
+						<< " for cell " << cell << " in place of neighbor "
+						<< neighbor << ": " << current_neighbors.size() << std::endl;
+					for (const auto& current_neighbor: current_neighbors) {
+						std::cerr << current_neighbor << ", ";
+					}
+					std::cerr << std::endl;
 					abort();
 				}
 
@@ -7833,7 +7840,7 @@ private:
 				cell,
 				this->neighborhood_of,
 				this->neighborhood_to,
-				this->neighbors,
+				this->neighbors_of,
 				this->neighbors_to
 			)
 		) {
@@ -8446,11 +8453,11 @@ private:
 		// check that all required refines have been induced
 		for (const uint64_t refined: this->cells_to_refine) {
 
-			// neighbors_of
-			std::vector<uint64_t> neighbors_of
+			const auto neighbors_of
 				= this->find_neighbors_of(refined, this->neighborhood_of, this->max_ref_lvl_diff);
 
-			for (const uint64_t neighbor_of: neighbors_of) {
+			for (const auto& neighbor_of_i: neighbors_of) {
+				const auto& neighbor_of = neighbor_of_i.first;
 
 				if (neighbor_of == 0) {
 					continue;
@@ -8468,10 +8475,10 @@ private:
 				}
 			}
 
-			// neighbors_to
-			std::vector<uint64_t> neighbors_to
+			const auto neighbors_to
 				= this->find_neighbors_to(refined, this->neighborhood_to);
-			for (const uint64_t neighbor_to: neighbors_to) {
+			for (const auto& neighbor_to_i: neighbors_to) {
+				const auto& neighbor_to = neighbor_to_i.first;
 
 				if (neighbor_to == 0) {
 					continue;
@@ -8637,7 +8644,7 @@ private:
 			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
 
 			// neighbors_of
-			const std::vector<uint64_t> neighbors
+			const auto neighbors
 				= this->find_neighbors_of(
 					this->get_parent(unrefined),
 					this->neighborhood_of,
@@ -8645,7 +8652,8 @@ private:
 					true
 				);
 
-			for (const uint64_t neighbor: neighbors) {
+			for (const auto& neighbor_i: neighbors) {
+				const auto& neighbor = neighbor_i.first;
 
 				if (neighbor == 0) {
 					continue;
@@ -10814,8 +10822,24 @@ private:
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& hood_of,
 		const std::vector<Types<3>::neighborhood_item_t>& hood_to,
-		const std::unordered_map<uint64_t, std::vector<uint64_t>>& neighbor_of_lists,
-		std::unordered_map<uint64_t, std::vector<uint64_t>>& neighbor_to_lists
+		const std::unordered_map<
+			uint64_t,
+			std::vector<
+				std::pair<
+					uint64_t,
+					std::array<int, 4>
+				>
+			>
+		>& neighbor_of_lists,
+		std::unordered_map<
+			uint64_t,
+			std::vector<
+				std::pair<
+					uint64_t,
+					std::array<int, 4>
+				>
+			>
+		>& neighbor_to_lists
 	) {
 		if (cell == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
@@ -10877,7 +10901,7 @@ private:
 		}
 
 		// neighbors
-		std::vector<uint64_t> compare_neighbors
+		const auto compare_neighbors
 			= this->find_neighbors_of(cell, hood_of, this->max_ref_lvl_diff);
 
 		if (
@@ -10898,11 +10922,13 @@ private:
 				<< ") don't match "
 				<< neighbor_of_lists.at(cell).size() << ": ";
 
-			for (const uint64_t c: neighbor_of_lists.at(cell)) {
+			for (const auto& c_i: neighbor_of_lists.at(cell)) {
+				const auto& c = c_i.first;
 				std::cerr << c << " ";
 			}
 			std::cerr << ", should be (+ child of) " << compare_neighbors.size() << ": ";
-			for (const uint64_t c: compare_neighbors) {
+			for (const auto& c_i: compare_neighbors) {
+				const auto& c = c_i.first;
 				std::cerr << c << "(" << this->get_parent(c) << ") ";
 			}
 			std::cerr << std::endl;
@@ -10913,7 +10939,7 @@ private:
 		if (neighbor_to_lists.at(cell).size() > 0) {
 			std::sort(neighbor_to_lists.at(cell).begin(), neighbor_to_lists.at(cell).end());
 		}
-		std::vector<uint64_t> compare_neighbors_to
+		auto compare_neighbors_to
 			= this->find_neighbors_to(cell, hood_to);
 		if (compare_neighbors_to.size() > 0) {
 			std::sort(compare_neighbors_to.begin(), compare_neighbors_to.end());
@@ -10932,7 +10958,8 @@ private:
 				<< ") don't match: " << neighbor_to_lists.at(cell).size()
 				<< " (";
 
-			for (const uint64_t c: neighbor_to_lists.at(cell)) {
+			for (const auto& c_i: neighbor_to_lists.at(cell)) {
+				const auto& c = c_i.first;
 				std::cerr << c;
 				if (c != this->get_child(c)) {
 					std::cerr << " [has a child " << this->get_child(c) << "], ";
@@ -10941,7 +10968,8 @@ private:
 				}
 			}
 			std::cerr << ") should be " << compare_neighbors_to.size() << " (";
-			for (const uint64_t c: compare_neighbors_to) {
+			for (const auto& c_i: compare_neighbors_to) {
+				const auto& c = c_i.first;
 				std::cerr << c << ", ";
 			}
 			std::cerr << ")" << std::endl;
@@ -10972,7 +11000,7 @@ private:
 					cell->first,
 					this->neighborhood_of,
 					this->neighborhood_to,
-					this->neighbors,
+					this->neighbors_of,
 					this->neighbors_to
 				)
 			) {
@@ -11017,7 +11045,7 @@ private:
 				cell,
 				this->neighborhood_of,
 				this->neighborhood_to,
-				this->neighbors,
+				this->neighbors_of,
 				this->neighbors_to
 			)
 		) {
@@ -11035,7 +11063,12 @@ private:
 			return true;
 		}
 
-		std::vector<uint64_t> all_neighbors(
+		std::vector<
+			std::pair<
+				uint64_t,
+				std::array<int, 4>
+			>
+		> all_neighbors(
 			this->neighbors_of.at(cell).begin(),
 			this->neighbors_of.at(cell).end()
 		);
@@ -11045,7 +11078,8 @@ private:
 			this->neighbors_to.at(cell).end()
 		);
 
-		for (const uint64_t neighbor: all_neighbors) {
+		for (const auto& neighbor_i: all_neighbors) {
+			const auto& neighbor = neighbor_i.first;
 
 			if (neighbor == error_cell) {
 				continue;
@@ -11158,14 +11192,15 @@ private:
 				bool no_remote_neighbor = true;
 
 				// search in neighbors_of
-				const std::vector<uint64_t> neighbors_of
+				const auto neighbors_of
 					= this->find_neighbors_of(
 						item->first,
 						this->neighborhood_of,
 						this->max_ref_lvl_diff
 					);
 
-				for (const uint64_t neighbor: neighbors_of) {
+				for (const auto& neighbor_i: neighbors_of) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == 0) {
 						continue;
@@ -11185,9 +11220,10 @@ private:
 				}
 
 				// search in neighbors_to
-				std::vector<uint64_t> neighbors_to
+				const auto neighbors_to
 					= this->find_neighbors_to(item->first, this->neighborhood_to);
-				for (const uint64_t neighbor: neighbors_to) {
+				for (const auto& neighbor_i: neighbors_to) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == 0) {
 						continue;
