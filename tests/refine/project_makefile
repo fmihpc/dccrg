@@ -10,7 +10,9 @@ TESTS_REFINE_TESTS = \
   tests/refine/unrefine_simple.tst \
   tests/refine/unrefine_simple.mtst \
   tests/refine/refine*vtk \
-  tests/refine/refine*visit
+  tests/refine/refine*visit \
+  tests/refine/unrefine_simple*vtk \
+  tests/refine/unrefine_simple*visit
 
 tests/refine/tests: $(TESTS_REFINE_TESTS)
 
@@ -30,7 +32,7 @@ TESTS_REFINE_COMMON_DEPS = \
   Makefile
 
 TESTS_REFINE_COMPILE_COMMAND = \
-  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \

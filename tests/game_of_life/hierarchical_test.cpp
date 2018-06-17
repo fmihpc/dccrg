@@ -60,33 +60,30 @@ int main(int argc, char* argv[])
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
-	    cout << "Zoltan_Initialize failed" << endl;
+	    cerr << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
 
-	Dccrg<game_of_life_cell> game_grid;
+	Dccrg<game_of_life_cell> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{34, 7, 1}};
-	game_grid.initialize(grid_length, comm, "HIER", 1);
-	if (rank == 0) {
+	grid.initialize(grid_length, comm, "HIER", 1);
+	/*if (rank == 0) {
 		cout << "Maximum refinement level of the grid: "
-			<< game_grid.get_maximum_refinement_level()
+			<< grid.get_maximum_refinement_level()
 			<< endl;
-	}
+	}*/
 
-	game_grid.add_partitioning_level(12);
-	game_grid.add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
-	game_grid.add_partitioning_option(0, "IMBALANCE_TOL", "1.05");
+	grid.add_partitioning_level(12);
+	grid.add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
+	grid.add_partitioning_option(0, "IMBALANCE_TOL", "1.05");
 
-	game_grid.add_partitioning_level(1);
-	game_grid.add_partitioning_option(1, "LB_METHOD", "HYPERGRAPH");
+	grid.add_partitioning_level(1);
+	grid.add_partitioning_option(1, "LB_METHOD", "HYPERGRAPH");
 
-	game_grid.balance_load();
+	grid.balance_load();
 	// assumes no further load balancing, AMR, etc.
-	auto cells = game_grid.cells;
+	auto cells = grid.cells;
 	sort(cells.begin(), cells.end());
 
 	// initialize the game
@@ -109,19 +106,19 @@ int main(int argc, char* argv[])
 	if (rank == 0) {
 		visit_file.open("tests/game_of_life/hierarchical_test.visit");
 		visit_file << "!NBLOCKS " << comm_size << endl;
-		cout << "step: ";
+		//cout << "step: ";
 	}
 
 	#define TIME_STEPS 25
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		game_grid.start_remote_neighbor_copy_updates();
-		game_grid.wait_remote_neighbor_copy_updates();
+		grid.start_remote_neighbor_copy_updates();
+		grid.wait_remote_neighbor_copy_updates();
 
-		if (rank == 0) {
+		/*if (rank == 0) {
 			cout << step << " ";
 			cout.flush();
-		}
+		}*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
@@ -144,7 +141,7 @@ int main(int argc, char* argv[])
 
 
 		// write the grid into a file
-		game_grid.write_vtk_file(current_output_name.c_str());
+		grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
@@ -173,7 +170,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -194,29 +191,31 @@ int main(int argc, char* argv[])
 
 
 		// get the neighbor counts of every cell, starting with the cells whose neighbor data doesn't come from other processes
-		vector<uint64_t> inner_cells = game_grid.get_local_cells_not_on_process_boundary();
+		vector<uint64_t> inner_cells = grid.get_local_cells_not_on_process_boundary();
 		for (const auto& cell: inner_cells) {
 
-			auto* const cell_data = game_grid[cell];
+			auto* const cell_data = grid[cell];
 
 			cell_data->live_neighbor_count = 0;
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
-			if (neighbors == NULL) {
-				cout << "Process " << rank
+			const auto* const neighbors = grid.get_neighbors_of(cell);
+			if (neighbors == nullptr) {
+				cerr << "Process " << rank
 					<< ": neighbor list for cell " << cell
 					<< " not available"
 					<< endl;
 				exit(EXIT_FAILURE);
 			}
 
-			for (const auto& neighbor: *neighbors) {
+			for (const auto& neighbor_i: *neighbors) {
+				const auto& neighbor = neighbor_i.first;
+
 				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				const auto* const neighbor_data = game_grid[neighbor];
-				if (neighbor_data == NULL) {
-					cout << "Process " << rank
+				const auto* const neighbor_data = grid[neighbor];
+				if (neighbor_data == nullptr) {
+					cerr << "Process " << rank
 						<< ": neighbor " << neighbor
 						<< " data for cell " << cell
 						<< " not available"
@@ -229,29 +228,31 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		vector<uint64_t> outer_cells = game_grid.get_local_cells_on_process_boundary();
+		vector<uint64_t> outer_cells = grid.get_local_cells_on_process_boundary();
 		for (const auto& cell: outer_cells) {
 
-			auto* const cell_data = game_grid[cell];
+			auto* const cell_data = grid[cell];
 
 			cell_data->live_neighbor_count = 0;
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
-			if (neighbors == NULL) {
-				cout << "Process " << rank
+			const auto* const neighbors = grid.get_neighbors_of(cell);
+			if (neighbors == nullptr) {
+				cerr << "Process " << rank
 					<< ": neighbor list for cell " << cell
 					<< " not available"
 					<< endl;
 				exit(EXIT_FAILURE);
 			}
 
-			for (const auto& neighbor: *neighbors) {
+			for (const auto& neighbor_i: *neighbors) {
+				const auto& neighbor = neighbor_i.first;
+
 				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				const auto* const neighbor_data = game_grid[neighbor];
-				if (neighbor_data == NULL) {
-					cout << "Process " << rank
+				const auto* const neighbor_data = grid[neighbor];
+				if (neighbor_data == nullptr) {
+					cerr << "Process " << rank
 						<< ": neighbor " << neighbor
 						<< " data for cell " << cell
 						<< " not available"
@@ -276,7 +277,7 @@ int main(int argc, char* argv[])
 
 	if (rank == 0) {
 		visit_file.close();
-		cout << endl;
+		//cout << endl;
 	}
 
 	MPI_Finalize();

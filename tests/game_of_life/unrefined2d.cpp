@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grids, reference grid doesn't refine/unrefine
-	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid, reference_grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> grid, reference_grid;
 
 	const uint64_t base_length = 15;
 	const double cell_length = 1.0 / base_length;
@@ -137,7 +137,7 @@ int main(int argc, char* argv[])
 	}
 
 	const unsigned int neighborhood_size = 1;
-	game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 1);
+	grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 1);
 	// play complete reference game on each process
 	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size, 0);
 
@@ -148,7 +148,7 @@ int main(int argc, char* argv[])
 			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	if (!game_grid.set_geometry(geom_params)) {
+	if (!grid.set_geometry(geom_params)) {
 		cerr << "Couldn't set grid geometry" << endl;
 		exit(EXIT_FAILURE);
 	}
@@ -158,7 +158,7 @@ int main(int argc, char* argv[])
 	}
 
 
-	initialize(game_grid, grid_length[0]);
+	initialize(grid, grid_length[0]);
 	initialize(reference_grid, grid_length[0]);
 
 	// every process outputs the game state into its own file
@@ -183,10 +183,10 @@ int main(int argc, char* argv[])
 	const int time_steps = 25;
 	for (int step = 0; step < time_steps; step++) {
 
-		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, int(grid_length[0]), step, comm_size);
+		Refine<Stretched_Cartesian_Geometry>::refine(grid, int(grid_length[0]), step, comm_size);
 
-		game_grid.balance_load();
-		game_grid.update_copies_of_remote_neighbors();
+		grid.balance_load();
+		grid.update_copies_of_remote_neighbors();
 
 		if (verbose && rank == 0) {
 			cout << step << " ";
@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
 			// write the game state into a file named according to the current time step
 			string output_name(basename);
 			output_name.append(boost::lexical_cast<string>(step)).append(".vtk");
-			save(output_name, rank, game_grid);
+			save(output_name, rank, grid);
 
 			// visualize the game with visit -o game_of_life_test.visit
 			if (rank == 0) {
@@ -212,15 +212,15 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		get_live_neighbors(game_grid);
+		get_live_neighbors(grid);
 		get_live_neighbors(reference_grid);
 
 		// verify refined/unrefined game
-		for (const auto& cell: game_grid.cells) {
+		for (const auto& cell: grid.cells) {
 			uint64_t reference_cell_id = cell.id;
-			const int refinement_level = game_grid.get_refinement_level(cell.id);
+			const int refinement_level = grid.get_refinement_level(cell.id);
 			if (refinement_level > 0) {
-				reference_cell_id = game_grid.mapping.get_parent(cell.id);
+				reference_cell_id = grid.mapping.get_parent(cell.id);
 			}
 
 			const auto* const reference_data = reference_grid[reference_cell_id];

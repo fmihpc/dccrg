@@ -44,9 +44,6 @@ int main(int argc, char* argv[])
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
 
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
 
@@ -91,6 +88,22 @@ int main(int argc, char* argv[])
 		grid.balance_load();
 		auto cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
+
+		for (const auto& cell: cells) {
+			const auto ref_lvl = grid.get_refinement_level(cell);
+			for (const auto& neighbor: *grid.get_neighbors_of(cell)) {
+				if (neighbor.first == error_cell) {
+					continue;
+				}
+
+				const auto neigh_ref_lvl = grid.get_refinement_level(neighbor.first);
+				if (abs(ref_lvl - neigh_ref_lvl) > 1) {
+					std::cerr << "Refinement level difference between " << cell
+						<< " and " << neighbor.first << " too large" << std::endl;
+					abort();
+				}
+			}
+		}
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("tests/refine/");
@@ -141,7 +154,7 @@ int main(int argc, char* argv[])
 		outfile.close();
 	}
 
-	auto cells = grid.get_cells();
+	/*auto cells = grid.get_cells();
 	for (int i = 0; i < comm_size; i++) {
 		MPI_Barrier(comm);
 		if (i != rank) {
@@ -158,8 +171,8 @@ int main(int argc, char* argv[])
 			cout << endl;
 		}
 		cout.flush();
-		sleep(3);
-	}
+		sleep(2);
+	}*/
 
 	if (rank == 0) {
 		visit_file.close();

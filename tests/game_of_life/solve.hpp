@@ -56,8 +56,10 @@ template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<C
 
 		const auto& cell_parent_id = grid.mapping.get_level_0_parent(cell);
 
-		const std::vector<uint64_t>* const neighbors = grid.get_neighbors_of(cell);
-		for (const uint64_t neighbor: *neighbors) {
+		const auto* const neighbors = grid.get_neighbors_of(cell);
+		for (const auto& neighbor_i: *neighbors) {
+			const auto& neighbor = neighbor_i.first;
+
 			if (neighbor == dccrg::error_cell) {
 				continue;
 			}
@@ -112,8 +114,10 @@ template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<C
 		const auto& cell_parent_id = grid.mapping.get_level_0_parent(cell);
 		auto* const cell_data = grid[cell];
 
-		const std::vector<uint64_t>* const neighbors = grid.get_neighbors_of(cell);
-		for (const uint64_t neighbor: *neighbors) {
+		const auto* const neighbors = grid.get_neighbors_of(cell);
+		for (const auto& neighbor_i: *neighbors) {
+			const auto& neighbor = neighbor_i.first;
+
 			if (neighbor == dccrg::error_cell) {
 				continue;
 			}

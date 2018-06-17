@@ -2454,7 +2454,7 @@ public:
 		}
 		#endif
 
-		const std::vector<uint64_t> neighbors
+		const auto neighbors
 			= this->find_neighbors_of(
 				parent,
 				this->neighborhood_of,
@@ -2462,7 +2462,8 @@ public:
 				true
 			);
 
-		for(const auto& neighbor: neighbors) {
+		for(const auto& neighbor_i: neighbors) {
+			const auto& neighbor = neighbor_i.first;
 
 			const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
@@ -4149,16 +4150,8 @@ public:
 				#endif
 
 				// TODO: don't assume max ref lvl diff of 1
-				if (current_neighbors.size() != 8) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): "
-						<< "Unexpected number of neighbors on process " << this->rank
-						<< " for cell " << cell << " in place of neighbor "
-						<< neighbor << ": " << current_neighbors.size() << std::endl;
-					for (const auto& current_neighbor: current_neighbors) {
-						std::cerr << current_neighbor << ", ";
-					}
-					std::cerr << std::endl;
-					abort();
+				if (has_children) {
+					continue;
 				}
 
 				return_neighbors.push_back({
@@ -8372,7 +8365,7 @@ private:
 				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
 					const auto& neighbor_to = neighbor_to_i.first;
 
-					if (neighbor_to == 0) {
+					if (neighbor_to == error_cell) {
 						continue;
 					}
 
@@ -8459,7 +8452,7 @@ private:
 			for (const auto& neighbor_of_i: neighbors_of) {
 				const auto& neighbor_of = neighbor_of_i.first;
 
-				if (neighbor_of == 0) {
+				if (neighbor_of == error_cell) {
 					continue;
 				}
 
@@ -8480,7 +8473,7 @@ private:
 			for (const auto& neighbor_to_i: neighbors_to) {
 				const auto& neighbor_to = neighbor_to_i.first;
 
-				if (neighbor_to == 0) {
+				if (neighbor_to == error_cell) {
 					continue;
 				}
 
@@ -11023,6 +11016,27 @@ private:
 						this->user_neigh_to.at(hood_id)
 					)
 				) {
+					return false;
+				}
+			}
+		}
+
+		// verify that refinement level differences <= 1
+		for (const auto& cell: this->cells) {
+			const auto ref_lvl = this->get_refinement_level(cell.id);
+			for (const auto& neigh: cell.neighbors_of) {
+				const auto neigh_ref_lvl = this->get_refinement_level(neigh.id);
+				if (std::abs(ref_lvl - neigh_ref_lvl) > 1) {
+					std::cerr << "Refinement level of cell " << cell.id
+						<< " and neighbor_of " << neigh.id << " differ too much" << std::endl;
+					return false;
+				}
+			}
+			for (const auto& neigh: cell.neighbors_to) {
+				const auto neigh_ref_lvl = this->get_refinement_level(neigh.id);
+				if (std::abs(ref_lvl - neigh_ref_lvl) > 1) {
+					std::cerr << "Refinement level of cell " << cell.id
+						<< " and neighbor_to " << neigh.id << " differ too much" << std::endl;
 					return false;
 				}
 			}

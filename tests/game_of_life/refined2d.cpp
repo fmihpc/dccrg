@@ -73,19 +73,16 @@ int main(int argc, char* argv[])
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
-	    cout << "Zoltan_Initialize failed" << endl;
+	    cerr << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
 
-	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
+	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 
 	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
 
 	const double cell_length = 1.0 / grid_length[0];
 	Stretched_Cartesian_Geometry::Parameters geom_params;
@@ -94,7 +91,7 @@ int main(int argc, char* argv[])
 			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.set_geometry(geom_params);
+	grid.set_geometry(geom_params);
 
 	// create a blinker
 	#define BLINKER_START 198
@@ -104,7 +101,7 @@ int main(int argc, char* argv[])
 		BLINKER_START + 2
 	};
 	for (const auto& cell: blinker_cells) {
-		auto* const cell_data = game_grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -122,7 +119,7 @@ int main(int argc, char* argv[])
 		TOAD_START + 3 + grid_length[0]
 	};
 	for (const auto& cell: toad_cells) {
-		auto* const cell_data = game_grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -142,7 +139,7 @@ int main(int argc, char* argv[])
 		BEACON_START + 3 - 3 * grid_length[0]
 	};
 	for (const auto& cell: beacon_cells) {
-		auto* const cell_data = game_grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -159,7 +156,7 @@ int main(int argc, char* argv[])
 		GLIDER_START + 2 - 2 * grid_length[0]
 	};
 	for (const auto& cell: glider_cells) {
-		auto* const cell_data = game_grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -175,7 +172,7 @@ int main(int argc, char* argv[])
 		BLOCK_START + 1 - grid_length[0]
 	};
 	for (const auto& cell: block_cells) {
-		auto* const cell_data = game_grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -193,7 +190,7 @@ int main(int argc, char* argv[])
 		BEEHIVE_START + 3 - grid_length[0]
 	};
 	for (const auto& cell: beehive_cells) {
-		auto* const cell_data = game_grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -201,17 +198,17 @@ int main(int argc, char* argv[])
 	}
 
 	// refine half of the grid randomly
-	vector<uint64_t> cells = game_grid.get_cells();
+	vector<uint64_t> cells = grid.get_cells();
 	random_shuffle(cells.begin(), cells.end());
 	for (int i = 0; i < int(cells.size() / 2); i++) {
-		game_grid.refine_completely(cells[i]);
+		grid.refine_completely(cells[i]);
 	}
-	vector<uint64_t> new_cells = game_grid.stop_refining();
+	vector<uint64_t> new_cells = grid.stop_refining();
 	// assign parents' state to children
 	for (const auto& cell: new_cells) {
 		auto
-			*new_cell_data = game_grid[cell],
-			*parent_data = game_grid[game_grid.get_parent(cell)];
+			*new_cell_data = grid[cell],
+			*parent_data = grid[grid.get_parent(cell)];
 
 		new_cell_data->is_alive = parent_data->is_alive;
 	}
@@ -228,22 +225,22 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 25
-	if (rank == 0) {
+	/*if (rank == 0) {
 		cout << "step: ";
 		cout.flush();
-	}
+	}*/
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		game_grid.balance_load();
-		game_grid.update_copies_of_remote_neighbors();
-		auto cells = game_grid.cells;
+		grid.balance_load();
+		grid.update_copies_of_remote_neighbors();
+		auto cells = grid.cells;
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
 
-		if (rank == 0) {
+		/*if (rank == 0) {
 			cout << step << " ";
 			cout.flush();
-		}
+		}*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
@@ -265,7 +262,7 @@ int main(int argc, char* argv[])
 		}
 
 		// write the grid into a file
-		game_grid.write_vtk_file(current_output_name.c_str());
+		grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
@@ -294,7 +291,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -325,26 +322,27 @@ int main(int argc, char* argv[])
 				cell.data->child_of_processed[i] = 0;
 			}
 
-			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
-			if (game_grid.get_refinement_level(cell.id) == 0) {
+			if (grid.get_refinement_level(cell.id) == 0) {
 
-				for (const auto& neighbor: *neighbors) {
+				for (const auto& neighbor_i: *neighbors) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == dccrg::error_cell) {
 						continue;
 					}
 
-					auto* const neighbor_data = game_grid[neighbor];
-					if (neighbor_data == NULL) {
-						cout << __FILE__ << ":" << __LINE__
+					const auto* const neighbor_data = grid[neighbor];
+					if (neighbor_data == nullptr) {
+						cerr << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of cell " << cell.id
 							<< ": " << neighbor
 							<< endl;
 						exit(EXIT_FAILURE);
 					}
 
-					if (game_grid.get_refinement_level(neighbor) == 0) {
+					if (grid.get_refinement_level(neighbor) == 0) {
 						if (neighbor_data->is_alive) {
 							cell.data->total_live_neighbor_count++;
 						}
@@ -352,7 +350,7 @@ int main(int argc, char* argv[])
 					} else {
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
+						uint64_t parent_of_neighbor = grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell.data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -381,22 +379,23 @@ int main(int argc, char* argv[])
 			// refined cells total the neighbor counts of siblings
 			} else {
 
-				for (const auto& neighbor: *neighbors) {
+				for (const auto& neighbor_i: *neighbors) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == dccrg::error_cell) {
 						continue;
 					}
 
-					auto* const neighbor_data = game_grid[neighbor];
+					auto* const neighbor_data = grid[neighbor];
 					if (neighbor_data == NULL) {
-						cout << __FILE__ << ":" << __LINE__
+						cerr << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of refined cell " << cell.id
 							<< ": " << neighbor
 							<< endl;
 						exit(EXIT_FAILURE);
 					}
 
-					if (game_grid.get_refinement_level(neighbor) == 0) {
+					if (grid.get_refinement_level(neighbor) == 0) {
 
 						// larger neighbors appear several times in the neighbor list
 						bool neighbor_processed = false;
@@ -431,12 +430,12 @@ int main(int argc, char* argv[])
 					} else {
 
 						// ignore own siblings
-						if (game_grid.get_parent(cell.id) == game_grid.get_parent(neighbor)) {
+						if (grid.get_parent(cell.id) == grid.get_parent(neighbor)) {
 							continue;
 						}
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
+						uint64_t parent_of_neighbor = grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell.data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -469,11 +468,11 @@ int main(int argc, char* argv[])
 			}
 
 		}
-		game_grid.update_copies_of_remote_neighbors();
+		grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
 		for (const auto& cell: cells) {
-			if (game_grid.get_refinement_level(cell.id) == 0) {
+			if (grid.get_refinement_level(cell.id) == 0) {
 				continue;
 			}
 
@@ -482,22 +481,24 @@ int main(int argc, char* argv[])
 				current_live_unrefined_neighbors.insert(cell.data->live_unrefined_neighbors[i]);
 			}
 
-			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
-			for (const auto& neighbor: *neighbors) {
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
+			for (const auto& neighbor_i: *neighbors) {
+				const auto& neighbor = neighbor_i.first;
+
 				if (neighbor == dccrg::error_cell) {
 					continue;
 				}
 
-				if (game_grid.get_refinement_level(neighbor) == 0) {
+				if (grid.get_refinement_level(neighbor) == 0) {
 					continue;
 				}
 
 				// total live neighbors counts only between siblings
-				if (game_grid.get_parent(cell.id) != game_grid.get_parent(neighbor)) {
+				if (grid.get_parent(cell.id) != grid.get_parent(neighbor)) {
 					continue;
 				}
 
-				auto* const neighbor_data = game_grid[neighbor];
+				auto* const neighbor_data = grid[neighbor];
 				for (int i = 0; i < 3; i++) {
 					current_live_unrefined_neighbors.insert(neighbor_data->live_unrefined_neighbors[i]);
 				}
@@ -519,7 +520,7 @@ int main(int argc, char* argv[])
 	}
 
 	if (rank == 0) {
-		cout << endl;
+		//cout << endl;
 		visit_file.close();
 	}
 

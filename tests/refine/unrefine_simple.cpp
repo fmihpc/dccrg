@@ -37,15 +37,12 @@ int main(int argc, char* argv[])
 	MPI_Comm_rank(comm, &rank);
 	MPI_Comm_size(comm, &comm_size);
 
-	clock_t before, after;
+	//clock_t before, after;
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
-	}
-	if (rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
@@ -66,7 +63,7 @@ int main(int argc, char* argv[])
 	geom_params.coordinates[2].push_back(1);
 	grid.set_geometry(geom_params);
 
-	if (rank == 0) {
+	/*if (rank == 0) {
 		cout << "Maximum refinement level of the grid: "
 			<< grid.get_maximum_refinement_level()
 			<< "\nNumber of cells: "
@@ -74,25 +71,25 @@ int main(int argc, char* argv[])
 				* (geom_params.coordinates.size() - 1)
 				* (geom_params.coordinates.size() - 1)
 			<< endl << endl;
-	}
+	}*/
 
 	// every process outputs state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "unrefine_simple_" << rank << "_";
+	basename << "tests/refine/unrefine_simple_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize with visit -o game_of_life_test.visit
 	if (rank == 0) {
-		visit_file.open("unrefine_simple.visit");
+		visit_file.open("tests/refine/unrefine_simple.visit");
 		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 
 	#define TIME_STEPS 8
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		if (rank == 0) {
+		/*if (rank == 0) {
 			cout << "step " << step << endl;
-		}
+		}*/
 
 		grid.balance_load();
 		auto cells = grid.get_cells();
@@ -111,7 +108,7 @@ int main(int argc, char* argv[])
 		// visualize with visit -o game_of_life_test.visit
 		if (rank == 0) {
 			for (int process = 0; process < comm_size; process++) {
-				visit_file << "unrefine_simple_" << process
+				visit_file << "tests/refine/unrefine_simple_" << process
 					<< "_" << step_string.str() << suffix.str()
 					<< endl;
 			}
@@ -146,7 +143,7 @@ int main(int argc, char* argv[])
 		}
 		outfile.close();
 
-		before = clock();
+		//before = clock();
 
 		// refine / unrefine the smallest cell that is closest to the grid starting corner
 		const std::array<double, 3> adapt_coord{{
@@ -162,12 +159,12 @@ int main(int argc, char* argv[])
 
 		auto new_cells = grid.stop_refining();
 
-		after = clock();
+		/*after = clock();
 		cout << "Process " << rank
 			<<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC
 			<< " seconds, " << new_cells.size()
 			<< " new cells created"
-			<< endl;
+			<< endl;*/
 	}
 
 	if (rank == 0) {
@@ -178,4 +175,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-
