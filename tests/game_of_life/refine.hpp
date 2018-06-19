@@ -84,14 +84,14 @@ public:
 		for (const auto& new_cell: new_cells) {
 
 			auto* const new_cell_data = grid[new_cell];
-			if (new_cell_data == NULL) {
+			if (new_cell_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for created cell " << new_cell
 					<< std::endl;
 				abort();
 			}
 			auto* const parent_data = grid[grid.get_parent(new_cell)];
-			if (parent_data == NULL) {
+			if (parent_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for parent cell " << grid.get_parent(new_cell)
 					<< std::endl;
@@ -100,13 +100,13 @@ public:
 			new_cell_data->data[0] = parent_data->data[0];
 		}
 
-		// "interpolate" parent cell's value from unrefined children
+		// "interpolate" parent cell's value from removed children
 		const auto removed_cells = grid.get_removed_cells();
 
 		for (const auto& removed_cell: removed_cells) {
 
 			auto* const removed_cell_data = grid[removed_cell];
-			if (removed_cell_data == NULL) {
+			if (removed_cell_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for removed cell after unrefining: "
 					<< removed_cell
@@ -115,7 +115,7 @@ public:
 			}
 
 			auto* const parent_data = grid[grid.mapping.get_parent(removed_cell)];
-			if (parent_data == NULL) {
+			if (parent_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " no data for parent cell after unrefining: "
 					<< grid.mapping.get_parent(removed_cell)
