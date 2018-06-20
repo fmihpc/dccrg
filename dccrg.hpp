@@ -4149,8 +4149,14 @@ public:
 				}
 				#endif
 
-				// TODO: don't assume max ref lvl diff of 1
 				if (has_children) {
+					// offsets shouldn't be needed anywhere
+					for (const auto& current_neighbor: current_neighbors) {
+						return_neighbors.push_back({
+							current_neighbor, {0, 0, 0, 0}
+						});
+					}
+
 					continue;
 				}
 
@@ -8351,6 +8357,7 @@ private:
 					}
 					#endif
 
+					// TODO switch to is_local()
 					if (this->cell_process.at(neighbor) != this->rank) {
 						continue;
 					}
@@ -8862,7 +8869,7 @@ private:
 				for (const auto& neighbor_i: this->neighbors_of.at(refined)) {
 					const auto& neighbor = neighbor_i.first;
 
-					if (neighbor == 0) {
+					if (neighbor == error_cell) {
 						continue;
 					}
 
@@ -8898,7 +8905,7 @@ private:
 				for (const auto& neighbor_i: neighbors) {
 					const auto& neighbor = neighbor_i.first;
 
-					if (neighbor == 0) {
+					if (neighbor == error_cell) {
 						continue;
 					}
 
@@ -10834,7 +10841,7 @@ private:
 			>
 		>& neighbor_to_lists
 	) {
-		if (cell == 0) {
+		if (cell == error_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			return false;
 		}
@@ -10887,9 +10894,6 @@ private:
 				return false;
 			}
 
-		}
-
-		if (cell != this->get_child(cell)) {
 			return true;
 		}
 
@@ -10909,7 +10913,8 @@ private:
 			)
 		)
 		) {
-			std::cerr << "Process " << this->rank
+			std::cerr << __FILE__ "(" << __LINE__ << ") "
+				<< "Process " << this->rank
 				<< " neighbor counts for cell " << cell
 				<< " (child of " << this->get_parent(cell)
 				<< ") don't match "

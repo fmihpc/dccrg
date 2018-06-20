@@ -62,7 +62,7 @@ TESTS_GAME_OF_LIFE_COMMON_DEPS = \
   Makefile
 
 TESTS_GAME_OF_LIFE_COMPILE_COMMAND = \
-  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ \
+  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ -DDEBUG \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \

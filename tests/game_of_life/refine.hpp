@@ -40,7 +40,10 @@ public:
 		const int processes
 	) {
 		// refine random unrefined cells and unrefine random refined cells
-		auto cells = grid.cells;
+		std::vector<uint64_t> cells;
+		for (const auto& cell: grid.local_cells) {
+			cells.push_back(cell.id);
+		}
 		std::random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
@@ -49,10 +52,10 @@ public:
 				i < int(cells.size()) && refined <= grid_size * grid_size / (5 * processes);
 				i++
 			) {
-				if (grid.get_refinement_level(cells[i].id) == 0) {
-					if (!grid.refine_completely(cells[i].id)) {
+				if (grid.get_refinement_level(cells[i]) == 0) {
+					if (!grid.refine_completely(cells[i])) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Couldn't refine cell " << cells[i].id
+							<< " Couldn't refine cell " << cells[i]
 							<< std::endl;
 						abort();
 					}
@@ -66,10 +69,10 @@ public:
 				i < int(cells.size()) && unrefined <= grid_size * grid_size / (4 * processes);
 				i++
 			) {
-				if (grid.get_refinement_level(cells[i].id) > 0) {
-					if (!grid.unrefine_completely(cells[i].id)) {
+				if (grid.get_refinement_level(cells[i]) > 0) {
+					if (!grid.unrefine_completely(cells[i])) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Couldn't unrefine cell " << cells[i].id
+							<< " Couldn't unrefine cell " << cells[i]
 							<< std::endl;
 						abort();
 					}

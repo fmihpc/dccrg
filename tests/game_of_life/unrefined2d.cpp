@@ -100,9 +100,6 @@ int main(int argc, char* argv[])
 		cerr << "Zoltan_Initialize failed" << endl;
 		exit(EXIT_FAILURE);
 	}
-	if (verbose && rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
 
 	// initialize grids, reference grid doesn't refine/unrefine
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid, reference_grid;

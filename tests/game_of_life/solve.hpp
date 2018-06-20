@@ -36,8 +36,12 @@ Advances the game of life on given grid one turn.
 
 Works only if cells within the grid have been refined <= 1 time.
 */
-template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<Cell_Data, Geometry>& grid)
-{
+template<
+	class Cell_Data,
+	class Geometry
+> void get_live_neighbors(
+	dccrg::Dccrg<Cell_Data, Geometry>& grid
+) {
 	const auto cells = grid.get_cells();
 	// get the neighbor counts of every cell
 	for (const auto& cell: cells) {
@@ -104,14 +108,13 @@ template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<C
 				}
 			}
 		}
-
 	}
 	grid.update_copies_of_remote_neighbors();
 
 	// spread live neighbor info between siblings
 	for (const auto& cell: cells) {
 
-		const auto& cell_parent_id = grid.mapping.get_level_0_parent(cell);
+		const auto cell_parent_id = grid.mapping.get_level_0_parent(cell);
 		auto* const cell_data = grid[cell];
 
 		const auto* const neighbors = grid.get_neighbors_of(cell);
