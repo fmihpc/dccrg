@@ -7560,12 +7560,8 @@ private:
 		}
 
 		// populate final send list data structures and sort them
-		for (std::unordered_map<int, std::unordered_set<uint64_t>>::const_iterator
-			receiver = unique_cells_to_send.begin();
-			receiver != unique_cells_to_send.end();
-			receiver++
-		) {
-			const int process = receiver->first;
+		for (const auto& receiver: unique_cells_to_send) {
+			const int process = receiver.first;
 
 			#ifdef DEBUG
 			if ((uint64_t) process == this->rank) {
@@ -7576,9 +7572,9 @@ private:
 			}
 			#endif
 
-			this->cells_to_send[process].reserve(receiver->second.size());
+			this->cells_to_send[process].reserve(receiver.second.size());
 
-			for (const uint64_t cell: receiver->second) {
+			for (const uint64_t cell: receiver.second) {
 				this->cells_to_send.at(process).push_back(
 					std::make_pair(cell, -1)
 				);
@@ -7608,12 +7604,8 @@ private:
 		}
 
 		// populate final receive list data structures and sort them
-		for (std::unordered_map<int, std::unordered_set<uint64_t>>::const_iterator
-			sender = unique_cells_to_receive.begin();
-			sender != unique_cells_to_receive.end();
-			sender++
-		) {
-			const int process = sender->first;
+		for (const auto& sender: unique_cells_to_receive) {
+			const int process = sender.first;
 
 			#ifdef DEBUG
 			if ((uint64_t) process == this->rank) {
@@ -7624,9 +7616,9 @@ private:
 			}
 			#endif
 
-			this->cells_to_receive[process].reserve(sender->second.size());
+			this->cells_to_receive[process].reserve(sender.second.size());
 
-			for (const uint64_t cell: sender->second) {
+			for (const uint64_t cell: sender.second) {
 				this->cells_to_receive.at(process).push_back(
 					std::make_pair(cell, -1)
 				);
@@ -7655,13 +7647,8 @@ private:
 				this->cells_to_receive.at(process)[i].second = tag;
 			}
 		}
-
-		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-			item = this->user_hood_of.begin();
-			item != this->user_hood_of.end();
-			item++
-		) {
-			this->recalculate_neighbor_update_send_receive_lists(item->first);
+		for (const auto& item: this->user_hood_of) {
+			this->recalculate_neighbor_update_send_receive_lists(item.first);
 		}
 	}
 

@@ -2,7 +2,7 @@
 Test for scalability of dccrg in 2 D
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -107,8 +107,10 @@ int main(int argc, char* argv[])
 	grid.balance_load();
 
 	cout << "Process " << rank
-		<< ": number of cells with local neighbors: " << std::distance(grid.inner_cells.begin(), grid.inner_cells.end())
-		<< ", number of cells with a remote neighbor: " << std::distance(grid.outer_cells.begin(), grid.outer_cells.end())
+		<< ": number of cells with local neighbors: "
+		<< std::distance(grid.inner_cells.begin(), grid.inner_cells.end())
+		<< ", number of cells with a remote neighbor: "
+		<< std::distance(grid.outer_cells.begin(), grid.outer_cells.end())
 		<< endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
@@ -213,7 +215,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	int number_of_cells = std::distance(grid.local_cells.begin(), grid.local_cells.end());
+	const auto number_of_cells = std::distance(grid.local_cells.begin(), grid.local_cells.end());
 	cout << "Process " << rank
 		<< ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of "
 		<< double(number_of_cells * TIME_STEPS) / total << " cells / second"

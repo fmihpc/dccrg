@@ -35,9 +35,9 @@ struct game_of_life_cell {
 Initializes game.
 */
 void initialize_game(
-	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
+	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
 ) {
-	for (const auto& cell: game_grid.cells) {
+	for (const auto& cell: grid.local_cells) {
 		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -52,35 +52,15 @@ void initialize_game(
 /*!
 Calculates the number of live neihgbours for every cell given, all of which must be local
 */
-void get_live_neighbor_counts(
-	const vector<uint64_t>& cells,
-	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
+template<class Cell_Iterator> void get_live_neighbor_counts(
+	const Cell_Iterator& cells
 ) {
 	for (const auto& cell: cells) {
-		auto* const cell_data = game_grid[cell];
-		if (cell_data == nullptr) {
-			abort();
-		}
+		cell.data->live_neighbor_count = 0;
 
-		cell_data->live_neighbor_count = 0;
-
-		const auto* const neighbors = game_grid.get_neighbors_of(cell);
-		if (neighbors == nullptr) {
-			abort();
-		}
-
-		for (const auto& neighbor: *neighbors) {
-			if (neighbor == dccrg::error_cell) {
-				continue;
-			}
-
-			const auto* const neighbor_data = game_grid[neighbor];
-			if (neighbor_data == nullptr) {
-				abort();
-			}
-
-			if (neighbor_data->is_alive > 0) {
-				cell_data->live_neighbor_count++;
+		for (const auto& neighbor: cell.neighbors_of) {
+			if (neighbor.data->is_alive > 0) {
+				cell.data->live_neighbor_count++;
 			}
 		}
 	}
@@ -91,9 +71,9 @@ void get_live_neighbor_counts(
 Applies the game of life rules to every given cell, all of which must be local
 */
 void apply_rules(
-	const dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
+	const dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
 ) {
-	for (const auto& cell: game_grid.cells) {
+	for (const auto& cell: grid.cells) {
 		if (cell.data->live_neighbor_count == 3) {
 			cell.data->is_alive = 1;
 		} else if (cell.data->live_neighbor_count != 2) {
@@ -110,7 +90,7 @@ See the file dc2vtk.cpp for an example of how to read in the saved files.
 */
 bool write_game_data(
 	uint64_t step,
-	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& game_grid
+	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
 ) {
 	// get the output filename
 	ostringstream basename("game_of_life_"), step_string, suffix(".dc");
@@ -129,7 +109,7 @@ bool write_game_data(
 	get<1>(file_header) = 1; // number of datatypes to write
 	get<2>(file_header) = MPI_UINT64_T; // datatype to use
 
-	if (not game_grid.save_grid_data(output_name, 0, file_header)) {
+	if (not grid.save_grid_data(output_name, 0, file_header)) {
 		abort();
 	}
 
@@ -163,45 +143,45 @@ int main(int argc, char* argv[])
 		cout << "Using Zoltan version " << zoltan_version << endl;
 	}
 
-	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry> game_grid;
+	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry> grid;
 
 	const int
 		neighborhood_size = 1,
 		maximum_refinement_level = 0;
 	const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
-	game_grid.initialize(
+	grid.initialize(
 		grid_length,
 		comm,
 		"RCB",
 		neighborhood_size,
 		maximum_refinement_level
 	);
-	game_grid.set_geometry(
+	grid.set_geometry(
 		dccrg::Cartesian_Geometry_Parameters({{0, 0, 0}}, {{1, 1, 1}})
 	);
 
-	game_grid.balance_load();
+	grid.balance_load();
 
 	const vector<uint64_t>
-		inner_cells = game_grid.get_local_cells_not_on_process_boundary(),
-		outer_cells = game_grid.get_local_cells_on_process_boundary();
+		inner_cells = grid.get_local_cells_not_on_process_boundary(),
+		outer_cells = grid.get_local_cells_on_process_boundary();
 
-	initialize_game(game_grid);
+	initialize_game(grid);
 
 	const int turns = 10;
 	for (int turn = 0; turn < turns; turn++) {
 
-		write_game_data(turn, game_grid);
+		write_game_data(turn, grid);
 
-		game_grid.start_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(inner_cells, game_grid);
+		grid.start_remote_neighbor_copy_updates();
+		get_live_neighbor_counts(grid.inner_cells);
 
-		game_grid.wait_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(outer_cells, game_grid);
+		grid.wait_remote_neighbor_copy_updates();
+		get_live_neighbor_counts(grid.outer_cells);
 
-		apply_rules(game_grid);
+		apply_rules(grid);
 	}
-	write_game_data(turns, game_grid);
+	write_game_data(turns, grid);
 
 	MPI_Finalize();
 

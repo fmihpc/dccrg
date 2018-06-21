@@ -2,7 +2,7 @@
 Test for scalability of dccrg in 3 D with refined grid
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -18,6 +18,8 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "algorithm"
+#include "array"
+#include "chrono"
 #include "cstdlib"
 #include "ctime"
 #include "fstream"
@@ -44,7 +46,7 @@ struct game_of_life_cell {
 
 
 using namespace std;
-using namespace boost;
+using namespace std::chrono;
 using namespace dccrg;
 
 int main(int argc, char* argv[])
@@ -60,21 +62,19 @@ int main(int argc, char* argv[])
 	MPI_Comm_rank(comm, &rank);
 	MPI_Comm_size(comm, &comm_size);
 
-	time_t before, after, total = 0;
-
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
+	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{21, 21, 21}};
 	const double cell_length = 1.0 / grid_length[0];
 
 	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE);
+	grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE);
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -82,11 +82,14 @@ int main(int argc, char* argv[])
 			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.set_geometry(geom_params);
+	grid.set_geometry(geom_params);
 
-	game_grid.balance_load();
+	grid.balance_load();
 
-	vector<uint64_t> cells = game_grid.get_cells();
+	vector<uint64_t> cells;
+	for (const auto& cell: grid.local_cells) {
+		cells.push_back(cell.id);
+	}
 	// refine random cells until every process has enough cells
 	#define MAX_CELLS (100 * grid_length[0] * grid_length[1] * grid_length[2])
 	unsigned int total_cells = 0;
@@ -96,53 +99,47 @@ int main(int argc, char* argv[])
 
 		// refine a fraction of all cells each round
 		for (int i = 0; i < int(cells.size() / 15) && i < 10000; i++) {
-			game_grid.refine_completely(cells[i]);
+			grid.refine_completely(cells[i]);
 		}
-		game_grid.stop_refining();
-		cells = game_grid.get_cells();
+		grid.stop_refining();
+		cells = grid.get_cells();
 		unsigned int local_cells = cells.size();
 		MPI_Allreduce(&local_cells, &total_cells, 1, MPI_UNSIGNED, MPI_SUM, comm);
 	} while (total_cells < MAX_CELLS);
-	game_grid.balance_load();
-
-	vector<uint64_t>
-		inner_cells = game_grid.get_local_cells_not_on_process_boundary(),
-		outer_cells = game_grid.get_local_cells_on_process_boundary();
+	grid.balance_load();
 
 	cout << "Process " << rank
-		<< ": number of cells with local neighbors: " << inner_cells.size()
-		<< ", number of cells with a remote neighbor: " << outer_cells.size()
+		<< ": number of cells with local neighbors: "
+		<< std::distance(grid.inner_cells.begin(), grid.inner_cells.end())
+		<< ", number of cells with a remote neighbor: "
+		<< std::distance(grid.outer_cells.begin(), grid.outer_cells.end())
 		<< endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (const auto& cell: inner_cells) {
-
-		auto* const cell_data = game_grid[cell];
-		cell_data->live_neighbor_count = 0;
+	for (const auto& cell: grid.inner_cells) {
+		cell.data->live_neighbor_count = 0;
 
 		const std::array<double, 3>
-			cell_center = game_grid.geometry.get_center(cell),
-			cell_length = game_grid.geometry.get_length(cell);
+			cell_center = grid.geometry.get_center(cell.id),
+			cell_length = grid.geometry.get_length(cell.id);
 
 		if (fabs(0.5 + 0.1 * cell_length[1] - cell_center[1]) < 0.5 * cell_length[1]) {
-			cell_data->is_alive = 1;
+			cell.data->is_alive = 1;
 		} else {
-			cell_data->is_alive = 0;
+			cell.data->is_alive = 0;
 		}
 	}
-	for (const auto& cell: outer_cells) {
-
-		auto* const cell_data = game_grid[cell];
-		cell_data->live_neighbor_count = 0;
+	for (const auto& cell: grid.outer_cells) {
+		cell.data->live_neighbor_count = 0;
 
 		const std::array<double, 3>
-			cell_center = game_grid.geometry.get_center(cell),
-			cell_length = game_grid.geometry.get_length(cell);
+			cell_center = grid.geometry.get_center(cell.id),
+			cell_length = grid.geometry.get_length(cell.id);
 
 		if (fabs(0.5 + 0.1 * cell_length[1] - cell_center[1]) < 0.5 * cell_length[1]) {
-			cell_data->is_alive = 1;
+			cell.data->is_alive = 1;
 		} else {
-			cell_data->is_alive = 0;
+			cell.data->is_alive = 0;
 		}
 	}
 
@@ -153,47 +150,25 @@ int main(int argc, char* argv[])
 	}
 	double avg_neighbors = 0.0;
 	int max_neighbors = 0, min_neighbors = 999;
-	uint64_t number_of_cells = inner_cells.size() + outer_cells.size();
+	const auto number_of_cells = std::distance(grid.local_cells.begin(), grid.local_cells.end());
 
-	for (const auto& cell: inner_cells) {
+	for (const auto& cell: grid.local_cells) {
+		const double neighbors_size = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
+		avg_neighbors += neighbors_size / number_of_cells;
 
-		const auto* const neighbors = game_grid.get_neighbors_of(cell);
-		avg_neighbors += double(neighbors->size()) / number_of_cells;
-
-		if (max_neighbors < int(neighbors->size())) {
-			max_neighbors = neighbors->size();
+		if (max_neighbors < int(neighbors_size)) {
+			max_neighbors = neighbors_size;
 		}
 
-		if (min_neighbors > int(neighbors->size())) {
-			min_neighbors = neighbors->size();
+		if (min_neighbors > int(neighbors_size)) {
+			min_neighbors = neighbors_size;
 		}
 
-		if (neighbors->size() >= 7 && neighbors->size() <= 8 * (9 + 8 + 9)) {
-			neighbor_count_histogram[neighbors->size()] += 1;
+		if (neighbors_size >= 7 && neighbors_size <= 8 * (9 + 8 + 9)) {
+			neighbor_count_histogram[neighbors_size] += 1;
 		} else {
-			cout << "Impossible number of neighbors for cell " << cell
-				<< ": " << neighbors->size()
-				<< endl;
-		}
-	}
-	for (const auto& cell: outer_cells) {
-
-		const auto* const neighbors = game_grid.get_neighbors_of(cell);
-		avg_neighbors += double(neighbors->size()) / number_of_cells;
-
-		if (max_neighbors < int(neighbors->size())) {
-			max_neighbors = neighbors->size();
-		}
-
-		if (min_neighbors > int(neighbors->size())) {
-			min_neighbors = neighbors->size();
-		}
-
-		if (neighbors->size() >= 7 && neighbors->size() <= 8 * (9 + 8 + 9)) {
-			neighbor_count_histogram[neighbors->size()] += 1;
-		} else {
-			cout << "Impossible number of neighbors for cell " << cell
-				<< ": " << neighbors->size()
+			cout << "Impossible number of neighbors for cell " << cell.id
+				<< ": " << neighbors_size
 				<< endl;
 		}
 	}
@@ -227,7 +202,7 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 100
-	before = time(NULL);
+	const auto before = high_resolution_clock::now();
 	uint64_t processed_neighbors = 0;
 	for (int step = 0; step < TIME_STEPS; step++) {
 
@@ -236,81 +211,54 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		game_grid.start_remote_neighbor_copy_updates();
+		grid.start_remote_neighbor_copy_updates();
 		// get the neighbor counts of every cell, starting with the
 		// cells whose neighbor data doesn't come from other processes
-		for (const auto& cell: inner_cells) {
-
-			auto* const cell_data = game_grid[cell];
-			cell_data->live_neighbor_count = 0;
-
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
-			for (const auto& neighbor: *neighbors) {
-
-				if (neighbor == dccrg::error_cell) {
-					continue;
+		for (const auto& cell: grid.inner_cells) {
+			cell.data->live_neighbor_count = 0;
+			for (const auto& neighbor: cell.neighbors_of) {
+				if (neighbor.data->is_alive) {
+					cell.data->live_neighbor_count++;
 				}
-
-				auto* const neighbor_data = game_grid[neighbor];
-				if (neighbor_data->is_alive) {
-					cell_data->live_neighbor_count++;
-				}
-
 				processed_neighbors++;
 			}
 		}
 
 		// wait for neighbor data updates to finish and go through the rest of the cells
-		game_grid.wait_remote_neighbor_copy_updates();
-		for (const auto& cell: outer_cells) {
-
-			auto* const cell_data = game_grid[cell];
-			cell_data->live_neighbor_count = 0;
-
-			const auto* const neighbors = game_grid.get_neighbors_of(cell);
-			for (const auto& neighbor: *neighbors) {
-
-				if (neighbor == dccrg::error_cell) {
-					continue;
+		grid.wait_remote_neighbor_copy_updates();
+		for (const auto& cell: grid.outer_cells) {
+			cell.data->live_neighbor_count = 0;
+			for (const auto& neighbor: cell.neighbors_of) {
+				if (neighbor.data->is_alive) {
+					cell.data->live_neighbor_count++;
 				}
-
-				auto* const neighbor_data = game_grid[neighbor];
-				if (neighbor_data->is_alive) {
-					cell_data->live_neighbor_count++;
-				}
-
 				processed_neighbors++;
 			}
 		}
 
 		// calculate the next turn
-		for (const auto& cell: inner_cells) {
-
-			auto* const cell_data = game_grid[cell];
-
-			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = 1;
-			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = 0;
+		for (const auto& cell: grid.inner_cells) {
+			if (cell.data->live_neighbor_count == 3) {
+				cell.data->is_alive = 1;
+			} else if (cell.data->live_neighbor_count != 2) {
+				cell.data->is_alive = 0;
 			}
 		}
-		for (const auto& cell: outer_cells) {
-
-			auto* const cell_data = game_grid[cell];
-
-			if (cell_data->live_neighbor_count == 3) {
-				cell_data->is_alive = 1;
-			} else if (cell_data->live_neighbor_count != 2) {
-				cell_data->is_alive = 0;
+		for (const auto& cell: grid.outer_cells) {
+			if (cell.data->live_neighbor_count == 3) {
+				cell.data->is_alive = 1;
+			} else if (cell.data->live_neighbor_count != 2) {
+				cell.data->is_alive = 0;
 			}
 		}
 	}
-	after = time(NULL);
-	total += after - before;
+	const auto after = high_resolution_clock::now();
+	const auto total = duration_cast<duration<double>>(after - before).count();
 	if (rank == 0) {
 		cout << endl;
 	}
 	MPI_Barrier(comm);
+
 	cout << "processed neighbors: " << processed_neighbors << endl;
 	cout << "Process " << rank << ": " << number_of_cells * TIME_STEPS
 		<< " cells processed at the speed of " << double(number_of_cells * TIME_STEPS) / total

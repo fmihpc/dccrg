@@ -1,7 +1,8 @@
 /*
 Advection equation solver program for dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015, 2016,
+2018 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -263,7 +264,7 @@ int main(int argc, char* argv[])
 	}
 
 	// apply initial condition 1st time for prerefining the grid
-	Initialize()(grid);
+	initialize(grid);
 
 	std::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 
@@ -271,7 +272,7 @@ int main(int argc, char* argv[])
 
 	// prerefine up to maximum refinement level
 	for (int ref_lvl = 0; ref_lvl < max_ref_lvl; ref_lvl++) {
-		Adapter().check_for_adaptation(
+		check_for_adaptation(
 			relative_diff / grid.get_maximum_refinement_level(),
 			diff_threshold,
 			unrefine_sensitivity,
@@ -281,21 +282,20 @@ int main(int argc, char* argv[])
 			grid
 		);
 
-		const std::pair<uint64_t, uint64_t> adapted_cells
-			= Adapter().adapt_grid(
-				cells_to_refine,
-				cells_not_to_unrefine,
-				cells_to_unrefine,
-				grid
-			);
+		const auto adapted_cells = adapt_grid(
+			cells_to_refine,
+			cells_not_to_unrefine,
+			cells_to_unrefine,
+			grid
+		);
 		created_cells += adapted_cells.first;
 		removed_cells += adapted_cells.second;
 
 		// apply initial condition on a finer grid
-		Initialize()(grid);
+		initialize(grid);
 	}
 
-	double dt = Solver().max_time_step(comm, grid);
+	double dt = max_time_step(comm, grid);
 	if (verbose && rank == 0) {
 		cout << "Initial timestep: " << dt << endl;
 	}
@@ -311,17 +311,13 @@ int main(int argc, char* argv[])
 		if (verbose && rank == 0) {
 			cout << "Saving initial state of simulation" << endl;
 		}
-		Save()(File_Namer()(0, base_output_name), comm, grid);
+		save(get_file_name(0, base_output_name), comm, grid);
 		files_saved++;
 	}
 
 	if (verbose && rank == 0) {
 		cout << "Starting simulation" << endl;
 	}
-
-	vector<uint64_t>
-		inner_cells = grid.get_local_cells_not_on_process_boundary(),
-		outer_cells = grid.get_local_cells_on_process_boundary();
 
 	// record solution time for inner cells and amount of neighbor data received
 	double inner_solve_time = 0, outer_solve_time = 0, neighbor_receive_size = 0;
@@ -338,7 +334,7 @@ int main(int argc, char* argv[])
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();
-		Solver().calculate_fluxes(cfl * dt, inner_cells, grid);
+		calculate_fluxes(cfl * dt, true, grid);
 		inner_solve_time += MPI_Wtime() - inner_solve_start;
 
 		// wait for remote neighbor data
@@ -346,7 +342,7 @@ int main(int argc, char* argv[])
 
 		// solve outer cells
 		const double outer_solve_start = MPI_Wtime();
-		Solver().calculate_fluxes(cfl * dt, outer_cells, grid);
+		calculate_fluxes(cfl * dt, false, grid);
 		outer_solve_time += MPI_Wtime() - outer_solve_start;
 
 		// wait until local data has been sent
@@ -368,7 +364,7 @@ int main(int argc, char* argv[])
 				cout << "Checking which cells to adapt in the grid" << endl;
 			}
 
-			Adapter().check_for_adaptation(
+			check_for_adaptation(
 				relative_diff / grid.get_maximum_refinement_level(),
 				diff_threshold,
 				unrefine_sensitivity,
@@ -384,7 +380,7 @@ int main(int argc, char* argv[])
 			if (verbose && rank == 0) {
 				cout << "Saving simulation at " << time << endl;
 			}
-			Save()(File_Namer()(time, base_output_name), comm, grid);
+			save(get_file_name(time, base_output_name), comm, grid);
 			files_saved++;
 		}
 
@@ -394,7 +390,7 @@ int main(int argc, char* argv[])
 		*/
 
 		// apply fluxes
-		Solver().apply_fluxes(grid);
+		apply_fluxes(grid);
 
 		// adapt the grid
 		if (adapt_n > 0 && step % adapt_n == 0) {
@@ -404,7 +400,7 @@ int main(int argc, char* argv[])
 			}
 
 			const std::pair<uint64_t, uint64_t> adapted_cells
-				= Adapter().adapt_grid(
+				= adapt_grid(
 					cells_to_refine,
 					cells_not_to_unrefine,
 					cells_to_unrefine,
@@ -413,11 +409,8 @@ int main(int argc, char* argv[])
 			created_cells += adapted_cells.first;
 			removed_cells += adapted_cells.second;
 
-			inner_cells = grid.get_local_cells_not_on_process_boundary();
-			outer_cells = grid.get_local_cells_on_process_boundary();
-
 			// update maximum allowed time step
-			dt = Solver().max_time_step(comm, grid);
+			dt = max_time_step(comm, grid);
 			if (verbose && rank == 0) {
 				cout << "New timestep: " << dt << endl;
 			}
@@ -425,15 +418,10 @@ int main(int argc, char* argv[])
 
 		// balance load
 		if (balance_n > 0 && step % balance_n == 0) {
-
 			if (verbose && rank == 0) {
 				cout << "Balancing load" << endl;
 			}
-
 			grid.balance_load();
-
-			inner_cells = grid.get_local_cells_not_on_process_boundary();
-			outer_cells = grid.get_local_cells_on_process_boundary();
 		}
 
 		step++;
@@ -445,7 +433,7 @@ int main(int argc, char* argv[])
 			cout << "Saving final state of simulation" << endl;
 		}
 
-		Save()(File_Namer()(tmax, base_output_name), comm, grid);
+		save(get_file_name(tmax, base_output_name), comm, grid);
 		files_saved++;
 	}
 

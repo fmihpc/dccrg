@@ -2,7 +2,7 @@
 Program for testing dccrg restart using Conway's game of life, stretched geometry version.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -40,7 +40,6 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "refine.hpp"
 
 using namespace std;
-using namespace boost;
 using namespace dccrg;
 
 
@@ -93,7 +92,7 @@ int main(int argc, char* argv[])
 	}
 
 
-	Dccrg<Cell, Stretched_Cartesian_Geometry> game_grid, reference_grid;
+	Dccrg<Cell, Stretched_Cartesian_Geometry> grid, reference_grid;
 
 
 	/*
@@ -121,7 +120,7 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	Initialize<Stretched_Cartesian_Geometry>::initialize(reference_grid, grid_length[0]);
+	initialize(reference_grid, grid_length[0]);
 
 
 	/*
@@ -133,89 +132,69 @@ int main(int argc, char* argv[])
 	// either start a new game...
 	if (restart_name == "") {
 
-		game_grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
+		grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
 
-		if (!game_grid.set_geometry(geom_params)) {
+		if (!grid.set_geometry(geom_params)) {
 			cerr << "Couldn't set grid geometry" << endl;
 			exit(EXIT_FAILURE);
 		}
 
-		Initialize<Stretched_Cartesian_Geometry>::initialize(game_grid, grid_length[0]);
+		initialize(grid, grid_length[0]);
 
 		// save initial state
-		IO<Stretched_Cartesian_Geometry>::save(
-			"gol_0.dc",
-			0,
-			game_grid
-		);
+		save("gol_0.dc", 0, grid);
 
 	// ...or restart from saved game
 	} else {
-		step = IO<Stretched_Cartesian_Geometry>::load(
-			comm,
-			restart_name,
-			game_grid
-		);
+		step = load(comm, restart_name, grid);
 
 		// play the reference game to the same step
 		for (uint64_t i = 0; i < step; i++) {
-			Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
+			solve(reference_grid);
 		}
 	}
-
-	game_grid.balance_load();
 
 	const uint64_t time_steps = 25;
 	while (step < time_steps) {
 
-		Refine<Stretched_Cartesian_Geometry>::refine(game_grid, grid_length[0], step, comm_size);
+		refine(grid, grid_length[0], step, comm_size);
 
-		game_grid.balance_load();
-		game_grid.update_copies_of_remote_neighbors();
-		const vector<uint64_t> cells = game_grid.get_cells();
+		grid.balance_load();
+		grid.update_copies_of_remote_neighbors();
 
-		Solve<Stretched_Cartesian_Geometry>::solve(game_grid);
-		Solve<Stretched_Cartesian_Geometry>::solve(reference_grid);
+		solve(grid);
+		solve(reference_grid);
 
 		step++;
 
-		IO<Stretched_Cartesian_Geometry>::save(
+		save(
 			"gol_" + boost::lexical_cast<std::string>(step) + ".dc",
 			step,
-			game_grid
+			grid
 		);
 
 		// verify refined/unrefined game
-		for (const auto& cell: cells) {
+		for (const auto& cell: grid.local_cells) {
 
-			auto* const cell_data = game_grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell " << cell
-					<< std::endl;
-				abort();
-			}
-
+			const int refinement_level = grid.get_refinement_level(cell.id);
 			uint64_t reference_cell;
-
-			const int refinement_level = game_grid.get_refinement_level(cell);
 			if (refinement_level > 0) {
-				reference_cell = game_grid.mapping.get_level_0_parent(cell);
+				reference_cell = grid.mapping.get_level_0_parent(cell.id);
 			} else {
-				reference_cell = cell;
+				reference_cell = cell.id;
 			}
 
 			auto* const reference_data = reference_grid[reference_cell];
-			if (reference_data == NULL) {
+			if (reference_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for reference cell " << reference_cell
 					<< std::endl;
 				abort();
 			}
 
-			if (cell_data->data[0] != reference_data->data[0]) {
+			if (cell.data->data[0] != reference_data->data[0]) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell's " << cell
+					<< " Cell's " << cell.id
 					<< " life doesn't agree with reference at the beginning of step " << step
 					<< std::endl;
 				abort();

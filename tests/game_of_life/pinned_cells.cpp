@@ -75,9 +75,6 @@ int main(int argc, char* argv[])
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
 
 	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
 
@@ -402,7 +399,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -433,11 +430,12 @@ int main(int argc, char* argv[])
 				cell.data->child_of_processed[i] = 0;
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
 			if (game_grid.get_refinement_level(cell.id) == 0) {
 
-				for (const auto& neighbor: *neighbors) {
+				for (const auto& neighbor_i: *neighbors) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == dccrg::error_cell) {
 						continue;
@@ -489,7 +487,8 @@ int main(int argc, char* argv[])
 			// refined cells total the neighbor counts of siblings
 			} else {
 
-				for (const auto& neighbor: *neighbors) {
+				for (const auto& neighbor_i: *neighbors) {
+					const auto& neighbor = neighbor_i.first;
 
 					if (neighbor == dccrg::error_cell) {
 						continue;
@@ -590,8 +589,9 @@ int main(int argc, char* argv[])
 				current_live_unrefined_neighbors.insert(cell.data->live_unrefined_neighbors[i]);
 			}
 
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell.id);
-			for (const auto& neighbor: *neighbors) {
+			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
+			for (const auto& neighbor_i: *neighbors) {
+				const auto& neighbor = neighbor_i.first;
 
 				if (neighbor == dccrg::error_cell) {
 					continue;
@@ -628,7 +628,6 @@ int main(int argc, char* argv[])
 
 	if (rank == 0) {
 		visit_file.close();
-		cout << endl;
 	}
 
 	MPI_Finalize();

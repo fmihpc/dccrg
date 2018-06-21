@@ -62,7 +62,7 @@ TESTS_GAME_OF_LIFE_COMMON_DEPS = \
   Makefile
 
 TESTS_GAME_OF_LIFE_COMPILE_COMMAND = \
-  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \
@@ -78,7 +78,7 @@ TESTS_GAME_OF_LIFE_COMPILE_COMMAND = \
 tests/game_of_life/game_of_life_test.exe: \
   tests/game_of_life/game_of_life_test.cpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
 
 tests/game_of_life/game_of_life_test.tst1: \
   tests/game_of_life/game_of_life_test.exe
@@ -93,7 +93,7 @@ tests/game_of_life/game_of_life_test_optimized.exe: \
   tests/game_of_life/game_of_life_test.cpp \
   tests/game_of_life/solve_optimized.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS) -DOPTIMIZED
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS) -DOPTIMIZED
 
 tests/game_of_life/game_of_life_test_optimized.tst1: \
   tests/game_of_life/game_of_life_test_optimized.exe
@@ -107,7 +107,7 @@ tests/game_of_life/game_of_life_test_optimized.tstN: \
 tests/game_of_life/pinned_cells.exe: \
   tests/game_of_life/pinned_cells.cpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG
 
 tests/game_of_life/pinned_cells.tst1: \
   tests/game_of_life/pinned_cells.exe
@@ -138,7 +138,7 @@ tests/game_of_life/refined2d.exe: \
   tests/game_of_life/refined2d.cpp \
   tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG
 
 tests/game_of_life/refined2d.tst1: \
   tests/game_of_life/refined2d.exe
@@ -153,7 +153,7 @@ tests/game_of_life/refined.exe: \
   tests/game_of_life/refined.cpp \
   tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG
 
 tests/game_of_life/refined.tst1: \
   tests/game_of_life/refined.exe
@@ -174,7 +174,7 @@ tests/game_of_life/refined_scalability3d.exe: \
 tests/game_of_life/hierarchical_test.exe: \
   tests/game_of_life/hierarchical_test.cpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG
 
 tests/game_of_life/hierarchical_test.tst1: \
   tests/game_of_life/hierarchical_test.exe
@@ -189,7 +189,7 @@ tests/game_of_life/unrefined2d.exe: \
   tests/game_of_life/unrefined2d.cpp \
   tests/game_of_life/refine.hpp \
   $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
-	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
 
 tests/game_of_life/unrefined2d.tst1: \
   tests/game_of_life/unrefined2d.exe
