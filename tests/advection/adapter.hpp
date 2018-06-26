@@ -1,7 +1,8 @@
 /*
 Adapter class for the advection test program of dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015, 2016,
+2018 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -22,6 +23,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "cmath"
 #include "iostream"
+#include "set"
 #include "utility"
 #include "vector"
 
@@ -71,47 +73,57 @@ template<
 
 		for (const auto& neighbor: cell.neighbors_of) {
 			// skip non-face neighbors
-			...
+			bool is_face_neighbor = false;
+			if (abs(neighbor.x) == 1 and neighbor.y == 0 and neighbor.z == 0) {
+				is_face_neighbor = true;
+			}
+			if (abs(neighbor.y) == 1 and neighbor.x == 0 and neighbor.z == 0) {
+				is_face_neighbor = true;
+			}
+			if (abs(neighbor.z) == 1 and neighbor.x == 0 and neighbor.y == 0) {
+				is_face_neighbor = true;
+			}
+			if (not is_face_neighbor) {
+				continue;
+			}
 
 			const double diff
-				= std::fabs(cell_data->density() - neighbor_data->density())
-				/ (std::min(cell_data->density(), neighbor_data->density()) + diff_threshold);
+				= std::fabs(cell.data->density() - neighbor.data->density())
+				/ (std::min(cell.data->density(), neighbor.data->density()) + diff_threshold);
 
-			cell_data->max_diff() = std::max(diff, cell_data->max_diff());
+			cell.data->max_diff() = std::max(diff, cell.data->max_diff());
 
 			// maximize diff for local neighbor
-			if (grid.is_local(neighbor)) {
-				neighbor_data->max_diff() = std::max(diff, neighbor_data->max_diff());
+			if (grid.is_local(neighbor.id)) {
+				neighbor.data->max_diff() = std::max(diff, neighbor.data->max_diff());
 			}
 		}
 	}
 
 	// decide whether to refine or unrefine cells
-	for (const auto& cell: cells) {
+	for (const auto& cell: grid.local_cells) {
 
-		const int refinement_level = grid.get_refinement_level(cell);
+		const int refinement_level = grid.get_refinement_level(cell.id);
 
 		// refine / unrefine if max relative difference larger / smaller than:
 		const double
 			refine_diff = (refinement_level + 1) * diff_increase,
 			unrefine_diff = unrefine_sensitivity * refine_diff;
 
-		const auto siblings = grid.get_all_children(grid.get_parent(cell));
+		const auto siblings = grid.get_all_children(grid.get_parent(cell.id));
 		if (siblings.size() == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No siblings for cell " << cell
+				<< " No siblings for cell " << cell.id
 				<< std::endl;
 			abort();
 		}
 
-		auto* const cell_data = grid[cell];
-
-		const double diff = cell_data->max_diff();
+		const double diff = cell.data->max_diff();
 
 		// refine
 		if (diff > refine_diff) {
 
-			cells_to_refine.insert(cell);
+			cells_to_refine.insert(cell.id);
 
 			for (const auto& sibling: siblings) {
 				cells_to_unrefine.erase(sibling);
@@ -131,8 +143,8 @@ template<
 				}
 			}
 
-			if (dont_unrefine && grid.get_refinement_level(cell) > 0) {
-				cells_not_to_unrefine.insert(cell);
+			if (dont_unrefine && grid.get_refinement_level(cell.id) > 0) {
+				cells_not_to_unrefine.insert(cell.id);
 
 				for (const auto& sibling: siblings) {
 					cells_to_unrefine.erase(sibling);
@@ -152,8 +164,8 @@ template<
 				}
 			}
 
-			if (unrefine && grid.get_refinement_level(cell) > 0) {
-				cells_to_unrefine.insert(cell);
+			if (unrefine && grid.get_refinement_level(cell.id) > 0) {
+				cells_to_unrefine.insert(cell.id);
 			}
 		}
 	}
@@ -246,7 +258,7 @@ template<
 	const std::vector<uint64_t> removed_cells = grid.get_removed_cells();
 
 	// optimize by gathering all parents of removed cells
-	std::unordered_set<uint64_t> parents;
+	std::set<uint64_t> parents;
 	for (const auto& removed_cell: removed_cells) {
 		parents.insert(grid.mapping.get_parent(removed_cell));
 	}

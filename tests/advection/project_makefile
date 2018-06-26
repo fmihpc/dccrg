@@ -1,13 +1,10 @@
 TESTS_ADVECTION_EXECUTABLES = \
   tests/advection/2d_mpi.exe \
   tests/advection/2d_mpi_debug.exe \
-  tests/advection/2d_optimized_mpi.exe \
-  tests/advection/2d_optimized_mpi_debug.exe \
   tests/advection/dc2vtk.exe
 
 TESTS_ADVECTION_TESTS = \
-  tests/advection/2d_mpi.mtst \
-  tests/advection/2d_optimized_mpi.tst
+  tests/advection/2d_mpi.mtst
 
 tests/advection/executables: $(TESTS_ADVECTION_EXECUTABLES)
 
@@ -33,13 +30,10 @@ CLEAN += tests/advection/clean
 
 TESTS_ADVECTION_COMMON_DEPS = \
   tests/advection/adapter.hpp \
-  tests/advection/adapter_optimized.hpp \
   tests/advection/cell.hpp \
   tests/advection/initialize.hpp \
-  tests/advection/initialize_optimized.hpp \
   tests/advection/save.hpp \
   tests/advection/solve.hpp \
-  tests/advection/solve_optimized.hpp \
   $(DCCRG_HEADERS) \
   tests/advection/project_makefile \
   $(ENVIRONMENT_MAKEFILE) \
@@ -63,9 +57,9 @@ tests/advection/2d_mpi.exe: \
   $(TESTS_ADVECTION_COMMON_DEPS)
 	$(TESTS_ADVECTION_COMPILE_COMMAND)
 
-#tests/advection/2d_mpi.tst: \
-#  tests/advection/2d_mpi.exe
-#	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+tests/advection/2d_mpi.tst: \
+  tests/advection/2d_mpi.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 tests/advection/2d_mpi.mtst: \
   tests/advection/2d_mpi.exe
@@ -79,26 +73,6 @@ tests/advection/2d_mpi_debug.exe: \
 
 tests/advection/2d_mpi_debug.tst: \
   tests/advection/2d_mpi_debug.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
-
-
-tests/advection/2d_optimized_mpi.exe: \
-  tests/advection/2d_optimized.cpp \
-  $(TESTS_ADVECTION_COMMON_DEPS)
-	$(TESTS_ADVECTION_COMPILE_COMMAND)
-
-tests/advection/2d_optimized_mpi.tst: \
-  tests/advection/2d_optimized_mpi.exe
-	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
-
-
-tests/advection/2d_optimized_mpi_debug.exe: \
-  tests/advection/2d_optimized.cpp \
-  $(TESTS_ADVECTION_COMMON_DEPS)
-	$(TESTS_ADVECTION_COMPILE_COMMAND) -DDEBUG
-
-tests/advection/2d_optimized_mpi_debug.tst: \
-  tests/advection/2d_optimized_mpi_debug.exe
 	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
 
 

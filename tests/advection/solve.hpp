@@ -1,7 +1,8 @@
 /*
 A solver for the advection tests of dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015, 2016,
+2018 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -57,6 +58,7 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 			cell_volume = cell_length[0] * cell_length[1] * cell_length[2];
 
 		for (const auto& neighbor: cell.neighbors_of) {
+			// skip non-face neighbors
 			int direction = 0;
 			if (neighbor.x == 1 and neighbor.y == 0 and neighbor.z == 0) {
 				direction = 1;
@@ -76,7 +78,6 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 			if (neighbor.x == 0 and neighbor.y == 0 and neighbor.z == -1) {
 				direction = -3;
 			}
-			// skip diagonal and other neighbors
 			if (direction == 0) {
 				continue;
 			}
