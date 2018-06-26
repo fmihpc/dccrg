@@ -7162,6 +7162,24 @@ private:
 		for (const auto& item: this->cell_data) {
 			this->neighbors_of[item.first]
 				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
+			#ifdef DEBUG
+			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
+				if (neighbor.first == error_cell) {
+					continue;
+				}
+				if (
+					neighbor.second[0] == 0
+					and neighbor.second[1] == 0
+					and neighbor.second[2] == 0
+				) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< "Invalid offset for neighbor " << neighbor.first
+						<< " of cell " << item.first << std::endl;
+					abort();
+				}
+			}
+			#endif
+
 			this->neighbors_to[item.first]
 				= this->find_neighbors_to(item.first, this->neighborhood_to);
 		}
@@ -9949,11 +9967,11 @@ private:
 	int overlapping_indices(const uint64_t cell1, const uint64_t cell2) const
 	{
 		#ifdef DEBUG
-		if (cell1 == 0) {
+		if (cell1 == error_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			abort();
 		}
-		if (cell2 == 0) {
+		if (cell2 == error_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
 			abort();
 		}
@@ -10148,6 +10166,23 @@ private:
 			if (neighbors_to == nullptr) {
 				throw std::runtime_error("No neighbors to list.");
 			}
+			#ifdef DEBUG
+			for (const auto& neighbor: *neighbors_of) {
+				if (neighbor.first == error_cell) {
+					continue;
+				}
+				if (
+					neighbor.second[0] == 0
+					and neighbor.second[1] == 0
+					and neighbor.second[2] == 0
+				) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): "
+						<< "Invalid offset for neighbor " << neighbor.first
+						<< " of cell " << cell << std::endl;
+					abort();
+				}
+			}
+			#endif
 
 			std::set<uint64_t> ids_of, ids_to;
 			for (const auto& n: *neighbors_of) {
@@ -10192,10 +10227,16 @@ private:
 				if (n.first == error_cell) {
 					continue;
 				}
+				if (all_neighbors.count(n.first) > 0) {
+					continue;
+				}
 				all_neighbors[n.first] = n.second;
 			}
 			for (const auto& n: *neighbors_to) {
 				if (n.first == error_cell) {
+					continue;
+				}
+				if (all_neighbors.count(n.first) > 0) {
 					continue;
 				}
 				all_neighbors[n.first] = n.second;
@@ -10211,6 +10252,18 @@ private:
 				item.z = offsets[2];
 				item.denom = offsets[3];
 				this->neighbors_rw.push_back(item);
+				#ifdef DEBUG
+				if (
+					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
+					and this->neighbors_rw[this->neighbors_rw.size() - 1].y == 0
+					and this->neighbors_rw[this->neighbors_rw.size() - 1].z == 0
+				) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): "
+						<< "Invalid offset saved for neighbor " << item.id
+						<< " of cell " << cell << std::endl;
+					abort();
+				}
+				#endif
 			}
 			for (const auto& neighbor_id: neighbors_both) {
 				const auto& offsets = all_neighbors.at(neighbor_id);
@@ -10222,6 +10275,19 @@ private:
 				item.z = offsets[2];
 				item.denom = offsets[3];
 				this->neighbors_rw.push_back(item);
+				#ifdef DEBUG
+				if (
+					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
+					and this->neighbors_rw[this->neighbors_rw.size() - 1].y == 0
+					and this->neighbors_rw[this->neighbors_rw.size() - 1].z == 0
+				) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): "
+						<< "Invalid offset saved for neighbor " << item.id
+						<< " of cell " << cell << ": " << item.x
+						<< ", " << item.y << ", " << item.z << std::endl;
+					abort();
+				}
+				#endif
 			}
 			for (const auto& neighbor_id: only_neighbors_to) {
 				const auto& offsets = all_neighbors.at(neighbor_id);

@@ -102,6 +102,18 @@ int main(int argc, char* argv[])
 				cout << endl;
 				return EXIT_FAILURE;
 			}
+
+			// check offset
+			for (const auto& neighbor: cell.neighbors_of) {
+				const int ref_diff = neighbor.id - cell.id;
+				if (ref_diff != neighbor.x) {
+					cerr << "FAILED" << endl;
+					cout << "Wrong offset for neighbor_of " << neighbor.id
+						<< " of cell " << cell.id << ": " << neighbor.x
+						<< ", should be " << ref_diff << endl;
+					return EXIT_FAILURE;
+				}
+			}
 		}
 
 		grid.balance_load();

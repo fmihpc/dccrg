@@ -31,7 +31,7 @@ TESTS_ITERATORS_COMMON_DEPS = \
   Makefile
 
 TESTS_ITERATORS_COMPILE_COMMAND = \
-  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \
