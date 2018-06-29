@@ -1,7 +1,6 @@
 EXAMPLES_EXECUTABLES = \
   examples/simple_game_of_life.exe \
   examples/game_of_life.exe \
-  examples/game_of_life_optimized.exe \
   examples/game_of_life_with_output.exe \
   examples/dc2vtk.exe
 
@@ -50,11 +49,6 @@ examples/simple_game_of_life.exe: \
 
 examples/game_of_life.exe: \
   examples/game_of_life.cpp \
-  $(EXAMPLES_COMMON_DEPS)
-	$(EXAMPLES_COMPILE_COMMAND_GOL)
-
-examples/game_of_life_optimized.exe: \
-  examples/game_of_life_optimized.cpp \
   $(EXAMPLES_COMMON_DEPS)
 	$(EXAMPLES_COMPILE_COMMAND_GOL)
 
