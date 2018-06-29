@@ -102,9 +102,7 @@ int main(int argc, char* argv[])
 		for (const auto& cell: grid.local_cells) {
 			cell.data->live_neighbor_count = 0;
 
-			std::cout << "Processing cell " << cell.id << " with " << std::distance(cell.neighbors_of.begin_, cell.neighbors_of.end_) << " neighbors: ";
 			for (const auto& neighbor: cell.neighbors_of) {
-				std::cout << neighbor.id << " ";
 				/*
 				Skip neighbors that would be outside of
 				the grid and are recorded as error_cell
@@ -113,17 +111,14 @@ int main(int argc, char* argv[])
 					continue;
 				}
 
-				std::cout << "(" << neighbor.data->is_alive << "), ";
 				if (neighbor.data->is_alive > 0) {
 					cell.data->live_neighbor_count++;
 				}
 			}
-			std::cout << std::endl;
 		}
 
 		// calculate the next turn
 		for (const auto& cell: grid.local_cells) {
-			std::cout << cell.id << ": " << cell.data->live_neighbor_count << std::endl;
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->live_neighbor_count != 2) {
