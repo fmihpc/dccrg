@@ -549,9 +549,17 @@ public:
 		- Stretched_Cartesian_Geometry::set()
 		.
 	*/
-	bool set_geometry(const typename Geometry::Parameters& parameters)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_geometry(const typename Geometry::Parameters& parameters)
 	{
-		return this->geometry_rw.set(parameters);
+		if (not this->geometry_rw.set(parameters)) {
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Couldn't set geometry"
+			);
+		}
+		return *this;
 	}
 
 

@@ -139,9 +139,6 @@ int main(int argc, char* argv[])
 	    cout << "Zoltan_Initialize failed" << endl;
 	    exit(EXIT_FAILURE);
 	}
-	if (rank == 0) {
-		cout << "Using Zoltan version " << zoltan_version << endl;
-	}
 
 	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry> grid;
 
@@ -149,22 +146,16 @@ int main(int argc, char* argv[])
 		neighborhood_size = 1,
 		maximum_refinement_level = 0;
 	const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
-	grid.initialize(
-		grid_length,
-		comm,
-		"RCB",
-		neighborhood_size,
-		maximum_refinement_level
-	);
-	grid.set_geometry(
-		dccrg::Cartesian_Geometry_Parameters({{0, 0, 0}}, {{1, 1, 1}})
-	);
-
-	grid.balance_load();
-
-	const vector<uint64_t>
-		inner_cells = grid.get_local_cells_not_on_process_boundary(),
-		outer_cells = grid.get_local_cells_on_process_boundary();
+	grid
+		.initialize(
+			grid_length,
+			comm,
+			"RCB",
+			neighborhood_size,
+			maximum_refinement_level)
+		.set_geometry(
+			dccrg::Cartesian_Geometry_Parameters({{0, 0, 0}}, {{1, 1, 1}}))
+		.balance_load();
 
 	initialize_game(grid);
 
