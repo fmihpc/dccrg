@@ -27,7 +27,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 \mainpage Distributed Cartesian Cell-Refinable Grid.
 
 See https://github.com/fmihpc/dccrg/wiki/Basics for the basics and
-dccrg::Dccrg::Dccrg() for a starting point in the API.
+dccrg::Dccrg for a starting point in the API.
 */
 
 
@@ -141,7 +141,6 @@ static const int
 	has_remote_neighbor_both = has_remote_neighbor_of | has_remote_neighbor_to;
 
 
-/*! Required for compiler to know what to expect */
 template <
 	class Cell_Data,
 	class Geometry = No_Geometry,
@@ -197,8 +196,7 @@ If needed, the arguments to get_mpi_datatype() provide additional information:
 
 Geometry class decides the physical size, shape, etc of the grid.
 
-\see
-Dccrg() to get started with the %dccrg API.
+\see Dccrg() to instantiate a new grid object.
 */
 template <
 	class Cell_Data,
@@ -6556,6 +6554,8 @@ private:
 		offset (denom = 4)        |1|2|3|4|5|...
 		offset (denom = 2)        | 1 | 2 |...
 		\endverbatim
+
+		\see tests/advection/solve.hpp
 		*/
 		int x, y, z;
 		/*!
@@ -6628,22 +6628,26 @@ private:
 
 public:
 	/*!
-	Cells owned by this process
+	Cells owned by this process (TODO: and their remote neighbors)
 
-	Provides fast iteration over cells owned by this process.
-	The following members are available in item:
+	Provides fast iteration over cells owned by this process (TODO:
+	and local copy of their neighbors owned by other processes).
+	The following members are available:
 		- id, unique id of cell
-		- data, pointer to cell's data (Cell_Data)
+		- data, pointer to cell's data (Cell_Data given by user)
+		- neighbors_of, iterators to cells considered as neighbor by this one
+		- neighbors_to, iterators to cells that consider this one as neighbor
 
 	Example where every process prints the id and address of every local cell:
 	\verbatim
 	struct Cell_Data {...};
 	dccrg<Cell_Data> grid;
 	...
-	for (const auto& cell: grid.cells) {
+	for (const auto& cell: grid.local_cells) {
 		cout << "Data of cell " << cell.id << " is stored at " << cell.data << endl;
 	}
 	\endverbatim
+	\see examples/simple_game_of_life.cpp Neighbors_Item
 	*/
 	const std::vector<Cells_Item>& cells = this->cells_rw;
 
