@@ -4,6 +4,7 @@ A 2 D game of life program to demonstrate the efficient parallel usage of dccrg.
 Serial performance has not been optimized, for that see game_of_life_optimized.cpp.
 */
 
+#include "algorithm"
 #include "chrono"
 #include "cstdlib"
 #include "ctime"
@@ -31,10 +32,8 @@ struct game_of_life_cell {
 /*!
 Initializes game.
 */
-void initialize_game(
-	dccrg::Dccrg<game_of_life_cell>& game_grid
-) {
-	for (const auto& cell: game_grid.cells) {
+template<class Cell_Iterator> void initialize_game(const Cell_Iterator& cells) {
+	for (const auto& cell: cells) {
 		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -49,34 +48,14 @@ void initialize_game(
 /*!
 Calculates the number of live neihgbours for every cell given, all of which must be local
 */
-void get_live_neighbor_counts(
-	const vector<uint64_t>& cells,
-	dccrg::Dccrg<game_of_life_cell>& game_grid
+template<class Cell_Iterator> void get_live_neighbor_counts(
+	const Cell_Iterator& cells
 ) {
 	for (const auto& cell: cells) {
-		auto* const cell_data = game_grid[cell];
-		if (cell_data == nullptr) {
-			abort();
-		}
-
-		cell_data->live_neighbor_count = 0;
-
-		const auto* const neighbors = game_grid.get_neighbors_of(cell);
-
-		for (const auto& neighbor_i: *neighbors) {
-			const auto& neighbor = neighbor_i.first;
-
-			if (neighbor == dccrg::error_cell) {
-				continue;
-			}
-
-			const auto* const neighbor_data = game_grid[neighbor];
-			if (neighbor_data == nullptr) {
-				abort();
-			}
-
-			if (neighbor_data->is_alive > 0) {
-				cell_data->live_neighbor_count++;
+		cell.data->live_neighbor_count = 0;
+		for (const auto& neighbor: cell.neighbors_of) {
+			if (neighbor.data->is_alive > 0) {
+				cell.data->live_neighbor_count++;
 			}
 		}
 	}
@@ -86,10 +65,8 @@ void get_live_neighbor_counts(
 /*!
 Applies the game of life rules to every given cell, all of which must be local.
 */
-void apply_rules(
-	dccrg::Dccrg<game_of_life_cell>& game_grid
-) {
-	for (const auto& cell: game_grid.cells) {
+template<class Cell_Iterator> void apply_rules(const Cell_Iterator& cells) {
+	for (const auto& cell: cells) {
 		if (cell.data->live_neighbor_count == 3) {
 			cell.data->is_alive = 1;
 		} else if (cell.data->live_neighbor_count != 2) {
@@ -129,34 +106,20 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	dccrg::Dccrg<game_of_life_cell> game_grid;
+	dccrg::Dccrg<game_of_life_cell> grid;
 
 	const int neighborhood_size = 1, maximum_refinement_level = 0;
 	const std::array<uint64_t, 3> grid_length{{500, 500, 1}};
-	game_grid.initialize(
-		grid_length,
-		comm,
-		"RCB",
-		neighborhood_size,
-		maximum_refinement_level
-	);
+	grid
+		.initialize(
+			grid_length,
+			comm,
+			"RCB",
+			neighborhood_size,
+			maximum_refinement_level)
+		.balance_load();
 
-	game_grid.balance_load();
-
-	/*
-	Get the cells on this process just once, since
-	the grid doesn't change during the game
-	To make the game scale better, separate local cells into those
-	without even one neighbor on another process and those that do.
-	While updating cell data between processes, start calculating
-	the next turn for cells which don't have neighbors on other processes
-	*/
-	const vector<uint64_t>
-		inner_cells = game_grid.get_local_cells_not_on_process_boundary(),
-		outer_cells = game_grid.get_local_cells_on_process_boundary();
-
-	initialize_game(game_grid);
-
+	initialize_game(grid.local_cells);
 
 	// time the game to examine its scalability
 	const auto time_start = chrono::high_resolution_clock::now();
@@ -166,16 +129,21 @@ int main(int argc, char* argv[])
 		// start updating cell data from other processes
 		// and calculate the next turn for cells without
 		// neighbors on other processes in the meantime
-		game_grid.start_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(inner_cells, game_grid);
+		grid.start_remote_neighbor_copy_updates();
+		get_live_neighbor_counts(grid.inner_cells);
 
-		// wait for neighbor data updates to finish and the
-		// calculate the next turn for rest of the cells on this process
-		game_grid.wait_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(outer_cells, game_grid);
+		// wait for neighbor data updates to finish and
+		// calculate the next turn for rest of the cells
+		// on this process and afterwards apply next turn
+		// to cells without remove neighbors
+		grid.wait_remote_neighbor_copy_update_receives();
+		get_live_neighbor_counts(grid.outer_cells);
+		apply_rules(grid.inner_cells);
 
-		// update the state of life for all local cells
-		apply_rules(game_grid);
+		// apply next turn for cells with remote neighbors
+		// after their state was sent to other processes
+		grid.wait_remote_neighbor_copy_update_sends();
+		apply_rules(grid.outer_cells);
 	}
 
 	const auto time_end
@@ -186,8 +154,11 @@ int main(int argc, char* argv[])
 		>(time_end - time_start).count();
 
 	// calculate some timing statistics
+	const auto
+		inner_size = std::distance(grid.inner_cells.begin(), grid.inner_cells.end()),
+		outer_size = std::distance(grid.outer_cells.begin(), grid.outer_cells.end());
 	double
-		total_cells = double(turns) * (inner_cells.size() + outer_cells.size()),
+		total_cells = double(turns) * (inner_size + outer_size),
 		min_speed_local = total_cells / total_time, min_speed = 0,
 		max_speed_local = total_cells / total_time, max_speed = 0,
 		avg_speed_local = total_cells / total_time, avg_speed = 0,

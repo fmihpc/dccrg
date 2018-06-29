@@ -405,8 +405,9 @@ public:
 	/*!
 	Initializes the instance of the grid with given parameters.
 
-	Zoltan_Initialize must have been called before calling this function.
-	The geometry of the grid must not have been set before calling this function.
+	Zoltan library must have been initialized with Zoltan_Initialize
+	before calling this function. The geometry of the grid must not
+	have been set before calling this function.
 
 	comm: the grid will span all the processes in the communicator comm
 
@@ -434,7 +435,7 @@ public:
 		- The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
 		  direction cells on the opposite sides of the grid in that direction can be neighbors.
 
-	Returns true on success, false otherwise (on one or more processes).
+	Throws on failure (on one or more processes).
 
 	\see
 	Dccrg()
@@ -451,7 +452,9 @@ public:
 	set_send_single_cells()
 	load_grid_data()
 	*/
-	bool initialize(
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& initialize(
 		const std::array<uint64_t, 3>& initial_length,
 		const MPI_Comm& given_comm,
 		const char* const load_balancing_method,
@@ -465,22 +468,24 @@ public:
 		using std::to_string;
 
 		if (this->initialized) {
-			std::cerr << "Initialize function called for an already initialized dccrg" << std::endl;
-			return false;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Initialize function called for an already initialized dccrg"
+			);
 		}
 
 		if (!this->initialize_mpi(given_comm)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't initialize MPI"
-				<< std::endl;
-			return false;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Couldn't initialize MPI"
+			);
 		}
 
 		if (!this->initialize_zoltan(load_balancing_method)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't initialize Zoltan"
-				<< std::endl;
-			return false;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Couldn't set up Zoltan"
+			);
 		}
 
 		this->initialize_neighborhoods(given_neighborhood_length);
@@ -492,24 +497,24 @@ public:
 			periodic_in_y,
 			periodic_in_z
 		)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't initialize dccrg"
-				<< std::endl;
-			return false;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Couldn't initialize cell id mapping"
+			);
 		}
 
 		if (!this->create_level_0_cells(sfc_caching_batches)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't create cells of refinement level 0"
-				<< std::endl;
-			return false;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Couldn't create cells of refinement level 0"
+			);
 		}
 
 		if (!this->initialize_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't initialize neighbors"
-				<< std::endl;
-			return false;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Couldn't initialize neighbors"
+			);
 		}
 
 		this->allocate_copies_of_remote_neighbors();
@@ -517,15 +522,14 @@ public:
 			this->update_cell_pointers();
 		} catch (const std::exception& e) {
 			throw std::runtime_error(
-				__FILE__ "(" + to_string(__LINE__) + ") "
-				+ "Couldn't update cell pointers: "
-				+ e.what()
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Couldn't update cell pointers: " + e.what()
 			);
 		}
 
 		this->initialized = true;
 
-		return true;
+		return *this;
 	}
 
 
@@ -946,14 +950,18 @@ public:
 		- refines/unrefines after the last call to stop_refining()
 		- the data of local copies of remote neighbors of local cells
 
+	TODO: throws on failure (on one or more processes).
 	\see
 	initialize_balance_load()
 	*/
-	void balance_load(const bool use_zoltan = true)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& balance_load(const bool use_zoltan = true)
 	{
 		this->initialize_balance_load(use_zoltan);
 		this->continue_balance_load();
 		this->finish_balance_load();
+		return *this;
 	}
 
 
@@ -3389,7 +3397,9 @@ public:
 	balance_load()
 	continue_balance_load()
 	*/
-	void initialize_balance_load(const bool use_zoltan)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& initialize_balance_load(const bool use_zoltan)
 	{
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3516,6 +3526,7 @@ public:
 			}
 		}
 		#endif
+		return *this;
 	}
 
 	/*!
@@ -3531,7 +3542,9 @@ public:
 	\see
 	finish_balance_load()
 	*/
-	void continue_balance_load()
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& continue_balance_load()
 	{
 		if (!this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3551,6 +3564,7 @@ public:
 		this->wait_user_data_transfer_receives();
 
 		this->wait_user_data_transfer_sends();
+		return *this;
 	}
 
 	/*!
@@ -3559,7 +3573,9 @@ public:
 	Must be called by all processes and not before initialize_balance_load(...)
 	has been called.
 	*/
-	void finish_balance_load()
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& finish_balance_load()
 	{
 		if (!this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3757,6 +3773,7 @@ public:
 		this->added_cells.clear();
 		this->removed_cells.clear();
 		this->balancing_load = false;
+		return *this;
 	}
 
 
@@ -5050,10 +5067,13 @@ public:
 	\see
 	refine_completely()
 	*/
-	void clear_refined_unrefined_data()
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& clear_refined_unrefined_data()
 	{
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
+		return *this;
 	}
 
 
@@ -5073,19 +5093,19 @@ public:
 	get_partitioning_option_value()
 	add_partitioning_level()
 	*/
-	void set_partitioning_option(const std::string name, const std::string value)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_partitioning_option(const std::string name, const std::string value)
 	{
 		if (this->reserved_options.count(name) > 0) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< "User tried to set an option reserved for dccrg (" << name
-				<< ": " << value << ")"
-				<< std::endl;
-			#endif
-			return;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Option " + name + " is reserved for dccrg"
+			);
 		}
 
 		Zoltan_Set_Param(this->zoltan, name.c_str(), value.c_str());
+		return *this;
 	}
 
 
@@ -5100,16 +5120,15 @@ public:
 	remove_partitioning_level()
 	set_partitioning_option()
 	*/
-	void add_partitioning_level(const int processes)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& add_partitioning_level(const int processes)
 	{
 		if (processes < 1) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< "User tried to assign " << processes
-				<< " processes per part for a new hierarchial partitioning level"
-				<< std::endl;
-			#endif
-			return;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Must assign at least 1 process to hierarchial partitioning level"
+			);
 		}
 
 		this->processes_per_part.push_back(processes);
@@ -5119,6 +5138,7 @@ public:
 		default_load_balance_options["LB_METHOD"] = "HYPERGRAPH";
 		default_load_balance_options["PHG_CUT_OBJECTIVE"] = "CONNECTIVITY";
 		this->partitioning_options.push_back(default_load_balance_options);
+		return *this;
 	}
 
 
@@ -5131,11 +5151,13 @@ public:
 	\see
 	add_partitioning_level()
 	*/
-	void remove_partitioning_level(const int hierarchial_partitioning_level)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& remove_partitioning_level(const int hierarchial_partitioning_level)
 	{
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
-			return;
+			return *this;
 		}
 
 		this->processes_per_part.erase(
@@ -5144,6 +5166,7 @@ public:
 		this->partitioning_options.erase(
 			this->partitioning_options.begin() + hierarchial_partitioning_level
 		);
+		return *this;
 	}
 
 
@@ -5160,29 +5183,27 @@ public:
 	remove_partitioning_option()
 	add_partitioning_level()
 	*/
-	void add_partitioning_option(
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& add_partitioning_option(
 		const int hierarchial_partitioning_level,
 		const std::string name,
 		const std::string value
 	) {
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
-			return;
+			return *this;
 		}
 
 		if (this->reserved_options.count(name) > 0) {
-			#ifdef DEBUG
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< "User tried to set an option reserved for dccrg (" << name
-				<< ": " << value
-				<< ") for level " << hierarchial_partitioning_level
-				<< " of hierarchial partitioning"
-				<< std::endl;
-			#endif
-			return;
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Option " + name + " is reserved for dccrg"
+			);
 		}
 
 		this->partitioning_options[hierarchial_partitioning_level][name] = value;
+		return *this;
 	}
 
 
@@ -5195,16 +5216,19 @@ public:
 	\see
 	add_partitioning_option()
 	*/
-	void remove_partitioning_option(
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& remove_partitioning_option(
 		const int hierarchial_partitioning_level,
 		const std::string name
 	) {
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
-			return;
+			return *this;
 		}
 
 		this->partitioning_options[hierarchial_partitioning_level].erase(name);
+		return *this;
 	}
 
 
@@ -5423,10 +5447,13 @@ public:
 	\see
 	unpin()
 	*/
-	void unpin_all_cells()
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& unpin_all_cells()
 	{
 		this->new_pin_requests.clear();
 		this->pin_requests.clear();
+		return *this;
 	}
 
 
@@ -5916,10 +5943,12 @@ public:
 	\see
 	add_neighborhood()
 	*/
-	void remove_neighborhood(const int neighborhood_id)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& remove_neighborhood(const int neighborhood_id)
 	{
 		if (neighborhood_id == default_neighborhood_id) {
-			return;
+			return *this;
 		}
 
 		this->user_hood_of.erase(neighborhood_id);
@@ -5930,6 +5959,7 @@ public:
 		this->user_neigh_cells_to_receive.erase(neighborhood_id);
 		this->user_local_cells_on_process_boundary.erase(neighborhood_id);
 		this->user_remote_cells_on_process_boundary.erase(neighborhood_id);
+		return *this;
 	}
 
 
@@ -5982,9 +6012,12 @@ public:
 	\see
 	get_send_single_cells()
 	*/
-	void set_send_single_cells(const bool given)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_send_single_cells(const bool given)
 	{
 		this->send_single_cells = given;
+		return *this;
 	}
 
 	/*!
@@ -6322,7 +6355,9 @@ public:
 	data then call this beforehand and use get_remote_neighbors_to() to
 	get a list of cells which you should change.
 	*/
-	void allocate_copies_of_remote_neighbors(const int neighborhood_id = default_neighborhood_id)
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& allocate_copies_of_remote_neighbors(const int neighborhood_id = default_neighborhood_id)
 	{
 		if (
 			neighborhood_id != default_neighborhood_id
@@ -6344,6 +6379,8 @@ public:
 				this->remote_neighbors[item.first];
 			}
 		}
+
+		return *this;
 	}
 
 

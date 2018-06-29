@@ -82,6 +82,11 @@ int main(int argc, char* argv[])
 	// during the game, workload can be balanced just once in the beginning
 	grid.balance_load();
 
+	// previous two calls can also be chained:
+	//grid
+	//	.initialize(grid_length, comm, "RCB", neighborhood_size, maximum_refinement_level)
+	//	.balance_load();
+
 	// initialize the game
 	for (const auto& cell: grid.local_cells) {
 		cell.data->live_neighbor_count = 0;
