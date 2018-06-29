@@ -57,6 +57,10 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 			cell_density = cell.data->density(),
 			cell_volume = cell_length[0] * cell_length[1] * cell_length[2];
 
+		#ifdef DEBUG
+		std::vector<uint64_t> face_neighbors;
+		#endif
+
 		for (const auto& neighbor: cell.neighbors_of) {
 			// skip non-face neighbors
 			int direction = 0;
@@ -66,10 +70,10 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 			if (neighbor.x == -1 and neighbor.y == 0 and neighbor.z == 0) {
 				direction = -1;
 			}
-			if (neighbor.x == 0 and neighbor.y == -1 and neighbor.z == 0) {
+			if (neighbor.x == 0 and neighbor.y == 1 and neighbor.z == 0) {
 				direction = 2;
 			}
-			if (neighbor.x == 0 and neighbor.y == -2 and neighbor.z == 0) {
+			if (neighbor.x == 0 and neighbor.y == -1 and neighbor.z == 0) {
 				direction = -2;
 			}
 			if (neighbor.x == 0 and neighbor.y == 0 and neighbor.z == 1) {
@@ -81,6 +85,10 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 			if (direction == 0) {
 				continue;
 			}
+
+			#ifdef DEBUG
+			face_neighbors.push_back(neighbor.id);
+			#endif
 
 			// solve flux between two local cells only in positive direction
 			if (grid.is_local(neighbor.id) && direction < 0) {
@@ -194,6 +202,17 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 				neighbor.data->flux() -= flux / neighbor_volume;
 			}
 		}
+
+		#ifdef DEBUG
+		const auto ref_face_neighbors = grid.get_face_neighbors_of(cell.id);
+		if (face_neighbors.size() != ref_face_neighbors.size()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Unexpected number of face neighbors: "
+				<< face_neighbors.size() << " instead of "
+				<< ref_face_neighbors.size() << std::endl;
+			abort();
+		}
+		#endif
 	}
 }
 

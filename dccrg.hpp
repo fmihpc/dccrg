@@ -2629,7 +2629,7 @@ public:
 			neighbor_i++
 		) {
 
-			const uint64_t neighbor = this->neighbors_of.at(cell)[neighbor_i];
+			const auto neighbor = this->neighbors_of.at(cell)[neighbor_i].first;
 
 			if (neighbor == error_cell) {
 				for (size_t i = 0; i < current_index.size(); i++) {
@@ -2679,10 +2679,10 @@ public:
 						#endif
 
 						// see find_neighbors_of(...) for the order of these
-						const std::vector<uint64_t> dir_neighs(
-							this->neighbors_of.at(cell).begin() + neighbor_i,
-							this->neighbors_of.at(cell).begin() + neighbor_i + neighs_in_offset
-						);
+						std::vector<uint64_t> dir_neighs;
+						for (size_t i = neighbor_i; i < neighbor_i + neighs_in_offset; i++) {
+							dir_neighs.push_back(this->neighbors_of.at(cell)[i].first);
+						}
 
 						// neighbor at offset    0, 1, 2, 3, 4, 5, 6, 7 is
 						// face neighbor of given cell when neighbors are in
@@ -4160,70 +4160,64 @@ public:
 					continue;
 				}
 
-				return_neighbors.push_back({
-					current_neighbors[0], {
-						2 * neighborhood[index_of_i][0] - 1,
-						2 * neighborhood[index_of_i][1] - 1,
-						2 * neighborhood[index_of_i][2] - 1,
-						2
+				if (current_neighbors.size() != 8) {
+					std::cerr << __FILE__ "(" << __LINE__ << ") "
+						<< "Unexpected number of neighbors: "
+						<< current_neighbors.size() << std::endl;
+					abort();
+				}
+
+				const auto
+					offset_x = 2 * neighborhood[index_of_i][0],
+					offset_y = 2 * neighborhood[index_of_i][1],
+					offset_z = 2 * neighborhood[index_of_i][2];
+				size_t neighbor_i = 0;
+				for (int off_mod_z: {-1, 0}) {
+					if (offset_z < 0) {
+						off_mod_z++;
+					} else if (offset_z == 0) {
+						off_mod_z = 0;
 					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[1], {
-						2 * neighborhood[index_of_i][0] - 0,
-						2 * neighborhood[index_of_i][1] - 1,
-						2 * neighborhood[index_of_i][2] - 1,
-						2
+					for (int off_mod_y: {-1, 0}) {
+						if (offset_y < 0) {
+							off_mod_y++;
+						} else if (offset_y == 0) {
+							off_mod_y = 0;
+						}
+						for (int off_mod_x: {-1, 0}) {
+							if (offset_x < 0) {
+								off_mod_x++;
+							} else if (offset_x == 0) {
+								off_mod_x = 0;
+							}
+							#ifdef DEBUG
+							if (
+								offset_x + off_mod_x == 0
+								and offset_y + off_mod_y == 0
+								and offset_z + off_mod_z == 0
+							) {
+								std::cerr << __FILE__ "(" << __LINE__ << ") "
+									<< "Unexpected neighbor offset for neighborhood indices "
+									<< neighborhood[index_of_i][0] << ", "
+									<< neighborhood[index_of_i][1] << ", "
+									<< neighborhood[index_of_i][2] << ": "
+									<< offset_x << ", " << off_mod_x << "; "
+									<< offset_y << ", " << off_mod_y << "; "
+									<< offset_z << ", " << off_mod_z << std::endl;
+								abort();
+							}
+							#endif
+							return_neighbors.push_back({
+								current_neighbors[neighbor_i++], {
+									offset_x + off_mod_x,
+									offset_y + off_mod_y,
+									offset_z + off_mod_z,
+									2
+								}
+							});
+						}
 					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[2], {
-						2 * neighborhood[index_of_i][0] - 1,
-						2 * neighborhood[index_of_i][1] - 0,
-						2 * neighborhood[index_of_i][2] - 1,
-						2
-					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[3], {
-						2 * neighborhood[index_of_i][0] - 0,
-						2 * neighborhood[index_of_i][1] - 0,
-						2 * neighborhood[index_of_i][2] - 1,
-						2
-					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[4], {
-						2 * neighborhood[index_of_i][0] - 1,
-						2 * neighborhood[index_of_i][1] - 1,
-						2 * neighborhood[index_of_i][2] - 0,
-						2
-					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[5], {
-						2 * neighborhood[index_of_i][0] - 0,
-						2 * neighborhood[index_of_i][1] - 1,
-						2 * neighborhood[index_of_i][2] - 0,
-						2
-					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[6], {
-						2 * neighborhood[index_of_i][0] - 1,
-						2 * neighborhood[index_of_i][1] - 0,
-						2 * neighborhood[index_of_i][2] - 0,
-						2
-					}
-				});
-				return_neighbors.push_back({
-					current_neighbors[7], {
-						2 * neighborhood[index_of_i][0] - 0,
-						2 * neighborhood[index_of_i][1] - 0,
-						2 * neighborhood[index_of_i][2] - 0,
-						2
-					}
-				});
+				}
 			}
 		}
 
@@ -7854,6 +7848,22 @@ private:
 				<< std::endl;
 			abort();
 		}
+
+		for (const auto& neighbor: this->neighbors_of.at(cell)) {
+			if (neighbor.first == error_cell) {
+				continue;
+			}
+			if (
+				neighbor.second[0] == 0
+				and neighbor.second[1] == 0
+				and neighbor.second[2] == 0
+			) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Invalid offset of neighbor " << neighbor.first
+					<< " for cell " << cell << std::endl;
+				abort();
+			}
+		}
 		#endif
 	}
 
@@ -9815,7 +9825,7 @@ private:
 		return true;
 	}
 
-
+public:
 	/*!
 	Returns true if cells with given index properties overlap.
 
@@ -9824,27 +9834,31 @@ private:
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
 		#ifdef DEBUG
-		if (index1 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		&& index1 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		&& index1 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
+		if (
+			index1 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+			and index1 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+			and index1 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index1 given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
-		if (index2 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		&& index2 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		&& index2 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index given" << std::endl;
+		if (
+			index2 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+			and index2 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+			and index2 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+		) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index2 given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (size1 > (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size given" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size1 given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 
 		if (size2 > (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size given" << std::endl;
+			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size2 given" << std::endl;
 			exit(EXIT_FAILURE);
 		}
 		#endif
@@ -9856,6 +9870,7 @@ private:
 		}
 	}
 
+private:
 	/*!
 	Same as the uint64_t version but in 3d, returns true only if all indices overlap.
 	*/
@@ -10010,7 +10025,7 @@ private:
 		return ret;
 	}
 
-
+public:
 	/*!
 	Returns the smallest existing cell at given indices between given refinement levels inclusive.
 
@@ -10059,12 +10074,12 @@ private:
 					);
 
 				if (this->cell_process.count(larger_cell) == 0) {
-					return 0;
+					return error_cell;
 				} else {
 					return larger_cell;
 				}
 			} else {
-				return 0;
+				return error_cell;
 			}
 		} else {
 			// search for smaller cell
@@ -10087,7 +10102,7 @@ private:
 		}
 	}
 
-
+private:
 	/*!
 	Updates this->cells_rw and this->neighbors_rw.
 	*/
