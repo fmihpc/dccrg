@@ -1,7 +1,10 @@
 /*
-The simplest 2 D game of life program that demonstrates the basic usage of dccrg
-The program doesn't scale, takes no input and produces no output.
-For good scaling see the file game_of_life.cpp, for output see the files game_of_life_with_output.cpp and dc2vtk.cpp
+The simplest 2 D game of life (https://en.wikipedia.org/wiki/Conway%27s_Game_of_Life)
+program that demonstrates the basic usage of dccrg. The program
+doesn't scale very well with number of MPI processes, takes no
+input and produces no output. For good scaling see the file
+game_of_life.cpp, for output see the files
+game_of_life_with_output.cpp and dc2vtk.cpp
 */
 
 #include "cstdlib"
@@ -98,19 +101,14 @@ int main(int argc, char* argv[])
 		*/
 		grid.update_copies_of_remote_neighbors();
 
-		// get the neighbor counts for every local cell
+		// get the neighbor counts for every cell
+		// owned by this process
 		for (const auto& cell: grid.local_cells) {
 			cell.data->live_neighbor_count = 0;
 
+			// check life status of each cell that
+			// this one considers as neighbor
 			for (const auto& neighbor: cell.neighbors_of) {
-				/*
-				Skip neighbors that would be outside of
-				the grid and are recorded as error_cell
-				*/
-				if (neighbor.id == dccrg::error_cell) {
-					continue;
-				}
-
 				if (neighbor.data->is_alive > 0) {
 					cell.data->live_neighbor_count++;
 				}
@@ -169,4 +167,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-
