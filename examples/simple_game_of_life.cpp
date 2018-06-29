@@ -59,24 +59,18 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<game_of_life_cell> grid;
 
-	const int
-		// the cells that share a vertex are considered neighbors
-		neighborhood_size = 1,
+	grid
+		// length of grid in cells of refinement level 0 (largest possible)
+		.set_initial_length({10, 10, 1})
 		// don't allow refining cells into 8 smaller ones
-		maximum_refinement_level = 0;
-
-	// length of grid in cells of refinement level 0 (largest possible)
-	const std::array<uint64_t, 3> grid_length{{10, 10, 1}};
-
-	grid.initialize(
-		grid_length,
-		comm,
+		.set_maximum_refinement_level(0)
+		// cells that share a vertex are considered neighbors
+		.set_neighborhood_length(1)
 		// use the recursive coordinate bisection method for load
 		// balancing (http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg_rcb.html)
-		"RCB",
-		neighborhood_size,
-		maximum_refinement_level
-	);
+		.set_load_balancing_method("RCB")
+		// grid cells will be distributed between processes in comm
+		.initialize(comm);
 
 	// since the grid doesn't change (isn't refined / unrefined)
 	// during the game, workload can be balanced just once in the beginning

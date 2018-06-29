@@ -299,14 +299,7 @@ public:
 	initialize()
 	Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other)
 	*/
-	Dccrg() :
-		geometry_rw(length, mapping, topology)
-	{
-		this->initialized = false;
-		this->balancing_load = false;
-		this->send_single_cells = false;
-		this->max_ref_lvl_diff = 1;
-	}
+	Dccrg():geometry_rw(length, mapping, topology){}
 
 
 	/*!
@@ -334,10 +327,10 @@ public:
 		topology_rw(other.topology),
 		mapping_rw(other.mapping),
 		geometry_rw(length, mapping, topology),
-		initialized(other.get_initialized()),
+		mapping_initialized(other.get_mapping_initialized()),
+		grid_initialized(other.get_initialized()),
 		neighborhood_length(other.get_neighborhood_length()),
 		max_tag(other.get_max_tag()),
-		max_ref_lvl_diff(other.get_max_ref_lvl_diff()),
 		send_single_cells(other.get_send_single_cells()),
 		comm(other.get_communicator()),
 		rank(uint64_t(other.get_rank())),
@@ -455,22 +448,22 @@ public:
 	Dccrg<
 		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
 	>& initialize(
-		const std::array<uint64_t, 3>& initial_length,
 		const MPI_Comm& given_comm,
-		const char* const load_balancing_method,
-		const unsigned int given_neighborhood_length,
-		const int maximum_refinement_level = -1,
-		const bool periodic_in_x = false,
-		const bool periodic_in_y = false,
-		const bool periodic_in_z = false,
 		const uint64_t sfc_caching_batches = 1
 	) {
 		using std::to_string;
 
-		if (this->initialized) {
+		if (this->grid_initialized) {
 			throw std::invalid_argument(
 				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
 				+ "Initialize function called for an already initialized dccrg"
+			);
+		}
+
+		if (not this->mapping_initialized) {
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
+				+ "Initialize function called before set_initial_length()."
 			);
 		}
 
@@ -481,27 +474,14 @@ public:
 			);
 		}
 
-		if (!this->initialize_zoltan(load_balancing_method)) {
+		if (!this->initialize_zoltan()) {
 			throw std::invalid_argument(
 				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
 				+ "Couldn't set up Zoltan"
 			);
 		}
 
-		this->initialize_neighborhoods(given_neighborhood_length);
-
-		if (!this->initialize_from_arguments(
-			initial_length,
-			maximum_refinement_level,
-			periodic_in_x,
-			periodic_in_y,
-			periodic_in_z
-		)) {
-			throw std::invalid_argument(
-				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
-				+ "Couldn't initialize cell id mapping"
-			);
-		}
+		this->initialize_neighborhoods();
 
 		if (!this->create_level_0_cells(sfc_caching_batches)) {
 			throw std::invalid_argument(
@@ -527,7 +507,7 @@ public:
 			);
 		}
 
-		this->initialized = true;
+		this->grid_initialized = true;
 
 		return *this;
 	}
@@ -1834,7 +1814,8 @@ public:
 			return false;
 		}
 
-		if (!this->initialize_zoltan(load_balancing_method)) {
+		this->load_balancing_method = load_balancing_method;
+		if (!this->initialize_zoltan()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't initialize Zoltan"
 				<< std::endl;
@@ -1871,7 +1852,8 @@ public:
 			return false;
 		}
 		offset += sizeof(unsigned int);
-		this->initialize_neighborhoods(neighborhood_length);
+		this->neighborhood_length = neighborhood_length;
+		this->initialize_neighborhoods();
 
 		// initialize topology
 		if (!this->topology_rw.read(this->grid_data_file, offset)) {
@@ -5976,7 +5958,15 @@ public:
 	*/
 	bool get_initialized() const
 	{
-		return this->initialized;
+		return this->grid_initialized;
+	}
+
+	/*!
+	Returns whether this dccrg instance's cell id mapping has been initialized.
+	*/
+	bool get_mapping_initialized() const
+	{
+		return this->mapping_initialized;
 	}
 
 	/*!
@@ -6394,20 +6384,24 @@ public:
 
 
 private:
-	bool initialized;
+	bool
+		mapping_initialized = false,
+		grid_initialized = false;
 
 	// size of the neighbor stencil of a cells in cells (of the same size as the cell itself)
-	unsigned int neighborhood_length;
+	unsigned int neighborhood_length = 1;
+
+	std::string load_balancing_method{"RCB"};
 
 	// maximum value an MPI tag can have
 	unsigned int max_tag;
 
 	// maximum difference in refinement level between neighbors
-	int max_ref_lvl_diff;
+	int max_ref_lvl_diff = 1;
 
 	// whether to send user's cell data between processes
 	// with only one message or one message / cell
-	bool send_single_cells;
+	bool send_single_cells = false;
 
 	// the grid is distributed between these processes
 	MPI_Comm comm;
@@ -6565,7 +6559,7 @@ private:
 	// processes which have cells close enough from cells of this process
 	std::unordered_set<uint64_t> neighbor_processes;
 
-	bool balancing_load;
+	bool balancing_load = false;
 
 
 	//! stores begin and end iterators for range-based for loop
@@ -6811,7 +6805,7 @@ private:
 	/*!
 	Initializes Zoltan related stuff.
 	*/
-	bool initialize_zoltan(const char* const load_balancing_method)
+	bool initialize_zoltan()
 	{
 		int ret_val = -1;
 
@@ -6828,7 +6822,7 @@ private:
 		}
 
 		// check whether Zoltan_LB_Partition is expected to fail
-		if (strncmp(load_balancing_method, "NONE", sizeof("NONE")) == 0) {
+		if (this->load_balancing_method == "NONE") {
 			this->no_load_balancing = true;
 		} else {
 			this->no_load_balancing = false;
@@ -6858,7 +6852,7 @@ private:
 		Zoltan_Set_Param(this->zoltan, "DEBUG_LEVEL", "0");
 		Zoltan_Set_Param(this->zoltan, "HIER_DEBUG_LEVEL", "0");
 		Zoltan_Set_Param(this->zoltan, "HIER_CHECKS", "0");
-		Zoltan_Set_Param(this->zoltan, "LB_METHOD", load_balancing_method);
+		Zoltan_Set_Param(this->zoltan, "LB_METHOD", this->load_balancing_method.c_str());
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
 
 		// set the grids callback functions in Zoltan
@@ -6946,16 +6940,15 @@ private:
 
 	/*!
 	Sets the default neighborhoods of cells.
+
+	\see set_neighborhood_length()
 	*/
-	void initialize_neighborhoods(const unsigned int given_neighborhood_length)
-	{
+	void initialize_neighborhoods() {
 		// set neighborhood_of
-		this->neighborhood_length = given_neighborhood_length;
 		if (this->neighborhood_length == 0) {
 
 			{
-			Types<3>::neighborhood_item_t item = {{0, 0, -1}};
-			this->neighborhood_of.push_back(item);
+			this->neighborhood_of.push_back({0, 0, -1});
 			}
 			{
 			Types<3>::neighborhood_item_t item = {{0, -1, 0}};
@@ -7159,41 +7152,121 @@ private:
 		return true;
 	}
 
-
+public:
 	/*!
-	Initializes the grid from given parameters.
+	Sets size of grid in cells of refinement level 0.
+
+	Sets how many cells of largest possible size this
+	grid will be created with at initialization.
+
+	Must be called before initialize().
+
+	\see set_maximum_refinement_level() initialize()
 	*/
-	bool initialize_from_arguments(
-		const std::array<uint64_t, 3>& initial_length,
-		const int maximum_refinement_level,
-		const bool periodic_in_x,
-		const bool periodic_in_y,
-		const bool periodic_in_z
-	) {
-		if (!this->mapping_rw.set_length(initial_length)) {
-			std::cerr << "Couldn't set initial length of grid" << std::endl;
-			return false;
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_initial_length(const std::array<uint64_t, 3>& initial_size) {
+		if (this->mapping_initialized) {
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Initial size of grid already set"
+			);
 		}
 
-		this->topology_rw.set_periodicity(0, periodic_in_x);
-		this->topology_rw.set_periodicity(1, periodic_in_y);
-		this->topology_rw.set_periodicity(2, periodic_in_z);
+		if (!this->mapping_rw.set_length(initial_size)) {
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Couldn't set initial size of grid"
+			);
+		}
+		this->mapping_initialized = true;
 
-		if (maximum_refinement_level < 0) {
+		return *this;
+	}
+
+	/*!
+	Sets maximum possible refinement level of cells.
+
+	Using @max_ref_lvl < 0 sets it to maximum possible value (<= 21).
+	Refining a cell past maximum refinement level succeeds but does nothing.
+
+	Must be called before initialize().
+
+	\see set_periodic() local_cells update_copies_of_remote_neighbors() refine_completely()
+	*/
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_maximum_refinement_level(const int max_ref_lvl) {
+		if (max_ref_lvl < 0) {
 			this->mapping_rw.set_maximum_refinement_level(
 				this->mapping_rw.get_maximum_possible_refinement_level()
 			);
-		} else if (!this->mapping_rw.set_maximum_refinement_level(maximum_refinement_level)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< "Couldn't set maximum refinement level to " << maximum_refinement_level
-				<< std::endl;
-			abort();
+		} else if (not this->mapping_rw.set_maximum_refinement_level(max_ref_lvl)) {
+			throw std::invalid_argument(
+				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
+				+ "Couldn't set maximum refinement level to "
+				+ std::to_string(max_ref_lvl)
+			);
 		}
+		return *this;
+	}
 
-		return true;
+	/*!
+	Sets grid periodicity.
+
+	In periodic dimension cells on opposite sides are neighbors
+	as-if the grid was neighbor to itself on both sides in that
+	dimension.
+
+	Must be called before initialize().
+	*/
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_periodic(const bool x, const bool y, const bool z) {
+		this->topology_rw.set_periodicity(0, x);
+		this->topology_rw.set_periodicity(1, y);
+		this->topology_rw.set_periodicity(2, z);
+		return *this;
+	}
+
+	/*!
+	Sets default distance within which cells are considered neighbors.
+
+	With value == 0 only face neighbors are considered neighbors.
+	With value > 0 cells within that distance are considered neighbors
+	(in units of logical size of cell doing the considering).
+
+	Must be called before initialize().
+
+	\see add_neighborhood()
+	*/
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_neighborhood_length(const unsigned int given_length) {
+		this->neighborhood_length = given_length;
+		return *this;
+	}
+
+	/*!
+	Sets load balancing method used by Zoltan.
+
+	Must be called before initialize().
+
+	\see balance_load()
+	*/
+	Dccrg<
+		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	>& set_load_balancing_method(const std::string& given_method) {
+		this->load_balancing_method = given_method;
+		return *this;
+	}
+
+	const std::string& get_load_balancing_method() const {
+		return this->load_balancing_method;
 	}
 
 
+private:
 	/*!
 	Initializes local cells' neighbor lists and related data structures.
 
