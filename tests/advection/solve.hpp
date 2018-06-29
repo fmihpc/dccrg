@@ -33,7 +33,11 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 
 /*!
-Calculates fluxes into and out of given local cells.
+Calculates fluxes into and out of local cells.
+
+Calculates fluxes of inner cells without remove neighbors
+if @solve_inner is true, otherwise calculates fluxes of
+outer cells which have neighbors on other processes.
 
 The total flux to copies of remote neighbors will be incorrect.
 */

@@ -1,8 +1,8 @@
 /*
 Saver class for the advection test program of dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016, 2018
-Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015, 2016,
+2018 Finnish Meteorological Institute
 Copyright 2017 Ilja Honkonen
 
 Dccrg is free software: you can redistribute it and/or modify
