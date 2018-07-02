@@ -88,18 +88,6 @@ int main(int argc, char* argv[])
 
 	MPI_Comm comm = MPI_COMM_WORLD;
 
-	int rank = 0, comm_size = 0;
-	MPI_Comm_rank(comm, &rank);
-	if (rank < 0) {
-		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-		abort();
-	}
-	MPI_Comm_size(comm, &comm_size);
-	if (comm_size < 0) {
-		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-		abort();
-	}
-
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
@@ -159,6 +147,18 @@ int main(int argc, char* argv[])
 		max_speed_local = total_cells / total_time, max_speed = 0,
 		avg_speed_local = total_cells / total_time, avg_speed = 0,
 		total_global_cells = 0;
+
+	int rank = 0, comm_size = 0;
+	MPI_Comm_rank(comm, &rank);
+	if (rank < 0) {
+		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+		abort();
+	}
+	MPI_Comm_size(comm, &comm_size);
+	if (comm_size < 0) {
+		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
+		abort();
+	}
 
 	MPI_Reduce(&min_speed_local, &min_speed, 1, MPI_DOUBLE, MPI_MIN, 0, comm);
 	MPI_Reduce(&max_speed_local, &max_speed, 1, MPI_DOUBLE, MPI_MAX, 0, comm);

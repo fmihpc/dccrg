@@ -128,12 +128,6 @@ int main(int argc, char* argv[])
 		abort();
 	}
 
-	MPI_Comm comm = MPI_COMM_WORLD;
-
-	int rank = 0, comm_size = 0;
-	MPI_Comm_rank(comm, &rank);
-	MPI_Comm_size(comm, &comm_size);
-
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 	    cout << "Zoltan_Initialize failed" << endl;
@@ -146,7 +140,7 @@ int main(int argc, char* argv[])
 		.set_initial_length({10, 10, 1})
 		.set_neighborhood_length(1)
 		.set_maximum_refinement_level(1)
-		.initialize(comm)
+		.initialize(MPI_COMM_WORLD)
 		.set_geometry(dccrg::Cartesian_Geometry_Parameters({{0, 0, 0}}, {{1, 1, 1}}))
 		.balance_load();
 
