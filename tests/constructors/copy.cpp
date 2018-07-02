@@ -1,7 +1,7 @@
 /*
 Tests copy construction of dccrg.
 
-Copyright 2015, 2016 Finnish Meteorological Institute
+Copyright 2015, 2016, 2018 Finnish Meteorological Institute
 Copyright 2015, 2016 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -76,20 +76,12 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<Cell1, dccrg::Cartesian_Geometry> grid1;
 
-	const std::array<uint64_t, 3> grid_length = {{10, 10, 10}};
-	grid1.initialize(grid_length, comm, "RCB", 1, 0);
-
-	dccrg::Cartesian_Geometry::Parameters geom_params;
-	geom_params.start[0] =
-	geom_params.start[1] =
-	geom_params.start[2] = 0;
-	geom_params.level_0_cell_length[0] =
-	geom_params.level_0_cell_length[1] =
-	geom_params.level_0_cell_length[2] = 1;
-	if (!grid1.set_geometry(geom_params)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		return EXIT_FAILURE;
-	}
+	grid1
+		.set_initial_length({10, 10, 10})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.initialize(comm)
+		.set_geometry(dccrg::Cartesian_Geometry::Parameters{{0,0,0}, {1,1,1}});
 
 	// check that remote neighbor update works in original grid
 	// data in grid1 == process rank

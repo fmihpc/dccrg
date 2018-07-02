@@ -108,15 +108,11 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<game_of_life_cell> grid;
 
-	const int neighborhood_size = 1, maximum_refinement_level = 0;
-	const std::array<uint64_t, 3> grid_length{{500, 500, 1}};
 	grid
-		.initialize(
-			grid_length,
-			comm,
-			"RCB",
-			neighborhood_size,
-			maximum_refinement_level)
+		.set_initial_length({500, 500, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.initialize(comm)
 		.balance_load();
 
 	initialize_game(grid.local_cells);

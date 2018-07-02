@@ -3,7 +3,7 @@ Tests the grid with some simple game of life patters using a hierarchical load b
 Returns EXIT_SUCCESS if everything went ok.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -67,12 +67,12 @@ int main(int argc, char* argv[])
 	Dccrg<game_of_life_cell> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{34, 7, 1}};
-	grid.initialize(grid_length, comm, "HIER", 1);
-	/*if (rank == 0) {
-		cout << "Maximum refinement level of the grid: "
-			<< grid.get_maximum_refinement_level()
-			<< endl;
-	}*/
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("HIER")
+		.initialize(comm);
 
 	grid.add_partitioning_level(12);
 	grid.add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
@@ -114,11 +114,6 @@ int main(int argc, char* argv[])
 
 		grid.start_remote_neighbor_copy_updates();
 		grid.wait_remote_neighbor_copy_updates();
-
-		/*if (rank == 0) {
-			cout << step << " ";
-			cout.flush();
-		}*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
@@ -277,11 +272,9 @@ int main(int argc, char* argv[])
 
 	if (rank == 0) {
 		visit_file.close();
-		//cout << endl;
 	}
 
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }
-

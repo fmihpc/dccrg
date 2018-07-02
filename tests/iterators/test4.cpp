@@ -58,8 +58,12 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell> grid;
-	const array<uint64_t, 3> grid_length = {{2, 1, 1}};
-	grid.initialize(grid_length, comm, "RANDOM", 1);
+	grid
+		.set_initial_length({2, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	if (grid.is_local(1)) {
 		grid.refine_completely(1);

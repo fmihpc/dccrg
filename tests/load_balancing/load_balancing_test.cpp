@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
 	Options
 	*/
 	uint64_t x_length, y_length, z_length;
-	unsigned int neighborhood_size, refine_n, iterations;
+	unsigned int neighborhood_length, refine_n, iterations;
 	string load_balancing_method;
 	vector<string> hier_lb_methods;
 	vector<int> hier_lb_procs_per_level;
@@ -89,8 +89,8 @@ int main(int argc, char* argv[])
 		("save",
 			boost::program_options::value<bool>(&save)->default_value(false),
 			"Save the grid after every iteration")
-		("neighborhood_size",
-			boost::program_options::value<unsigned int>(&neighborhood_size)->default_value(1),
+		("neighborhood_length",
+			boost::program_options::value<unsigned int>(&neighborhood_length)->default_value(1),
 			"Size of a cell's neighborhood in cells of equal size (0 means only face neighbors are neighbors)");
 
 	// read options from command line
@@ -134,27 +134,16 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<Cell, Cartesian_Geometry> grid;
-	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
-	grid.initialize(
-		grid_length,
-		comm,
-		load_balancing_method.c_str(),
-		neighborhood_size
-	);
-
-	Cartesian_Geometry::Parameters geom_params;
-	geom_params.start[0] =
-	geom_params.start[1] =
-	geom_params.start[2] = -0.5;
-	geom_params.level_0_cell_length[0] = 1.0 / x_length;
-	geom_params.level_0_cell_length[1] = 1.0 / y_length;
-	geom_params.level_0_cell_length[2] = 1.0 / z_length;
-	if (!grid.set_geometry(geom_params)) {
-		if (rank == 0) {
-			cerr << "Couldn't set grid geometry" << endl;
-		}
-		return EXIT_FAILURE;
-	}
+	grid
+		.set_initial_length({x_length, y_length, z_length})
+		.set_neighborhood_length(neighborhood_length)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method(load_balancing_method)
+		.initialize(comm)
+		.set_geometry({
+			{-0.5, -0.5, -0.5},
+			{1.0 / x_length, 1.0 / y_length, 1.0 / z_length}
+		});
 
 	// set load balancing options
 	if (load_balancing_method == "HIER") {

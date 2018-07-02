@@ -48,9 +48,13 @@ int main(int argc, char* argv[])
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
-	const std::array<uint64_t, 3> grid_length = {{GRID_SIZE, 1, 1}};
 	#define NEIGHBORHOOD_SIZE 1
-	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	grid
+		.set_initial_length({GRID_SIZE, 1, 1})
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	Stretched_Cartesian_Geometry::Parameters geom_params;

@@ -58,8 +58,12 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell> grid;
-	const std::array<uint64_t, 3> grid_length = {{1000, 1, 1}};
-	grid.initialize(grid_length, comm, "RANDOM", 3);
+	grid
+		.set_initial_length({1000, 1, 1})
+		.set_neighborhood_length(3)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {

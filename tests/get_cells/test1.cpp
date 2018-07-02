@@ -2,7 +2,7 @@
 Program for testing the get_cells() function of dccrg.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -57,9 +57,12 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<Cell> grid;
-
-	const std::array<uint64_t, 3> grid_length = {{7, 1, 1}};
-	grid.initialize(grid_length, comm, "RANDOM", 2);
+	grid
+		.set_initial_length({7, 1, 1})
+		.set_neighborhood_length(2)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	// distribute cells to processes like this,
 	// ______________  processes >= 2 don't get cells

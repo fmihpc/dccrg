@@ -113,12 +113,13 @@ int main(int argc, char* argv[])
 	Setup reference grid and game
 	*/
 
-	reference_grid.initialize(grid_length, MPI_COMM_SELF, "RANDOM", neighborhood_size);
-
-	if (!reference_grid.set_geometry(geom_params)) {
-		cerr << "Couldn't set reference grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
+	reference_grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(neighborhood_size)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(MPI_COMM_SELF)
+		.set_geometry(geom_params);
 
 	initialize(reference_grid, grid_length[0]);
 
@@ -132,12 +133,13 @@ int main(int argc, char* argv[])
 	// either start a new game...
 	if (restart_name == "") {
 
-		grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
-
-		if (!grid.set_geometry(geom_params)) {
-			cerr << "Couldn't set grid geometry" << endl;
-			exit(EXIT_FAILURE);
-		}
+		grid
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(neighborhood_size)
+			.set_maximum_refinement_level(-1)
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.set_geometry(geom_params);
 
 		initialize(grid, grid_length[0]);
 

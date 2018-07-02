@@ -182,20 +182,18 @@ int main(int argc, char* argv[])
 
 	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};
 
+	grid
+		.set_neighborhood_length(0)
+		.set_maximum_refinement_level(max_ref_lvl)
+		.set_load_balancing_method(load_balancing_method);
+
 	switch (direction) {
 	case 'x':
 		grid_length[0] = 1;
 		grid_length[1] = cells;
 		grid_length[2] = cells;
 
-		grid.initialize(
-			grid_length,
-			comm,
-			load_balancing_method.c_str(),
-			0,
-			max_ref_lvl,
-			false, true, true
-		);
+		grid.set_initial_length(grid_length).set_periodic(false, true, true);
 
 		geom_params.start[0] = GRID_START_X;
 		geom_params.start[1] = GRID_START_Y;
@@ -210,14 +208,7 @@ int main(int argc, char* argv[])
 		grid_length[1] = 1;
 		grid_length[2] = cells;
 
-		grid.initialize(
-			grid_length,
-			comm,
-			load_balancing_method.c_str(),
-			0,
-			max_ref_lvl,
-			true, false, true
-		);
+		grid.set_initial_length(grid_length).set_periodic(true, false, true);
 
 		geom_params.start[0] = GRID_START_X;
 		geom_params.start[1] = GRID_START_Y;
@@ -232,14 +223,7 @@ int main(int argc, char* argv[])
 		grid_length[1] = cells;
 		grid_length[2] = 1;
 
-		grid.initialize(
-			grid_length,
-			comm,
-			load_balancing_method.c_str(),
-			0,
-			max_ref_lvl,
-			true, true, false
-		);
+		grid.set_initial_length(grid_length).set_periodic(true, true, false);
 
 		geom_params.start[0] = GRID_START_X;
 		geom_params.start[1] = GRID_START_Y;
@@ -254,10 +238,7 @@ int main(int argc, char* argv[])
 		break;
 	}
 
-	if (!grid.set_geometry(geom_params)) {
-		cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
-		abort();
-	}
+	grid.initialize(comm).set_geometry(geom_params);
 
 	if (balance_n > -1) {
 		grid.balance_load();

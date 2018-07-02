@@ -78,14 +78,13 @@ int main(int argc, char* argv[])
 	const double cell_length = 1.0 / grid_length[0];
 	#define NEIGHBORHOOD_SIZE 1
 	#define MAX_REFINEMENT_LEVEL 0
-	grid.initialize(
-		grid_length,
-		comm,
-		"RCB",
-		NEIGHBORHOOD_SIZE,
-		MAX_REFINEMENT_LEVEL,
-		true, true, false
-	);
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(MAX_REFINEMENT_LEVEL)
+		.set_periodic(true, true, false)
+		.initialize(comm)
+		.balance_load();
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {

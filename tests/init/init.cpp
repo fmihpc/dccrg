@@ -78,10 +78,13 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<CellData> grid;
-	const std::array<uint64_t, 3> grid_length = {{x_length, y_length, z_length}};
 
 	clock_t before = clock();
-	grid.initialize(grid_length, comm, "RCB", 1, 0);
+	grid
+		.set_initial_length({x_length, y_length, z_length})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.initialize(comm);
 	clock_t after = clock();
 
 	cout << "Process " << rank

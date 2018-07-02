@@ -73,6 +73,14 @@ int main(int argc, char* argv[])
 
 	const std::array<uint64_t, 3> grid_length = {{100, 100, 100}};
 	const double cell_length = 1.0 / grid_length[0];
+	#define NEIGHBORHOOD_SIZE 1
+	#define MAX_REFINEMENT_LEVEL 0
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(MAX_REFINEMENT_LEVEL)
+		.initialize(comm)
+		.balance_load();
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -82,9 +90,6 @@ int main(int argc, char* argv[])
 	}
 	grid.set_geometry(geom_params);
 
-	#define NEIGHBORHOOD_SIZE 1
-	#define MAX_REFINEMENT_LEVEL 0
-	grid.initialize(grid_length, comm, "RCB", NEIGHBORHOOD_SIZE, MAX_REFINEMENT_LEVEL);
 	if (rank == 0) {
 		cout << "Maximum refinement level of the grid: "
 			<< grid.get_maximum_refinement_level()
@@ -95,7 +100,6 @@ int main(int argc, char* argv[])
 			<< endl << endl;
 	}
 
-	grid.balance_load();
 	MPI_Barrier(comm);
 
 	// initialize the game with random cells alive

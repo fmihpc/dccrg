@@ -1,7 +1,7 @@
 /*
 Tests how well dccrg avoids unnecessary construction / destruction of cell data.
 
-Copyright 2015, 2016 Finnish Meteorological Institute
+Copyright 2015, 2016, 2018 Finnish Meteorological Institute
 Copyright 2015, 2016 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -31,36 +31,34 @@ using namespace std;
 
 struct CellData {
 
-	double data;
+	double data = 0;
 
-	CellData()
-	{
+	CellData() {
 		cout << "Cell default constructed" << endl;
 	}
 
-	~CellData()
-	{
+	~CellData() {
 		cout << "Cell default destructed" << endl;
 	}
 
-	CellData(CellData& /*given*/)
-	{
-		cout << "Cell copied from non-const" << endl;
+	CellData(CellData& /*given*/) {
+		throw std::runtime_error("Cell copied from non-const");
 	}
 
-	CellData(const CellData& /*given*/)
-	{
-		cout << "Cell copied from const" << endl;
+	CellData(const CellData& /*given*/) {
+		throw std::runtime_error("Cell copied from const");
 	}
 
-	CellData& operator = (const CellData& /*given*/)
-	{
-		cout << "Cell assigned" << endl;
+	CellData(CellData&& given): data{std::move(given.data)} {
+		throw std::runtime_error("Cell moved");
+	}
+
+	CellData& operator = (const CellData& /*given*/) {
+		throw std::runtime_error("Cell assigned");
 		return *this;
 	}
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
-	{
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() {
 		return std::make_tuple((void*) &(this->data), 1, MPI_DOUBLE);
 	}
 };
@@ -89,15 +87,15 @@ int main(int argc, char* argv[])
 	dccrg::Dccrg<CellData> grid;
 
 	cout << "\ngrid.initialize:" << endl;
-	const std::array<uint64_t, 3> grid_length = {{1, 1, 1}};
-	grid.initialize(grid_length, comm, "RCB", 1, 0);
+	grid
+		.set_initial_length({1, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.initialize(comm);
 
-	cout << "\ngrid.get_cells:" << endl;
-	const auto cells = grid.get_cells();
-
-	cout << "\nfor (const auto& cell: cells):" << endl;
-	for (const auto& cell: cells) {
-		cout << cell << " ";
+	cout << "\nfor (const auto& cell: grid.local_cells):" << endl;
+	for (const auto& cell: grid.local_cells) {
+		cout << cell.id << " ";
 	}
 	cout << endl;
 

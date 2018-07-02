@@ -75,9 +75,13 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<Cell, No_Geometry, std::tuple<Additional_Cell_Data_Item1, Additional_Cell_Data_Item2>> grid;
-	const std::array<uint64_t, 3> grid_length = {{2, 2, 2}};
+	grid
+		.set_initial_length({2, 2, 2})
+		.set_neighborhood_length(3)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
-	grid.initialize(grid_length, comm, "RANDOM", 3);
 	for (const auto& cell: grid.cells) {
 		if (cell.additional_cell_data1 != cell.id) {
 			std::cerr << __LINE__ << ": " << cell.id << " != " << cell.additional_cell_data1 << std::endl;

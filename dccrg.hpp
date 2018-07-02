@@ -296,7 +296,7 @@ public:
 	For an example see the file simple_game_of_life.cpp
 	in the examples directory.
 
-	initialize()
+	set_initial_length()
 	Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other)
 	*/
 	Dccrg():geometry_rw(length, mapping, topology){}
@@ -404,34 +404,15 @@ public:
 
 	comm: the grid will span all the processes in the communicator comm
 
-	load_balancing_method:
-		- The method that Zoltan will use for load balancing, given as a string.
-		- All methods except REFTREE are supported, see
-		  http://www.cs.sandia.gov/Zoltan/ug_html/ug_alg.html#LB_METHOD
-		  for a list of available methods and their documentation
-
-	neighborhood_length:
-		- Determines which cells are considered neighbors.
-		- All cells withing a cube of length 2 * neighborhood_length + 1
-		  in every dimension are considered as neighbors of a cell, centered
-		  at the cell itself.
-		- The unit lenght of the cube is the cell itself.
-		- If neighborhood_length == 0, only cells (or children within the volume of
-		  cells of the same size as the cell itself) that share a face are considered.
-
-	maximum_refinement_level:
-		- The maximum number of times an unrefined cell can be refined
-		  (replacingit with 8 smaller cells).
-		- If not given the maximum refinement level is maximized based on the grids initial size.
-
-	periodic_in_x, y and z:
-		- The grid neighborhoods wrap around in periodic directions, e.g. if periodic in some
-		  direction cells on the opposite sides of the grid in that direction can be neighbors.
-
 	Throws on failure (on one or more processes).
 
 	\see
 	Dccrg()
+	set_initial_length()
+	set_neighborhood_length()
+	set_load_balancing_method()
+	set_maximum_refinement_level()
+	set_periodic()
 	set_geometry()
 	get_cells()
 	get_existing_cell()
@@ -1974,7 +1955,7 @@ public:
 			abort();
 		}
 
-		this->initialized = true;
+		this->grid_initialized = true;
 
 		return true;
 	}
@@ -6027,9 +6008,9 @@ public:
 	*/
 	MPI_Comm get_communicator() const
 	{
-		if (!this->initialized) {
+		if (!this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " get_communicator called prior to init"
+				<< " get_communicator called before initialize()"
 				<< std::endl;
 			abort();
 		}

@@ -95,8 +95,12 @@ int main(int argc, char* argv[])
 	}
 
 	Dccrg<Cell> grid;
-	const std::array<uint64_t, 3> grid_length = {{3, 3, 3}};
-	grid.initialize(grid_length, comm, "RANDOM", 3);
+	grid
+		.set_initial_length({3, 3, 3})
+		.set_neighborhood_length(3)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	// local cells must be obtained before starting load balancing
 	const vector<uint64_t> cells = grid.get_cells();

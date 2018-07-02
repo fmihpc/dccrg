@@ -142,19 +142,12 @@ int main(int argc, char* argv[])
 
 	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry> grid;
 
-	const int
-		neighborhood_size = 1,
-		maximum_refinement_level = 0;
-	const std::array<uint64_t, 3> grid_length = {{10, 10, 1}};
 	grid
-		.initialize(
-			grid_length,
-			comm,
-			"RCB",
-			neighborhood_size,
-			maximum_refinement_level)
-		.set_geometry(
-			dccrg::Cartesian_Geometry_Parameters({{0, 0, 0}}, {{1, 1, 1}}))
+		.set_initial_length({10, 10, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(1)
+		.initialize(comm)
+		.set_geometry(dccrg::Cartesian_Geometry_Parameters({{0, 0, 0}}, {{1, 1, 1}}))
 		.balance_load();
 
 	initialize_game(grid);

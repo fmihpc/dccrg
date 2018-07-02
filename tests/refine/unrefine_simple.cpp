@@ -48,9 +48,13 @@ int main(int argc, char* argv[])
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
 
 	#define GRID_SIZE 2
-	const std::array<uint64_t, 3> grid_length{{GRID_SIZE, 1, 1}};
 	#define NEIGHBORHOOD_SIZE 1
-	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE, 5);
+	grid
+		.set_initial_length({GRID_SIZE, 1, 1})
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(5)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	#define CELL_SIZE (1.0 / GRID_SIZE)
 	Stretched_Cartesian_Geometry::Parameters geom_params;
@@ -62,16 +66,6 @@ int main(int argc, char* argv[])
 	geom_params.coordinates[2].push_back(0);
 	geom_params.coordinates[2].push_back(1);
 	grid.set_geometry(geom_params);
-
-	/*if (rank == 0) {
-		cout << "Maximum refinement level of the grid: "
-			<< grid.get_maximum_refinement_level()
-			<< "\nNumber of cells: "
-			<< (geom_params.coordinates.size() - 1)
-				* (geom_params.coordinates.size() - 1)
-				* (geom_params.coordinates.size() - 1)
-			<< endl << endl;
-	}*/
 
 	// every process outputs state into its own file
 	ostringstream basename, suffix(".vtk");
@@ -86,10 +80,6 @@ int main(int argc, char* argv[])
 
 	#define TIME_STEPS 8
 	for (int step = 0; step < TIME_STEPS; step++) {
-
-		/*if (rank == 0) {
-			cout << "step " << step << endl;
-		}*/
 
 		grid.balance_load();
 		auto cells = grid.get_cells();
@@ -143,8 +133,6 @@ int main(int argc, char* argv[])
 		}
 		outfile.close();
 
-		//before = clock();
-
 		// refine / unrefine the smallest cell that is closest to the grid starting corner
 		const std::array<double, 3> adapt_coord{{
 			0.0001 * CELL_SIZE,
@@ -158,13 +146,6 @@ int main(int argc, char* argv[])
 		}
 
 		auto new_cells = grid.stop_refining();
-
-		/*after = clock();
-		cout << "Process " << rank
-			<<": Refining / unrefining took " << double(after - before) / CLOCKS_PER_SEC
-			<< " seconds, " << new_cells.size()
-			<< " new cells created"
-			<< endl;*/
 	}
 
 	if (rank == 0) {

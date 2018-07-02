@@ -2,7 +2,7 @@
 Tests the grid with a game of life on a refined grid in 3 D with neighbors only in the ? plane
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -69,7 +69,13 @@ int main(int argc, char* argv[])
 	const double cell_length = 1.0 / grid_length[0];
 
 	#define NEIGHBORHOOD_SIZE 1
-	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm)
+		.balance_load();
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -79,34 +85,21 @@ int main(int argc, char* argv[])
 	}
 	grid.set_geometry(geom_params);
 
-	vector<uint64_t> cells = grid.get_cells();
-	/*if (rank == 0) {
-		cout << "Maximum refinement level of the grid: "
-			<< grid.get_maximum_refinement_level()
-			<< endl;
-	}*/
-
 	// refine the grid increasingly in the z direction a few times
-	grid.balance_load();
-	cells = grid.get_cells();
-	for (const auto& cell: cells) {
-		if (grid.geometry.get_center(cell)[2] > 1 * 1.5 * cell_length) {
-			grid.refine_completely(cell);
+	for (const auto& cell: grid.local_cells) {
+		if (grid.geometry.get_center(cell.id)[2] > 1 * 1.5 * cell_length) {
+			grid.refine_completely(cell.id);
 		}
 	}
 	grid.stop_refining();
 	grid.balance_load();
-	cells = grid.get_cells();
-	//cout << "Process " << rank << ": number of cells after refining: " << cells.size() << endl;
-	for (const auto& cell: cells) {
-		if (grid.geometry.get_center(cell)[2] > 2 * 1.5 * cell_length) {
-			grid.refine_completely(cell);
+	for (const auto& cell: grid.local_cells) {
+		if (grid.geometry.get_center(cell.id)[2] > 2 * 1.5 * cell_length) {
+			grid.refine_completely(cell.id);
 		}
 	}
 	grid.stop_refining();
 	grid.balance_load();
-	cells = grid.get_cells();
-	//cout << "Process " << rank << ": number of cells after refining: " << cells.size() << endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
 	for (auto& cell: grid.local_cells) {
@@ -139,13 +132,13 @@ int main(int argc, char* argv[])
 
 		grid.balance_load();
 		grid.update_copies_of_remote_neighbors();
-		auto cells = grid.cells;
-		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
+		std::vector<uint64_t> cells;
+		for (const auto& cell: grid.local_cells) {
+			cells.push_back(cell.id);
+		}
+		// the library writes the grid into a file in ascending cell order,
+		// do the same for grid data at every time step
 		sort(cells.begin(), cells.end());
-
-		/*if (rank == 0) {
-			cout << "step: " << step << endl;
-		}*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
@@ -174,7 +167,7 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
+		for (const auto& cell: grid.local_cells) {
 			if (cell.data->is_alive > 0) {
 				outfile << "1";
 			} else {
@@ -187,14 +180,14 @@ int main(int argc, char* argv[])
 		// write each cells live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
+		for (const auto& cell: grid.local_cells) {
 			outfile << cell.data->live_neighbor_count << endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: cells) {
+		for (const auto& cell: grid.local_cells) {
 			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << endl;
 		}
@@ -209,54 +202,33 @@ int main(int argc, char* argv[])
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (auto& cell: cells) {
+		for (auto& cell: grid.local_cells) {
 			outfile << cell.id << endl;
 		}
 		outfile.close();
 
 		// get the neighbor counts of every cell
 		// FIXME: use the (at some point common) solver from (un)refined2d and only include x and y directions in neighborhood
-		for (auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells) {
 			cell.data->live_neighbor_count = 0;
-			const auto* const neighbors = grid.get_neighbors_of(cell.id);
-			if (neighbors == nullptr) {
-				cerr << "Process " << rank
-					<< ": neighbor list for cell " << cell.id << " not available"
-					<< endl;
-				exit(EXIT_FAILURE);
-			}
 
-			for (const auto& neighbor_i: *neighbors) {
-				const auto& neighbor = neighbor_i.first;
-
-				if (neighbor == dccrg::error_cell) {
-					continue;
-				}
-
+			for (const auto& neighbor: cell.neighbors_of) {
 				// only consider neighbors in the same z plane
 				if (
 					grid.geometry.get_center(cell.id)[2]
-					!= grid.geometry.get_center(neighbor)[2]
+					!= grid.geometry.get_center(neighbor.id)[2]
 				) {
 					continue;
 				}
 
-				const auto* const neighbor_data = grid[neighbor];
-				if (neighbor_data == nullptr) {
-					cerr << "Process " << rank
-						<< ": neighbor " << neighbor
-						<< " data of cell " << cell.id << " not available"
-						<< endl;
-					exit(EXIT_FAILURE);
-				}
-				if (neighbor_data->is_alive) {
+				if (neighbor.data->is_alive) {
 					cell.data->live_neighbor_count++;
 				}
 			}
 		}
 
 		// calculate the next turn
-		for (auto& cell: grid.cells) {
+		for (const auto& cell: grid.local_cells) {
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->live_neighbor_count != 2) {

@@ -2,7 +2,7 @@
 As unrefined2d.cpp but pinns cells to particular processes.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -76,13 +76,18 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> game_grid;
+	Dccrg<game_of_life_cell, Stretched_Cartesian_Geometry> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 	const double cell_length = 1.0 / grid_length[0];
 
 	#define NEIGHBORHOOD_SIZE 1
-	game_grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -90,7 +95,7 @@ int main(int argc, char* argv[])
 			geom_params.coordinates[dimension].push_back(double(i) * cell_length);
 		}
 	}
-	game_grid.set_geometry(geom_params);
+	grid.set_geometry(geom_params);
 
 	// create a blinker
 	#define BLINKER_START 198
@@ -100,7 +105,7 @@ int main(int argc, char* argv[])
 		BLINKER_START + 2
 	};
 	for (const auto& cell: blinker_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
+		game_of_life_cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -118,7 +123,7 @@ int main(int argc, char* argv[])
 		TOAD_START + 3 + grid_length[0]
 	};
 	for (const auto& cell: toad_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
+		game_of_life_cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -138,7 +143,7 @@ int main(int argc, char* argv[])
 		BEACON_START + 3 - 3 * grid_length[0]
 	};
 	for (const auto& cell: beacon_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
+		game_of_life_cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -155,7 +160,7 @@ int main(int argc, char* argv[])
 		GLIDER_START + 2 - 2 * grid_length[0]
 	};
 	for (const auto& cell: glider_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
+		game_of_life_cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -171,7 +176,7 @@ int main(int argc, char* argv[])
 		BLOCK_START + 1 - grid_length[0]
 	};
 	for (const auto& cell: block_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
+		game_of_life_cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -189,7 +194,7 @@ int main(int argc, char* argv[])
 		BEEHIVE_START + 3 - grid_length[0]
 	};
 	for (const auto& cell: beehive_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
+		game_of_life_cell* cell_data = grid[cell];
 		if (cell_data == NULL) {
 			continue;
 		}
@@ -214,7 +219,7 @@ int main(int argc, char* argv[])
 
 		// refine random unrefined cells and unrefine random refined cells
 		// TODO merge with identical code in unrefine2d, ...
-		auto cells = game_grid.cells;
+		auto cells = grid.cells;
 		random_shuffle(cells.begin(), cells.end());
 
 		if (step % 2 == 0) {
@@ -223,8 +228,8 @@ int main(int argc, char* argv[])
 				i < cells.size() && refined <= grid_length[0] * grid_length[1] / (5 * comm_size);
 				i++
 			) {
-				if (game_grid.get_refinement_level(cells[i].id) == 0) {
-					if (!game_grid.refine_completely(cells[i].id)) {
+				if (grid.get_refinement_level(cells[i].id) == 0) {
+					if (!grid.refine_completely(cells[i].id)) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Couldn't refine cell " << cells[i].id
 							<< std::endl;
@@ -240,8 +245,8 @@ int main(int argc, char* argv[])
 				i < cells.size() && unrefined <= grid_length[0] * grid_length[1] / (4 * comm_size);
 				i++
 			) {
-				if (game_grid.get_refinement_level(cells[i].id) > 0) {
-					if (!game_grid.unrefine_completely(cells[i].id)) {
+				if (grid.get_refinement_level(cells[i].id) > 0) {
+					if (!grid.unrefine_completely(cells[i].id)) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Couldn't unrefine cell " << cells[i].id
 							<< std::endl;
@@ -252,21 +257,21 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		vector<uint64_t> new_cells = game_grid.stop_refining();
+		vector<uint64_t> new_cells = grid.stop_refining();
 
 		// assign parents' state to children
 		for (const auto& new_cell: new_cells) {
-			game_of_life_cell* new_cell_data = game_grid[new_cell];
+			game_of_life_cell* new_cell_data = grid[new_cell];
 			if (new_cell_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
 					<< " No data for created cell " << new_cell
 					<< endl;
 				abort();
 			}
-			game_of_life_cell* parent_data = game_grid[game_grid.get_parent(new_cell)];
+			game_of_life_cell* parent_data = grid[grid.get_parent(new_cell)];
 			if (parent_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
-					<< " No data for parent cell " << game_grid.get_parent(new_cell)
+					<< " No data for parent cell " << grid.get_parent(new_cell)
 					<< endl;
 				abort();
 			}
@@ -274,30 +279,30 @@ int main(int argc, char* argv[])
 		}
 
 		// "interpolate" parent cell's value from unrefined children
-		auto removed_cells = game_grid.get_removed_cells();
+		auto removed_cells = grid.get_removed_cells();
 		for (const auto& removed_cell: removed_cells) {
-			game_of_life_cell* removed_cell_data = game_grid[removed_cell];
+			game_of_life_cell* removed_cell_data = grid[removed_cell];
 			if (removed_cell_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
 					<< " no data for removed cell after unrefining: " << removed_cell
 					<< endl;
 				abort();
 			}
-			game_of_life_cell* parent_data = game_grid[game_grid.mapping.get_parent(removed_cell)];
+			game_of_life_cell* parent_data = grid[grid.mapping.get_parent(removed_cell)];
 			if (parent_data == NULL) {
 				cout << __FILE__ << ":" << __LINE__
 					<< " no data for parent cell after unrefining: "
-					<< game_grid.mapping.get_parent(removed_cell)
+					<< grid.mapping.get_parent(removed_cell)
 					<< endl;
 				abort();
 			}
 			parent_data->is_alive = removed_cell_data->is_alive;
 		}
-		game_grid.clear_refined_unrefined_data();
+		grid.clear_refined_unrefined_data();
 
 		// pin cells to process 0 either inside or outside the circle
-		for (const auto& cell: game_grid.cells) {
-			const std::array<double, 3> cell_center = game_grid.geometry.get_center(cell.id);
+		for (const auto& cell: grid.cells) {
+			const std::array<double, 3> cell_center = grid.geometry.get_center(cell.id);
 
 			const double distance
 				= std::pow(cell_center[0] - 0.5, 2.0)
@@ -305,14 +310,14 @@ int main(int argc, char* argv[])
 
 			if (step % 2 == 0) {
 				if (distance <= 0.3 * 0.3) {
-					if (!game_grid.pin(cell.id, 0)) {
+					if (!grid.pin(cell.id, 0)) {
 						cout << __FILE__ << ":" << __LINE__
 							<< " Couldn't pin cell " << cell.id
 							<< endl;
 						abort();
 					}
 				} else {
-					if (!game_grid.unpin(cell.id)) {
+					if (!grid.unpin(cell.id)) {
 						cout << __FILE__ << ":" << __LINE__
 							<< " Couldn't unpin cell " << cell.id
 							<< endl;
@@ -321,14 +326,14 @@ int main(int argc, char* argv[])
 				}
 			} else {
 				if (distance <= 0.3 * 0.3) {
-					if (!game_grid.unpin(cell.id)) {
+					if (!grid.unpin(cell.id)) {
 						cout << __FILE__ << ":" << __LINE__
 							<< " Couldn't unpin cell " << cell.id
 							<< endl;
 						abort();
 					}
 				} else {
-					if (!game_grid.pin(cell.id, 0)) {
+					if (!grid.pin(cell.id, 0)) {
 						cout << __FILE__ << ":" << __LINE__
 							<< " Couldn't pin cell " << cell.id
 							<< endl;
@@ -338,9 +343,9 @@ int main(int argc, char* argv[])
 			}
 		}
 
-		game_grid.balance_load();
-		game_grid.update_copies_of_remote_neighbors();
-		cells = game_grid.cells;
+		grid.balance_load();
+		grid.update_copies_of_remote_neighbors();
+		cells = grid.cells;
 		// the library writes the grid into a file in ascending
 		// cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
@@ -370,7 +375,7 @@ int main(int argc, char* argv[])
 		}
 
 		// write the grid into a file
-		game_grid.write_vtk_file(current_output_name.c_str());
+		grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
@@ -399,7 +404,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -430,9 +435,9 @@ int main(int argc, char* argv[])
 				cell.data->child_of_processed[i] = 0;
 			}
 
-			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
-			if (game_grid.get_refinement_level(cell.id) == 0) {
+			if (grid.get_refinement_level(cell.id) == 0) {
 
 				for (const auto& neighbor_i: *neighbors) {
 					const auto& neighbor = neighbor_i.first;
@@ -441,7 +446,7 @@ int main(int argc, char* argv[])
 						continue;
 					}
 
-					game_of_life_cell* neighbor_data = game_grid[neighbor];
+					game_of_life_cell* neighbor_data = grid[neighbor];
 					if (neighbor_data == NULL) {
 						cout << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of cell " << cell.id
@@ -450,7 +455,7 @@ int main(int argc, char* argv[])
 						exit(EXIT_FAILURE);
 					}
 
-					if (game_grid.get_refinement_level(neighbor) == 0) {
+					if (grid.get_refinement_level(neighbor) == 0) {
 						if (neighbor_data->is_alive) {
 							cell.data->total_live_neighbor_count++;
 						}
@@ -458,7 +463,7 @@ int main(int argc, char* argv[])
 					} else {
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
+						uint64_t parent_of_neighbor = grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell.data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -494,7 +499,7 @@ int main(int argc, char* argv[])
 						continue;
 					}
 
-					game_of_life_cell* neighbor_data = game_grid[neighbor];
+					game_of_life_cell* neighbor_data = grid[neighbor];
 					if (neighbor_data == NULL) {
 						cout << __FILE__ << ":" << __LINE__
 							<< " no data for neighbor of refined cell " << cell.id
@@ -503,7 +508,7 @@ int main(int argc, char* argv[])
 						exit(EXIT_FAILURE);
 					}
 
-					if (game_grid.get_refinement_level(neighbor) == 0) {
+					if (grid.get_refinement_level(neighbor) == 0) {
 						// TODO merge solver with the one in unrefined2d, etc
 						// larger neighbors appear several times in the neighbor list
 						bool neighbor_processed = false;
@@ -538,12 +543,12 @@ int main(int argc, char* argv[])
 					} else {
 
 						// ignore own siblings
-						if (game_grid.get_parent(cell.id) == game_grid.get_parent(neighbor)) {
+						if (grid.get_parent(cell.id) == grid.get_parent(neighbor)) {
 							continue;
 						}
 
 						bool sibling_processed = false;
-						uint64_t parent_of_neighbor = game_grid.get_parent(neighbor);
+						uint64_t parent_of_neighbor = grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
 							if (cell.data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
@@ -576,11 +581,11 @@ int main(int argc, char* argv[])
 			}
 
 		}
-		game_grid.update_copies_of_remote_neighbors();
+		grid.update_copies_of_remote_neighbors();
 
 		// get the total neighbor counts of refined cells
 		for (const auto& cell: cells) {
-			if (game_grid.get_refinement_level(cell.id) == 0) {
+			if (grid.get_refinement_level(cell.id) == 0) {
 				continue;
 			}
 
@@ -589,7 +594,7 @@ int main(int argc, char* argv[])
 				current_live_unrefined_neighbors.insert(cell.data->live_unrefined_neighbors[i]);
 			}
 
-			const auto* const neighbors = game_grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			for (const auto& neighbor_i: *neighbors) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -597,16 +602,16 @@ int main(int argc, char* argv[])
 					continue;
 				}
 
-				if (game_grid.get_refinement_level(neighbor) == 0) {
+				if (grid.get_refinement_level(neighbor) == 0) {
 					continue;
 				}
 
 				// total live neighbors counts only between siblings
-				if (game_grid.get_parent(cell.id) != game_grid.get_parent(neighbor)) {
+				if (grid.get_parent(cell.id) != grid.get_parent(neighbor)) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[neighbor];
+				game_of_life_cell* neighbor_data = grid[neighbor];
 				for (int i = 0; i < 3; i++) {
 					current_live_unrefined_neighbors.insert(neighbor_data->live_unrefined_neighbors[i]);
 				}
@@ -617,7 +622,7 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: game_grid.cells) {
+		for (const auto& cell: grid.cells) {
 			if (cell.data->total_live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->total_live_neighbor_count != 2) {

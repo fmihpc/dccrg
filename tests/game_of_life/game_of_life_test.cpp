@@ -2,7 +2,7 @@
 Program for testing dccrg using Conway's game of life.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -325,7 +325,12 @@ int main(int argc, char* argv[])
 	}
 
 	const unsigned int neighborhood_size = 1;
-	grid.initialize(grid_length, comm, "RANDOM", neighborhood_size, 0);
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(neighborhood_size)
+		.set_maximum_refinement_level(0)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	Stretched_Cartesian_Geometry::Parameters geom_params;
 	for (size_t dimension = 0; dimension < grid_length.size(); dimension++) {
@@ -334,10 +339,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	if (!grid.set_geometry(geom_params)) {
-		cerr << "Couldn't set grid geometry" << endl;
-		exit(EXIT_FAILURE);
-	}
+	grid.set_geometry(geom_params);
 
 	#ifdef SEND_SINGLE_CELLS
 	grid.set_send_single_cells(true);

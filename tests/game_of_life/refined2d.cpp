@@ -4,7 +4,7 @@ Tests the grid with a game of life on a refined grid in 2 D, emulating unrefined
 -neighbor counts are considered on the level of unrefined cells
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -82,7 +82,13 @@ int main(int argc, char* argv[])
 	const std::array<uint64_t, 3> grid_length = {{15, 15, 1}};
 
 	#define NEIGHBORHOOD_SIZE 1
-	grid.initialize(grid_length, comm, "RANDOM", NEIGHBORHOOD_SIZE);
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm)
+		.balance_load();
 
 	const double cell_length = 1.0 / grid_length[0];
 	Stretched_Cartesian_Geometry::Parameters geom_params;

@@ -2,7 +2,7 @@
 Program for testing dccrg restart with varying amounts of cell data.
 
 Copyright 2010, 2011, 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2018 Finnish Meteorological Institute
 Copyright 2014, 2015, 2016 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -183,12 +183,13 @@ int main(int argc, char* argv[])
 	// write a restart file...
 	if (not restart) {
 
-		grid.initialize(grid_length, comm, "RANDOM", neighborhood_size);
-
-		if (!grid.set_geometry(geom_params)) {
-			cerr << "Couldn't set grid geometry" << endl;
-			exit(EXIT_FAILURE);
-		}
+		grid
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(neighborhood_size)
+			.set_maximum_refinement_level(-1)
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.set_geometry(geom_params);
 
 		migrate_cells(grid);
 
