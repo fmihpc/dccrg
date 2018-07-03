@@ -2,6 +2,7 @@
 Functions for dccrg to obtain the MPI Datatype from cell data.
 
 Copyright 2014, 2015, 2016 Ilja Honkonen
+Copyright 2018 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -45,10 +46,10 @@ Returns the MPI transfer info from given cell.
 Version for get_mpi_datatype(const uint64_t, ..., const int) const.
 */
 template<
-	class Cell_T
+	class Cell_Data
 > typename std::enable_if<
 	has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
@@ -65,7 +66,7 @@ template<
 		MPI_Datatype
 	>
 >::type get_cell_mpi_datatype(
-	const Cell_T& cell,
+	const Cell_Data& cell,
 	const uint64_t cell_id,
 	const int sender,
 	const int receiver,
@@ -88,10 +89,10 @@ Returns the MPI transfer info from given cell.
 Version for get_mpi_datatype(const uint64_t, ..., const int).
 */
 template<
-	class Cell_T
+	class Cell_Data
 > typename std::enable_if<
 	has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
@@ -107,7 +108,7 @@ template<
 		MPI_Datatype
 	>
 >::type get_cell_mpi_datatype(
-	Cell_T& cell,
+	Cell_Data& cell,
 	const uint64_t cell_id,
 	const int sender,
 	const int receiver,
@@ -131,17 +132,17 @@ Version for get_mpi_datatype() const.
 Gives precedence to get_mpi_datatype which takes arguments.
 */
 template<
-	class Cell_T
+	class Cell_Data
 > typename std::enable_if<
 	has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<>,
 		boost::function_types::const_qualified
 	>::value
 	and not
 	has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
@@ -158,7 +159,7 @@ template<
 		MPI_Datatype
 	>
 >::type get_cell_mpi_datatype(
-	const Cell_T& cell,
+	const Cell_Data& cell,
 	const uint64_t /*cell_id*/,
 	const int /*sender*/,
 	const int /*receiver*/,
@@ -176,16 +177,16 @@ Version for get_mpi_datatype().
 Gives precedence to get_mpi_datatype which takes arguments.
 */
 template<
-	class Cell_T
+	class Cell_Data
 > typename std::enable_if<
 	has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<>
 	>::value
 	and not
 	has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
@@ -201,7 +202,7 @@ template<
 		MPI_Datatype
 	>
 >::type get_cell_mpi_datatype(
-	Cell_T& cell,
+	Cell_Data& cell,
 	const uint64_t /*cell_id*/,
 	const int /*sender*/,
 	const int /*receiver*/,
@@ -212,14 +213,56 @@ template<
 }
 
 
+// give a human-readable error message
+template<class Cell_Data> std::tuple<void*, int, MPI_Datatype> get_mpi_datatype_basic(Cell_Data&) {
+	static_assert(
+		not std::is_same<Cell_Data, Cell_Data>::value,
+		"Cell_Data given to dccrg is not a supported type and "
+			"doesn't have get_mpi_datatype() member function either"
+	);
+	return std::make_tuple(nullptr, -1, MPI_DATATYPE_NULL);
+}
+
+#define DCCRG_GET_MPI_DATATYPE_BASIC(CPP, MPI) \
+	std::tuple< \
+		void*, int, MPI_Datatype \
+	> inline get_mpi_datatype_basic(CPP& cell) { \
+		return std::make_tuple((void*) &cell, 1, MPI); \
+	}
+DCCRG_GET_MPI_DATATYPE_BASIC(char, MPI_CHAR)
+DCCRG_GET_MPI_DATATYPE_BASIC(signed char, MPI_CHAR)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned char, MPI_UNSIGNED_CHAR)
+DCCRG_GET_MPI_DATATYPE_BASIC(short int, MPI_SHORT)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned short int, MPI_UNSIGNED_SHORT)
+DCCRG_GET_MPI_DATATYPE_BASIC(int, MPI_INT)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned int, MPI_UNSIGNED)
+DCCRG_GET_MPI_DATATYPE_BASIC(long int, MPI_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned long int, MPI_UNSIGNED_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(long long int, MPI_LONG_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned long long int, MPI_UNSIGNED_LONG_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(float, MPI_FLOAT)
+DCCRG_GET_MPI_DATATYPE_BASIC(double, MPI_DOUBLE)
+DCCRG_GET_MPI_DATATYPE_BASIC(long double, MPI_LONG_DOUBLE)
+DCCRG_GET_MPI_DATATYPE_BASIC(wchar_t, MPI_WCHAR)
+
+DCCRG_GET_MPI_DATATYPE_BASIC(bool, MPI_CXX_BOOL)
+#ifdef DCCRG_USER_COMPLEX
+DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<float>, MPI_CXX_FLOAT_COMPLEX)
+DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<double>, MPI_CXX_DOUBLE_COMPLEX)
+DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<long double>, MPI_CXX_LONG_DOUBLE_COMPLEX)
+#endif
+#undef DCCRG_GET_MPI_DATATYPE_BASIC
+
 /*!
-Returns a human-readable error message if cell type doesn't have suitable get_mpi_datatype().
+Returns the MPI transfer info from given cell.
+
+Version for cell that doesn't have get_mpi_datatype().
 */
 template<
-	class Cell_T
+	class Cell_Data
 > typename std::enable_if<
 	not has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
@@ -231,7 +274,7 @@ template<
 		boost::function_types::const_qualified
 	>::value
 	and not has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<
 			const uint64_t,
@@ -242,13 +285,13 @@ template<
 		>
 	>::value
 	and not has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<>,
 		boost::function_types::const_qualified
 	>::value
 	and not has_member_function_get_mpi_datatype<
-		Cell_T,
+		Cell_Data,
 		std::tuple<void*, int, MPI_Datatype>,
 		boost::mpl::vector<>
 	>::value,
@@ -258,22 +301,17 @@ template<
 		MPI_Datatype
 	>
 >::type get_cell_mpi_datatype(
-	Cell_T& cell,
+	Cell_Data& cell,
 	const uint64_t /*cell_id*/,
 	const int /*sender*/,
 	const int /*receiver*/,
 	const bool /*receiving*/,
 	const int /*neighborhood_id*/
 ) {
-	static_assert(
-		not std::is_same<Cell_T, Cell_T>::value,
-		"No suitable get_mpi_datatype() member function found in cell type given to dccrg"
-	);
-	return std::make_tuple(nullptr, -1, MPI_DATATYPE_NULL);
+	return get_mpi_datatype_basic(cell);
 }
 
 
 }} // namespaces
 
 #endif
-
