@@ -26,8 +26,6 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dccrg.hpp"
 
-#include "cell.hpp"
-
 /*!
 Saves the current state of given game of life grid into one vtk file per process.
 

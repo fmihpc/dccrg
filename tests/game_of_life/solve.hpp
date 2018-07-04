@@ -29,8 +29,6 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dccrg.hpp"
 
-#include "cell.hpp"
-
 /*!
 Advances the game of life on given grid one turn.
 

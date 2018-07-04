@@ -24,19 +24,8 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dccrg.hpp"
 
-#include "cell.hpp"
 
-/*!
-Initializes given grid with given size in the first game coordinate with some game of life patterns.
-*/
-template<class Cell_Data, class Geometry> void initialize(
-	dccrg::Dccrg<Cell_Data, Geometry>& grid,
-	const uint64_t grid_size
-) {
-	if (grid_size == 0) {
-		abort();
-	}
-
+std::set<uint64_t> get_live_cells(const uint64_t grid_size) {
 	std::set<uint64_t> live_cells;
 
 	// create a blinker
@@ -100,6 +89,21 @@ template<class Cell_Data, class Geometry> void initialize(
 		beehive_start + 2 - 2 * grid_size,
 		beehive_start + 3 - grid_size
 	});
+	return live_cells;
+}
+
+/*!
+Initializes given grid with given size in the first game coordinate with some game of life patterns.
+*/
+template<class Cell_Data, class Geometry> void initialize(
+	dccrg::Dccrg<Cell_Data, Geometry>& grid,
+	const uint64_t grid_size
+) {
+	if (grid_size == 0) {
+		abort();
+	}
+
+	const auto live_cells = get_live_cells(grid_size);
 
 	for (const auto& cell: grid.local_cells) {
 		for (auto& item: cell.data->data) {

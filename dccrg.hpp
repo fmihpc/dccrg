@@ -6547,7 +6547,9 @@ private:
 	template<class T> struct Iterator_Storage {
 		typename std::vector<T>::const_iterator begin_, end_ /*TODO: = nullptr (c++14)*/;
 		typename std::vector<T>::const_iterator begin() const { return this->begin_; }
+		typename std::vector<T>::const_iterator cbegin() const { return this->begin_; }
 		typename std::vector<T>::const_iterator end() const { return this->end_; }
+		typename std::vector<T>::const_iterator cend() const { return this->end_; }
 	};
 
 

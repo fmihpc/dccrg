@@ -1,4 +1,5 @@
 EXAMPLES_EXECUTABLES = \
+  examples/basic_cell_data.exe \
   examples/simple_game_of_life.exe \
   examples/game_of_life.exe \
   examples/game_of_life_with_output.exe \
@@ -42,6 +43,11 @@ EXAMPLES_COMPILE_COMMAND_GOL = \
   $(ZOLTAN_LDFLAGS) \
   $(ZOLTAN_LIBS)
 
+examples/basic_cell_data.exe: \
+  examples/basic_cell_data.cpp \
+  $(EXAMPLES_COMMON_DEPS)
+	$(EXAMPLES_COMPILE_COMMAND_GOL)
+
 examples/simple_game_of_life.exe: \
   examples/simple_game_of_life.cpp \
   $(EXAMPLES_COMMON_DEPS)
@@ -61,4 +67,3 @@ examples/dc2vtk.exe: \
   examples/dc2vtk.cpp \
   $(EXAMPLES_COMMON_DEPS)
 	$(EXAMPLES_COMPILE_COMMAND)
-

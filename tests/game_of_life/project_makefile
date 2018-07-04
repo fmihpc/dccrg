@@ -1,6 +1,7 @@
 TESTS_GAME_OF_LIFE_EXECUTABLES = \
   tests/game_of_life/game_of_life_test.exe \
   tests/game_of_life/game_of_life_test_optimized.exe \
+  tests/game_of_life/game_of_life_test_array.exe \
   tests/game_of_life/scalability1d.exe \
   tests/game_of_life/scalability.exe \
   tests/game_of_life/scalability3d.exe \
@@ -17,6 +18,8 @@ TESTS_GAME_OF_LIFE_TESTS = \
   tests/game_of_life/game_of_life_test.tstN \
   tests/game_of_life/game_of_life_test_optimized.tst1 \
   tests/game_of_life/game_of_life_test_optimized.tstN \
+  tests/game_of_life/game_of_life_test_array.tst1 \
+  tests/game_of_life/game_of_life_test_array.tstN \
   tests/game_of_life/refined2d.tst1 \
   tests/game_of_life/refined2d.tstN \
   tests/game_of_life/refined.tst1 \
@@ -86,6 +89,20 @@ tests/game_of_life/game_of_life_test.tst1: \
 
 tests/game_of_life/game_of_life_test.tstN: \
   tests/game_of_life/game_of_life_test.exe
+	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/game_of_life/game_of_life_test_array.exe: \
+  tests/game_of_life/game_of_life_test_array.cpp \
+  $(TESTS_GAME_OF_LIFE_COMMON_DEPS)
+	$(TESTS_GAME_OF_LIFE_COMPILE_COMMAND) -DDEBUG $(BOOST_CPPFLAGS) $(BOOST_LDFLAGS) $(BOOST_LIBS)
+
+tests/game_of_life/game_of_life_test_array.tst1: \
+  tests/game_of_life/game_of_life_test_array.exe
+	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/game_of_life/game_of_life_test_array.tstN: \
+  tests/game_of_life/game_of_life_test_array.exe
 	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
