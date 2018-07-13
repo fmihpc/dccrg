@@ -144,7 +144,8 @@ static const int
 template <
 	class Cell_Data,
 	class Geometry = No_Geometry,
-	class Additional_Cell_Items = std::tuple<>
+	class Additional_Cell_Items = std::tuple<>,
+	class Additional_Neighbor_Items = std::tuple<>
 > class Dccrg;
 
 /*!
@@ -201,9 +202,13 @@ Geometry class decides the physical size, shape, etc of the grid.
 template <
 	class Cell_Data,
 	class Geometry,
-	class... Additional_Cell_Items
+	class... Additional_Cell_Items,
+	class... Additional_Neighbor_Items
 > class Dccrg<
-	Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+	Cell_Data,
+	Geometry,
+	std::tuple<Additional_Cell_Items...>,
+	std::tuple<Additional_Neighbor_Items...>
 > {
 
 private:
@@ -427,7 +432,10 @@ public:
 	load_grid_data()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& initialize(
 		const MPI_Comm& given_comm,
 		const uint64_t sfc_caching_batches = 1
@@ -511,7 +519,10 @@ public:
 		.
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_geometry(const typename Geometry::Parameters& parameters)
 	{
 		if (not this->geometry_rw.set(parameters)) {
@@ -924,7 +935,10 @@ public:
 	initialize_balance_load()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& balance_load(const bool use_zoltan = true)
 	{
 		this->initialize_balance_load(use_zoltan);
@@ -3369,7 +3383,10 @@ public:
 	continue_balance_load()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& initialize_balance_load(const bool use_zoltan)
 	{
 		if (this->balancing_load) {
@@ -3514,7 +3531,10 @@ public:
 	finish_balance_load()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& continue_balance_load()
 	{
 		if (!this->balancing_load) {
@@ -3545,7 +3565,10 @@ public:
 	has been called.
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& finish_balance_load()
 	{
 		if (!this->balancing_load) {
@@ -5039,7 +5062,10 @@ public:
 	refine_completely()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& clear_refined_unrefined_data()
 	{
 		this->refined_cell_data.clear();
@@ -5065,7 +5091,10 @@ public:
 	add_partitioning_level()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_partitioning_option(const std::string name, const std::string value)
 	{
 		if (this->reserved_options.count(name) > 0) {
@@ -5092,7 +5121,10 @@ public:
 	set_partitioning_option()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& add_partitioning_level(const int processes)
 	{
 		if (processes < 1) {
@@ -5123,7 +5155,10 @@ public:
 	add_partitioning_level()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& remove_partitioning_level(const int hierarchial_partitioning_level)
 	{
 		if (hierarchial_partitioning_level < 0
@@ -5155,7 +5190,10 @@ public:
 	add_partitioning_level()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& add_partitioning_option(
 		const int hierarchial_partitioning_level,
 		const std::string name,
@@ -5188,7 +5226,10 @@ public:
 	add_partitioning_option()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& remove_partitioning_option(
 		const int hierarchial_partitioning_level,
 		const std::string name
@@ -5419,7 +5460,10 @@ public:
 	unpin()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& unpin_all_cells()
 	{
 		this->new_pin_requests.clear();
@@ -5915,7 +5959,10 @@ public:
 	add_neighborhood()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& remove_neighborhood(const int neighborhood_id)
 	{
 		if (neighborhood_id == default_neighborhood_id) {
@@ -5992,7 +6039,10 @@ public:
 	get_send_single_cells()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_send_single_cells(const bool given)
 	{
 		this->send_single_cells = given;
@@ -6335,7 +6385,10 @@ public:
 	get a list of cells which you should change.
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& allocate_copies_of_remote_neighbors(const int neighborhood_id = default_neighborhood_id)
 	{
 		if (
@@ -6553,7 +6606,7 @@ private:
 	};
 
 
-	struct Neighbors_Item {
+	struct Neighbors_Item : Additional_Neighbor_Items... {
 		uint64_t id;
 		Cell_Data* data;
 		/*!
@@ -6591,6 +6644,31 @@ private:
 		four times the size of cell, etc.
 		*/
 		int denom;
+
+
+		// everything done in update_caller() with three or more arguments
+		template<class Grid, class Cell_Item, class Neighbor_Item, class...> void update_caller(const Grid&, const Cell_Item&, const Neighbor_Item&) {}
+
+		/*!
+		@cell is \class Cells_Item of cell whose neighbors are being cached,
+		this update is called for each neighbor item created for that cell.
+		*/
+		template<
+			class Grid,
+			class Cell_Item,
+			class Neighbor_Item,
+			class A,
+			class... B
+		> void update_caller(
+			const Grid& grid,
+			const Cell_Item& cell,
+			const Neighbor_Item& neighbor,
+			const A& a,
+			const B&... b
+		) {
+			A::update(grid, cell, neighbor, a);
+			update_caller(grid, cell, neighbor, b...);
+		}
 	};
 
 	std::vector<Neighbors_Item> neighbors_rw;
@@ -6841,79 +6919,144 @@ private:
 		// set the grids callback functions in Zoltan
 		Zoltan_Set_Num_Obj_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_number_of_cells,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::get_number_of_cells,
 			this
 		);
 
 		Zoltan_Set_Obj_List_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_cell_list,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_cell_list,
 			this
 		);
 
 		Zoltan_Set_Num_Geom_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_grid_dimensionality,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::get_grid_dimensionality,
 			NULL
 		);
 
 		Zoltan_Set_Geom_Multi_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_with_cell_coordinates,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_with_cell_coordinates,
 			this
 		);
 
 		Zoltan_Set_Num_Edges_Multi_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_number_of_neighbors_for_cells,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_number_of_neighbors_for_cells,
 			this
 		);
 
 		Zoltan_Set_Edge_List_Multi_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_neighbor_lists,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_neighbor_lists,
 			this
 		);
 
 		Zoltan_Set_HG_Size_CS_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_number_of_hyperedges,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_number_of_hyperedges,
 			this
 		);
 
 		Zoltan_Set_HG_CS_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_hyperedge_lists,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_hyperedge_lists,
 			this
 		);
 
 		Zoltan_Set_HG_Size_Edge_Wts_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_number_of_edge_weights,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_number_of_edge_weights,
 			this
 		);
 
 		Zoltan_Set_HG_Edge_Wts_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::fill_edge_weights,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_edge_weights,
 			this
 		);
 
 		Zoltan_Set_Hier_Num_Levels_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_number_of_load_balancing_hierarchies,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::get_number_of_load_balancing_hierarchies,
 			this
 		);
 
 		Zoltan_Set_Hier_Part_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::get_part_number,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::get_part_number,
 			this
 		);
 
 		Zoltan_Set_Hier_Method_Fn(
 			this->zoltan,
-			&Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>::set_partitioning_options,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::set_partitioning_options,
 			this
 		);
 
@@ -7147,7 +7290,10 @@ public:
 	\see set_maximum_refinement_level() initialize()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_initial_length(const std::array<uint64_t, 3>& initial_size) {
 		if (this->mapping_initialized) {
 			throw std::invalid_argument(
@@ -7178,7 +7324,10 @@ public:
 	\see set_periodic() local_cells update_copies_of_remote_neighbors() refine_completely()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_maximum_refinement_level(const int max_ref_lvl) {
 		if (max_ref_lvl < 0) {
 			this->mapping_rw.set_maximum_refinement_level(
@@ -7204,7 +7353,10 @@ public:
 	Must be called before initialize().
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_periodic(const bool x, const bool y, const bool z) {
 		this->topology_rw.set_periodicity(0, x);
 		this->topology_rw.set_periodicity(1, y);
@@ -7224,7 +7376,10 @@ public:
 	\see add_neighborhood()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_neighborhood_length(const unsigned int given_length) {
 		this->neighborhood_length = given_length;
 		return *this;
@@ -7238,7 +7393,10 @@ public:
 	\see balance_load()
 	*/
 	Dccrg<
-		Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
 	>& set_load_balancing_method(const std::string& given_method) {
 		this->load_balancing_method = given_method;
 		return *this;
@@ -10272,7 +10430,7 @@ private:
 			new_cells_item.data = this->operator[](cell);
 			// call user-defined update function(s)
 			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
-			this->cells_rw.push_back(new_cells_item);
+			this->cells_rw.push_back(std::move(new_cells_item));
 
 			/*
 			Prepare data for creating cell's neighbor iterators
@@ -10371,7 +10529,9 @@ private:
 				item.y = offsets[1];
 				item.z = offsets[2];
 				item.denom = offsets[3];
-				this->neighbors_rw.push_back(item);
+				// call user-defined update function(s)
+				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
+				this->neighbors_rw.push_back(std::move(item));
 				#ifdef DEBUG
 				if (
 					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
@@ -10394,7 +10554,8 @@ private:
 				item.y = offsets[1];
 				item.z = offsets[2];
 				item.denom = offsets[3];
-				this->neighbors_rw.push_back(item);
+				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
+				this->neighbors_rw.push_back(std::move(item));
 				#ifdef DEBUG
 				if (
 					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
@@ -10418,7 +10579,8 @@ private:
 				item.y = offsets[1];
 				item.z = offsets[2];
 				item.denom = offsets[3];
-				this->neighbors_rw.push_back(item);
+				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
+				this->neighbors_rw.push_back(std::move(item));
 			}
 		}
 
@@ -10490,8 +10652,19 @@ private:
 		double *geom_vec,
 		int *error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -10519,8 +10692,19 @@ private:
 	*/
 	static int get_number_of_cells(void* data, int* error)
 	{
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->cell_data.size());
 	}
@@ -10539,8 +10723,19 @@ private:
 		float* object_weights,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		int i = 0;
@@ -10581,8 +10776,19 @@ private:
 		int* number_of_neighbors,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		for (int i = 0; i < number_of_cells; i++) {
@@ -10625,8 +10831,19 @@ private:
 		int number_of_weights_per_edge,
 		float* edge_weights, int* error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		int current_neighbor_number = 0;
@@ -10678,8 +10895,19 @@ private:
 		int* number_of_connections,
 		int* format, int* error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_hyperedges = int(dccrg_instance->cell_data.size());
@@ -10717,8 +10945,19 @@ private:
 		ZOLTAN_ID_PTR connections,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		if (format != ZOLTAN_COMPRESSED_EDGE) {
@@ -10777,8 +11016,19 @@ private:
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = int(dccrg_instance->cell_data.size());
@@ -10800,8 +11050,19 @@ private:
 		float* hyperedge_weights,
 		int* error
 	) {
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 
 		if ((unsigned int) number_of_hyperedges != dccrg_instance->cell_data.size()) {
@@ -10844,8 +11105,19 @@ private:
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->processes_per_part.size());
 	}
@@ -10856,8 +11128,19 @@ private:
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
@@ -10898,8 +11181,19 @@ private:
 			return;
 		}
 
-		Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>>* dccrg_instance
-			= reinterpret_cast<Dccrg<Cell_Data, Geometry, std::tuple<Additional_Cell_Items...>> *>(data);
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
 
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
