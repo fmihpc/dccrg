@@ -177,7 +177,7 @@ int main(int argc, char* argv[])
 	cells = (unsigned int) round(sqrt(double(cells)));
 
 	// initialize grid
-	Dccrg<Cell, Cartesian_Geometry> grid;
+	Dccrg<Cell, Cartesian_Geometry, std::tuple<>, std::tuple<Is_Local>> grid;
 	Cartesian_Geometry::Parameters geom_params;
 
 	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};

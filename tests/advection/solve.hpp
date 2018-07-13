@@ -41,10 +41,10 @@ outer cells which have neighbors on other processes.
 
 The total flux to copies of remote neighbors will be incorrect.
 */
-template<class Cell_Data, class Geometry> void calculate_fluxes(
+template<class Grid> void calculate_fluxes(
 	const double dt,
 	const bool solve_inner,
-	const dccrg::Dccrg<Cell_Data, Geometry>& grid
+	const Grid& grid
 ) {
 	const auto& cells = [&](){
 		if (solve_inner) {
@@ -95,7 +95,7 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 			#endif
 
 			// solve flux between two local cells only in positive direction
-			if (grid.is_local(neighbor.id) && direction < 0) {
+			if (neighbor.is_local && direction < 0) {
 				continue;
 			}
 
@@ -224,10 +224,7 @@ template<class Cell_Data, class Geometry> void calculate_fluxes(
 /*!
 Applies fluxes to local cells and zeroes the fluxes afterwards.
 */
-template<
-	class CellData,
-	class Geometry
-> void apply_fluxes(dccrg::Dccrg<CellData, Geometry>& grid) {
+template<class Grid> void apply_fluxes(Grid& grid) {
 	for (const auto& cell: grid.local_cells) {
 		cell.data->density() += cell.data->flux();
 		cell.data->flux() = 0;
@@ -242,12 +239,9 @@ Must be called simultaneously on all processes.
 Assumes that cells of same refinement level have the same size
 per dimension.
 */
-template<
-	class CellData,
-	class Geometry
-> double max_time_step(
+template<class Grid> double max_time_step(
 	MPI_Comm& comm,
-	const dccrg::Dccrg<CellData, Geometry>& grid
+	const Grid& grid
 ) {
 	double min_step = std::numeric_limits<double>::max();
 

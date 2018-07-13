@@ -44,17 +44,14 @@ Refinement level target of cells (RDI = relative diff increase for a cell):
 ...
 \endverbatim
 */
-template<
-	class CellData,
-	class Geometry
-> void check_for_adaptation(
+template<class Grid> void check_for_adaptation(
 	const double diff_increase,
 	const double diff_threshold,
 	const double unrefine_sensitivity,
 	std::unordered_set<uint64_t>& cells_to_refine,
 	std::unordered_set<uint64_t>& cells_not_to_unrefine,
 	std::unordered_set<uint64_t>& cells_to_unrefine,
-	dccrg::Dccrg<CellData, Geometry>& grid
+	Grid& grid
 ) {
 	if (grid.get_maximum_refinement_level() == 0) {
 		return;
@@ -94,7 +91,7 @@ template<
 			cell.data->max_diff() = std::max(diff, cell.data->max_diff());
 
 			// maximize diff for local neighbor
-			if (grid.is_local(neighbor.id)) {
+			if (neighbor.is_local) {
 				neighbor.data->max_diff() = std::max(diff, neighbor.data->max_diff());
 			}
 		}
@@ -178,14 +175,11 @@ Refines/Unrefines given cells in the grid.
 Returns the number of created and removed cells.
 Clears given sets of cells after executing refines.
 */
-template<
-	class CellData,
-	class Geometry
-> std::pair<uint64_t, uint64_t> adapt_grid(
+template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 	std::unordered_set<uint64_t>& cells_to_refine,
 	std::unordered_set<uint64_t>& cells_not_to_unrefine,
 	std::unordered_set<uint64_t>& cells_to_unrefine,
-	dccrg::Dccrg<CellData, Geometry>& grid
+	Grid& grid
 ) {
 	if (grid.get_maximum_refinement_level() == 0) {
 		return std::make_pair(0, 0);

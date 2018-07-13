@@ -33,10 +33,7 @@ Initializes the simulation's local cells and the copies of remote neighbors.
 
 Only z direction supported at the moment.
 */
-template<
-	class CellData,
-	class Geometry
-> void initialize(dccrg::Dccrg<CellData, Geometry>& grid) {
+template<class Grid> void initialize(Grid& grid) {
 	for (const auto& cell: grid.local_cells) {
 		for (unsigned int i = 0; i < cell.data->data.size(); i++) {
 			cell.data->data[i] = 0;

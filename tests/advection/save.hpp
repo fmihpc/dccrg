@@ -38,13 +38,10 @@ Saves the given simulation as a .dc file of the given name.
 Returns the number of bytes written by this process.
 Must be called simultaneously by all processes.
 */
-template<
-	class CellData,
-	class Geometry
-> size_t save(
+template<class Grid> size_t save(
 	const std::string& filename,
 	MPI_Comm& comm,
-	const dccrg::Dccrg<CellData, Geometry>& grid
+	const Grid& grid
 ) {
 	int rank = 0, comm_size = 0;
 	MPI_Comm_rank(comm, &rank);
@@ -193,7 +190,7 @@ template<
 		memcpy(buffer + offset, &process, sizeof(uint32_t));
 		offset += sizeof(uint32_t);
 
-		const CellData* const data = grid[cell];
+		const auto* const data = grid[cell];
 
 		// density
 		const double density = data->density();

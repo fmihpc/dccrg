@@ -1,7 +1,8 @@
 /*
 A class representing one cell in the advection test of dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015, 2016,
+2018 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -133,5 +134,11 @@ public:
 	}
 };
 
-#endif
+struct Is_Local {
+	bool is_local = false;
+	template<class Grid, class Cell_Item, class Neighbor_Item> void update(const Grid& grid, const Cell_Item&, const Neighbor_Item& neighbor, const Is_Local&) {
+		is_local = grid.is_local(neighbor.id);
+	}
+};
 
+#endif

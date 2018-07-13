@@ -40,7 +40,7 @@ TESTS_ADVECTION_COMMON_DEPS = \
   Makefile
 
 TESTS_ADVECTION_COMPILE_COMMAND = \
-  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \
@@ -80,4 +80,3 @@ tests/advection/dc2vtk.exe: \
   tests/advection/dc2vtk.cpp \
   $(TESTS_ADVECTION_COMMON_DEPS)
 	$(TESTS_ADVECTION_COMPILE_COMMAND)
-
