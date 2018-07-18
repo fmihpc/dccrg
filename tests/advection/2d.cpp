@@ -58,6 +58,7 @@ using namespace dccrg;
 #define GRID_END_Y 1.0
 #define GRID_END_Z 1.0
 
+bool Cell::transfer_all_data = false;
 
 int main(int argc, char* argv[])
 {
@@ -177,7 +178,17 @@ int main(int argc, char* argv[])
 	cells = (unsigned int) round(sqrt(double(cells)));
 
 	// initialize grid
-	Dccrg<Cell, Cartesian_Geometry, std::tuple<>, std::tuple<Is_Local>> grid;
+	Dccrg<
+		Cell,
+		Cartesian_Geometry,
+		// cache local cells' center coordinate in cell
+		// iterator, updated automatically with adaptive
+		// mesh refinement, load balancing, etc.
+		std::tuple<Center>,
+		// cache whether local cells' neighbors' are local
+		// or not in neighbor iterators, updated as above
+		std::tuple<Is_Local>
+	> grid;
 	Cartesian_Geometry::Parameters geom_params;
 
 	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};
@@ -245,6 +256,7 @@ int main(int argc, char* argv[])
 	}
 
 	// apply initial condition 1st time for prerefining the grid
+	Cell::transfer_all_data = true;
 	initialize(grid);
 
 	std::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
@@ -275,6 +287,7 @@ int main(int argc, char* argv[])
 		// apply initial condition on a finer grid
 		initialize(grid);
 	}
+	Cell::transfer_all_data = false;
 
 	double dt = max_time_step(comm, grid);
 	if (verbose && rank == 0) {
@@ -329,9 +342,12 @@ int main(int argc, char* argv[])
 		// wait until local data has been sent
 		grid.wait_remote_neighbor_copy_update_sends();
 
-		neighbor_receive_size +=
-			4 * sizeof(double)
-			* (grid.get_number_of_update_receive_cells() + grid.get_number_of_update_send_cells());
+		neighbor_receive_size
+			+= sizeof(double)
+			* (
+				grid.get_number_of_update_receive_cells()
+				+ grid.get_number_of_update_send_cells()
+			);
 
 		/*
 		Starting from this point local cells and copies of remote cells have
@@ -380,6 +396,13 @@ int main(int argc, char* argv[])
 				cout << "Adapting grid" << endl;
 			}
 
+			neighbor_receive_size
+				+= 9 * sizeof(double)
+				* (
+					grid.get_number_of_update_receive_cells() + grid.get_number_of_update_send_cells()
+				);
+
+			Cell::transfer_all_data = true;
 			const std::pair<uint64_t, uint64_t> adapted_cells
 				= adapt_grid(
 					cells_to_refine,
@@ -387,6 +410,7 @@ int main(int argc, char* argv[])
 					cells_to_unrefine,
 					grid
 				);
+			Cell::transfer_all_data = false;
 			created_cells += adapted_cells.first;
 			removed_cells += adapted_cells.second;
 
@@ -402,7 +426,15 @@ int main(int argc, char* argv[])
 			if (verbose && rank == 0) {
 				cout << "Balancing load" << endl;
 			}
+			neighbor_receive_size
+				+= 9 * sizeof(double)
+				* (
+					grid.get_number_of_update_receive_cells() + grid.get_number_of_update_send_cells()
+				);
+			Cell::transfer_all_data = true;
 			grid.balance_load();
+			grid.update_copies_of_remote_neighbors();
+			Cell::transfer_all_data = false;
 		}
 
 		step++;

@@ -39,12 +39,11 @@ template<class Grid> void initialize(Grid& grid) {
 			cell.data->data[i] = 0;
 		}
 
-		const std::array<double, 3> cell_center = grid.geometry.get_center(cell.id);
 		const double radius = 0.15;
 
 		// velocities
-		cell.data->vx() = get_vx(cell_center[1]);
-		cell.data->vy() = get_vy(cell_center[0]);
+		cell.data->vx() = get_vx(cell.center[1]);
+		cell.data->vy() = get_vy(cell.center[0]);
 		cell.data->vz() = get_vz(0);
 
 		/*
@@ -58,8 +57,8 @@ template<class Grid> void initialize(Grid& grid) {
 			hump_r
 				= std::min(
 					std::sqrt(
-						std::pow(cell_center[0] - hump_x0, 2.0)
-						+ std::pow(cell_center[1] - hump_y0, 2.0)
+						std::pow(cell.center[0] - hump_x0, 2.0)
+						+ std::pow(cell.center[1] - hump_y0, 2.0)
 					),
 					radius
 				) / radius,
@@ -71,6 +70,12 @@ template<class Grid> void initialize(Grid& grid) {
 		//const double cone_x0 = 0.5, cone_y0 = 0.25;
 
 		cell.data->density() = hump_density;
+
+		// lengths
+		const auto length = grid.geometry.get_length(cell.id);
+		cell.data->length_x() = length[0];
+		cell.data->length_y() = length[1];
+		cell.data->length_z() = length[2];
 	}
 
 	grid.update_copies_of_remote_neighbors();

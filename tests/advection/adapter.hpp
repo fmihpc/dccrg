@@ -221,7 +221,7 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 
 	for (const auto& new_cell: new_cells) {
 		auto* const new_cell_data = grid[new_cell];
-		if (new_cell_data == NULL) {
+		if (new_cell_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for created cell " << new_cell
 				<< std::endl;
@@ -229,7 +229,7 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 		}
 
 		auto* const parent_data = grid[grid.get_parent(new_cell)];
-		if (parent_data == NULL) {
+		if (parent_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for parent cell " << grid.get_parent(new_cell)
 				<< std::endl;
@@ -238,11 +238,6 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 
 		new_cell_data->density() = parent_data->density();
 		new_cell_data->flux() = 0;
-
-		const std::array<double, 3> cell_center = grid.geometry.get_center(new_cell);
-		new_cell_data->vx() = get_vx(cell_center[1]);
-		new_cell_data->vy() = get_vy(cell_center[0]);
-		new_cell_data->vz() = 0;
 	}
 
 	/*
@@ -260,7 +255,7 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 	// initialize parent data
 	for (const auto& parent: parents) {
 		auto* const parent_data = grid[parent];
-		if (parent_data == NULL) {
+		if (parent_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for parent cell: " << parent
 				<< std::endl;
@@ -269,18 +264,13 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 
 		parent_data->density() = 0;
 		parent_data->flux() = 0;
-
-		const std::array<double, 3> cell_center = grid.geometry.get_center(parent);
-		parent_data->vx() = get_vx(cell_center[1]);
-		parent_data->vy() = get_vy(cell_center[0]);
-		parent_data->vz() = 0;
 	}
 
 	// average parents' density from their children
 	for (const auto& removed_cell: removed_cells) {
 
 		auto* const removed_cell_data = grid[removed_cell];
-		if (removed_cell_data == NULL) {
+		if (removed_cell_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for removed cell after unrefining: " << removed_cell
 				<< std::endl;
@@ -288,7 +278,7 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 		}
 
 		auto* const parent_data = grid[grid.mapping.get_parent(removed_cell)];
-		if (parent_data == NULL) {
+		if (parent_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for parent cell after unrefining: "
 				<< grid.mapping.get_parent(removed_cell)
@@ -300,6 +290,20 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 	}
 
 	grid.clear_refined_unrefined_data();
+
+	// update velocities and lengths
+	for (const auto& cell: grid.local_cells) {
+		cell.data->vx() = get_vx(cell.center[1]);
+		cell.data->vy() = get_vy(cell.center[0]);
+		cell.data->vz() = 0;
+
+		const auto length = grid.geometry.get_length(cell.id);
+		cell.data->length_x() = length[0];
+		cell.data->length_y() = length[1];
+		cell.data->length_z() = length[2];
+	}
+
+	grid.update_copies_of_remote_neighbors();
 
 	return std::make_pair(new_cells.size(), removed_cells.size());
 }

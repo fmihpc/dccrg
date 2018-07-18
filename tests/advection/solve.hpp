@@ -55,11 +55,12 @@ template<class Grid> void calculate_fluxes(
 	}();
 
 	for (const auto& cell: cells) {
-		const std::array<double, 3> cell_length = grid.geometry.get_length(cell.id);
-
 		const double
 			cell_density = cell.data->density(),
-			cell_volume = cell_length[0] * cell_length[1] * cell_length[2];
+			cell_volume
+				= cell.data->length_x()
+				* cell.data->length_y()
+				* cell.data->length_z();
 
 		#ifdef DEBUG
 		std::vector<uint64_t> face_neighbors;
@@ -99,11 +100,9 @@ template<class Grid> void calculate_fluxes(
 				continue;
 			}
 
-			const std::array<double, 3> neighbor_length = grid.geometry.get_length(neighbor.id);
-
 			const double
 				neighbor_density = neighbor.data->density(),
-				neighbor_volume = neighbor_length[0] * neighbor_length[1] * neighbor_length[2];
+				neighbor_volume = neighbor.data->length_x() * neighbor.data->length_y() * neighbor.data->length_z();
 
 			// get area shared between cell and current neighbor
 			double min_area = -1;
@@ -111,22 +110,22 @@ template<class Grid> void calculate_fluxes(
 			case -1:
 			case +1:
 				min_area = std::min(
-					cell_length[1] * cell_length[2],
-					neighbor_length[1] * neighbor_length[2]
+					cell.data->length_y() * cell.data->length_z(),
+					neighbor.data->length_y() * neighbor.data->length_z()
 				);
 				break;
 			case -2:
 			case +2:
 				min_area = std::min(
-					cell_length[0] * cell_length[2],
-					neighbor_length[0] * neighbor_length[2]
+					cell.data->length_x() * cell.data->length_z(),
+					neighbor.data->length_x() * neighbor.data->length_z()
 				);
 				break;
 			case -3:
 			case +3:
 				min_area = std::min(
-					cell_length[0] * cell_length[1],
-					neighbor_length[0] * neighbor_length[1]
+					cell.data->length_x() * cell.data->length_y(),
+					neighbor.data->length_x() * neighbor.data->length_y()
 				);
 				break;
 			}
@@ -140,12 +139,12 @@ template<class Grid> void calculate_fluxes(
 
 			// velocity interpolated to shared face
 			const double
-				vx = (cell_length[0] * neighbor.data->vx() + neighbor_length[0] * cell.data->vx())
-					/ (cell_length[0] + neighbor_length[0]),
-				vy = (cell_length[1] * neighbor.data->vy() + neighbor_length[1] * cell.data->vy())
-					/ (cell_length[1] + neighbor_length[1]),
-				vz = (cell_length[2] * neighbor.data->vz() + neighbor_length[2] * cell.data->vz())
-					/ (cell_length[2] + neighbor_length[2]);
+				vx = (cell.data->length_x() * neighbor.data->vx() + neighbor.data->length_x() * cell.data->vx())
+					/ (cell.data->length_x() + neighbor.data->length_x()),
+				vy = (cell.data->length_y() * neighbor.data->vy() + neighbor.data->length_y() * cell.data->vy())
+					/ (cell.data->length_y() + neighbor.data->length_y()),
+				vz = (cell.data->length_z() * neighbor.data->vz() + neighbor.data->length_z() * cell.data->vz())
+					/ (cell.data->length_z() + neighbor.data->length_z());
 
 			switch (direction) {
 			case +1:
@@ -247,19 +246,20 @@ template<class Grid> double max_time_step(
 
 	for (const auto& cell: grid.local_cells) {
 		const std::array<double, 3>
-			cell_length = grid.geometry.get_length(cell.id),
 			current_steps{{
-				cell_length[0] / fabs(cell.data->vx()),
-				cell_length[1] / fabs(cell.data->vy()),
-				cell_length[2] / fabs(cell.data->vz())
+				cell.data->length_x() / fabs(cell.data->vx()),
+				cell.data->length_y() / fabs(cell.data->vy()),
+				cell.data->length_z() / fabs(cell.data->vz())
 			}};
 
-		const double current_min_step =
-			std::min(current_steps[0],
-			std::min(current_steps[1], current_steps[2]));
-
-		if (min_step > current_min_step) {
-			min_step = current_min_step;
+		if (std::isnormal(current_steps[0])) {
+			min_step = std::min(current_steps[0], min_step);
+		}
+		if (std::isnormal(current_steps[1])) {
+			min_step = std::min(current_steps[1], min_step);
+		}
+		if (std::isnormal(current_steps[2])) {
+			min_step = std::min(current_steps[2], min_step);
 		}
 	}
 
