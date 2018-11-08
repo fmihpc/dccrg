@@ -43,7 +43,7 @@ struct Additional_Cell_Data_Item1 {
 };
 
 struct Additional_Cell_Data_Item2 {
-	std::tuple<int, float> additional_cell_data3 = {2, 3.0625};
+	std::tuple<int, float> additional_cell_data3{2, 3.0625};
 	unsigned int additional_cell_data4 = 4;
 	template<class Grid, class Cell> void update(const Grid&, const Cell&, const Additional_Cell_Data_Item2&) {}
 };

@@ -44,7 +44,7 @@ struct Additional_Neighbor_Data_Item1 {
 };
 
 struct Additional_Neighbor_Data_Item2 {
-	std::tuple<int, float> additional_neighbor_data3 = {2, 3.0625};
+	std::tuple<int, float> additional_neighbor_data3{2, 3.0625};
 	unsigned int additional_neighbor_data4 = 4;
 	template<class Grid, class Cell_Item, class Neighbor_Item> void update(const Grid&, const Cell_Item&, const Neighbor_Item&, const Additional_Neighbor_Data_Item2&) {}
 };
