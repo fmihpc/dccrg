@@ -479,7 +479,7 @@ int main(int argc, char* argv[])
 		cout << endl;
 		cout << "Processes used: " << comm_size << endl;
 		cout << "Initial grid size: " << cells * cells << endl;
-		cout << "Total timesteps calculated: " << tmax << endl;
+		cout << "Total timesteps calculated: " << step << endl;
 		cout << "Total files saved: " << files_saved << endl;
 		cout << "Total created and removed cells: "
 			<< total_created_cells << ", "
