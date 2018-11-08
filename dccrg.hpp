@@ -2849,7 +2849,7 @@ public:
 		- given cell is on another process
 		- any of given offsets is larger in absolute value than the neighborhood
 		  size or larger than 1 if neihgborhood size == 0
-		- i == 0 && j == 0 && k == 0
+		- x == 0 && y == 0 && z == 0
 
 	\see
 	get_neighbors_of()
@@ -2861,15 +2861,15 @@ public:
 		>
 	> get_neighbors_of_at_offset(
 		const uint64_t cell,
-		const int i,
-		const int j,
-		const int k
+		const int x,
+		const int y,
+		const int z
 	) const {
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 		if (
 			this->cell_process.count(cell) == 0
 			or this->cell_process.at(cell) != this->rank
-			or (i == 0 and j == 0 and k == 0)
+			or (x == 0 and y == 0 and z == 0)
 		) {
 			return return_neighbors;
 		}
@@ -2877,17 +2877,24 @@ public:
 		for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
 			const auto& offsets = neighbor_i.second;
 			if (offsets[3] <= 1) {
-				if (offsets[0] == i and offsets[1] == j and offsets[2] == k) {
+				if (offsets[0] == x and offsets[1] == y and offsets[2] == z) {
 					return_neighbors.push_back(neighbor_i);
 				}
 			} else {
 				auto scaled_offsets = offsets;
 				for (size_t i = 0; i < 3; i++) {
-					if (scaled_offsets[i] > 1) {
-						scaled_offsets[i] /= scaled_offsets[3];
+					if (std::abs(scaled_offsets[i]) <= 1) {
+						continue;
 					}
+					// round away from zero, stackoverflow.com/a/2745086
+					if (scaled_offsets[i] > 1) {
+						scaled_offsets[i] += scaled_offsets[3] - 1;
+					} else {
+						scaled_offsets[i] -= scaled_offsets[3] - 1;
+					}
+					scaled_offsets[i] /= scaled_offsets[3];
 				}
-				if (scaled_offsets[0] == i and scaled_offsets[1] == j and scaled_offsets[2] == k) {
+				if (scaled_offsets[0] == x and scaled_offsets[1] == y and scaled_offsets[2] == z) {
 					return_neighbors.push_back(neighbor_i);
 				}
 			}
@@ -5804,6 +5811,7 @@ public:
 	Must be called with identical parameters on all processes.
 	No neighborhood_item_t can have all offsets equal to 0.
 	Returns true on success and false in any of the following cases:
+		- given default_neighborhood_id
 		- given id already exists, use remove_neighborhood() before calling this
 		- (part of) given neighborhood is outside of initial neighborhood size
 
@@ -5943,6 +5951,37 @@ public:
 		this->update_user_remote_neighbor_info(neighborhood_id);
 
 		this->recalculate_neighbor_update_send_receive_lists(neighborhood_id);
+		this->allocate_copies_of_remote_neighbors(neighborhood_id);
+
+		#ifdef DEBUG
+		if (!this->is_consistent()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " The grid is inconsistent"
+				<< std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_neighbors()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Neighbor lists are incorrect"
+				<< std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_remote_neighbor_info()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Remote neighbor info is not consistent"
+				<< std::endl;
+			exit(EXIT_FAILURE);
+		}
+
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " User data not consistent"
+				<< std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
 
 		return true;
 	}
@@ -11469,6 +11508,7 @@ private:
 					this->neighbors_to
 				)
 			) {
+				std::cerr << "Default neighbor list incorrect." << std::endl;
 				return false;
 			}
 
@@ -11488,6 +11528,7 @@ private:
 						this->user_neigh_to.at(hood_id)
 					)
 				) {
+					std::cerr << "Neighbor list for user neighborhood id " << hood_id << " incorrect." << std::endl;
 					return false;
 				}
 			}
