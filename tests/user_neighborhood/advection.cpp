@@ -54,6 +54,7 @@ using namespace dccrg;
 
 #define NEIGHBORHOOD_ID 1
 
+bool Cell::transfer_all_data = false;
 
 int main(int argc, char* argv[])
 {
@@ -168,7 +169,8 @@ int main(int argc, char* argv[])
 	cells = (unsigned int) round(sqrt(double(cells)));
 
 	// initialize grid
-	Dccrg<Cell, Cartesian_Geometry> grid;
+	Dccrg<Cell, Cartesian_Geometry, std::tuple<Center>, std::tuple<Is_Local>> grid;
+
 	Cartesian_Geometry::Parameters geom_params;
 
 	std::array<uint64_t, 3> grid_length = {{0, 0, 0}};
@@ -179,21 +181,20 @@ int main(int argc, char* argv[])
 		grid_length[1] = cells;
 		grid_length[2] = cells;
 
-		grid.initialize(
-			grid_length,
-			comm,
-			load_balancing_method.c_str(),
-			2,
-			max_ref_lvl,
-			false, true, true
-		);
-
 		geom_params.start[0] = GRID_START_X;
 		geom_params.start[1] = GRID_START_Y;
 		geom_params.start[2] = GRID_START_Z;
 		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
 		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
 		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
+
+		grid
+			.set_initial_length(grid_length)
+			.set_periodic(false, true, true)
+			.set_maximum_refinement_level(max_ref_lvl)
+			.set_neighborhood_length(2)
+			.set_load_balancing_method(load_balancing_method)
+			.set_geometry(geom_params);
 		break;
 
 	case 'y':
@@ -201,21 +202,20 @@ int main(int argc, char* argv[])
 		grid_length[1] = 1;
 		grid_length[2] = cells;
 
-		grid.initialize(
-			grid_length,
-			comm,
-			load_balancing_method.c_str(),
-			2,
-			max_ref_lvl,
-			true, false, true
-		);
-
 		geom_params.start[0] = GRID_START_X;
 		geom_params.start[1] = GRID_START_Y;
 		geom_params.start[2] = GRID_START_Z;
 		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
 		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
 		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
+
+		grid
+			.set_initial_length(grid_length)
+			.set_periodic(true, false, true)
+			.set_maximum_refinement_level(max_ref_lvl)
+			.set_neighborhood_length(2)
+			.set_load_balancing_method(load_balancing_method)
+			.set_geometry(geom_params);
 		break;
 
 	case 'z':
@@ -223,31 +223,25 @@ int main(int argc, char* argv[])
 		grid_length[1] = cells;
 		grid_length[2] = 1;
 
-		grid.initialize(
-			grid_length,
-			comm,
-			load_balancing_method.c_str(),
-			2,
-			max_ref_lvl,
-			true, true, false
-		);
-
 		geom_params.start[0] = GRID_START_X;
 		geom_params.start[1] = GRID_START_Y;
 		geom_params.start[2] = GRID_START_Z;
 		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
 		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
 		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
+
+		grid
+			.set_initial_length(grid_length)
+			.set_periodic(true, true, false)
+			.set_maximum_refinement_level(max_ref_lvl)
+			.set_neighborhood_length(2)
+			.set_load_balancing_method(load_balancing_method)
+			.set_geometry(geom_params);
 		break;
 
 	default:
 		cerr << "Unsupported direction given: " << direction << endl;
 		break;
-	}
-
-	if (!grid.set_geometry(geom_params)) {
-		cerr << __FILE__ << ":" << __LINE__ << ": Couldn't set grid geometry" << endl;
-		abort();
 	}
 
 	// create the neighborhood
@@ -273,7 +267,7 @@ int main(int argc, char* argv[])
 	}
 
 	// apply initial condition 1st time for prerefining the grid
-	Initialize()(grid);
+	initialize(grid);
 
 	std::unordered_set<uint64_t> cells_to_refine, cells_not_to_unrefine, cells_to_unrefine;
 
@@ -281,7 +275,7 @@ int main(int argc, char* argv[])
 
 	// prerefine up to maximum refinement level
 	for (int ref_lvl = 0; ref_lvl < max_ref_lvl; ref_lvl++) {
-		Adapter().check_for_adaptation(
+		check_for_adaptation(
 			relative_diff / grid.get_maximum_refinement_level(),
 			diff_threshold,
 			unrefine_sensitivity,
@@ -292,7 +286,7 @@ int main(int argc, char* argv[])
 		);
 
 		const std::pair<uint64_t, uint64_t> adapted_cells
-			= Adapter().adapt_grid(
+			= adapt_grid(
 				cells_to_refine,
 				cells_not_to_unrefine,
 				cells_to_unrefine,
@@ -302,10 +296,10 @@ int main(int argc, char* argv[])
 		removed_cells += adapted_cells.second;
 
 		// apply initial condition on a finer grid
-		Initialize()(grid);
+		initialize(grid);
 	}
 
-	double dt = Solver().max_time_step(comm, grid);
+	double dt = max_time_step(comm, grid);
 	if (verbose && rank == 0) {
 		cout << "Initial timestep: " << dt << endl;
 	}
@@ -321,7 +315,7 @@ int main(int argc, char* argv[])
 		if (verbose && rank == 0) {
 			cout << "Saving initial state of simulation" << endl;
 		}
-		Save()(File_Namer()(0, base_output_name), comm, grid);
+		save(get_file_name(0, base_output_name), comm, grid);
 		files_saved++;
 	}
 
@@ -347,7 +341,7 @@ int main(int argc, char* argv[])
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();
-		Solver().calculate_fluxes(cfl * dt, inner_cells, grid);
+		calculate_fluxes(cfl * dt, true, grid);
 		inner_solve_time += MPI_Wtime() - inner_solve_start;
 
 		// wait for remote neighbor data
@@ -355,7 +349,7 @@ int main(int argc, char* argv[])
 
 		// solve outer cells
 		const double outer_solve_start = MPI_Wtime();
-		Solver().calculate_fluxes(cfl * dt, outer_cells, grid);
+		calculate_fluxes(cfl * dt, false, grid);
 		outer_solve_time += MPI_Wtime() - outer_solve_start;
 
 		// wait until local data has been sent
@@ -377,7 +371,7 @@ int main(int argc, char* argv[])
 				cout << "Checking which cells to adapt in the grid" << endl;
 			}
 
-			Adapter().check_for_adaptation(
+			check_for_adaptation(
 				relative_diff / grid.get_maximum_refinement_level(),
 				diff_threshold,
 				unrefine_sensitivity,
@@ -393,7 +387,7 @@ int main(int argc, char* argv[])
 			if (verbose && rank == 0) {
 				cout << "Saving simulation at " << time << endl;
 			}
-			Save()(File_Namer()(time, base_output_name), comm, grid);
+			save(get_file_name(time, base_output_name), comm, grid);
 			files_saved++;
 		}
 
@@ -402,8 +396,7 @@ int main(int argc, char* argv[])
 		data from the same timestep (variables not fluxes which aren't transferred anyway).
 		*/
 
-		// apply fluxes
-		Solver().apply_fluxes(grid);
+		apply_fluxes(grid);
 
 		// adapt the grid
 		if (adapt_n > 0 && step % adapt_n == 0) {
@@ -413,7 +406,7 @@ int main(int argc, char* argv[])
 			}
 
 			const std::pair<uint64_t, uint64_t> adapted_cells
-				= Adapter().adapt_grid(
+				= adapt_grid(
 					cells_to_refine,
 					cells_not_to_unrefine,
 					cells_to_unrefine,
@@ -426,7 +419,7 @@ int main(int argc, char* argv[])
 			outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 
 			// update maximum allowed time step
-			dt = Solver().max_time_step(comm, grid);
+			dt = max_time_step(comm, grid);
 			if (verbose && rank == 0) {
 				cout << "New timestep: " << dt << endl;
 			}
@@ -454,7 +447,7 @@ int main(int argc, char* argv[])
 			cout << "Saving final state of simulation" << endl;
 		}
 
-		Save()(File_Namer()(tmax, base_output_name), comm, grid);
+		save(get_file_name(tmax, base_output_name), comm, grid);
 		files_saved++;
 	}
 

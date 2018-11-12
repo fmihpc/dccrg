@@ -49,7 +49,7 @@ TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND = \
   $(BOOST_CPPFLAGS) \
   $(BOOST_LDFLAGS) \
   $(BOOST_LIBS) \
-  -I tests/user_neighborhood -I tests/advection
+  -I tests/advection
 
 
 tests/user_neighborhood/neighbor_list_length.exe: \
