@@ -131,7 +131,7 @@ std::unordered_set<uint64_t> get_live_cells(
 		int
 			&x = glider_coordinates[i].first,
 			&y = glider_coordinates[i].second;
-		wrap_coordinates((const int) grid_size, x, y);
+		wrap_coordinates(grid_size, x, y);
 		result.insert((uint64_t) y * grid_size + (uint64_t) x);
 	}
 
@@ -158,10 +158,15 @@ int main(int argc, char* argv[])
 	    abort();
 	}
 
-	Dccrg<game_of_life_cell> game_grid;
+	Dccrg<game_of_life_cell> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{18, 18, 1}};
-	game_grid.initialize(grid_length, comm, "RANDOM", 2, 0, true, true, true);
+	grid
+		.set_initial_length(grid_length)
+		.set_neighborhood_length(2)
+		.set_maximum_refinement_level(0)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	/*
 	Use a neighborhood like this in the z plane:
@@ -185,7 +190,7 @@ int main(int argc, char* argv[])
 	};
 
 	const int neighborhood_id = 1;
-	if (!game_grid.add_neighborhood(neighborhood_id, neighborhood)) {
+	if (!grid.add_neighborhood(neighborhood_id, neighborhood)) {
 		std::cerr << __FILE__ << ":" << __LINE__
 			<< " Couldn't set neighborhood"
 			<< std::endl;
@@ -195,8 +200,8 @@ int main(int argc, char* argv[])
 	// initial condition
 	const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], 0);
 	for (const uint64_t cell: live_cells) {
-		game_of_life_cell* cell_data = game_grid[cell];
-		if (cell_data != NULL) {
+		game_of_life_cell* cell_data = grid[cell];
+		if (cell_data != nullptr) {
 			cell_data->data[0] = 1;
 		}
 	}
@@ -215,32 +220,26 @@ int main(int argc, char* argv[])
 	#define TIME_STEPS 36
 	for (int step = 0; step < TIME_STEPS; step++) {
 
-		game_grid.balance_load();
-		game_grid.update_copies_of_remote_neighbors(neighborhood_id);
-		vector<uint64_t> cells = game_grid.get_cells();
+		grid.balance_load();
+		grid.update_copies_of_remote_neighbors(neighborhood_id);
+		vector<uint64_t> cells = grid.get_cells();
 
 		// check that the result is correct
 		if (step % 4 == 0) {
 			const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], step);
-			for (const uint64_t cell: cells) {
-				game_of_life_cell* cell_data = game_grid[cell];
-				if (cell_data == NULL) {
-					std::cerr << __FILE__ << ":" << __LINE__ << endl;
-					abort();
-				}
-
-				if (cell_data->data[0] == 0) {
-					if (live_cells.count(cell) > 0) {
+			for (const auto& cell: grid.local_cells) {
+				if (cell.data->data[0] == 0) {
+					if (live_cells.count(cell.id) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Cell " << cell
+							<< " Cell " << cell.id
 							<< " shouldn't be alive on step " << step
 							<< endl;
 						abort();
 					}
 				} else {
-					if (live_cells.count(cell) == 0) {
+					if (live_cells.count(cell.id) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Cell " << cell
+							<< " Cell " << cell.id
 							<< " should be alive on step " << step
 							<< endl;
 						abort();
@@ -268,7 +267,7 @@ int main(int argc, char* argv[])
 
 		// write the grid into a file
 		sort(cells.begin(), cells.end());
-		game_grid.write_vtk_file(current_output_name.c_str());
+		grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file
 		outfile.open(current_output_name.c_str(), ofstream::app);
 		outfile << "CELL_DATA " << cells.size() << endl;
@@ -277,11 +276,11 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const uint64_t cell: cells) {
-			game_of_life_cell* cell_data = game_grid[cell];
+			game_of_life_cell* cell_data = grid[cell];
 
 			if (cell_data->data[0] == 1) {
 				// color live cells of interlaced games differently
-				const Types<3>::indices_t indices = game_grid.mapping.get_indices(cell);
+				const Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 				outfile << 1 + indices[0] % 2 + (indices[1] % 2) * 2;
 			} else {
 				outfile << 0;
@@ -293,7 +292,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const uint64_t cell: cells) {
-			game_of_life_cell* cell_data = game_grid[cell];
+			game_of_life_cell* cell_data = grid[cell];
 			outfile << cell_data->data[1] << endl;
 		}
 
@@ -301,7 +300,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const uint64_t cell: cells) {
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell);
+			const auto* const neighbors = grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -321,28 +320,28 @@ int main(int argc, char* argv[])
 		outfile.close();
 
 		for (const uint64_t cell: cells) {
-			game_of_life_cell* cell_data = game_grid[cell];
-			if (cell_data == NULL) {
+			auto* const cell_data = grid[cell];
+			if (cell_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__ << endl;
 				abort();
 			}
 
 			cell_data->data[1] = 0;
-			const vector<uint64_t>* neighbors = game_grid.get_neighbors_of(cell, neighborhood_id);
-			if (neighbors == NULL) {
+			const auto* const neighbors = grid.get_neighbors_of(cell, neighborhood_id);
+			if (neighbors == nullptr) {
 				cerr << "Process " << rank << ": No neighbor list for cell " << cell << endl;
 				abort();
 			}
 
-			for (const uint64_t neighbor: *neighbors) {
-				if (neighbor == 0) {
+			for (const auto& neighbor: *neighbors) {
+				if (neighbor.first == dccrg::error_cell) {
 					continue;
 				}
 
-				game_of_life_cell* neighbor_data = game_grid[neighbor];
-				if (neighbor_data == NULL) {
+				const auto* const neighbor_data = grid[neighbor.first];
+				if (neighbor_data == nullptr) {
 					cout << "Process " << rank
-						<< ": neighbor " << neighbor
+						<< ": neighbor " << neighbor.first
 						<< " data for cell " << cell
 						<< " not available"
 						<< endl;
@@ -356,8 +355,8 @@ int main(int argc, char* argv[])
 
 		// calculate the next turn
 		for (const uint64_t cell: cells) {
-			game_of_life_cell* cell_data = game_grid[cell];
-			if (cell_data == NULL) {
+			auto* const cell_data = grid[cell];
+			if (cell_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__ << endl;
 				abort();
 			}
