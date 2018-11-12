@@ -42,7 +42,8 @@ include \
   tests/refine/project_makefile \
   tests/game_of_life/project_makefile \
   tests/restart/project_makefile \
-  tests/advection/project_makefile
+  tests/advection/project_makefile \
+  tests/user_neighborhood/project_makefile
 
 
 all: $(EXECUTABLES)
