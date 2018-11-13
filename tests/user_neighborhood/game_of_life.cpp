@@ -165,6 +165,7 @@ int main(int argc, char* argv[])
 		.set_initial_length(grid_length)
 		.set_neighborhood_length(2)
 		.set_maximum_refinement_level(0)
+		.set_periodic(true, true, true)
 		.set_load_balancing_method("RANDOM")
 		.initialize(comm);
 
@@ -367,10 +368,6 @@ int main(int argc, char* argv[])
 				cell_data->data[0] = 0;
 			}
 		}
-	}
-
-	if (rank == 0) {
-		cout << "PASSED" << endl;
 	}
 
 	MPI_Finalize();
