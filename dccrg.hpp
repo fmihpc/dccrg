@@ -8186,6 +8186,7 @@ private:
 				<< std::endl;
 			abort();
 		}
+		auto& hood_of = this->user_neigh_of[neighborhood_id][cell];
 
 		#ifdef DEBUG
 		if (this->user_hood_to.count(neighborhood_id) == 0) {
@@ -8197,15 +8198,20 @@ private:
 		#endif
 
 		// find neighbors_of, should be in order given by user
-		this->user_neigh_of[neighborhood_id][cell].clear();
+		hood_of.clear();
 		for (const auto& item: this->user_hood_of[neighborhood_id]) {
 			const auto cells_at_offset
 				= this->get_neighbors_of_at_offset(cell, item[0], item[1], item[2]);
-			this->user_neigh_of[neighborhood_id][cell].insert(
-				this->user_neigh_of[neighborhood_id][cell].end(),
-				cells_at_offset.begin(),
-				cells_at_offset.end()
-			);
+			// add non-existing neighbor due to grid boundary
+			if (cells_at_offset.size() == 0) {
+				hood_of.push_back({0, {0, 0, 0, 0}});
+			} else {
+				hood_of.insert(
+					hood_of.end(),
+					cells_at_offset.begin(),
+					cells_at_offset.end()
+				);
+			}
 		}
 
 		// find neighbors_to
@@ -11403,7 +11409,7 @@ private:
 			return true;
 		}
 
-		// neighbors
+		// reference
 		const auto compare_neighbors
 			= this->find_neighbors_of(cell, hood_of, this->max_ref_lvl_diff);
 
