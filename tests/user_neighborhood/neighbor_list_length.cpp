@@ -337,12 +337,7 @@ int main(int argc, char* argv[])
 	}
 	}
 
-	if (rank == 0) {
-		cout << "PASSED" << endl;
-	}
-
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }
-
