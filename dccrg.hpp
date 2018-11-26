@@ -340,6 +340,7 @@ public:
 		comm(other.get_communicator()),
 		rank(uint64_t(other.get_rank())),
 		comm_size(uint64_t(other.get_comm_size())),
+		neighbors_of(other.get_all_neighbors_of()),
 		neighborhood_of(other.get_neighborhood_of()),
 		neighborhood_to(other.get_neighborhood_to()),
 		user_hood_of(other.get_user_hood_of()),
@@ -449,6 +450,8 @@ public:
 			);
 		}
 
+		this->grid_initialized = true;
+
 		if (not this->mapping_initialized) {
 			throw std::invalid_argument(
 				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
@@ -495,8 +498,6 @@ public:
 				+ "Couldn't update cell pointers: " + e.what()
 			);
 		}
-
-		this->grid_initialized = true;
 
 		return *this;
 	}
@@ -604,6 +605,15 @@ public:
 		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " get_cells() must not be called while balancing load"
@@ -766,6 +776,15 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_data.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
@@ -820,6 +839,15 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_data.count(cell) > 0) {
 
 			if (neighborhood_id == default_neighborhood_id) {
@@ -888,6 +916,15 @@ public:
 	bool update_copies_of_remote_neighbors(
 		const int neighborhood_id = default_neighborhood_id
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " update_copies_of_remote_neighbors(...) called while balancing load"
@@ -941,6 +978,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& balance_load(const bool use_zoltan = true)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		this->initialize_balance_load(use_zoltan);
 		this->continue_balance_load();
 		this->finish_balance_load();
@@ -995,6 +1041,15 @@ public:
 		MPI_Offset offset,
 		std::tuple<void*, int, MPI_Datatype> header
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// TODO: use only one ...write_at_all
 		// TODO: use nonblocking versions of ...write_at_all
 		/*
@@ -1875,6 +1930,9 @@ public:
 		// initial cells must exist along with neighbor lists,
 		// etc. before loading the grid.
 		this->create_level_0_cells(sfc_caching_batches);
+
+		this->grid_initialized = true;
+
 		if (!this->initialize_neighbors()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't initialize neighbors"
@@ -1969,8 +2027,6 @@ public:
 			abort();
 		}
 
-		this->grid_initialized = true;
-
 		return true;
 	}
 
@@ -2003,6 +2059,15 @@ public:
 	*/
 	bool continue_loading_grid_data()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		int ret_val = -1;
 
 		const uint64_t number_of_cells = this->cell_data.size();
@@ -2262,6 +2327,15 @@ public:
 	*/
 	bool finish_loading_grid_data()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		this->cells_and_data_displacements.clear();
 
 		int ret_val = MPI_File_close(&(this->grid_data_file));
@@ -2303,6 +2377,15 @@ public:
 	*/
 	bool refine_completely(const uint64_t cell)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (cell == error_cell) {
 			return false;
 		}
@@ -2394,6 +2477,15 @@ public:
 	*/
 	bool unrefine_completely(const uint64_t cell)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (cell == error_cell) {
 			return false;
 		}
@@ -2501,6 +2593,15 @@ public:
 	*/
 	bool dont_unrefine(const uint64_t cell)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (cell == error_cell) {
 			return false;
 		}
@@ -2565,6 +2666,15 @@ public:
 		const uint64_t cell/*,
 		const int neighborhood_id = default_neighborhood_id*/
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
 		if (this->cell_data.count(cell) == 0) {
@@ -2614,6 +2724,12 @@ public:
 		std::array<size_t, 2 * 3> current_index = {{0, 0, 0, 0, 0, 0}};
 		const int refinement_level = this->mapping.get_refinement_level(cell);
 
+		if (this->neighbors_of.count(cell) == 0) {
+			std::cerr << __FILE__ "(" << __LINE__ << "): "
+				<< this->rank << " No neighbors_of for cell " << cell
+				<< " on process " << this->cell_process.at(cell) << std::endl;
+			abort();
+		}
 		for (size_t
 			neighbor_i = 0;
 			neighbor_i < this->neighbors_of.at(cell).size();
@@ -2735,6 +2851,14 @@ public:
 		const bool exact_match,
 		const int neighborhood_id
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
 
 		if (cell == error_cell) {
 			return false;
@@ -2836,6 +2960,15 @@ public:
 	*/
 	unsigned int get_neighborhood_length() const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		return this->neighborhood_length;
 	}
 
@@ -2865,6 +2998,15 @@ public:
 		const int y,
 		const int z
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 		if (
 			this->cell_process.count(cell) == 0
@@ -2921,6 +3063,15 @@ public:
 		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 
 		if (this->cell_process.count(cell) == 0) {
@@ -2973,6 +3124,15 @@ public:
 		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 
 		if (this->cell_process.count(cell) == 0) {
@@ -3017,6 +3177,15 @@ public:
 	*/
 	bool is_local(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) > 0
 		&& this->cell_process.at(cell) == this->rank) {
 			return true;
@@ -3036,6 +3205,15 @@ public:
 	*/
 	bool write_vtk_file(const std::string& file_name) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::ofstream outfile(file_name);
 		if (!outfile.is_open()) {
 			std::cerr << "Couldn't open file " << file_name << std::endl;
@@ -3108,6 +3286,15 @@ public:
 	*/
 	bool refine_completely_at(const std::array<double, 3>& coordinate)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		const uint64_t cell = this->get_existing_cell(coordinate);
 		if (cell == error_cell) {
 			return false;
@@ -3125,6 +3312,15 @@ public:
 	*/
 	bool unrefine_completely_at(const std::array<double, 3>& coordinate)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		const uint64_t cell = this->get_existing_cell(coordinate);
 		if (cell == error_cell) {
 			return false;
@@ -3142,6 +3338,15 @@ public:
 	*/
 	bool dont_unrefine_at(const std::array<double, 3>& coordinate)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		const uint64_t cell = this->get_existing_cell(coordinate);
 		if (cell == error_cell) {
 			return false;
@@ -3163,6 +3368,15 @@ public:
 	*/
 	std::vector<uint64_t> stop_refining(const bool sorted = false)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		this->induce_refines();
 
 		// update dont_refines between processes
@@ -3192,6 +3406,15 @@ public:
 	*/
 	std::vector<uint64_t> get_removed_cells(const bool sorted = false) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 		ret_val.reserve(this->unrefined_cell_data.size());
 
@@ -3221,6 +3444,15 @@ public:
 	*/
 	std::vector<uint64_t> get_all_cells(const bool sorted = false) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 		ret_val.reserve(this->cell_process.size());
 
@@ -3258,6 +3490,15 @@ public:
 	*/
 	bool cell_overlaps_local(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		const uint64_t parent = this->mapping.get_level_0_parent(cell);
 
 		if (this->cell_process.count(parent) > 0
@@ -3276,6 +3517,15 @@ public:
 	*/
 	std::unordered_set<uint64_t> get_cells_overlapping_local(const std::vector<uint64_t>& given_cells) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::unordered_set<uint64_t> result;
 
 		for (const uint64_t cell: given_cells) {
@@ -3306,6 +3556,15 @@ public:
 	*/
 	bool load_cells(const std::vector<uint64_t>& given_cells)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// get the global maximum refinement level of cells to be loaded
 		std::unordered_set<uint64_t> overlapping
 			= this->get_cells_overlapping_local(given_cells);
@@ -3396,6 +3655,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& initialize_balance_load(const bool use_zoltan)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " initialize_balance_load(...) called the second time "
@@ -3544,6 +3812,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& continue_balance_load()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (!this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " continue_balance_load() called without "
@@ -3578,6 +3855,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& finish_balance_load()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (!this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " finish_balance_load() called without "
@@ -3786,6 +4072,15 @@ public:
 	*/
 	uint64_t get_parent(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) == 0) {
 			return error_cell;
 		}
@@ -3820,6 +4115,15 @@ public:
 		const uint64_t length_in_indices,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// TODO: make neighborhood a const reference
 		std::vector<Types<3>::indices_t> return_indices;
 		return_indices.reserve(neighborhood.size());
@@ -3953,6 +4257,15 @@ public:
 		const int max_diff,
 		const bool has_children = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 
 		const int refinement_level
@@ -4263,6 +4576,15 @@ public:
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 
 		if (
@@ -4421,6 +4743,15 @@ public:
 		const uint64_t cell,
 		const std::vector<uint64_t>& found_neighbors_of
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 
 		if (
@@ -4528,6 +4859,15 @@ public:
 		const int minimum_refinement_level,
 		const int maximum_refinement_level
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		// size of cells in indices of given maximum_refinement_level
 		const uint64_t index_increase
 			= uint64_t(1) << (this->mapping.get_maximum_refinement_level() - maximum_refinement_level);
@@ -4654,6 +4994,15 @@ public:
 	bool start_remote_neighbor_copy_updates(
 		const int neighborhood_id = default_neighborhood_id
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " start_remote_neighbor_data_update(...) called while balancing load"
@@ -4688,6 +5037,15 @@ public:
 	bool start_remote_neighbor_copy_receives(
 		const int neighborhood_id = default_neighborhood_id
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		bool ret_val = true;
 
 		if (neighborhood_id == default_neighborhood_id) {
@@ -4786,6 +5144,15 @@ public:
 	bool start_remote_neighbor_copy_sends(
 		const int neighborhood_id = default_neighborhood_id
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " start_remote_neighbor_data_update(...) called while balancing load"
@@ -4884,6 +5251,15 @@ public:
 	bool wait_remote_neighbor_copy_updates(
 		const int neighborhood_id = default_neighborhood_id
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_remote_neighbor_copy_updates(...) called while balancing load"
@@ -4912,6 +5288,15 @@ public:
 	*/
 	bool wait_remote_neighbor_copy_update_sends()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_remote_neighbor_copy_update_sends() called while balancing load"
@@ -4932,6 +5317,15 @@ public:
 	bool wait_remote_neighbor_copy_update_receives(
 		const int neighborhood_id = default_neighborhood_id
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_remote_neighbor_copy_update_receives(...) called while balancing load"
@@ -4972,6 +5366,15 @@ public:
 	uint64_t get_number_of_update_send_cells(
 		const int neighborhood_id = default_neighborhood_id
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		uint64_t ret_val = 0;
 
 		if (neighborhood_id == default_neighborhood_id) {
@@ -5024,6 +5427,15 @@ public:
 	uint64_t get_number_of_update_receive_cells(
 		const int neighborhood_id = default_neighborhood_id
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		uint64_t ret_val = 0;
 
 		if (neighborhood_id == default_neighborhood_id) {
@@ -5075,6 +5487,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& clear_refined_unrefined_data()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
 		return *this;
@@ -5104,6 +5525,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& set_partitioning_option(const std::string name, const std::string value)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->reserved_options.count(name) > 0) {
 			throw std::invalid_argument(
 				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
@@ -5134,6 +5564,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& add_partitioning_level(const int processes)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (processes < 1) {
 			throw std::invalid_argument(
 				"\n" __FILE__ "(" + std::to_string(__LINE__) + "): "
@@ -5153,7 +5592,7 @@ public:
 
 
 	/*!
-	Rremoves the given hierarhchial partitioning level.
+	Removes the given hierarhchial partitioning level.
 
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
@@ -5168,6 +5607,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& remove_partitioning_level(const int hierarchial_partitioning_level)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return *this;
@@ -5206,6 +5654,15 @@ public:
 		const std::string name,
 		const std::string value
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return *this;
@@ -5241,6 +5698,15 @@ public:
 		const int hierarchial_partitioning_level,
 		const std::string name
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return *this;
@@ -5258,6 +5724,15 @@ public:
 	*/
 	std::vector<std::string> get_partitioning_options(const int hierarchial_partitioning_level) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<std::string> partitioning_options;
 
 		if (hierarchial_partitioning_level < 0
@@ -5286,6 +5761,15 @@ public:
 		const int hierarchial_partitioning_level,
 		const std::string name
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::string value;
 
 		if (hierarchial_partitioning_level < 0
@@ -5306,6 +5790,15 @@ public:
 	*/
 	int get_process(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) == 0) {
 			return -1;
 		} else {
@@ -5322,6 +5815,15 @@ public:
 	*/
 	bool pin(const uint64_t cell)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		return this->pin(cell, this->rank);
 	}
 
@@ -5340,6 +5842,15 @@ public:
 	*/
 	bool pin(const uint64_t cell, const int process)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) == 0) {
 			return false;
 		}
@@ -5381,6 +5892,15 @@ public:
 	*/
 	bool unpin(const uint64_t cell)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) == 0) {
 			return false;
 		}
@@ -5416,6 +5936,13 @@ public:
 	bool unpin_local_cells()
 	{
 		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+
 		// check that all child cells on this process are also in this->cell_data.
 		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
 			i = this->cell_process.begin();
@@ -5473,6 +6000,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& unpin_all_cells()
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		this->new_pin_requests.clear();
 		this->pin_requests.clear();
 		return *this;
@@ -5499,6 +6035,15 @@ public:
 		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 
 		if (neighborhood_id == default_neighborhood_id) {
@@ -5541,6 +6086,15 @@ public:
 		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 
 		if (neighborhood_id == default_neighborhood_id) {
@@ -5588,6 +6142,15 @@ public:
 		const int neighborhood_id = default_neighborhood_id,
 		const bool sorted = false
 	) const {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> ret_val;
 
 		if (neighborhood_id == default_neighborhood_id) {
@@ -5626,6 +6189,15 @@ public:
 	*/
 	bool set_cell_weight(const uint64_t cell, const double weight)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) == 0) {
 			return false;
 		}
@@ -5651,6 +6223,15 @@ public:
 	*/
 	double get_cell_weight(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (this->cell_process.count(cell) == 0) {
 			return std::numeric_limits<double>::quiet_NaN();
 		}
@@ -5676,6 +6257,15 @@ public:
 	*/
 	const std::unordered_set<uint64_t>& get_cells_added_by_balance_load() const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		return this->added_cells;
 	}
 
@@ -5684,6 +6274,15 @@ public:
 	*/
 	const std::unordered_set<uint64_t>& get_cells_removed_by_balance_load() const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		return this->removed_cells;
 	}
 
@@ -5696,6 +6295,15 @@ public:
 	*/
 	uint64_t get_existing_cell(const std::array<double, 3>& coordinate) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		const Types<3>::indices_t indices = this->geometry.get_indices(coordinate);
 
 		if (indices[0] == error_index
@@ -5716,6 +6324,15 @@ public:
 	*/
 	std::vector<uint64_t> get_siblings(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> siblings;
 
 		const int refinement_level = this->mapping.get_refinement_level(cell);
@@ -5741,6 +6358,15 @@ public:
 	 */
 	std::vector<uint64_t> get_all_children(const uint64_t cell) const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		std::vector<uint64_t> children;
 
 		if (cell == error_cell) {
@@ -5801,6 +6427,15 @@ public:
 	*/
 	const std::unordered_map<uint64_t, double>& get_cell_weights() const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		return this->cell_weights;
 	}
 
@@ -5828,6 +6463,15 @@ public:
 		const int neighborhood_id,
 		const std::vector<Types<3>::neighborhood_item_t>& given_neigh
 	) {
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (neighborhood_id == default_neighborhood_id) {
 			return false;
 		}
@@ -6004,6 +6648,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& remove_neighborhood(const int neighborhood_id)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (neighborhood_id == default_neighborhood_id) {
 			return *this;
 		}
@@ -6041,6 +6694,15 @@ public:
 	*/
 	unsigned int get_max_tag() const
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		return this->max_tag;
 	}
 
@@ -6178,6 +6840,22 @@ public:
 	>& get_user_hood_to() const
 	{
 		return this->user_hood_to;
+	}
+
+	/*!
+	Returns cells (2nd value) which cell (1st value) considers as neighbors
+	*/
+	const std::unordered_map<
+		uint64_t,
+		std::vector<
+			std::pair<
+				uint64_t,
+				std::array<int, 4>
+			>
+		>
+	>& get_all_neighbors_of() const
+	{
+		return this->neighbors_of;
 	}
 
 	/*!
@@ -6430,6 +7108,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& allocate_copies_of_remote_neighbors(const int neighborhood_id = default_neighborhood_id)
 	{
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
 		if (
 			neighborhood_id != default_neighborhood_id
 			and this->user_hood_of.count(neighborhood_id) == 0
