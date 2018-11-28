@@ -210,6 +210,9 @@ template <
 	std::tuple<Additional_Cell_Items...>,
 	std::tuple<Additional_Neighbor_Items...>
 > {
+public:
+	using cell_data_type = Cell_Data;
+	using geometry_type = Geometry;
 
 private:
 	/*!
