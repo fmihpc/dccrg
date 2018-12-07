@@ -338,6 +338,7 @@ public:
 		mapping_initialized(other.get_mapping_initialized()),
 		grid_initialized(other.get_initialized()),
 		neighborhood_length(other.get_neighborhood_length()),
+		neighbors_(other.get_neighbors_()),
 		max_tag(other.get_max_tag()),
 		send_single_cells(other.get_send_single_cells()),
 		comm(other.get_communicator()),
@@ -501,6 +502,8 @@ public:
 				+ "Couldn't update cell pointers: " + e.what()
 			);
 		}
+
+		this->update_neighbors_();
 
 		return *this;
 	}
@@ -773,7 +776,7 @@ public:
 	const std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	>* get_neighbors_of(
 		const uint64_t cell,
@@ -820,7 +823,7 @@ public:
 			}
 		}
 
-		return NULL;
+		return nullptr;
 	}
 
 
@@ -836,7 +839,7 @@ public:
 	const std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	>* get_neighbors_to(
 		const uint64_t cell,
@@ -880,7 +883,7 @@ public:
 			}
 		}
 
-		return NULL;
+		return nullptr;
 	}
 
 
@@ -2886,7 +2889,7 @@ public:
 		const std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>& neighs_of
 			= [&](){
@@ -2912,7 +2915,7 @@ public:
 		const std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>& neighs_to
 			= [&](){
@@ -2993,7 +2996,7 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	> get_neighbors_of_at_offset(
 		const uint64_t cell,
@@ -3010,7 +3013,7 @@ public:
 		}
 		#endif
 
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 		if (
 			this->cell_process.count(cell) == 0
 			or this->cell_process.at(cell) != this->rank
@@ -3019,27 +3022,21 @@ public:
 			return return_neighbors;
 		}
 
-		for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
-			const auto& offsets = neighbor_i.second;
-			if (offsets[3] <= 1) {
-				if (offsets[0] == x and offsets[1] == y and offsets[2] == z) {
-					return_neighbors.push_back(neighbor_i);
-				}
-			} else {
-				auto scaled_offsets = offsets;
-				for (size_t i = 0; i < 3; i++) {
-					if (std::abs(scaled_offsets[i]) <= 1) {
-						continue;
-					}
-					// round away from zero, stackoverflow.com/a/2745086
-					if (scaled_offsets[i] > 1) {
-						scaled_offsets[i] += scaled_offsets[3] - 1;
-					} else {
-						scaled_offsets[i] -= scaled_offsets[3] - 1;
-					}
-					scaled_offsets[i] /= scaled_offsets[3];
-				}
-				if (scaled_offsets[0] == x and scaled_offsets[1] == y and scaled_offsets[2] == z) {
+		const auto ref_indices = indices_from_neighborhood(
+			this->mapping.get_indices(cell),
+			this->mapping.get_cell_length_in_indices(cell),
+			{{x, y, z}}
+		);
+
+		for (const auto& ref_index: ref_indices) {
+			for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
+				const auto& neighbor = neighbor_i.first;
+				const auto indices = this->mapping.get_indices(neighbor);
+				if (
+					indices[0] == ref_index[0]
+					and indices[1] == ref_index[1]
+					and indices[2] == ref_index[2]
+				) {
 					return_neighbors.push_back(neighbor_i);
 				}
 			}
@@ -4060,6 +4057,8 @@ public:
 		}
 		#endif
 
+		this->update_neighbors_();
+
 		this->added_cells.clear();
 		this->removed_cells.clear();
 		this->balancing_load = false;
@@ -4240,19 +4239,12 @@ public:
 	Returns nothing if the following cases:
 		- given cell has children
 		- given doesn't exist
-
-	Cells smaller than given one at any offset are returned in the order in which
-	neighbors' index increases first in x, then in y, ...
-	In other words the first small cell within an neighborhood offset is
-	closest to the origin of the grid, the second one is in direction +1
-	from the first, 3rd is in dir +2 from 1st, 4th is in +1 from 3rd, +2 from 2nd,
-	8th is +3 from 4th, +2 from 6th, +1 from 7th, assuming max_ref_lvl_diff == 1
 	*/
 	// TODO: make private?
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4> // x, y, z offsets and denominator
+			std::array<int, 3> // x, y, z offsets
 		>
 	> find_neighbors_of(
 		const uint64_t cell,
@@ -4269,7 +4261,7 @@ public:
 		}
 		#endif
 
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		const int refinement_level
 			= this->mapping.get_refinement_level(cell);
@@ -4328,7 +4320,7 @@ public:
 			const auto& index_of = indices_of[index_of_i];
 
 			if (index_of[0] == error_index) {
-				return_neighbors.push_back({0, {0, 0, 0, 0}});
+				return_neighbors.push_back({0, {0, 0, 0}});
 				continue;
 			}
 
@@ -4402,14 +4394,7 @@ public:
 					{
 						neighborhood[index_of_i][0],
 						neighborhood[index_of_i][1],
-						neighborhood[index_of_i][2],
-						[&](){
-							if (neighbor_ref_lvl == refinement_level) {
-								return 1;
-							} else {
-								return -2; // TODO: max ref lvl diff > 1
-							}
-						}()
+						neighborhood[index_of_i][2]
 					}
 				});
 			// add all cells at current search indices within size of given cell
@@ -4485,7 +4470,7 @@ public:
 					// offsets shouldn't be needed anywhere
 					for (const auto& current_neighbor: current_neighbors) {
 						return_neighbors.push_back({
-							current_neighbor, {0, 0, 0, 0}
+							current_neighbor, {0, 0, 0}
 						});
 					}
 
@@ -4543,8 +4528,7 @@ public:
 								current_neighbors[neighbor_i++], {
 									offset_x + off_mod_x,
 									offset_y + off_mod_y,
-									offset_z + off_mod_z,
-									2
+									offset_z + off_mod_z
 								}
 							});
 						}
@@ -4568,12 +4552,12 @@ public:
 	Assumes a maximum refinement level difference of one between neighbors
 	(both cases: neighbors_of, neighbors_to).
 
-	TODO: currently returned offsets and denominator are all 0.
+	TODO: currently returned offsets are all 0.
 	*/
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	> find_neighbors_to(
 		const uint64_t cell,
@@ -4588,7 +4572,7 @@ public:
 		}
 		#endif
 
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		if (
 			cell == error_cell
@@ -4627,7 +4611,7 @@ public:
 		Would allow users to have the same offset
 		multiple times in their neighborhoods.
 		*/
-		std::unordered_map<uint64_t, std::array<int, 4>> unique_neighbors;
+		std::unordered_map<uint64_t, std::array<int, 3>> unique_neighbors;
 
 		// neighbors_to larger than given cell
 		if (refinement_level > 0) {
@@ -4653,7 +4637,7 @@ public:
 
 				// only add if found cell doesn't have children
 				if (found == this->get_child(found)) {
-					unique_neighbors[found] = {0, 0, 0, 0};
+					unique_neighbors[found] = {0, 0, 0};
 				}
 			}
 		}
@@ -4693,7 +4677,7 @@ public:
 						= this->mapping.get_cell_from_indices(search_index, refinement_level + 1);
 
 					if (found == this->get_child(found)) {
-						unique_neighbors[found] = {0, 0, 0, 0};
+						unique_neighbors[found] = {0, 0, 0};
 					}
 				}
 			}
@@ -4717,7 +4701,7 @@ public:
 
 			const uint64_t found = this->mapping.get_cell_from_indices(search_index, refinement_level);
 			if (found == this->get_child(found)) {
-				unique_neighbors[found] = {0, 0, 0, 0};
+				unique_neighbors[found] = {0, 0, 0};
 			}
 		}
 
@@ -4740,7 +4724,7 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	> find_neighbors_to(
 		const uint64_t cell,
@@ -4755,7 +4739,7 @@ public:
 		}
 		#endif
 
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		if (
 			cell == 0
@@ -4841,7 +4825,7 @@ public:
 
 		return_neighbors.reserve(unique_neighbors_to.size());
 		for (const auto& n: unique_neighbors_to) {
-			return_neighbors.push_back({n, {0, 0, 0, 0}});
+			return_neighbors.push_back({n, {0, 0, 0}});
 		}
 
 		return return_neighbors;
@@ -6853,7 +6837,7 @@ public:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	>& get_all_neighbors_of() const
@@ -6869,7 +6853,7 @@ public:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	>& get_all_neighbors_to() const
@@ -6887,7 +6871,7 @@ public:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>
@@ -6906,7 +6890,7 @@ public:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>
@@ -7156,11 +7140,36 @@ private:
 
 	std::string load_balancing_method{"RCB"};
 
-	// maximum value an MPI tag can have
-	unsigned int max_tag;
-
 	// maximum difference in refinement level between neighbors
 	int max_ref_lvl_diff = 1;
+
+	/*
+	Cells and some of their face neighbors.
+
+	Stores 2 face neighbors in each dimension in order:
+	negative x dir, positive x dir, neg y dir, pos y dir, etc.
+	If cell has more that 1 face neighbor in one direction,
+	that which is closest to origin of grid is stored (grid
+	starts at indices 0, 0, 0).
+
+	Takes into account periodicity of grid.
+	*/
+	std::map<
+		uint64_t,
+		std::array<uint64_t, 6>
+	> neighbors_;
+
+public:
+	const std::map<
+		uint64_t,
+		std::array<uint64_t, 6>
+	>& get_neighbors_() const {
+		return this->neighbors_;
+	}
+private:
+
+	// maximum value an MPI tag can have
+	unsigned int max_tag;
 
 	// whether to send user's cell data between processes
 	// with only one message or one message / cell
@@ -7184,7 +7193,7 @@ private:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	> neighbors_of;
@@ -7222,7 +7231,7 @@ private:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	> neighbors_to;
@@ -7237,7 +7246,7 @@ private:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>
@@ -7339,40 +7348,30 @@ private:
 		uint64_t id;
 		Cell_Data* data;
 		/*!
-		Neighbor's offset from cell, in units of cell's size
+		Neighbor's offset from cell in indices.
 
-		Offset of a face neighbor is always 1 regardless of denominator
-		(in one dimension, 0 in others). Offset of edge neighbor is
-		always 1 in two dimensions and offset of vertex neighbor is
-		always 1 in all dimensions.
+		Index represents smallest possible size of cells in
+		each dimension. Indices start from 0 at negative side
+		of grid in each dimension.
+
+		Cells' index in each dimension is the one closest
+		to 0 index that cell overlaps with.
+
+		Cells' length in indices can be obtained with
+		get_cell_length_in_indices() of Mapping class.
 
 		Examples:
 		\verbatim
-		indices           |0|1|2|3|4|5|6|7|8|9|...
-		cell position     |---|
-		offset (denom = 2)    |1|2|3|4|5|6|...
-		       (denom = 1)    | 1 | 2 | 3 | 4 |...
-		       (denom = -2)   | 1 or 2| 3 or 4|...
-
-		cell position     |-------|
-		offset (denom = 4)        |1|2|3|4|5|...
-		offset (denom = 2)        | 1 | 2 |...
+		index     |0|1|2|3|4|5|6|7|8|9|...
+		cell position |---|
+		neighbor offset   |2|3|4|5|6|7|...
+		n. offset |-2 | 0 | 2 | 4 | 6 | 8 |...
+		n. offset |  -2   |   2   |   6   |...
 		\endverbatim
 
 		\see tests/advection/solve.hpp
 		*/
 		int x, y, z;
-		/*!
-		Denominator / divisor of offset from cell.
-
-		Value is = 1 if neighbor is same size as cell, > 1 if neighbor
-		is smaller than cell and < -1 if neighbor is larger than cell.
-		Value is 2 for neighbor half the size of cell, 4 for neighbor
-		quarter the size of cell, etc.
-		Value is -2 for neighbor twice the size of cell, -4 for neighbor
-		four times the size of cell, etc.
-		*/
-		int denom;
 
 
 		// everything done in update_caller() with three or more arguments
@@ -8894,7 +8893,7 @@ private:
 				= this->get_neighbors_of_at_offset(cell, item[0], item[1], item[2]);
 			// add non-existing neighbor due to grid boundary
 			if (cells_at_offset.size() == 0) {
-				hood_of.push_back({0, {0, 0, 0, 0}});
+				hood_of.push_back({0, {0, 0, 0}});
 			} else {
 				hood_of.insert(
 					hood_of.end(),
@@ -9209,6 +9208,98 @@ private:
 			abort();
 		}
 		#endif
+	}
+
+
+	// recalculates this->neighbors_ for all known cells
+	void update_neighbors_()
+	{
+		this->neighbors_.clear();
+		for (const auto& i: this->cell_data) {
+			this->update_neighbors_(i.first);
+		}
+	}
+
+	// recalculates this->neighbors_ for given cell only
+	// does nothing if given cell doesn't exist on this process
+	void update_neighbors_(const uint64_t cell)
+	{
+		if (this->cell_data.count(cell) == 0) {
+			return;
+		}
+
+		const auto indices = this->mapping.get_indices(cell);
+		const auto cell_length = this->mapping.get_cell_length_in_indices(cell);
+		std::array<std::array<uint64_t, 3>, 6> search_indices{
+			indices, indices, indices, indices, indices, indices
+		};
+
+		// handle periodicity
+		const std::array<bool, 3> periodic{
+			this->topology.is_periodic(0),
+			this->topology.is_periodic(1),
+			this->topology.is_periodic(2)
+		};
+		const auto grid_length = this->length.get();
+		const auto max_ref_lvl = this->mapping.get_maximum_refinement_level();
+
+		// negative directions
+		for (auto dir_i: {0, 2, 4}) {
+			const auto dim_i = dir_i / 2;
+			if (search_indices[dir_i][dim_i] == 0) {
+				if (not periodic[dim_i]) {
+					search_indices[dir_i][dim_i] = error_index;
+				} else {
+					search_indices[dir_i][dim_i] = grid_length[dim_i] * (uint64_t(1) << max_ref_lvl) - 1;
+				}
+			} else {
+				search_indices[dir_i][dim_i]--;
+			}
+		}
+
+		// positive directions
+		for (auto dir_i: {1, 3, 5}) {
+			const auto dim_i = dir_i / 2;
+			const auto max_index = grid_length[dim_i] * (uint64_t(1) << max_ref_lvl) - 1;
+			if (
+				max_index < cell_length
+				or search_indices[dir_i][dim_i] > max_index - cell_length
+			) {
+				if (not periodic[dim_i]) {
+					search_indices[dir_i][dim_i] = error_index;
+				} else {
+					search_indices[dir_i][dim_i] = 0;
+				}
+			} else {
+				search_indices[dir_i][dim_i] += cell_length;
+			}
+		}
+
+		const auto ref_lvl = this->get_refinement_level(cell);
+
+		std::array<uint64_t, 6> new_neighbors_;
+		for (size_t i = 0; i < search_indices.size(); i++) {
+			new_neighbors_[i] = get_existing_cell(
+				search_indices[i],
+				[&](){
+					if (ref_lvl == 0) {
+						return 0;
+					} else {
+						return ref_lvl - 1;
+					}
+				}(),
+				[&](){
+					const auto max_ref_lvl = this->mapping.get_maximum_refinement_level();
+					if (ref_lvl == max_ref_lvl) {
+						return max_ref_lvl;
+					} else {
+						return ref_lvl + 1;
+					}
+				}()
+			);
+		}
+
+		this->neighbors_[cell] = new_neighbors_;
 	}
 
 
@@ -10304,6 +10395,8 @@ private:
 			this->allocate_copies_of_remote_neighbors(item.first);
 		}
 
+		this->update_neighbors_();
+
 		return new_cells;
 	}
 
@@ -11235,7 +11328,7 @@ private:
 			nr_neighbors[i][3] = only_neighbors_to.size();
 
 			// add cell's neighbors
-			std::map<uint64_t, std::array<int, 4>> all_neighbors;
+			std::map<uint64_t, std::array<int, 3>> all_neighbors;
 			for (const auto& n: *neighbors_of) {
 				if (n.first == error_cell) {
 					continue;
@@ -11263,7 +11356,6 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.denom = offsets[3];
 				// call user-defined update function(s)
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
@@ -11288,7 +11380,6 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.denom = offsets[3];
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
 				#ifdef DEBUG
@@ -11313,7 +11404,6 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.denom = offsets[3];
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
 			}
@@ -12029,7 +12119,7 @@ private:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>& neighbor_of_lists,
@@ -12038,7 +12128,7 @@ private:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>& neighbor_to_lists
@@ -12289,7 +12379,7 @@ private:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		> all_neighbors(
 			this->neighbors_of.at(cell).begin(),
@@ -12551,4 +12641,3 @@ private:
 }	// namespace
 
 #endif
-
