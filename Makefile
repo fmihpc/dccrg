@@ -44,7 +44,8 @@ include \
   tests/game_of_life/project_makefile \
   tests/restart/project_makefile \
   tests/advection/project_makefile \
-  tests/user_neighborhood/project_makefile
+  tests/user_neighborhood/project_makefile \
+  tests/proc_bdy_cells/project_makefile
 
 
 all: $(EXECUTABLES)
