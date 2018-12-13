@@ -6139,6 +6139,10 @@ public:
 
 	Returns nothing if neighborhood with given id doesn't exist.
 
+	Cells returned by this may return nullptr from operator[],
+	for example if user-defined neighborhood is not symmetric
+	or if grid has been refined.
+
 	\see get_cells() is more general than this but a bit slower.
 	*/
 	std::vector<uint64_t> get_remote_cells_on_process_boundary(
@@ -8914,11 +8918,13 @@ private:
 	Updates the remote neighbor info of given cell on this process without children.
 
 	Uses current neighbor lists.
-	Does nothing if given cell doesn't exist on this process or has children
+	Does nothing if given cell doesn't exist on this process or has children.
+	Does not remove cell from local_cells_on_process_boundary or
+	remote_cells_on_process_boundary.
 	*/
 	void update_remote_neighbor_info(const uint64_t cell)
 	{
-		if (this->cell_data.count(cell) == 0) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -8926,10 +8932,15 @@ private:
 			return;
 		}
 
-		// TODO: also update remote_cells_on_process_boundary
-		this->local_cells_on_process_boundary.erase(cell);
-
 		#ifdef DEBUG
+		if (this->cell_data.count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " User data for cell " << cell
+				<< " doesn't exist"
+				<< std::endl;
+			abort();
+		}
+
 		if (this->neighbors_of.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Neighbor list for cell " << cell
@@ -9007,10 +9018,12 @@ private:
 
 	Uses current neighbor lists of neighborhood with given id.
 	Does nothing if given cell doesn't exist on this process or has children.
+	Does not remove cell from user_local_cells_on_process_boundary or
+	user_remote_cells_on_process_boundary.
 	*/
 	void update_user_remote_neighbor_info(const uint64_t cell, const int neighborhood_id)
 	{
-		if (this->cell_data.count(cell) == 0) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -9019,6 +9032,13 @@ private:
 		}
 
 		#ifdef DEBUG
+		if (this->cell_data.count(cell) == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " User data for cell " << cell
+				<< " doesn't exist." << std::endl;
+			abort();
+		}
+
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No user neighborhood with id " << neighborhood_id
@@ -9065,8 +9085,6 @@ private:
 			abort();
 		}
 		#endif
-
-		this->user_local_cells_on_process_boundary.at(neighborhood_id).erase(cell);
 
 		// neighbors of given cell
 		for (const auto& neighbor_i: this->user_neigh_of.at(neighborhood_id).at(cell)) {
@@ -12551,4 +12569,3 @@ private:
 }	// namespace
 
 #endif
-

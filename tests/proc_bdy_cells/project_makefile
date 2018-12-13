@@ -1,0 +1,50 @@
+TESTS_PROC_BDY_CELLS_EXECUTABLES = \
+  tests/proc_bdy_cells/test1.exe
+
+tests/proc_bdy_cells/executables: $(TESTS_PROC_BDY_CELLS_EXECUTABLES)
+
+TESTS_PROC_BDY_CELLS_TESTS = \
+  tests/proc_bdy_cells/test1.tst \
+  tests/proc_bdy_cells/test1.mtst
+
+tests/proc_bdy_cells/tests: $(TESTS_PROC_BDY_CELLS_TESTS)
+
+tests/proc_bdy_cells/clean:
+	@printf "CLEAN tests/proc_bdy_cells\n" && rm -f \
+	  $(TESTS_PROC_BDY_CELLS_EXECUTABLES) $(TESTS_PROC_BDY_CELLS_TESTS)
+
+
+EXECUTABLES += tests/proc_bdy_cells/executables
+CLEAN += tests/proc_bdy_cells/clean
+
+
+TESTS_PROC_BDY_CELLS_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/proc_bdy_cells/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_PROC_BDY_CELLS_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/proc_bdy_cells/test1.exe: \
+  tests/proc_bdy_cells/test1.cpp \
+  $(TESTS_PROC_BDY_CELLS_COMMON_DEPS)
+	$(TESTS_PROC_BDY_CELLS_COMPILE_COMMAND)
+
+tests/proc_bdy_cells/test1.tst: \
+  tests/proc_bdy_cells/test1.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/proc_bdy_cells/test1.mtst: \
+  tests/proc_bdy_cells/test1.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
