@@ -136,6 +136,39 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	// iterators of copied grid
+	const auto nr_local = std::distance(grid2.local_cells.begin(), grid2.local_cells.end());
+	if (nr_local < 0) {
+		cerr << "Rank " << rank << ": Number of cells in local iterator < 0" << endl;
+		abort();
+	}
+	if ((size_t)nr_local != cells2.size()) {
+		cerr << "Rank " << rank << ": Number of cells in local iterator doesn't match cell list" << endl;
+		abort();
+	}
+
+	const auto nr_inner = std::distance(grid2.inner_cells.begin(), grid2.inner_cells.end());
+	const auto inner = grid2.get_local_cells_not_on_process_boundary();
+	if (nr_inner < 0) {
+		cerr << "Rank " << rank << ": Number of cells in inner iterator < 0" << endl;
+		abort();
+	}
+	if ((size_t)nr_inner != inner.size()) {
+		cerr << "Rank " << rank << ": Number of cells in inner iterator doesn't match cell list" << endl;
+		abort();
+	}
+
+	const auto nr_outer = std::distance(grid2.outer_cells.begin(), grid2.outer_cells.end());
+	const auto outer = grid2.get_local_cells_on_process_boundary();
+	if (nr_outer < 0) {
+		cerr << "Rank " << rank << ": Number of cells in outer iterator < 0" << endl;
+		abort();
+	}
+	if ((size_t)nr_outer != outer.size()) {
+		cerr << "Rank " << rank << ": Number of cells in outer iterator doesn't match cell list" << endl;
+		abort();
+	}
+
 	// check that remote neighbor update works in original grid
 	// data in grid2 == 2 * process rank
 	for (const auto& cell: cells2) {

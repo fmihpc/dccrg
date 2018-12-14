@@ -401,6 +401,8 @@ public:
 		) {
 			this->cell_data[cell_item->first];
 		}
+
+		this->update_cell_pointers();
 	}
 
 
