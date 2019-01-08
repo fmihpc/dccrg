@@ -2,7 +2,7 @@
 Dccrg class for mapping cell ids to their size and location.
 
 Copyright 2009, 2010, 2011, 2012, 2013,
-2014, 2015, 2016 Finnish Meteorological Institute
+2014, 2015, 2016, 2019 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -325,6 +325,33 @@ public:
 		}
 
 		return refinement_level - 2;
+	}
+
+
+	/*!
+	Returns one child of given cell.
+
+	Returns cell itself if its refinement level is maximum.
+	Returns error_cell if given invalid cell.
+	*/
+	uint64_t get_child(const uint64_t cell) const
+	{
+		if (cell == error_cell or cell > this->get_last_cell()) {
+			return error_cell;
+		}
+
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (refinement_level >= this->get_maximum_refinement_level()) {
+			return cell;
+		}
+
+		const uint64_t child = this->get_cell_from_indices(
+			this->get_indices(cell),
+			refinement_level + 1
+		);
+
+		return child;
 	}
 
 
