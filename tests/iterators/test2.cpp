@@ -97,22 +97,22 @@ int main(int argc, char* argv[])
 				neighbors_of.push_back(neighbor.id);
 			}
 			if (ref_neighbors_of != neighbors_of) {
-				cerr << "FAILED" << endl;
-				cout << "Wrong neighbors_of for cell " << cell.id
+				cerr << __FILE__ "(" << __LINE__ << "): "
+					<< "Wrong neighbors_of for cell " << cell.id
 					<< "\nResult: ";
-				for (const auto& n: neighbors_of) cout << n << ", ";
-				cout << "\nReference: ";
-				for (const auto& n: ref_neighbors_of) cout << n << ", ";
-				cout << endl;
+				for (const auto& n: neighbors_of) cerr << n << ", ";
+				cerr << "\nReference: ";
+				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << endl;
 				return EXIT_FAILURE;
 			}
 
 			// check offset
 			for (const auto& neighbor: cell.neighbors_of) {
-				const int ref_diff = neighbor.id - cell.id;
+				const int ref_diff = (neighbor.id - cell.id) * grid.mapping.get_cell_length_in_indices(cell.id);
 				if (ref_diff != neighbor.x) {
-					cerr << "FAILED" << endl;
-					cout << "Wrong offset for neighbor_of " << neighbor.id
+					cerr << __FILE__ "(" << __LINE__ << "): "
+						<< "Wrong offset for neighbor_of " << neighbor.id
 						<< " of cell " << cell.id << ": " << neighbor.x
 						<< ", should be " << ref_diff << endl;
 					return EXIT_FAILURE;

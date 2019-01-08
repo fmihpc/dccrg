@@ -144,7 +144,9 @@ int main(int argc, char* argv[])
 			.set_initial_length({3, 1, 1})
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(0)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		const auto& neighs = grid.get_neighbors_();
 		for (const auto& neighs_i: neighs) {
 			if (
@@ -163,7 +165,7 @@ int main(int argc, char* argv[])
 					neighs_i.second[0] != err
 					or neighs_i.second[1] != 2
 				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.first << std::endl;
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.second[0] << ", " << neighs_i.second[1] << std::endl;
 					abort();
 				}
 				break;
@@ -172,7 +174,7 @@ int main(int argc, char* argv[])
 					neighs_i.second[0] != 1
 					or neighs_i.second[1] != 3
 				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.first << std::endl;
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.second[0] << ", " << neighs_i.second[1] << std::endl;
 					abort();
 				}
 				break;
@@ -181,7 +183,7 @@ int main(int argc, char* argv[])
 					neighs_i.second[0] != 2
 					or neighs_i.second[1] != err
 				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.first << std::endl;
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.second[0] << ", " << neighs_i.second[1] << std::endl;
 					abort();
 				}
 				break;
@@ -195,7 +197,9 @@ int main(int argc, char* argv[])
 			.set_initial_length({1, 3, 1})
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(0)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		const auto& neighs = grid.get_neighbors_();
 		for (const auto& neighs_i: neighs) {
 			if (
@@ -246,7 +250,9 @@ int main(int argc, char* argv[])
 			.set_initial_length({1, 1, 3})
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(0)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		const auto& neighs = grid.get_neighbors_();
 		for (const auto& neighs_i: neighs) {
 			if (
@@ -298,7 +304,9 @@ int main(int argc, char* argv[])
 			.set_initial_length({1, 1, 1})
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(1)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		grid.refine_completely(1);
 		grid.stop_refining();
 		const auto& neighs = grid.get_neighbors_();
@@ -360,7 +368,9 @@ int main(int argc, char* argv[])
 			.set_periodic(true, true, true)
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(1)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		grid.refine_completely(1);
 		grid.stop_refining();
 		const auto& neighs = grid.get_neighbors_();
@@ -435,8 +445,15 @@ int main(int argc, char* argv[])
 				ref[5] = get_cell(1, 1, 0);
 			}
 
-			if (neighs_i.second != ref) {
-				std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.first << std::endl;
+			if (neighs_i.first != 1 and neighs_i.second != ref) {
+				std::cerr << __FILE__ "(" << __LINE__ << ") "
+				<< neighs_i.first << ": "
+				<< ref[0] << "," << ref[1] << "," << ref[2] << ","
+				<< ref[3] << "," << ref[4] << "," << ref[5] << " != "
+				<< neighs_i.second[0] << "," << neighs_i.second[1] << ","
+				<< neighs_i.second[2] << "," << neighs_i.second[3] << ","
+				<< neighs_i.second[4] << "," << neighs_i.second[5]
+				<< std::endl;
 				abort();
 			}
 		}}
@@ -446,7 +463,9 @@ int main(int argc, char* argv[])
 			.set_initial_length({2, 1, 1})
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(1)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		grid.refine_completely(1);
 		grid.stop_refining();
 		const auto& neighs = grid.get_neighbors_();
@@ -457,6 +476,8 @@ int main(int argc, char* argv[])
 				return grid.get_existing_cell({x, y, z}, 0, 1);
 			};
 			switch (neighs_i.first) {
+			case 1:
+				break;
 			case 2: // 2, 0, 0
 				ref[0] = get_cell(1, 0, 0);
 				break;
@@ -509,7 +530,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			if (neighs_i.second != ref) {
+			if (neighs_i.first != 1 and neighs_i.second != ref) {
 				std::cerr << __FILE__ "(" << __LINE__ << ") "
 				<< neighs_i.first << ": "
 				<< ref[0] << "," << ref[1] << "," << ref[2] << ","
@@ -526,7 +547,9 @@ int main(int argc, char* argv[])
 			.set_initial_length({1, 2, 1})
 			.set_neighborhood_length(neigh_len)
 			.set_maximum_refinement_level(1)
-			.initialize(comm);
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm)
+			.balance_load();
 		grid.refine_completely(1);
 		grid.stop_refining();
 		const auto& neighs = grid.get_neighbors_();
@@ -537,6 +560,8 @@ int main(int argc, char* argv[])
 				return grid.get_existing_cell({x, y, z}, 0, 1);
 			};
 			switch (neighs_i.first) {
+			case 1:
+				break;
 			case 2: // 0, 2, 0
 				ref[2] = get_cell(0, 1, 0);
 				break;
@@ -589,7 +614,7 @@ int main(int argc, char* argv[])
 				abort();
 			}
 
-			if (neighs_i.second != ref) {
+			if (neighs_i.first != 1 and neighs_i.second != ref) {
 				std::cerr << __FILE__ "(" << __LINE__ << ") "
 				<< neighs_i.first << ": "
 				<< ref[0] << "," << ref[1] << "," << ref[2] << ","

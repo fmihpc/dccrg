@@ -1,7 +1,8 @@
 /*
 Program for testing dccrg neighbor offsets with AMR.
 
-Copyright 2013, 2014, 2015, 2016, 2018 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015, 2016,
+2018, 2019 Finnish Meteorological Institute
 Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -77,34 +78,17 @@ int main(int argc, char* argv[])
 	grid.stop_refining();
 	grid.clear_refined_unrefined_data();
 
-	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
-		// check that local cell neighbor iterators work
 		for (const auto& cell: grid.local_cells) {
 			const auto cell_i = grid.mapping.get_indices(cell.id);
-			const auto cell_length = grid.mapping.get_cell_length_in_indices(cell.id);
 			for (const auto& neighbor: cell.neighbors_of) {
 				const auto neigh_i = grid.mapping.get_indices(neighbor.id);
-				const auto neigh_len = grid.mapping.get_cell_length_in_indices(neighbor.id);
 
 				std::array<int, 3> ref_offsets{
 					(int)neigh_i[0] - (int)cell_i[0],
 					(int)neigh_i[1] - (int)cell_i[1],
 					(int)neigh_i[2] - (int)cell_i[2]
 				};
-				for (size_t i = 0; i < ref_offsets.size(); i++) {
-					if (
-						neigh_len < cell_length
-						and grid.indices_overlap(cell_i[i], cell_length, neigh_i[i], neigh_len)
-					) {
-						ref_offsets[i] = 0;
-						continue;
-					}
-					if (neigh_len < cell_length) {
-						ref_offsets[i] *= 2;
-					}
-					ref_offsets[i] /= (int)cell_length;
-				}
 
 				if (
 					neighbor.x != ref_offsets[0]
@@ -115,7 +99,7 @@ int main(int argc, char* argv[])
 					cout << "Wrong neighbor offset: " << neighbor.x << ", "
 						<< neighbor.y << ", " << neighbor.z << ", should be "
 						<< ref_offsets[0] << ", " << ref_offsets[1] << ", "
-						<< ref_offsets[2] << " (excluding denominator) for neighbor "
+						<< ref_offsets[2] << " for neighbor "
 						<< neighbor.id << " of cell " << cell.id
 						<< " with respective indices " << neigh_i[0] << ", "
 						<< neigh_i[1] << ", " << neigh_i[2] << " and "
