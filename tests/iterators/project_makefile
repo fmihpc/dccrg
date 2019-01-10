@@ -2,7 +2,8 @@ TESTS_ITERATORS_EXECUTABLES = \
   tests/iterators/test1.exe \
   tests/iterators/test2.exe \
   tests/iterators/test3.exe \
-  tests/iterators/test4.exe
+  tests/iterators/test4.exe \
+  tests/iterators/test5.exe
 
 TESTS_ITERATORS_TESTS = \
   tests/iterators/test1.tst \
@@ -12,7 +13,9 @@ TESTS_ITERATORS_TESTS = \
   tests/iterators/test3.tst \
   tests/iterators/test3.mtst \
   tests/iterators/test4.tst \
-  tests/iterators/test4.mtst
+  tests/iterators/test4.mtst \
+  tests/iterators/test5.tst \
+  tests/iterators/test5.mtst
 
 tests/iterators/executables: $(TESTS_ITERATORS_EXECUTABLES)
 
@@ -95,4 +98,17 @@ tests/iterators/test4.tst: \
 
 tests/iterators/test4.mtst: \
   tests/iterators/test4.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+tests/iterators/test5.exe: \
+  tests/iterators/test5.cpp \
+  $(TESTS_ITERATORS_COMMON_DEPS)
+	$(TESTS_ITERATORS_COMPILE_COMMAND)
+
+tests/iterators/test5.tst: \
+  tests/iterators/test5.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/iterators/test5.mtst: \
+  tests/iterators/test5.exe
 	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

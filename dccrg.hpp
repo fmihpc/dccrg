@@ -4285,8 +4285,8 @@ public:
 				if (min_offset[dim] > offset[dim] * cell_length) {
 					min_offset[dim] = offset[dim] * cell_length;
 				}
-				if (max_offset[dim] < offset[dim] * cell_length) {
-					max_offset[dim] = offset[dim] * cell_length;
+				if (max_offset[dim] < (offset[dim] + 1) * cell_length - 1) {
+					max_offset[dim] = (offset[dim] + 1) * cell_length - 1;
 				}
 			}
 		}
@@ -4464,7 +4464,7 @@ public:
 			const auto neigh_nx = neighs[0];
 			if (processed.count(neigh_nx) == 0) {
 				const auto offs_nx = adjust_offset(off, next.first, neigh_nx, -1);
-				if (min_offset[0] < off[0]) {
+				if (min_offset[0] <= off[0]) {
 					if (processed.count(neigh_nx) == 0) {
 						if (this->neighbors_.count(neigh_nx) == 0) {
 							std::cerr << __FILE__ "(" << __LINE__ << "): "
@@ -4484,7 +4484,7 @@ public:
 			const auto neigh_px = neighs[1];
 			if (processed.count(neigh_px) == 0) {
 				const auto offs_px = adjust_offset(off, next.first, neigh_px, +1);
-				if (max_offset[0] > off[0] + cell_length - 1) {
+				if (max_offset[0] >= off[0]) {
 					if (processed.count(neigh_px) == 0) {
 						if (this->neighbors_.count(neigh_px) == 0) {
 							std::cerr << __FILE__ "(" << __LINE__ << "): "
@@ -4503,7 +4503,7 @@ public:
 			const auto neigh_ny = neighs[2];
 			if (processed.count(neigh_ny) == 0) {
 				const auto offs_ny = adjust_offset(off, next.first, neigh_ny, -2);
-				if (min_offset[1] < off[1]) {
+				if (min_offset[1] <= off[1]) {
 					if (processed.count(neigh_ny) == 0) {
 						if (this->neighbors_.count(neigh_ny) == 0) {
 							std::cerr << __FILE__ "(" << __LINE__ << "): "
@@ -4521,7 +4521,7 @@ public:
 			const auto neigh_py = neighs[3];
 			if (processed.count(neigh_py) == 0) {
 				const auto offs_py = adjust_offset(off, next.first, neigh_py, +2);
-				if (max_offset[1] > off[1] + cell_length - 1) {
+				if (max_offset[1] >= off[1]) {
 					if (processed.count(neigh_py) == 0) {
 						if (this->neighbors_.count(neigh_py) == 0) {
 							std::cerr << __FILE__ "(" << __LINE__ << "): "
@@ -4532,14 +4532,14 @@ public:
 						unprocessed[neigh_py] = offs_py;
 					}
 				} else {
-					processed[neigh_px] = offs_py;
+					processed[neigh_py] = offs_py;
 				}
 			}
 
 			const auto neigh_nz = neighs[4];
 			if (processed.count(neigh_nz) == 0) {
 				const auto offs_nz = adjust_offset(off, next.first, neigh_nz, -3);
-				if (min_offset[2] < off[2]) {
+				if (min_offset[2] <= off[2]) {
 					if (processed.count(neigh_nz) == 0) {
 						if (this->neighbors_.count(neigh_nz) == 0) {
 							std::cerr << __FILE__ "(" << __LINE__ << "): "
@@ -4557,7 +4557,7 @@ public:
 			const auto neigh_pz = neighs[5];
 			if (processed.count(neigh_pz) == 0) {
 				const auto offs_pz = adjust_offset(off, next.first, neigh_pz, +3);
-				if (max_offset[2] > off[2] + cell_length - 1) {
+				if (max_offset[2] >= off[2]) {
 					if (processed.count(neigh_pz) == 0) {
 						if (this->neighbors_.count(neigh_pz) == 0) {
 							std::cerr << __FILE__ "(" << __LINE__ << "): "
@@ -4568,7 +4568,7 @@ public:
 						unprocessed[neigh_pz] = offs_pz;
 					}
 				} else {
-					processed[neigh_px] = offs_pz;
+					processed[neigh_pz] = offs_pz;
 				}
 			}
 
@@ -4653,6 +4653,8 @@ public:
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
+		using std::to_string;
+
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -4670,7 +4672,12 @@ public:
 			or this->cell_process.count(cell) == 0
 			or cell != this->get_child(cell)
 		) {
-			return return_neighbors;
+			throw std::invalid_argument(
+				__FILE__ "(" + to_string(__LINE__) + ") "
+				+ to_string(cell) + ", " + to_string(this->get_child(cell))
+				+ ", " + to_string(this->mapping.get_last_cell())
+				+ ", " + to_string(this->cell_process.count(cell))
+			);
 		}
 
 		const int refinement_level = this->mapping.get_refinement_level(cell);
@@ -4703,7 +4710,7 @@ public:
 		*/
 		std::unordered_map<uint64_t, std::array<int, 3>> unique_neighbors;
 
-		// neighbors_to larger than given cell
+		// neighbor_to larger than given cell
 		if (refinement_level > 0) {
 			const auto parent = this->get_parent(cell);
 			const auto indices = this->mapping.get_indices(parent);
@@ -4732,7 +4739,7 @@ public:
 			}
 		}
 
-		// neighbors_to smaller than given cell
+		// neighbor_to smaller than given cell
 		if (refinement_level < this->mapping.get_maximum_refinement_level()) {
 
 			const std::vector<uint64_t> children = this->get_all_children(cell);
@@ -4886,7 +4893,7 @@ public:
 				);
 
 			#ifdef DEBUG
-			if (cell == 0) {
+			if (cell == error_cell) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No cell found between refinement levels [" << minimum_refinement_level
 					<< ", " << maximum_refinement_level
@@ -9139,7 +9146,6 @@ private:
 		this->remote_cells_on_process_boundary.clear();
 
 		for (const auto& item: this->cell_data) {
-
 			if (item.first != this->get_child(item.first)) {
 				continue;
 			}
@@ -9156,7 +9162,6 @@ private:
 			}
 			#endif
 		}
-
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -9310,7 +9315,7 @@ private:
 	bool is_neighbor(const uint64_t cell1, const uint64_t cell2) const
 	{
 		#ifdef DEBUG
-		if (cell1 == 0) {
+		if (cell1 == error_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell1 given." << std::endl;
 			abort();
 		}
@@ -9320,7 +9325,7 @@ private:
 			abort();
 		}
 
-		if (cell2 == 0) {
+		if (cell2 == error_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell2 given." << std::endl;
 			abort();
 		}
@@ -10174,12 +10179,8 @@ private:
 
 		this->update_remote_neighbor_info();
 		// also remote neighbor info of user neighborhoods
-		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-			item = this->user_hood_of.begin();
-			item != this->user_hood_of.end();
-			item++
-		) {
-			this->update_user_remote_neighbor_info(item->first);
+		for (const auto& item: this->user_hood_of) {
+			this->update_user_remote_neighbor_info(item.first);
 		}
 
 		this->allocate_copies_of_remote_neighbors();
@@ -12224,59 +12225,57 @@ private:
 	*/
 	bool verify_remote_neighbor_info()
 	{
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			item = this->cell_process.begin();
-			item != this->cell_process.end();
-			item++
-		) {
+		for (const auto& item: this->cell_process) {
 
-			if (item->first != this->get_child(item->first)) {
+			if (item.first != this->get_child(item.first)) {
 				continue;
 			}
 
 			// check whether this cell should be in remote_cells_on_process_boundary
-			if (item->second != this->rank) {
+			if (item.second != this->rank) {
 
 				bool should_be_in_remote_cells = false;
 
 				for (const auto& cell: this->cell_data) {
 
-					if (cell.first != this->get_child(cell.first)) {
+					if (
+						this->cell_process.at(cell.first) != this->rank
+						or cell.first != this->get_child(cell.first)
+					) {
 						continue;
 					}
 
-					if (item->first == cell.first) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " Same cell." << std::endl;
-						abort();
-					}
-
-					if (this->is_neighbor(item->first, cell.first)
-					|| this->is_neighbor(cell.first, item->first)) {
+					if (
+						this->is_neighbor(item.first, cell.first)
+						or this->is_neighbor(cell.first, item.first)
+					) {
 						should_be_in_remote_cells = true;
 					}
 				}
 
 				if (should_be_in_remote_cells) {
 
-					if (this->remote_cells_on_process_boundary.count(item->first) == 0) {
+					if (this->remote_cells_on_process_boundary.count(item.first) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Remote cell " << item->first
+							<< " Remote cell " << item.first
 							<< " should be in remote_cells_on_process_boundary because:"
 							<< std::endl;
 
 						for (const auto& cell: this->cell_data) {
-							if (item->first == cell.first) {
+							if (item.first == cell.first) {
 								std::cerr << __FILE__ << ":" << __LINE__
 									<< " Same cell."
 									<< std::endl;
 								abort();
 							}
 
-							if (this->is_neighbor(item->first, cell.first)
-							|| this->is_neighbor(cell.first, item->first)) {
-								std::cerr << "\tremote cell " << item->first
-									<< " has a local neighbor " << cell.first
-									<< std::endl;
+							if (
+								this->is_neighbor(item.first, cell.first)
+								or this->is_neighbor(cell.first, item.first)
+							) {
+								std::cerr << "\tremote cell " << item.first
+									<< " and local cell " << cell.first
+									<< " are neighbors" << std::endl;
 							}
 						}
 						return false;
@@ -12284,9 +12283,9 @@ private:
 
 				} else {
 
-					if (this->remote_cells_on_process_boundary.count(item->first) > 0) {
+					if (this->remote_cells_on_process_boundary.count(item.first) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Remote cell " << item->first
+							<< " Remote cell " << item.first
 							<< " should not be in remote_cells_on_process_boundary"
 							<< std::endl;
 						return false;
@@ -12300,7 +12299,7 @@ private:
 
 				// search in neighbors_of
 				const auto neighbors_of
-					= this->find_neighbors_of(item->first, this->neighborhood_of);
+					= this->find_neighbors_of(item.first, this->neighborhood_of);
 
 				for (const auto& neighbor_i: neighbors_of) {
 					const auto& neighbor = neighbor_i.first;
@@ -12313,10 +12312,10 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(item->first, neighbor)) {
+					if (!this->is_neighbor(item.first, neighbor)) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << neighbor
-							<< " should be a neighbor of cell " << item->first
+							<< " should be a neighbor of cell " << item.first
 							<< std::endl;
 						abort();
 					}
@@ -12324,7 +12323,7 @@ private:
 
 				// search in neighbors_to
 				const auto neighbors_to
-					= this->find_neighbors_to(item->first, this->neighborhood_to);
+					= this->find_neighbors_to(item.first, this->neighborhood_to);
 				for (const auto& neighbor_i: neighbors_to) {
 					const auto& neighbor = neighbor_i.first;
 
@@ -12336,9 +12335,9 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(neighbor, item->first)) {
+					if (!this->is_neighbor(neighbor, item.first)) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Cell " << item->first
+							<< " Cell " << item.first
 							<< " should be a neighbor of cell " << neighbor
 							<< std::endl;
 						exit(EXIT_FAILURE);
@@ -12346,17 +12345,17 @@ private:
 				}
 
 				if (no_remote_neighbor) {
-					if (this->local_cells_on_process_boundary.count(item->first) > 0) {
+					if (this->local_cells_on_process_boundary.count(item.first) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Local cell " << item->first
+							<< " Local cell " << item.first
 							<< " should not be in local_cells_on_process_boundary"
 							<< std::endl;
 						return false;
 					}
 				} else {
-					if (this->local_cells_on_process_boundary.count(item->first) == 0) {
+					if (this->local_cells_on_process_boundary.count(item.first) == 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Local cell " << item->first
+							<< " Local cell " << item.first
 							<< " should be in local_cells_on_process_boundary"
 							<< std::endl;
 						return false;
