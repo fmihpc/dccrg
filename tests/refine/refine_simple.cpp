@@ -1,5 +1,8 @@
 /*
 Tests the grid using simple refinement which should induce refinement also across processes
+
+Copyright 2010, 2011, 2012, 2013, 2014,
+2018, 2019 Finnish Meteorological Institute
 */
 
 #include "algorithm"
@@ -47,8 +50,8 @@ int main(int argc, char* argv[])
 
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid;
 
-	#define GRID_SIZE 2
-	#define NEIGHBORHOOD_SIZE 1
+	constexpr size_t GRID_SIZE = 2;
+	constexpr unsigned int NEIGHBORHOOD_SIZE = 1;
 	grid
 		.set_initial_length({GRID_SIZE, 1, 1})
 		.set_neighborhood_length(NEIGHBORHOOD_SIZE)
@@ -56,9 +59,9 @@ int main(int argc, char* argv[])
 		.set_load_balancing_method("RANDOM")
 		.initialize(comm);
 
-	#define CELL_SIZE (1.0 / GRID_SIZE)
+	constexpr double CELL_SIZE = 1.0 / GRID_SIZE;
 	Stretched_Cartesian_Geometry::Parameters geom_params;
-	for (int i = 0; i <= GRID_SIZE; i++) {
+	for (size_t i = 0; i <= GRID_SIZE; i++) {
 		geom_params.coordinates[0].push_back(i * CELL_SIZE);
 	}
 	geom_params.coordinates[1].push_back(0);
@@ -78,8 +81,8 @@ int main(int argc, char* argv[])
 		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 
-	#define TIME_STEPS 3
-	for (int step = 0; step < TIME_STEPS; step++) {
+	constexpr size_t TIME_STEPS = 3;
+	for (size_t step = 0; step < TIME_STEPS; step++) {
 
 		// refine the smallest cell that is closest to the starting corner
 		const std::array<double, 3> refine_coord{
@@ -157,26 +160,6 @@ int main(int argc, char* argv[])
 		}
 		outfile.close();
 	}
-
-	/*auto cells = grid.get_cells();
-	for (int i = 0; i < comm_size; i++) {
-		MPI_Barrier(comm);
-		if (i != rank) {
-			continue;
-		}
-		for (const auto& c: cells) {
-			const auto* const neighbors = grid.get_neighbors_of(c);
-			auto sorted_neighbors{*neighbors};
-			sort(sorted_neighbors.begin(), sorted_neighbors.end());
-			cout << "Cell " << c << " neighbors (" << sorted_neighbors.size() << "): ";
-			for (const auto& n: sorted_neighbors) {
-				cout << n.first << " ";
-			}
-			cout << endl;
-		}
-		cout.flush();
-		sleep(2);
-	}*/
 
 	if (rank == 0) {
 		visit_file.close();
