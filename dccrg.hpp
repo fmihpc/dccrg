@@ -197,6 +197,11 @@ If needed, the arguments to get_mpi_datatype() provide additional information:
 
 Geometry class decides the physical size, shape, etc of the grid.
 
+Cell_Data transfers between processes are determined by which cells are
+considered as neighbors of other cells, which is defined by each cells'
+neighbors_of list. Process owning a cell receives Cell_Data of all
+neighbors_of of that cell from other processes.
+
 \see Dccrg() to instantiate a new grid object.
 */
 template <
@@ -6451,6 +6456,13 @@ public:
 
 	/*!
 	Adds a new neighborhood for updating Cell_Data between neighbors on different processes.
+
+	Cell_Data transfers are defined by neighborhood_of lists of each cell.
+	Data is transferred to owner of a cell from all neighbors_of cells, if
+	they are on different processes. Neighbors_of includes all cells at
+	relative positions given by given_neigh. Relative position is always
+	of same size as cell itself so all siblings of smaller neighbors_of are
+	always included.
 
 	Must be called with identical parameters on all processes.
 	No neighborhood_item_t can have all offsets equal to 0.
