@@ -1,7 +1,8 @@
 /*
 User neighborhood version of advection test of dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015,
+2016, 2019 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -44,15 +45,15 @@ using namespace std;
 using namespace dccrg;
 
 
-#define GRID_START_X 0
-#define GRID_START_Y 0
-#define GRID_START_Z 0
+constexpr double
+	GRID_START_X = 0,
+	GRID_START_Y = 0,
+	GRID_START_Z = 0,
+	GRID_END_X = 1.0,
+	GRID_END_Y = 1.0,
+	GRID_END_Z = 1.0;
 
-#define GRID_END_X 1.0
-#define GRID_END_Y 1.0
-#define GRID_END_Z 1.0
-
-#define NEIGHBORHOOD_ID 1
+constexpr int NEIGHBORHOOD_ID = 1;
 
 bool Cell::transfer_all_data = false;
 
@@ -177,16 +178,14 @@ int main(int argc, char* argv[])
 
 	switch (direction) {
 	case 'x':
-		grid_length[0] = 1;
-		grid_length[1] = cells;
-		grid_length[2] = cells;
+		grid_length = {1, cells, cells};
 
-		geom_params.start[0] = GRID_START_X;
-		geom_params.start[1] = GRID_START_Y;
-		geom_params.start[2] = GRID_START_Z;
-		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
-		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
-		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
+		geom_params.start = {GRID_START_X, GRID_START_Y, GRID_START_Z};
+		geom_params.level_0_cell_length = {
+			GRID_END_X / cells,
+			GRID_END_Y / cells,
+			GRID_END_Z / cells
+		};
 
 		grid
 			.set_initial_length(grid_length)
@@ -198,16 +197,14 @@ int main(int argc, char* argv[])
 		break;
 
 	case 'y':
-		grid_length[0] = cells;
-		grid_length[1] = 1;
-		grid_length[2] = cells;
+		grid_length = {cells, 1, cells};
 
-		geom_params.start[0] = GRID_START_X;
-		geom_params.start[1] = GRID_START_Y;
-		geom_params.start[2] = GRID_START_Z;
-		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
-		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
-		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
+		geom_params.start = {GRID_START_X, GRID_START_Y, GRID_START_Z};
+		geom_params.level_0_cell_length = {
+			GRID_END_X / cells,
+			GRID_END_Y / cells,
+			GRID_END_Z / cells
+		};
 
 		grid
 			.set_initial_length(grid_length)
@@ -219,16 +216,14 @@ int main(int argc, char* argv[])
 		break;
 
 	case 'z':
-		grid_length[0] = cells;
-		grid_length[1] = cells;
-		grid_length[2] = 1;
+		grid_length = {cells, cells, 1};
 
-		geom_params.start[0] = GRID_START_X;
-		geom_params.start[1] = GRID_START_Y;
-		geom_params.start[2] = GRID_START_Z;
-		geom_params.level_0_cell_length[0] = GRID_END_X / cells;
-		geom_params.level_0_cell_length[1] = GRID_END_Y / cells;
-		geom_params.level_0_cell_length[2] = GRID_END_Z / cells;
+		geom_params.start = {GRID_START_X, GRID_START_Y, GRID_START_Z};
+		geom_params.level_0_cell_length = {
+			GRID_END_X / cells,
+			GRID_END_Y / cells,
+			GRID_END_Z / cells
+		};
 
 		grid
 			.set_initial_length(grid_length)
@@ -243,6 +238,7 @@ int main(int argc, char* argv[])
 		cerr << "Unsupported direction given: " << direction << endl;
 		break;
 	}
+	grid.initialize(comm);
 
 	// create the neighborhood
 	typedef dccrg::Types<3>::neighborhood_item_t neigh_t;
