@@ -79,13 +79,16 @@ int main(int argc, char* argv[])
 		for (const auto& cell: grid.local_cells) {
 			set<uint64_t> ref_neighbors_of{all_cells};
 			ref_neighbors_of.erase(cell.id);
-			if (cell.id == 6 or cell.id == 10 or cell.id == 14 or cell.id == 18) {
+			if (cell.id % 2 == 0) {
 				ref_neighbors_of.erase(1);
 			}
 
-			set<uint64_t> neighbors_of;
+			set<uint64_t> neighbors_of, found_neighbors_of;
 			for (const auto& neighbor: cell.neighbors_of) {
 				neighbors_of.insert(neighbor.id);
+			}
+			for (const auto& neighbor: grid.find_neighbors_of(cell.id, grid.get_neighborhood_of())) {
+				found_neighbors_of.insert(neighbor.first);
 			}
 			if (ref_neighbors_of != neighbors_of) {
 				cerr << __FILE__ "(" << __LINE__ << ") " << i
@@ -94,6 +97,8 @@ int main(int argc, char* argv[])
 				for (const auto& n: neighbors_of) cerr << n << ", ";
 				cerr << "\nReference: ";
 				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << "\nFound: ";
+				for (const auto& n: found_neighbors_of) cerr << n << ", ";
 				cerr << endl;
 				return EXIT_FAILURE;
 			}
@@ -199,13 +204,13 @@ int main(int argc, char* argv[])
 			}
 
 			if (ref_neighbors_of != neighbors_of) {
-				cerr << "FAILED" << endl;
-				cout << "Wrong neighbors_of for cell " << cell.id
-					<< "\nResult: ";
-				for (const auto& n: neighbors_of) cout << n << ", ";
-				cout << "\nReference: ";
-				for (const auto& n: ref_neighbors_of) cout << n << ", ";
-				cout << endl;
+				cerr << __FILE__ "(" << __LINE__ << ") " << i
+					<< " Wrong neighbors_of for cell " << cell.id
+					<< ":\nResult: ";
+				for (const auto& n: neighbors_of) cerr << n << ", ";
+				cerr << "\nReference: ";
+				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << endl;
 				return EXIT_FAILURE;
 			}
 		}
