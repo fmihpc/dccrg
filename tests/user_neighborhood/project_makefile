@@ -82,6 +82,7 @@ tests/user_neighborhood/game_of_life.mtst: \
 
 tests/user_neighborhood/advection.exe: \
   tests/user_neighborhood/advection.cpp \
+  tests/advection/solve.hpp \
   $(TESTS_USER_NEIGHBORHOOD_COMMON_DEPS)
 	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND)
 
