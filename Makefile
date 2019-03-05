@@ -39,6 +39,7 @@ include \
   tests/get_cells/project_makefile \
   tests/geometry/project_makefile \
   tests/load_balancing/project_makefile \
+  tests/loading/project_makefile \
   tests/refine/project_makefile \
   tests/game_of_life/project_makefile \
   tests/restart/project_makefile \

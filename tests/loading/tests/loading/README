@@ -1,0 +1,4 @@
+This file exists because loading tests try to store their result
+in directory tests/loading/ relative to current directory.
+If executed from root of dccrg by make test it works but if
+executed from their current directory this one must exist.

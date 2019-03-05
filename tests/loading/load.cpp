@@ -48,9 +48,13 @@ int main(int argc, char* argv[])
 
 	// initialize grid
 	Dccrg<CellData> grid;
-	const std::array<uint64_t, 3> grid_length = {{10, 10, 10}};
-	grid.initialize(grid_length, comm, "RANDOM", 2, 5);
-	grid.balance_load();
+	grid
+		.set_initial_length({10, 10, 10})
+		.set_neighborhood_length(2)
+		.set_maximum_refinement_level(5)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm)
+		.balance_load();
 
 	const std::vector<uint64_t> cells_to_load{
 		// refine the corners twice
@@ -73,7 +77,7 @@ int main(int argc, char* argv[])
 
 	// save the grid
 	const std::string
-		base_output_name("load_"),
+		base_output_name("tests/loading/load_"),
 		output_name_suffix(".vtk");
 
 	grid.write_vtk_file(
@@ -84,7 +88,7 @@ int main(int argc, char* argv[])
 
 	// visualize with visit -o load.visit
 	if (rank == 0) {
-		ofstream visit_file("load.visit");
+		ofstream visit_file("tests/loading/load.visit");
 
 		visit_file << "!NBLOCKS " << comm_size << endl;
 		for (int i = 0; i < comm_size; i++) {
@@ -94,12 +98,7 @@ int main(int argc, char* argv[])
 		visit_file.close();
 	}
 
-	if (rank == 0) {
-		cout << "PASSED" << endl;
-	}
-
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;
 }
-

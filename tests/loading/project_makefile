@@ -1,0 +1,50 @@
+TESTS_LOADING_EXECUTABLES = \
+  tests/loading/load.exe
+
+tests/loading/executables: $(TESTS_LOADING_EXECUTABLES)
+
+TESTS_LOADING_TESTS = \
+  tests/loading/load.tst \
+  tests/loading/load.mtst
+
+tests/loading/tests: $(TESTS_LOADING_TESTS)
+
+tests/loading/clean:
+	@printf "CLEAN tests/loading\n" && rm -f \
+	  $(TESTS_LOADING_EXECUTABLES) $(TESTS_LOADING_TESTS) \
+	  tests/loading/*.vtk tests/loading/*.visit
+
+EXECUTABLES += tests/loading/executables
+CLEAN += tests/loading/clean
+
+
+TESTS_LOADING_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/loading/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_LOADING_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/loading/load.exe: \
+  tests/loading/load.cpp \
+  $(TESTS_LOADING_COMMON_DEPS)
+	$(TESTS_LOADING_COMPILE_COMMAND)
+
+tests/loading/load.tst: \
+  tests/loading/load.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/loading/load.mtst: \
+  tests/loading/load.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
