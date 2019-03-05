@@ -216,7 +216,7 @@ int main(int argc, char* argv[])
 		get_live_neighbors(reference_grid);
 
 		// verify refined/unrefined game
-		for (const auto& cell: grid.cells) {
+		for (const auto& cell: grid.local_cells) {
 			uint64_t reference_cell_id = cell.id;
 			const int refinement_level = grid.get_refinement_level(cell.id);
 			if (refinement_level > 0) {
@@ -224,7 +224,7 @@ int main(int argc, char* argv[])
 			}
 
 			const auto* const reference_data = reference_grid[reference_cell_id];
-			if (reference_data == NULL) {
+			if (reference_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " No data for reference cell " << reference_cell_id
 					<< std::endl;
@@ -233,7 +233,8 @@ int main(int argc, char* argv[])
 
 			if (cell.data->data[0] != reference_data->data[0]) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell's " << cell.id << " life doesn't agree with reference."
+					<< " Cell's " << cell.id
+					<< " life doesn't agree with reference at step " << step
 					<< std::endl;
 				abort();
 			}
