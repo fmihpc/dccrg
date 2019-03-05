@@ -358,7 +358,11 @@ int main(int argc, char* argv[])
 			}
 
 			if (neighs_i.second != ref) {
-				std::cerr << __FILE__ "(" << __LINE__ << "): " << neighs_i.first << std::endl;
+				std::cerr << __FILE__ "(" << __LINE__ << ") " << neighs_i.first << ": ";
+				for (const auto& n: neighs_i.second) {
+					std::cerr << n << ", ";
+				}
+				std::cerr << std::endl;
 				abort();
 			}
 		}}
