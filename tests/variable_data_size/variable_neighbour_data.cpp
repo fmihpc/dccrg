@@ -73,25 +73,25 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<CellData> grid;
+	Dccrg<CellData> grid; grid
+		.set_initial_length({3, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
-	const std::array<uint64_t, 3> grid_length = {{3, 1, 1}};
-	grid.initialize(grid_length, comm, "RANDOM", 1, 0);
 	grid.allocate_copies_of_remote_neighbors();
 
 	// populate the grid, number of variables in a cell is equal to its id
-	auto cells = grid.get_cells();
-	for (auto cell: cells) {
-		auto* const cell_data = grid[cell];
-		if (cell_data == NULL) { abort(); }
-
-		for (uint64_t i = 0; i < cell; i++) {
-			cell_data->variables1.push_back(cell + i);
-			cell_data->variables2.push_back(-(cell + i));
+	for (const auto& cell: grid.local_cells) {
+		for (uint64_t i = 0; i < cell.id; i++) {
+			cell.data->variables1.push_back(cell.id + i);
+			cell.data->variables2.push_back(-(cell.id + i));
 		}
 	}
 
 	// make room for incoming cell data
+	// TODO: switch to iterator once it's implemented
 	auto remote_cells = grid.get_remote_cells_on_process_boundary();
 	for (auto cell: remote_cells) {
 		auto* const cell_data = grid[cell];
@@ -112,26 +112,15 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (auto cell: cells) {
-			cout << "Cell " << cell << " data (on process " << rank << "): ";
+		for (const auto& cell: grid.local_cells) {
+			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
-			const auto* const cell_data = grid[cell];
-			if (cell_data == NULL) { abort(); }
-
-			for (auto variable: cell_data->variables1) {
+			for (auto variable: cell.data->variables1) {
 				cout << variable << " ";
 			}
 
-			const auto* neighbors = grid.get_neighbors_of(cell);
-			for (auto neighbor: *neighbors) {
-				if (neighbor == dccrg::error_cell) {
-					continue;
-				}
-
-				const auto* const neighbor_data = grid[neighbor];
-				if (neighbor_data == NULL) { abort(); }
-
-				for (auto variable: neighbor_data->variables2) {
+			for (const auto& neighbor: cell.neighbors_of) {
+				for (const auto& variable: neighbor.data->variables2) {
 					cout << variable << " ";
 				}
 			}
@@ -169,8 +158,6 @@ int main(int argc, char* argv[])
 	}
 	grid.update_copies_of_remote_neighbors();
 
-	cells = grid.get_cells();
-
 	if (rank == 0) {
 		cout << endl;
 	}
@@ -182,23 +169,15 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (auto cell: cells) {
-			cout << "Cell " << cell << " data (on process " << rank << "): ";
+		for (const auto& cell: grid.local_cells) {
+			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
-			const auto* const cell_data = grid[cell];
-			for (auto variable: cell_data->variables1) {
+			for (const auto& variable: cell.data->variables1) {
 				cout << variable << " ";
 			}
 
-			const auto* neighbors = grid.get_neighbors_of(cell);
-			for (auto neighbor: *neighbors) {
-				if (neighbor == dccrg::error_cell) {
-					continue;
-				}
-
-				const auto* const neighbor_data = grid[neighbor];
-
-				for (auto variable: neighbor_data->variables2) {
+			for (const auto& neighbor: cell.neighbors_of) {
+				for (const auto& variable: neighbor.data->variables2) {
 					cout << variable << " ";
 				}
 			}
@@ -232,8 +211,6 @@ int main(int argc, char* argv[])
 		cell_data->variables2.resize(cell);
 	}
 
-	cells = grid.get_cells();
-
 	if (rank == 0) {
 		cout << endl;
 	}
@@ -248,23 +225,15 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (auto cell: cells) {
-			cout << "Cell " << cell << " data (on process " << rank << "): ";
+		for (const auto& cell: grid.local_cells) {
+			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
-			const auto* const cell_data = grid[cell];
-			for (auto variable: cell_data->variables1) {
+			for (const auto& variable: cell.data->variables1) {
 				cout << variable << " ";
 			}
 
-			const auto* const neighbors = grid.get_neighbors_of(cell);
-			for (auto neighbor: *neighbors) {
-				if (neighbor == dccrg::error_cell) {
-					continue;
-				}
-
-				const auto* const neighbor_data = grid[neighbor];
-
-				for (auto variable: neighbor_data->variables2) {
+			for (const auto& neighbor: cell.neighbors_of) {
+				for (const auto& variable: neighbor.data->variables2) {
 					cout << variable << " ";
 				}
 			}
@@ -278,4 +247,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

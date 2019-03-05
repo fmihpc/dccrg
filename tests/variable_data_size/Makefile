@@ -1,15 +1,10 @@
-FLAGS = -W -Wall -Wextra -pedantic -std=c++11 -O3
-INCLUDES = -I$$HOME/include -L$$HOME/lib -lzoltan
-CXX = mpic++ $(FLAGS)
+all:
+	@$(MAKE) tests/variable_data_size/executables -C ../..
 
-all: variable_data_size variable_neighbour_data
-
-variable_data_size: variable_data_size.cpp ../../dccrg.hpp ../../dccrg_stretched_cartesian_geometry.hpp Makefile
-	$(CXX) -DDEBUG variable_data_size.cpp $(INCLUDES) -o variable_data_size
-
-variable_neighbour_data: variable_neighbour_data.cpp ../../dccrg.hpp ../../dccrg_stretched_cartesian_geometry.hpp Makefile
-	$(CXX) -DDEBUG variable_neighbour_data.cpp $(INCLUDES) -o variable_neighbour_data
+t: test
+test:
+	@$(MAKE) tests/variable_data_size/tests -C ../..
 
 c: clean
 clean:
-	rm -f variable_data_size variable_neighbour_data
+	@$(MAKE) tests/variable_data_size/clean -C ../..

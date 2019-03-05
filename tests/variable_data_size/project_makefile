@@ -1,0 +1,66 @@
+TESTS_VARIABLE_DATA_SIZE_EXECUTABLES = \
+  tests/variable_data_size/variable_data_size.exe \
+  tests/variable_data_size/variable_neighbour_data.exe
+
+tests/variable_data_size/executables: $(TESTS_VARIABLE_DATA_SIZE_EXECUTABLES)
+
+TESTS_VARIABLE_DATA_SIZE_TESTS = \
+  tests/variable_data_size/variable_data_size.tst \
+  tests/variable_data_size/variable_data_size.mtst \
+  tests/variable_data_size/variable_neighbour_data.tst \
+  tests/variable_data_size/variable_neighbour_data.mtst
+
+tests/variable_data_size/tests: $(TESTS_VARIABLE_DATA_SIZE_TESTS)
+
+tests/variable_data_size/clean:
+	@printf "CLEAN tests/variable_data_size\n" && rm -f \
+	  $(TESTS_VARIABLE_DATA_SIZE_EXECUTABLES) $(TESTS_VARIABLE_DATA_SIZE_TESTS)
+
+
+EXECUTABLES += tests/variable_data_size/executables
+CLEAN += tests/variable_data_size/clean
+
+
+TESTS_VARIABLE_DATA_SIZE_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/variable_data_size/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_VARIABLE_DATA_SIZE_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/variable_data_size/variable_data_size.exe: \
+  tests/variable_data_size/variable_data_size.cpp \
+  $(TESTS_VARIABLE_DATA_SIZE_COMMON_DEPS)
+	$(TESTS_VARIABLE_DATA_SIZE_COMPILE_COMMAND)
+
+tests/variable_data_size/variable_data_size.tst: \
+  tests/variable_data_size/variable_data_size.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/variable_data_size/variable_data_size.mtst: \
+  tests/variable_data_size/variable_data_size.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+tests/variable_data_size/variable_neighbour_data.exe: \
+  tests/variable_data_size/variable_neighbour_data.cpp \
+  $(TESTS_VARIABLE_DATA_SIZE_COMMON_DEPS)
+	$(TESTS_VARIABLE_DATA_SIZE_COMPILE_COMMAND)
+
+tests/variable_data_size/variable_neighbour_data.tst: \
+  tests/variable_data_size/variable_neighbour_data.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/variable_data_size/variable_neighbour_data.mtst: \
+  tests/variable_data_size/variable_neighbour_data.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

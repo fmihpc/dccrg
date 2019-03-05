@@ -47,17 +47,17 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	Dccrg<CellData> grid;
-
-	const std::array<uint64_t, 3> grid_length = {{3, 1, 1}};
-	grid.initialize(grid_length, comm, "RANDOM", 1, 0);
+	Dccrg<CellData> grid; grid
+		.set_initial_length({3, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
 
 	// populate the grid, number of variables in a cell is equal to its id
-	vector<uint64_t> cells = grid.get_cells();
-	for (auto cell: cells) {
-		auto* const cell_data = grid[cell];
-		for (uint64_t i = 0; i < cell; i++) {
-			cell_data->variables.push_back(cell + i);
+	for (const auto& cell: grid.local_cells) {
+		for (uint64_t i = 0; i < cell.id; i++) {
+			cell.data->variables.push_back(cell.id + i);
 		}
 	}
 
@@ -68,11 +68,10 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (auto cell: cells) {
-			cout << "Cell " << cell << " data (on process " << rank << "): ";
+		for (const auto& cell: grid.local_cells) {
+			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
-			const auto* const cell_data = grid[cell];
-			for (auto variable: cell_data->variables) {
+			for (const auto& variable: cell.data->variables) {
 				cout << variable << " ";
 			}
 			cout << endl;
@@ -99,8 +98,6 @@ int main(int argc, char* argv[])
 		cout << endl;
 	}
 
-	cells = grid.get_cells();
-
 	// print cell data again
 	for (int proc = 0; proc < comm_size; proc++) {
 		MPI_Barrier(comm);
@@ -108,12 +105,11 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (auto cell: cells) {
+		for (const auto& cell: grid.local_cells) {
 
-			cout << "Cell " << cell << " data (on process " << rank << "): ";
+			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
-			const auto* const cell_data = grid[cell];
-			for (auto variable: cell_data->variables) {
+			for (const auto& variable: cell.data->variables) {
 				cout << variable << " ";
 			}
 			cout << endl;
@@ -126,4 +122,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-
