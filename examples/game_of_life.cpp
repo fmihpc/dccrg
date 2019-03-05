@@ -18,7 +18,10 @@ Serial performance has not been optimized, for that see game_of_life_optimized.c
 
 using namespace std;
 
-// store in every cell of the grid whether the cell is alive and the number of live neighbors it has
+/*
+Stores in every cell of the grid whether the cell is
+alive as well as the number of live neighbors it has.
+*/
 struct game_of_life_cell {
 	unsigned int is_alive = 0, live_neighbor_count = 0;
 
@@ -30,7 +33,7 @@ struct game_of_life_cell {
 
 
 /*!
-Initializes game.
+Initializes game with random live cells.
 */
 template<class Cell_Iterator> void initialize_game(const Cell_Iterator& cells) {
 	for (const auto& cell: cells) {
@@ -46,7 +49,7 @@ template<class Cell_Iterator> void initialize_game(const Cell_Iterator& cells) {
 
 
 /*!
-Calculates the number of live neihgbours for every cell given, all of which must be local
+Calculates the number of live neihgbours for given local cells.
 */
 template<class Cell_Iterator> void get_live_neighbor_counts(
 	const Cell_Iterator& cells
@@ -63,7 +66,7 @@ template<class Cell_Iterator> void get_live_neighbor_counts(
 
 
 /*!
-Applies the game of life rules to every given cell, all of which must be local.
+Applies the game of life rules to given local cells.
 */
 template<class Cell_Iterator> void apply_rules(const Cell_Iterator& cells) {
 	for (const auto& cell: cells) {
@@ -178,4 +181,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

@@ -32,7 +32,7 @@ struct game_of_life_cell {
 
 
 /*!
-Initializes game.
+Initializes game with random live cells.
 */
 void initialize_game(
 	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
@@ -50,7 +50,7 @@ void initialize_game(
 
 
 /*!
-Calculates the number of live neihgbours for every cell given, all of which must be local
+Calculates the number of live neihgbours for given local cells.
 */
 template<class Cell_Iterator> void get_live_neighbor_counts(
 	const Cell_Iterator& cells
@@ -68,7 +68,7 @@ template<class Cell_Iterator> void get_live_neighbor_counts(
 
 
 /*!
-Applies the game of life rules to every given cell, all of which must be local
+Applies the game of life rules to given local cells.
 */
 void apply_rules(
 	const dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
@@ -165,4 +165,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-
