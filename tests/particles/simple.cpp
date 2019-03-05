@@ -2,7 +2,7 @@
 Particle propagator for dccrg.
 
 Copyright 2012, 2013, 2014,
-2015, 2016 Finnish Meteorological Institute
+2015, 2016, 2019 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -126,7 +126,7 @@ void save(const int rank, const Dccrg<Cell>& grid, unsigned int step)
 {
 	// write the grid
 	const string grid_file_name(
-		lexical_cast<string>("simple_")
+		lexical_cast<string>("tests/particles/simple_")
 		+ lexical_cast<string>(rank) + "_"
 		+ lexical_cast<string>(step) + "_grid.vtk"
 	);
@@ -134,7 +134,7 @@ void save(const int rank, const Dccrg<Cell>& grid, unsigned int step)
 
 	// write the particles
 	const string outname(
-		lexical_cast<string>("simple_")
+		lexical_cast<string>("tests/particles/simple_")
 		+ lexical_cast<string>(rank) + "_"
 		+ lexical_cast<string>(step) + ".vtk"
 	);
@@ -240,21 +240,21 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize grid
-	Dccrg<Cell> grid;
-	const std::array<uint64_t, 3> grid_length = {{3, 1, 1}};
-	grid.initialize(grid_length, comm, "RANDOM", 1, 0, true, true, true);
-
-	const auto cells = grid.get_cells();
+	Dccrg<Cell> grid; grid
+		.set_initial_length({3, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(0)
+		.set_load_balancing_method("RANDOM")
+		.set_periodic(true, true, true)
+		.initialize(comm);
 
 	// initial condition
 	const unsigned int max_particles_per_cell = 5;
-	for (const auto& cell: cells) {
-
-		auto* const cell_data = grid[cell];
+	for (const auto& cell: grid.local_cells) {
 
 		const std::array<double, 3>
-			cell_min = grid.geometry.get_min(cell),
-			cell_max = grid.geometry.get_max(cell);
+			cell_min = grid.geometry.get_min(cell.id),
+			cell_max = grid.geometry.get_max(cell.id);
 
 		const unsigned int number_of_particles
 			= (unsigned int)ceil(max_particles_per_cell * double(rand()) / RAND_MAX);
@@ -265,8 +265,8 @@ int main(int argc, char* argv[])
 				cell_min[2] + (cell_max[2] - cell_min[2]) * double(rand()) / RAND_MAX
 			}};
 
-			cell_data->particles.push_back(coordinates);
-			cell_data->number_of_particles = cell_data->particles.size();
+			cell.data->particles.push_back(coordinates);
+			cell.data->number_of_particles = cell.data->particles.size();
 		}
 	}
 
@@ -274,8 +274,8 @@ int main(int argc, char* argv[])
 	Visualize the results for example with visit -o simple_particles.visit
 	or visit -o simple_grid.visit or overlay them both from the user interface.
 	*/
-	const string visit_particles_name("simple_particles.visit"),
-		visit_grid_name("simple_grid.visit");
+	const string visit_particles_name("tests/particles/simple_particles.visit"),
+		visit_grid_name("tests/particles/simple_grid.visit");
 
 	ofstream visit_particles, visit_grid;
 
@@ -292,10 +292,10 @@ int main(int argc, char* argv[])
 		// append current output file names to the visit files
 		if (rank == 0) {
 			for (int i = 0; i < comm_size; i++) {
-				visit_particles << "simple_"
+				visit_particles << "tests/particles/simple_"
 					<< i << "_"
 					<< step << ".vtk\n";
-				visit_grid << "simple_"
+				visit_grid << "tests/particles/simple_"
 					<< i << "_"
 					<< step << "_grid.vtk\n";
 			}
@@ -325,10 +325,10 @@ int main(int argc, char* argv[])
 	// append final output file names to the visit files
 	if (rank == 0) {
 		for (int i = 0; i < comm_size; i++) {
-				visit_particles << "simple_"
+				visit_particles << "tests/particles/simple_"
 					<< rank << "_"
 					<< max_steps << ".vtk\n";
-				visit_grid << "simple_"
+				visit_grid << "tests/particles/simple_"
 					<< rank << "_"
 					<< max_steps << "_grid.vtk\n";
 		}
@@ -342,4 +342,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

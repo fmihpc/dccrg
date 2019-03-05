@@ -1,0 +1,50 @@
+TESTS_PARTICLES_EXECUTABLES = \
+  tests/particles/simple.exe
+
+tests/particles/executables: $(TESTS_PARTICLES_EXECUTABLES)
+
+TESTS_PARTICLES_TESTS = \
+  tests/particles/simple.tst \
+  tests/particles/simple.mtst
+
+tests/particles/tests: $(TESTS_PARTICLES_TESTS)
+
+tests/particles/clean:
+	@printf "CLEAN tests/particles\n" && rm -f \
+	  $(TESTS_PARTICLES_EXECUTABLES) $(TESTS_PARTICLES_TESTS) \
+	  tests/particles/*.vtk tests/particles/*.visit
+
+EXECUTABLES += tests/particles/executables
+CLEAN += tests/particles/clean
+
+
+TESTS_PARTICLES_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/particles/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_PARTICLES_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/particles/simple.exe: \
+  tests/particles/simple.cpp \
+  $(TESTS_PARTICLES_COMMON_DEPS)
+	$(TESTS_PARTICLES_COMPILE_COMMAND)
+
+tests/particles/simple.tst: \
+  tests/particles/simple.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/particles/simple.mtst: \
+  tests/particles/simple.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
