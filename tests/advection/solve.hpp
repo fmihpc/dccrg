@@ -2,7 +2,7 @@
 A solver for the advection tests of dccrg.
 
 Copyright 2012, 2013, 2014, 2015, 2016,
-2018 Finnish Meteorological Institute
+2018, 2019 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -100,8 +100,17 @@ template<class Grid> void calculate_fluxes(
 				continue;
 			}
 			if (overlaps > 2) {
+				const auto
+					ci = grid.mapping.get_indices(cell.id),
+					ni = grid.mapping.get_indices(neighbor.id);
+				const auto
+					cl = grid.mapping.get_cell_length_in_indices(cell.id),
+					nl = grid.mapping.get_cell_length_in_indices(neighbor.id);
 				std::cerr << __FILE__ "(" << __LINE__ << "): "
-					<< cell.id << " <=> " << neighbor.id << std::endl;
+					<< cell.id << " <" << cl << "> (" << ci[0] << "," << ci[1] << "," << ci[2]
+					<< ") <=> " << neighbor.id << " <" << nl << "> ("
+					<< ni[0] << "," << ni[1] << "," << ni[2] << ")"
+					<< std::endl;
 				abort();
 			}
 
@@ -239,15 +248,16 @@ template<class Grid> void calculate_fluxes(
 		if (face_neighbors.size() != ref_face_neighbors.size()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Unexpected number of face neighbors for cell " << cell.id
-				<< ": " << face_neighbors.size() << " (";
+				<< " (ref lvl " << grid.mapping.get_refinement_level(cell.id)
+				<< ", child of " << grid.mapping.get_parent(cell.id) << "): " << face_neighbors.size() << "  ";
 			for (const auto& n: face_neighbors) {
-				std::cerr << n << ",";
+				std::cerr << n << " (" << grid.mapping.get_refinement_level(n) << "," << grid.mapping.get_parent(n) << "),";
 			}
-			std::cerr << ") instead of " << ref_face_neighbors.size() << " (";
+			std::cerr << "   instead of " << ref_face_neighbors.size() << "  ";
 			for (const auto& n: ref_face_neighbors) {
-				std::cerr << n << ",";
+				std::cerr << n << " (" << grid.mapping.get_refinement_level(n) << ", " << grid.mapping.get_parent(n) << "), ";
 			}
-			std::cerr << ")" << std::endl;
+			std::cerr << std::endl;
 			abort();
 		}
 		#endif
