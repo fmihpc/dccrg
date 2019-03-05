@@ -52,7 +52,7 @@ template<class Geometry> void solve(dccrg::Dccrg<Cell, Geometry>& grid) {
 				} else {
 
 					bool sibling_processed = false;
-					uint64_t parent_of_neighbor = grid.get_parent(neighbor.id);
+					uint64_t parent_of_neighbor = grid.mapping.get_parent(neighbor.id);
 					for (int i = 0; i < 8; i++) {
 						if (cell.data->data[5 + i] == parent_of_neighbor) {
 							sibling_processed = true;
@@ -117,12 +117,12 @@ template<class Geometry> void solve(dccrg::Dccrg<Cell, Geometry>& grid) {
 				} else {
 
 					// ignore own siblings
-					if (grid.get_parent(cell.id) == grid.get_parent(neighbor.id)) {
+					if (grid.mapping.get_parent(cell.id) == grid.mapping.get_parent(neighbor.id)) {
 						continue;
 					}
 
 					bool sibling_processed = false;
-					uint64_t parent_of_neighbor = grid.get_parent(neighbor.id);
+					uint64_t parent_of_neighbor = grid.mapping.get_parent(neighbor.id);
 					for (int i = 0; i < 8; i++) {
 						if (cell.data->data[5 + i] == parent_of_neighbor) {
 							sibling_processed = true;
@@ -173,7 +173,7 @@ template<class Geometry> void solve(dccrg::Dccrg<Cell, Geometry>& grid) {
 			}
 
 			// total live neighbors counts only between siblings
-			if (grid.get_parent(cell.id) != grid.get_parent(neighbor.id)) {
+			if (grid.mapping.get_parent(cell.id) != grid.mapping.get_parent(neighbor.id)) {
 				continue;
 			}
 

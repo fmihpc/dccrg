@@ -2,7 +2,7 @@
 A class for refining the grid in game of life tests of dccrg.
 
 Copyright 2011, 2012, 2013, 2014,
-2015, 2016, 2018 Finnish Meteorological Institute
+2015, 2016, 2018, 2019 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -86,16 +86,16 @@ template<class Geometry> void refine(
 	for (const auto& new_cell: new_cells) {
 
 		auto* const new_cell_data = grid[new_cell];
-		if (new_cell_data == NULL) {
+		if (new_cell_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " no data for created cell " << new_cell
 				<< std::endl;
 			abort();
 		}
-		auto* const parent_data = grid[grid.get_parent(new_cell)];
-		if (parent_data == NULL) {
+		auto* const parent_data = grid[grid.mapping.get_parent(new_cell)];
+		if (parent_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " no data for parent cell " << grid.get_parent(new_cell)
+				<< " no data for parent cell " << grid.mapping.get_parent(new_cell)
 				<< std::endl;
 			abort();
 		}
@@ -108,7 +108,7 @@ template<class Geometry> void refine(
 	for (const auto& removed_cell: removed_cells) {
 
 		auto* const removed_cell_data = grid[removed_cell];
-		if (removed_cell_data == NULL) {
+		if (removed_cell_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " no data for removed cell after unrefining: "
 				<< removed_cell
@@ -117,7 +117,7 @@ template<class Geometry> void refine(
 		}
 
 		auto* const parent_data = grid[grid.mapping.get_parent(removed_cell)];
-		if (parent_data == NULL) {
+		if (parent_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " no data for parent cell after unrefining: "
 				<< grid.mapping.get_parent(removed_cell)
