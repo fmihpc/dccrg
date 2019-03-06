@@ -243,6 +243,7 @@ int main(int argc, char* argv[])
 		cerr << "Unsupported direction given: " << direction << endl;
 		break;
 	}
+	grid.initialize(comm);
 
 	// create the neighborhood
 	typedef dccrg::Types<3>::neighborhood_item_t neigh_t;
