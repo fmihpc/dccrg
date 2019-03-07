@@ -1,0 +1,43 @@
+TESTS_SCALABILITY_EXECUTABLES = \
+  tests/scalability/scalability.exe
+
+tests/scalability/executables: $(TESTS_SCALABILITY_EXECUTABLES)
+
+tests/scalability/clean:
+	@printf "CLEAN tests/scalability\n" && rm -f \
+	  $(TESTS_SCALABILITY_EXECUTABLES)
+
+EXECUTABLES += tests/scalability/executables
+CLEAN += tests/scalability/clean
+
+
+TESTS_SCALABILITY_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/scalability/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_SCALABILITY_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/scalability/scalability.exe: \
+  tests/scalability/scalability.cpp \
+  $(TESTS_SCALABILITY_COMMON_DEPS)
+	$(TESTS_SCALABILITY_COMPILE_COMMAND)
+
+tests/scalability/scalability.tst: \
+  tests/scalability/scalability.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/scalability/scalability.mtst: \
+  tests/scalability/scalability.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

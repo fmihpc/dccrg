@@ -76,21 +76,17 @@ size_t get_traffic_size(
 /*!
 Returns the amount of time in seconds spent "solving" given cells.
 */
-template<class CellData> double solve(
+template<class Cells> double solve(
 	const double solution_time,
-	const vector<uint64_t>& cells,
-	Dccrg<CellData>& grid
+	const Cells& cells
 ) {
 	const double start_time = MPI_Wtime();
 
 	for (const auto& cell: cells) {
-		auto* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			cerr << __FILE__ << ":" << __LINE__
-				<< "No data for cell " << cell << endl;
+		// do something with iterator
+		if (cell.id == dccrg::error_cell) {
 			abort();
 		}
-
 		// "solve" for given amount of time
 		const double end_time = MPI_Wtime() + solution_time;
 		double elapsed_time = MPI_Wtime();
@@ -188,21 +184,13 @@ int main(int argc, char* argv[])
 	Cell::data_size = data_size;
 
 	// initialize
-	Dccrg<Cell> grid;
-
-	const std::array<uint64_t, 3> grid_length{{x_length, y_length, z_length}};
-	grid.initialize(
-		grid_length,
-		comm,
-		load_balancer.c_str(),
-		neighborhood_size,
-		maximum_refinement_level
-	);
-	grid.balance_load();
-
-	vector<uint64_t>
-		inner_cells = grid.get_local_cells_not_on_process_boundary(),
-		outer_cells = grid.get_local_cells_on_process_boundary();
+	Dccrg<Cell> grid; grid
+		.set_initial_length({x_length, y_length, z_length})
+		.set_neighborhood_length(neighborhood_size)
+		.set_maximum_refinement_level(maximum_refinement_level)
+		.set_load_balancing_method(load_balancer.c_str())
+		.initialize(comm)
+		.balance_load();
 
 	double total_solution_time = 0;
 	double sends_size = 0, receives_size = 0;
@@ -217,10 +205,10 @@ int main(int argc, char* argv[])
 
 		grid.start_remote_neighbor_copy_updates();
 
-		total_solution_time += solve<Cell>(solution_time, inner_cells, grid);
+		total_solution_time += solve(solution_time, grid.inner_cells);
 		grid.wait_remote_neighbor_copy_update_receives();
 
-		total_solution_time += solve<Cell>(solution_time, outer_cells, grid);
+		total_solution_time += solve(solution_time, grid.outer_cells);
 		grid.wait_remote_neighbor_copy_update_sends();
 	}
 
@@ -248,4 +236,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-
