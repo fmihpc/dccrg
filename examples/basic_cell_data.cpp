@@ -34,13 +34,13 @@ int main(int argc, char* argv[])
 		.initialize(MPI_COMM_WORLD)
 		.balance_load();
 	// set cell id as value for cell data
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		*cell.data = (int)cell.id;
 	}
 	// check that cell data is updated
 	// correctly between processes
 	grid.update_copies_of_remote_neighbors();
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (const auto& neighbor: cell.neighbors_of) {
 			if (*neighbor.data != (int)neighbor.id) {
 				std::cerr << __FILE__ "(" << __LINE__

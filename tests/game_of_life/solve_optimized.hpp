@@ -40,7 +40,7 @@ Works only if cells within the grid have been refined <= 1 time.
 template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<Cell_Data, Geometry>& grid)
 {
 	// get the neighbor counts of every cell
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (size_t i = 1; i < cell.data->data.size(); i++) {
 			cell.data->data[i] = 0;
 		}
@@ -84,7 +84,7 @@ template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<C
 	grid.update_copies_of_remote_neighbors();
 
 	// spread live neighbor info between siblings
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto cell_parent_id = grid.mapping.get_level_0_parent(cell.id);
 
 		for (const auto& neighbor: cell.neighbors_of) {
@@ -116,7 +116,7 @@ template<class Cell_Data, class Geometry> void get_live_neighbors(dccrg::Dccrg<C
 	}
 
 	// calculate the next turn
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		size_t live_neighbors = 0;
 		for (size_t i = 1; i < cell.data->data.size(); i++) {
 			if (cell.data->data[i] != dccrg::error_cell) {

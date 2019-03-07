@@ -94,7 +94,7 @@ int main(int argc, char* argv[])
 		.initialize(comm);
 
 	cout << "\nfor (const auto& cell: grid.local_cells):" << endl;
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cout << cell.id << " ";
 	}
 	cout << endl;

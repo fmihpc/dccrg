@@ -36,7 +36,7 @@ template<class Cell_Data, class Geometry> void save(
 	const int process,
 	dccrg::Dccrg<Cell_Data, Geometry>& grid
 ) {
-	auto cells = grid.cells;
+	auto cells = grid.get_cells();
 	std::sort(cells.begin(), cells.end());
 
 	// write the grid into a file
@@ -49,34 +49,21 @@ template<class Cell_Data, class Geometry> void save(
 	outfile << "SCALARS is_alive float 1" << std::endl;
 	outfile << "LOOKUP_TABLE default" << std::endl;
 	for (const auto& cell: cells) {
-		outfile << cell.data->data[0] << std::endl;
+		outfile << grid[cell]->data[0] << std::endl;
 	}
 
 	// write each cells total live neighbor count
 	outfile << "SCALARS live_neighbor_count float 1" << std::endl;
 	outfile << "LOOKUP_TABLE default" << std::endl;
 	for (const auto& cell: cells) {
-		outfile << cell.data->data[1] << std::endl;
+		outfile << grid[cell]->data[1] << std::endl;
 	}
 
 	// write each cells neighbor count
 	outfile << "SCALARS neighbors int 1" << std::endl;
 	outfile << "LOOKUP_TABLE default" << std::endl;
 	for (const auto& cell: cells) {
-		const auto* const neighbors = grid.get_neighbors_of(cell.id);
-		std::set<uint64_t> neighbors1, neighbors2;
-		for (const auto& neighbor: *neighbors) neighbors2.insert(neighbor.first);
-		neighbors2.erase(dccrg::error_cell);
-		for (const auto& neighbor: cell.neighbors_of) {
-			neighbors1.insert(neighbor.id);
-		}
-		if (neighbors1.size() != neighbors2.size()) {
-			std::cerr << __FILE__ "(" << __LINE__ << "): "
-				<< neighbors1.size() << " != " << neighbors2.size() << std::endl;
-		}
-		if (not std::equal(neighbors1.cbegin(), neighbors1.cend(), neighbors2.cbegin())) {
-			std::cerr << __FILE__ "(" << __LINE__ << ")" << std::endl;
-		}
+		const auto* const neighbors = grid.get_neighbors_of(cell);
 		outfile << neighbors->size() << std::endl;
 	}
 
@@ -91,7 +78,7 @@ template<class Cell_Data, class Geometry> void save(
 	outfile << "SCALARS id int 1" << std::endl;
 	outfile << "LOOKUP_TABLE default" << std::endl;
 	for (const auto& cell: cells) {
-		outfile << cell.id << std::endl;
+		outfile << cell << std::endl;
 	}
 	outfile.close();
 }

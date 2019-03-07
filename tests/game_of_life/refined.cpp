@@ -86,14 +86,14 @@ int main(int argc, char* argv[])
 	grid.set_geometry(geom_params);
 
 	// refine the grid increasingly in the z direction a few times
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		if (grid.geometry.get_center(cell.id)[2] > 1 * 1.5 * cell_length) {
 			grid.refine_completely(cell.id);
 		}
 	}
 	grid.stop_refining();
 	grid.balance_load();
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		if (grid.geometry.get_center(cell.id)[2] > 2 * 1.5 * cell_length) {
 			grid.refine_completely(cell.id);
 		}
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 	grid.balance_load();
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (auto& cell: grid.local_cells) {
+	for (auto& cell: grid.local_cells()) {
 		cell.data->live_neighbor_count = 0;
 
 		const std::array<double, 3>
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
 		grid.balance_load();
 		grid.update_copies_of_remote_neighbors();
 		std::vector<uint64_t> cells;
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			cells.push_back(cell.id);
 		}
 		// the library writes the grid into a file in ascending cell order,
@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
 		// go through the grids cells and write their state into the file
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if (cell.data->is_alive > 0) {
 				outfile << "1";
 			} else {
@@ -180,14 +180,14 @@ int main(int argc, char* argv[])
 		// write each cells live neighbor count
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			outfile << cell.data->live_neighbor_count << endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			const auto* const neighbors = grid.get_neighbors_of(cell.id);
 			outfile << neighbors->size() << endl;
 		}
@@ -202,14 +202,14 @@ int main(int argc, char* argv[])
 		// write each cells id
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
-		for (auto& cell: grid.local_cells) {
+		for (auto& cell: grid.local_cells()) {
 			outfile << cell.id << endl;
 		}
 		outfile.close();
 
 		// get the neighbor counts of every cell
 		// FIXME: use the (at some point common) solver from (un)refined2d and only include x and y directions in neighborhood
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			cell.data->live_neighbor_count = 0;
 
 			for (const auto& neighbor: cell.neighbors_of) {
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->live_neighbor_count != 2) {

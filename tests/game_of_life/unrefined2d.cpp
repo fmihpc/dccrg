@@ -216,7 +216,7 @@ int main(int argc, char* argv[])
 		get_live_neighbors(reference_grid);
 
 		// verify refined/unrefined game
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			uint64_t reference_cell_id = cell.id;
 			const int refinement_level = grid.get_refinement_level(cell.id);
 			if (refinement_level > 0) {

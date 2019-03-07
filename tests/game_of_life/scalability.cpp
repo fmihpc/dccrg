@@ -107,13 +107,13 @@ int main(int argc, char* argv[])
 
 	cout << "Process " << rank
 		<< ": number of cells with local neighbors: "
-		<< std::distance(grid.inner_cells.begin(), grid.inner_cells.end())
+		<< std::distance(grid.inner_cells().begin(), grid.inner_cells().end())
 		<< ", number of cells with a remote neighbor: "
-		<< std::distance(grid.outer_cells.begin(), grid.outer_cells.end())
+		<< std::distance(grid.outer_cells().begin(), grid.outer_cells().end())
 		<< endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->data[1] = 0;
 
 		const auto indices = grid.mapping.get_indices(cell.id);
@@ -144,7 +144,7 @@ int main(int argc, char* argv[])
 		Get the neighbor counts of every cell, starting with the cells whose neighbor data
 		doesn't come from other processes
 		*/
-		for (const auto& cell: grid.inner_cells) {
+		for (const auto& cell: grid.inner_cells()) {
 			cell.data->data[1] = 0;
 
 			for (const auto& neighbor: cell.neighbors_of) {
@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
 
 		// wait for neighbor data updates to this process to finish and go through the rest of the cells
 		grid.wait_remote_neighbor_copy_update_receives();
-		for (const auto& cell: grid.outer_cells) {
+		for (const auto& cell: grid.outer_cells()) {
 			cell.data->data[1] = 0;
 
 			for (const auto& neighbor: cell.neighbors_of) {
@@ -167,7 +167,7 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: grid.inner_cells) {
+		for (const auto& cell: grid.inner_cells()) {
 			if (cell.data->data[1] == 3) {
 				cell.data->data[0] = 1;
 			} else if (cell.data->data[1] != 2) {
@@ -180,7 +180,7 @@ int main(int argc, char* argv[])
 		*/
 		grid.wait_remote_neighbor_copy_update_sends();
 
-		for (const auto& cell: grid.outer_cells) {
+		for (const auto& cell: grid.outer_cells()) {
 			if (cell.data->data[1] == 3) {
 				cell.data->data[0] = 1;
 			} else if (cell.data->data[1] != 2) {
@@ -195,7 +195,7 @@ int main(int argc, char* argv[])
 	}
 	MPI_Barrier(comm);
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto indices = grid.mapping.get_indices(cell.id);
 		if (indices[1] + TIME_STEPS == 500 or indices[1] - TIME_STEPS == 500) {
 			if (cell.data->data[0] == 0) {
@@ -214,7 +214,7 @@ int main(int argc, char* argv[])
 		}
 	}
 
-	const auto number_of_cells = std::distance(grid.local_cells.begin(), grid.local_cells.end());
+	const auto number_of_cells = std::distance(grid.local_cells().begin(), grid.local_cells().end());
 	cout << "Process " << rank
 		<< ": " << number_of_cells * TIME_STEPS << " cells processed at the speed of "
 		<< double(number_of_cells * TIME_STEPS) / total << " cells / second"

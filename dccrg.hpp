@@ -7289,32 +7289,111 @@ public:
 	*/
 	const std::vector<Cells_Item>& cells = this->cells_rw;
 
+private:
+	Iterator_Storage<Cells_Item>
+		//! iterator over local cells without neighbors on other processes
+		inner_cells_default{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over local cells with neighbor(s) on other processes
+		outer_cells_default{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over local cells
+		local_cells_default{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over copies of cells of other processes that have neighbor(s) on this process
+		remote_cells_default{this->cells.cbegin(), this->cells.cbegin()};
+
+public:
 	/*!
-	Holds iterators for fast iteration over a subset of cells owned by this process.
+	Returns an iterator over inner cells of given neighborhood.
 
 	Example:
 	\verbatim
 	struct Cell_Data {...};
 	dccrg<Cell_Data> grid;
 	...
-	for (const auto& cell: grid.inner_cells) {
-		use data of neighbors of cell here...
+	for (const auto& cell: grid.inner_cells()) {
+		for (const auto& neighbor: cell.neighbors_of) {
+			// use data of neighbors of cell here,
+			// all neighbors are owned by this process.
+			cell.data->... = neighbor.data->...
+		}
 	}
 	grid.update_copies_of_remote_neighbors();
-	for (const auto& cell: grid.outer_cells) {
-		use data of neighbors of cell here...
+	for (const auto& cell: grid.outer_cells()) {
+		for (const auto& neighbor: cell.neighbors_of) {
+			// use data of neighbors of cell here,
+			// some neighbors can be owned by other processes.
+			cell.data->... = neighbor.data->...
+		}
 	}
 	\endverbatim
 	*/
-	Iterator_Storage<Cells_Item>
-		//! iterator over local cells without neighbors on other processes
-		inner_cells{this->cells.cbegin(), this->cells.cbegin()},
-		//! iterator over local cells with neighbor(s) on other processes
-		outer_cells{this->cells.cbegin(), this->cells.cbegin()},
-		//! iterator over local cells
-		local_cells{this->cells.cbegin(), this->cells.cbegin()},
-		//! iterator over copies of cells of other processes that have neighbor(s) on this process
-		remote_cells{this->cells.cbegin(), this->cells.cbegin()};
+	const decltype(inner_cells_default)& inner_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->inner_cells_default;
+		} else {
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Inner cells for non-default neighborhood not implemented yet");
+		}
+	}
+
+	/*!
+	As inner_cells() but some neighbors are owned by other processes.
+
+	\see inner_cells.
+	*/
+	const decltype(outer_cells_default)& outer_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->outer_cells_default;
+		} else {
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Outer cells for non-default neighborhood not implemented yet");
+		}
+	}
+
+	/*!
+	Returns an iterator to all cells owned by this process.
+
+	Example calculating number of live
+	neighbors in Conway's game of life:
+	\verbatim
+	...
+	for (const auto& cell: grid.local_cells()) {
+		for (const auto& neighbor: cell.neighbors_of) {
+			if (neighbor.data->is_alive) {
+				cell.data->live_neighbors++
+			}
+		}
+	}
+	...
+	\endverbatim
+
+	\see inner_cells
+	*/
+	const decltype(local_cells_default)& local_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->local_cells_default;
+		} else {
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Local cells for non-default neighborhood not implemented yet");
+		}
+	}
+
+	/*!
+	Returns an iterator to all cells known by this process that are owned by other processes.
+
+	\see inner_cells
+	*/
+	const decltype(remote_cells_default)& remote_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->remote_cells_default;
+		} else {
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Remote cells for non-default neighborhood not implemented yet");
+		}
+	}
 
 
 private:
@@ -7859,7 +7938,7 @@ public:
 
 	Must be called before initialize().
 
-	\see set_periodic() local_cells update_copies_of_remote_neighbors() refine_completely()
+	\see set_periodic() local_cells() update_copies_of_remote_neighbors() refine_completely()
 	*/
 	Dccrg<
 		Cell_Data,
@@ -11149,21 +11228,21 @@ private:
 		// TODO: add remote cells with local neighbor(s)
 
 		// update iterators
-		this->inner_cells.begin_  =
-		this->inner_cells.end_    =
-		this->outer_cells.begin_  =
-		this->outer_cells.end_    =
-		this->local_cells.begin_  =
-		this->local_cells.end_    =
-		this->remote_cells.begin_ =
-		this->remote_cells.end_   = this->cells.cbegin();
+		this->inner_cells_default.begin_  =
+		this->inner_cells_default.end_    =
+		this->outer_cells_default.begin_  =
+		this->outer_cells_default.end_    =
+		this->local_cells_default.begin_  =
+		this->local_cells_default.end_    =
+		this->remote_cells_default.begin_ =
+		this->remote_cells_default.end_   = this->cells.cbegin();
 
-		std::advance(this->inner_cells.end_, nr_inner);
-		std::advance(this->outer_cells.begin_, nr_inner);
-		std::advance(this->outer_cells.end_, nr_inner + nr_outer);
-		std::advance(this->local_cells.end_, nr_inner + nr_outer);
-		std::advance(this->remote_cells.begin_, nr_inner + nr_outer);
-		std::advance(this->remote_cells.end_, nr_inner + nr_outer + nr_remote);
+		std::advance(this->inner_cells_default.end_, nr_inner);
+		std::advance(this->outer_cells_default.begin_, nr_inner);
+		std::advance(this->outer_cells_default.end_, nr_inner + nr_outer);
+		std::advance(this->local_cells_default.end_, nr_inner + nr_outer);
+		std::advance(this->remote_cells_default.begin_, nr_inner + nr_outer);
+		std::advance(this->remote_cells_default.end_, nr_inner + nr_outer + nr_remote);
 	}
 
 

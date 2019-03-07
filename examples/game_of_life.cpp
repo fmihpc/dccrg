@@ -106,7 +106,12 @@ int main(int argc, char* argv[])
 		.initialize(comm)
 		.balance_load();
 
-	initialize_game(grid.local_cells);
+	const auto
+		&local_cells = grid.local_cells(),
+		&inner_cells = grid.inner_cells(),
+		&outer_cells = grid.outer_cells();
+
+	initialize_game(local_cells);
 
 	// time the game to examine its scalability
 	const auto time_start = chrono::high_resolution_clock::now();
@@ -117,20 +122,20 @@ int main(int argc, char* argv[])
 		// and calculate the next turn for cells without
 		// neighbors on other processes in the meantime
 		grid.start_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(grid.inner_cells);
+		get_live_neighbor_counts(inner_cells);
 
 		// wait for neighbor data updates to finish and
 		// calculate the next turn for rest of the cells
 		// on this process and afterwards apply next turn
 		// to cells without remove neighbors
 		grid.wait_remote_neighbor_copy_update_receives();
-		get_live_neighbor_counts(grid.outer_cells);
-		apply_rules(grid.inner_cells);
+		get_live_neighbor_counts(outer_cells);
+		apply_rules(inner_cells);
 
 		// apply next turn for cells with remote neighbors
 		// after their state was sent to other processes
 		grid.wait_remote_neighbor_copy_update_sends();
-		apply_rules(grid.outer_cells);
+		apply_rules(outer_cells);
 	}
 
 	const auto time_end
@@ -142,8 +147,8 @@ int main(int argc, char* argv[])
 
 	// calculate some timing statistics
 	const auto
-		inner_size = std::distance(grid.inner_cells.begin(), grid.inner_cells.end()),
-		outer_size = std::distance(grid.outer_cells.begin(), grid.outer_cells.end());
+		inner_size = std::distance(inner_cells.begin(), inner_cells.end()),
+		outer_size = std::distance(outer_cells.begin(), outer_cells.end());
 	double
 		total_cells = double(turns) * (inner_size + outer_size),
 		min_speed_local = total_cells / total_time, min_speed = 0,
