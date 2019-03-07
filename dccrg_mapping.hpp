@@ -2,7 +2,7 @@
 Dccrg class for mapping cell ids to their size and location.
 
 Copyright 2009, 2010, 2011, 2012, 2013,
-2014, 2015, 2016 Finnish Meteorological Institute
+2014, 2015, 2016, 2019 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -21,6 +21,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_MAPPING_HPP
 
 
+#include "array"
 #include "cmath"
 #include "cstdint"
 #include "iostream"
@@ -329,6 +330,33 @@ public:
 
 
 	/*!
+	Returns one child of given cell.
+
+	Returns cell itself if its refinement level is maximum.
+	Returns error_cell if given invalid cell.
+	*/
+	uint64_t get_child(const uint64_t cell) const
+	{
+		if (cell == error_cell or cell > this->get_last_cell()) {
+			return error_cell;
+		}
+
+		const int refinement_level = this->get_refinement_level(cell);
+
+		if (refinement_level >= this->get_maximum_refinement_level()) {
+			return cell;
+		}
+
+		const uint64_t child = this->get_cell_from_indices(
+			this->get_indices(cell),
+			refinement_level + 1
+		);
+
+		return child;
+	}
+
+
+	/*!
 	Returns the parent of given cell.
 
 	Returns the given cell if its refinement level == 0.
@@ -340,8 +368,10 @@ public:
 	{
 		const int refinement_level = this->get_refinement_level(cell);
 
-		if (refinement_level < 0
-		|| refinement_level > this->max_refinement_level) {
+		if (
+			refinement_level < 0
+			or refinement_level > this->max_refinement_level
+		) {
 			return error_cell;
 		}
 
@@ -350,6 +380,93 @@ public:
 		}
 
 		return this->get_cell_from_indices(this->get_indices(cell), refinement_level - 1);
+	}
+
+
+	/*!
+	Returns all children of given cell.
+
+	Returns error_cells if childrens' refinement level would exceed max_refinement_level.
+	 */
+	std::array<uint64_t, 8> get_all_children(const uint64_t cell) const
+	{
+		std::array<uint64_t, 8> children{
+			error_cell, error_cell, error_cell, error_cell,
+			error_cell, error_cell, error_cell, error_cell
+		};
+
+		if (cell == error_cell) {
+			return children;
+		}
+
+		// given cell cannot have children
+		int refinement_level = this->get_refinement_level(cell);
+		if (refinement_level >= this->get_maximum_refinement_level()) {
+			return children;
+		}
+
+		Types<3>::indices_t indices = this->get_indices(cell);
+
+		// get indices of next refinement level within this cell
+		refinement_level++;
+		const uint64_t index_offset
+			= (uint64_t(1) << (this->get_maximum_refinement_level() - refinement_level));
+
+		size_t i = 0;
+		for (uint64_t
+			z_index_offset = 0;
+			z_index_offset < 2 * index_offset;
+			z_index_offset += index_offset
+		)
+		for (uint64_t
+			y_index_offset = 0;
+			y_index_offset < 2 * index_offset;
+			y_index_offset += index_offset
+		)
+		for (uint64_t
+			x_index_offset = 0;
+			x_index_offset < 2 * index_offset;
+			x_index_offset += index_offset
+		) {
+			const Types<3>::indices_t index{
+				indices[0] + x_index_offset,
+				indices[1] + y_index_offset,
+				indices[2] + z_index_offset
+			};
+
+			children[i++] = this->get_cell_from_indices(index, refinement_level);
+		}
+
+		return children;
+	}
+
+
+	/*!
+	Returns given cell and its siblings or just given cell if refinement level 0.
+
+	Returns error_cells if given cell with too large refinement level.
+	*/
+	std::array<uint64_t, 8> get_siblings(const uint64_t cell) const
+	{
+		const int refinement_level = this->get_refinement_level(cell);
+		if (
+			refinement_level < 0
+			or refinement_level > this->get_maximum_refinement_level()
+		) {
+			return {
+				error_cell, error_cell, error_cell, error_cell,
+				error_cell, error_cell, error_cell, error_cell
+			};
+		}
+
+		if (refinement_level == 0) {
+			return {
+				cell, error_cell, error_cell, error_cell,
+				error_cell, error_cell, error_cell, error_cell
+			};
+		}
+
+		return this->get_all_children(this->get_parent(cell));
 	}
 
 

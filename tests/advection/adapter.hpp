@@ -67,18 +67,26 @@ template<class Grid> void check_for_adaptation(
 
 	// collect maximum relative differences
 	for (const auto& cell: grid.local_cells) {
+		const int cell_length = grid.mapping.get_cell_length_in_indices(cell.id);
 
 		for (const auto& neighbor: cell.neighbors_of) {
+			const int neighbor_length = grid.mapping.get_cell_length_in_indices(neighbor.id);
 			// skip non-face neighbors
 			bool is_face_neighbor = false;
-			if (abs(neighbor.x) == 1 and neighbor.y == 0 and neighbor.z == 0) {
-				is_face_neighbor = true;
+			if (neighbor.x == cell_length or neighbor.x == -neighbor_length) {
+				if (neighbor.y == 0 and neighbor.z == 0) {
+					is_face_neighbor = true;
+				}
 			}
-			if (abs(neighbor.y) == 1 and neighbor.x == 0 and neighbor.z == 0) {
-				is_face_neighbor = true;
+			if (neighbor.y == cell_length or neighbor.y == -neighbor_length) {
+				if (neighbor.x == 0 and neighbor.z == 0) {
+					is_face_neighbor = true;
+				}
 			}
-			if (abs(neighbor.z) == 1 and neighbor.x == 0 and neighbor.y == 0) {
-				is_face_neighbor = true;
+			if (neighbor.z == cell_length or neighbor.z == -neighbor_length) {
+				if (neighbor.x == 0 and neighbor.y == 0) {
+					is_face_neighbor = true;
+				}
 			}
 			if (not is_face_neighbor) {
 				continue;
@@ -107,8 +115,8 @@ template<class Grid> void check_for_adaptation(
 			refine_diff = (refinement_level + 1) * diff_increase,
 			unrefine_diff = unrefine_sensitivity * refine_diff;
 
-		const auto siblings = grid.get_all_children(grid.get_parent(cell.id));
-		if (siblings.size() == 0) {
+		const auto siblings = grid.mapping.get_siblings(cell.id);
+		if (siblings[0] == dccrg::error_cell) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No siblings for cell " << cell.id
 				<< std::endl;
@@ -228,7 +236,7 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 			abort();
 		}
 
-		auto* const parent_data = grid[grid.get_parent(new_cell)];
+		auto* const parent_data = grid[grid.mapping.get_parent(new_cell)];
 		if (parent_data == nullptr) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " No data for parent cell " << grid.get_parent(new_cell)

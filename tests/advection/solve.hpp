@@ -2,7 +2,7 @@
 A solver for the advection tests of dccrg.
 
 Copyright 2012, 2013, 2014, 2015, 2016,
-2018 Finnish Meteorological Institute
+2018, 2019 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -35,7 +35,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 /*!
 Calculates fluxes into and out of local cells.
 
-Calculates fluxes of inner cells without remove neighbors
+Calculates fluxes of inner cells without remote neighbors
 if @solve_inner is true, otherwise calculates fluxes of
 outer cells which have neighbors on other processes.
 
@@ -61,32 +61,59 @@ template<class Grid> void calculate_fluxes(
 				= cell.data->length_x()
 				* cell.data->length_y()
 				* cell.data->length_z();
+		const int cell_length = grid.mapping.get_cell_length_in_indices(cell.id);
 
 		#ifdef DEBUG
 		std::vector<uint64_t> face_neighbors;
 		#endif
 
 		for (const auto& neighbor: cell.neighbors_of) {
-			// skip non-face neighbors
-			int direction = 0;
-			if (neighbor.x == 1 and neighbor.y == 0 and neighbor.z == 0) {
+			const int neighbor_length = grid.mapping.get_cell_length_in_indices(neighbor.id);
+			// skip non-face neighbors that overlap in < 2 dimensions
+			int overlaps = 0, direction = 0;
+
+			if (neighbor.x < cell_length and neighbor.x > -neighbor_length) {
+				overlaps++;
+			} else if (neighbor.x == cell_length) {
 				direction = 1;
-			}
-			if (neighbor.x == -1 and neighbor.y == 0 and neighbor.z == 0) {
+			} else if (neighbor.x == -neighbor_length) {
 				direction = -1;
 			}
-			if (neighbor.x == 0 and neighbor.y == 1 and neighbor.z == 0) {
+
+			if (neighbor.y < cell_length and neighbor.y > -neighbor_length) {
+				overlaps++;
+			} else if (neighbor.y == cell_length) {
 				direction = 2;
-			}
-			if (neighbor.x == 0 and neighbor.y == -1 and neighbor.z == 0) {
+			} else if (neighbor.y == -neighbor_length) {
 				direction = -2;
 			}
-			if (neighbor.x == 0 and neighbor.y == 0 and neighbor.z == 1) {
+
+			if (neighbor.z < cell_length and neighbor.z > -neighbor_length) {
+				overlaps++;
+			} else if (neighbor.z == cell_length) {
 				direction = 3;
-			}
-			if (neighbor.x == 0 and neighbor.y == 0 and neighbor.z == -1) {
+			} else if (neighbor.z == -neighbor_length) {
 				direction = -3;
 			}
+
+			if (overlaps < 2) {
+				continue;
+			}
+			if (overlaps > 2) {
+				const auto
+					ci = grid.mapping.get_indices(cell.id),
+					ni = grid.mapping.get_indices(neighbor.id);
+				const auto
+					cl = grid.mapping.get_cell_length_in_indices(cell.id),
+					nl = grid.mapping.get_cell_length_in_indices(neighbor.id);
+				std::cerr << __FILE__ "(" << __LINE__ << "): "
+					<< cell.id << " <" << cl << "> (" << ci[0] << "," << ci[1] << "," << ci[2]
+					<< ") <=> " << neighbor.id << " <" << nl << "> ("
+					<< ni[0] << "," << ni[1] << "," << ni[2] << ")"
+					<< std::endl;
+				abort();
+			}
+
 			if (direction == 0) {
 				continue;
 			}
@@ -207,12 +234,30 @@ template<class Grid> void calculate_fluxes(
 		}
 
 		#ifdef DEBUG
-		const auto ref_face_neighbors = grid.get_face_neighbors_of(cell.id);
+		const auto ref_face_neighbors = [&](){
+			const auto all_neighbors = grid.get_face_neighbors_of(cell.id);
+			std::vector<uint64_t> ref_face_neighbors;
+			for (const auto& neigh: all_neighbors) {
+				if (neigh.first != dccrg::error_cell) {
+					ref_face_neighbors.push_back(neigh.first);
+				}
+			}
+			return ref_face_neighbors;
+		}();
+
 		if (face_neighbors.size() != ref_face_neighbors.size()) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Unexpected number of face neighbors: "
-				<< face_neighbors.size() << " instead of "
-				<< ref_face_neighbors.size() << std::endl;
+				<< " Unexpected number of face neighbors for cell " << cell.id
+				<< " (ref lvl " << grid.mapping.get_refinement_level(cell.id)
+				<< ", child of " << grid.mapping.get_parent(cell.id) << "): " << face_neighbors.size() << "  ";
+			for (const auto& n: face_neighbors) {
+				std::cerr << n << " (" << grid.mapping.get_refinement_level(n) << "," << grid.mapping.get_parent(n) << "),";
+			}
+			std::cerr << "   instead of " << ref_face_neighbors.size() << "  ";
+			for (const auto& n: ref_face_neighbors) {
+				std::cerr << n << " (" << grid.mapping.get_refinement_level(n) << ", " << grid.mapping.get_parent(n) << "), ";
+			}
+			std::cerr << std::endl;
 			abort();
 		}
 		#endif

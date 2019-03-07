@@ -1,7 +1,8 @@
 /*
 Program for testing dccrg neighbor iterators with AMR.
 
-Copyright 2013, 2014, 2015, 2016, 2018 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015, 2016,
+2018, 2019 Finnish Meteorological Institute
 Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -56,7 +57,58 @@ int main(int argc, char* argv[])
 		abort();
 	}
 
-	// initialize grid
+	{
+	Dccrg<Cell> grid;
+	grid
+		.set_initial_length({2, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.initialize(comm);
+
+	if (grid.is_local(2)) {
+		grid.refine_completely(2);
+	}
+	grid.stop_refining();
+	grid.clear_refined_unrefined_data();
+	set<uint64_t> all_cells{1, 5, 6, 9, 10, 13, 14, 17, 18};
+
+	// do a few iterations with random load balancing
+	for (int i = 0; i < 5; i++) {
+		// check that local cell neighbor iterators work
+		for (const auto& cell: grid.local_cells) {
+			set<uint64_t> ref_neighbors_of{all_cells};
+			ref_neighbors_of.erase(cell.id);
+			if (cell.id % 2 == 0) {
+				ref_neighbors_of.erase(1);
+			}
+
+			set<uint64_t> neighbors_of, found_neighbors_of;
+			for (const auto& neighbor: cell.neighbors_of) {
+				neighbors_of.insert(neighbor.id);
+			}
+			for (const auto& neighbor: grid.find_neighbors_of(cell.id, grid.get_neighborhood_of())) {
+				found_neighbors_of.insert(neighbor.first);
+			}
+			if (ref_neighbors_of != neighbors_of) {
+				cerr << __FILE__ "(" << __LINE__ << ") " << i
+					<< " Wrong neighbors_of for cell " << cell.id
+					<< ":\nResult: ";
+				for (const auto& n: neighbors_of) cerr << n << ", ";
+				cerr << "\nReference: ";
+				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << "\nFound: ";
+				for (const auto& n: found_neighbors_of) cerr << n << ", ";
+				cerr << endl;
+				return EXIT_FAILURE;
+			}
+		}
+
+		grid.balance_load();
+	}
+	}
+
+	{
 	Dccrg<Cell> grid;
 	grid
 		.set_initial_length({2, 1, 1})
@@ -87,13 +139,13 @@ int main(int argc, char* argv[])
 				neighbors_of.insert(neighbor.id);
 			}
 			if (ref_neighbors_of != neighbors_of) {
-				cerr << "FAILED" << endl;
-				cout << "Wrong neighbors_of for cell " << cell.id
-					<< "\nResult: ";
-				for (const auto& n: neighbors_of) cout << n << ", ";
-				cout << "\nReference: ";
-				for (const auto& n: ref_neighbors_of) cout << n << ", ";
-				cout << endl;
+				cerr << __FILE__ "(" << __LINE__ << ") " << i
+					<< " Wrong neighbors_of for cell " << cell.id
+					<< ":\nResult: ";
+				for (const auto& n: neighbors_of) cerr << n << ", ";
+				cerr << "\nReference: ";
+				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << endl;
 				return EXIT_FAILURE;
 			}
 		}
@@ -152,18 +204,19 @@ int main(int argc, char* argv[])
 			}
 
 			if (ref_neighbors_of != neighbors_of) {
-				cerr << "FAILED" << endl;
-				cout << "Wrong neighbors_of for cell " << cell.id
-					<< "\nResult: ";
-				for (const auto& n: neighbors_of) cout << n << ", ";
-				cout << "\nReference: ";
-				for (const auto& n: ref_neighbors_of) cout << n << ", ";
-				cout << endl;
+				cerr << __FILE__ "(" << __LINE__ << ") " << i
+					<< " Wrong neighbors_of for cell " << cell.id
+					<< ":\nResult: ";
+				for (const auto& n: neighbors_of) cerr << n << ", ";
+				cerr << "\nReference: ";
+				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << endl;
 				return EXIT_FAILURE;
 			}
 		}
 
 		grid.balance_load();
+	}
 	}
 
 	MPI_Finalize();

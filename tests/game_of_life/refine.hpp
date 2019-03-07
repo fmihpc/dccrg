@@ -93,10 +93,10 @@ public:
 					<< std::endl;
 				abort();
 			}
-			auto* const parent_data = grid[grid.get_parent(new_cell)];
+			auto* const parent_data = grid[grid.mapping.get_parent(new_cell)];
 			if (parent_data == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " no data for parent cell " << grid.get_parent(new_cell)
+					<< " no data for parent cell " << grid.mapping.get_parent(new_cell)
 					<< std::endl;
 				abort();
 			}

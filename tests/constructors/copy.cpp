@@ -1,7 +1,7 @@
 /*
 Tests copy construction of dccrg.
 
-Copyright 2015, 2016, 2018 Finnish Meteorological Institute
+Copyright 2015, 2016, 2018, 2019 Finnish Meteorological Institute
 Copyright 2015, 2016 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -70,7 +70,7 @@ int main(int argc, char* argv[])
 
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
-		cout << "Zoltan_Initialize failed" << endl;
+		cerr << "Zoltan_Initialize failed" << endl;
 		return EXIT_FAILURE;
 	}
 
@@ -204,4 +204,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

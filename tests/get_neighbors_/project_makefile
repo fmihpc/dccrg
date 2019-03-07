@@ -1,0 +1,52 @@
+TESTS_GET_NEIGHBORS_EXECUTABLES = \
+  tests/get_neighbors_/test1.exe
+
+TESTS_GET_NEIGHBORS_TESTS = \
+  tests/get_neighbors_/test1.tst \
+  tests/get_neighbors_/test1.tstN
+
+tests/get_neighbors_/executables: $(TESTS_GET_NEIGHBORS_EXECUTABLES)
+
+tests/get_neighbors_/tests: $(TESTS_GET_NEIGHBORS_TESTS)
+
+tests/get_neighbors_/clean:
+	@printf "CLEAN tests/get_neighbors_\n" && rm -f \
+	  $(TESTS_GET_NEIGHBORS_EXECUTABLES) \
+	  $(TESTS_GET_NEIGHBORS_TESTS)
+
+
+EXECUTABLES += tests/get_neighbors_/executables
+TESTS += tests/get_neighbors_/tests
+CLEAN += tests/get_neighbors_/clean
+
+
+TESTS_GET_NEIGHBORS_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/get_neighbors_/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_GET_NEIGHBORS_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+tests/get_neighbors_/test1.exe: \
+  tests/get_neighbors_/test1.cpp \
+  $(TESTS_GET_NEIGHBORS_COMMON_DEPS)
+	$(TESTS_GET_NEIGHBORS_COMPILE_COMMAND)
+
+tests/get_neighbors_/test1.tst: \
+  tests/get_neighbors_/test1.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/get_neighbors_/test1.tstN: \
+  tests/get_neighbors_/test1.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@

@@ -1,0 +1,17 @@
+# Makefile for the case where all prerequisites are installed
+# into /usr or somewhere in default compiler search path(s)
+CXX = g++
+MPICXX = mpic++
+
+RUN =
+MPIRUN = mpiexec -n 5
+
+CPPFLAGS = -I .
+
+BOOST_CPPFLAGS =
+BOOST_LDFLAGS =
+BOOST_LIBS = -lboost_program_options
+
+ZOLTAN_CPPFLAGS =
+ZOLTAN_LDFLAGS =
+ZOLTAN_LIBS = -lzoltan
