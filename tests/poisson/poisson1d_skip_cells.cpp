@@ -1,7 +1,8 @@
 /*
 Version of poisson1d that skip certain cells as defined by user.
 
-Copyright 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015,
+2016, 2019 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -56,17 +57,15 @@ Returns the p-norm of the difference of solution from exact.
 Given offset is added to the exact solution before calculating the norm.
 */
 template<class Geometry> double get_p_norm(
-	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
 
-	for(const auto& cell: cells) {
-		const double coord = grid.geometry.get_center(cell)[0];
-		Poisson_Cell* data = grid[cell];
+	for(const auto& cell: grid.local_cells) {
+		const double coord = grid.geometry.get_center(cell.id)[0];
 		local += std::pow(
-			fabs(data->solution - get_solution_value(coord)),
+			fabs(cell.data->solution - get_solution_value(coord)),
 			p_of_norm
 		);
 	}
@@ -133,27 +132,34 @@ int main(int argc, char* argv[])
 			grid_length = {{number_of_cells, 3, 3}},
 			grid_reference_length = {{number_of_cells, 1, 1}};
 
-		grid          .initialize(grid_length, comm, "RCB", 0, 0, true, false, false);
-		grid_reference.initialize(grid_reference_length, comm, "RCB", 0, 0, true, false, false);
-
-		// get cells in which to solve
-		const std::vector<uint64_t>
-			initial_cells = grid.get_cells(),
-			initial_cells_reference = grid_reference.get_cells();
+		grid
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, false, false)
+			.initialize(comm);
+		grid_reference
+			.set_initial_length(grid_reference_length)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, false, false)
+			.initialize(comm);
 
 		// emulate RANDOM but predictable load balance
-		for(const auto& cell: initial_cells) {
-			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell);
+		for(const auto& cell: grid.local_cells) {
+			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell.id);
 			// move cells in middle of grid to same process as in reference grid
 			if (indices[1] == 1 && indices[2] == 1) {
 				const int target_process = indices[0] % comm_size;
-				grid.pin(cell, target_process);
+				grid.pin(cell.id, target_process);
 			}
 		}
-		for(const auto& cell: initial_cells_reference) {
-			const dccrg::Types<3>::indices_t indices = grid_reference.mapping.get_indices(cell);
+		for(const auto& cell: grid_reference.local_cells) {
+			const dccrg::Types<3>::indices_t indices = grid_reference.mapping.get_indices(cell.id);
 			const int target_process = indices[0] % comm_size;
-			grid_reference.pin(cell, target_process);
+			grid_reference.pin(cell.id, target_process);
 		}
 		grid          .balance_load(false);
 		grid_reference.balance_load(false);
@@ -217,8 +223,8 @@ int main(int argc, char* argv[])
 		// check that parallel solutions are close to analytic
 		const double
 			p_of_norm = 2,
-			norm = get_p_norm(cells, grid, p_of_norm),
-			norm_reference = get_p_norm(cells_reference, grid_reference, p_of_norm);
+			norm = get_p_norm(grid, p_of_norm),
+			norm_reference = get_p_norm(grid_reference, p_of_norm);
 
 		if (norm > old_norm) {
 			success = 1;
@@ -255,15 +261,8 @@ int main(int argc, char* argv[])
 	MPI_Finalize();
 
 	if (success == 0) {
-		if (rank == 0) {
-			cout << "PASSED" << endl;
-		}
 		return EXIT_SUCCESS;
 	} else {
-		if (rank == 0) {
-			cout << "FAILED" << endl;
-		}
 		return EXIT_FAILURE;
 	}
 }
-

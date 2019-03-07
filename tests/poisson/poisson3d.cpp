@@ -150,8 +150,13 @@ int main(int argc, char* argv[])
 
 	Dccrg<Poisson_Cell, Cartesian_Geometry> grid;
 
-	const std::array<uint64_t, 3> grid_size = {{cells_x, cells_y, cells_z}};
-	grid.initialize(grid_size, comm, "RANDOM", 0, -1, true, true, true);
+	grid
+		.set_initial_length({cells_x, cells_y, cells_z})
+		.set_neighborhood_length(0)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RANDOM")
+		.set_periodic(true, true, true)
+		.initialize(comm);
 
 	Cartesian_Geometry::Parameters geom_params;
 	geom_params.start[0] =

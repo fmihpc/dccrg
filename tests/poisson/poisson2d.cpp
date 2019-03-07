@@ -184,9 +184,27 @@ int main(int argc, char* argv[])
 			grid_length_y = {{cells_x, 1, cells_y}},
 			grid_length_z = {{cells_x, cells_y, 1}};
 
-		grid_x.initialize(grid_length_x, comm, "RCB", 0, 0, true, true, true);
-		grid_y.initialize(grid_length_y, comm, "RCB", 0, 0, true, true, true);
-		grid_z.initialize(grid_length_z, comm, "RCB", 0, 0, true, true, true);
+		grid_x
+			.set_initial_length(grid_length_x)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_y
+			.set_initial_length(grid_length_y)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_z
+			.set_initial_length(grid_length_z)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
 
 		Cartesian_Geometry::Parameters geom_params;
 		geom_params.start[0] =

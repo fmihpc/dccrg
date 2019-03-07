@@ -178,8 +178,20 @@ int main(int argc, char* argv[])
 
 		const std::array<uint64_t, 3> grid_length = {{number_of_cells, 1, 1}};
 
-		grid_stretched.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
-		grid_reference.initialize(grid_length, comm, "RCB", 0, 0, true, true, true);
+		grid_stretched
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_reference
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
 
 		Cartesian_Geometry::Parameters geom_params;
 		geom_params.start[0] =

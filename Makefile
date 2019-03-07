@@ -48,6 +48,7 @@ include \
   tests/user_neighborhood/project_makefile \
   tests/variable_data_size/project_makefile \
   tests/particles/project_makefile \
+  tests/poisson/project_makefile \
   tests/proc_bdy_cells/project_makefile
 
 

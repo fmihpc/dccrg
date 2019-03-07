@@ -191,10 +191,34 @@ int main(int argc, char* argv[])
 			grid_length_y = {{1, number_of_cells, 1}},
 			grid_length_z = {{1, 1, number_of_cells}};
 
-		grid_x.initialize(grid_length_x, comm, "RCB", 0, -1, true, true, true);
-		grid_y.initialize(grid_length_y, comm, "RCB", 0, -1, true, true, true);
-		grid_z.initialize(grid_length_z, comm, "RCB", 0, -1, true, true, true);
-		grid_reference.initialize(grid_length_x, MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
+		grid_x
+			.set_initial_length(grid_length_x)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(-1)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_y
+			.set_initial_length(grid_length_y)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(-1)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_z
+			.set_initial_length(grid_length_z)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(-1)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_reference
+			.set_initial_length(grid_length_x)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(MPI_COMM_SELF);
 
 		dccrg::Cartesian_Geometry::Parameters geom_params;
 		geom_params.start[0] =

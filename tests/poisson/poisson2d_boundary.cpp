@@ -120,7 +120,12 @@ int main(int argc, char* argv[])
 
 		const std::array<uint64_t, 3> grid_length = {{nr_of_cells + 4, nr_of_cells + 4, 1}};
 
-		grid.initialize(grid_length, comm, "RANDOM", 0, 0, false, false, false);
+		grid
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm);
 
 		Cartesian_Geometry::Parameters geom_params;
 		geom_params.start[0] = -2 - 2 * cell_length_x;

@@ -1,7 +1,8 @@
 /*
 Tests the parallel Poisson solver implemented on top of dccrg in 1d.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015,
+2016, 2019 Finnish Meteorological Institute
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -43,15 +44,13 @@ Returns the p-norm of calculated and reference solutions to Poisson's equation.
 Given offset is added to the exact solution before calculating the norm.
 */
 template<class Geometry> double get_p_norm(
-	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid,
 	const Reference_Poisson_Solve& reference,
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
-	for (const auto& cell: cells) {
-		Poisson_Cell* data = grid[cell];
-		local += std::pow(fabs(data->solution - reference.get_solution(cell - 1)), p_of_norm);
+	for (const auto& cell: grid.local_cells) {
+		local += std::pow(fabs(cell.data->solution - reference.get_solution(cell.id - 1)), p_of_norm);
 	}
 	MPI_Comm temp = grid.get_communicator();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
@@ -68,18 +67,14 @@ Given cells must be local in both grids and both grids must also
 have identical communicators and structure except for their orientation.
 */
 template<class Geometry> double get_p_norm(
-	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid1,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid2,
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
-	for (const auto& cell: cells) {
-		Poisson_Cell
-			*data1 = grid1[cell],
-			*data2 = grid2[cell];
-
-		local += std::pow(fabs(data1->solution - data2->solution), p_of_norm);
+	for (const auto& cell: grid1.local_cells) {
+		Poisson_Cell* data2 = grid2[cell.id];
+		local += std::pow(fabs(cell.data->solution - data2->solution), p_of_norm);
 	}
 	MPI_Comm temp = grid1.get_communicator();
 	MPI_Allreduce(&local, &global, 1, MPI_DOUBLE, MPI_SUM, temp);
@@ -95,7 +90,6 @@ Offsets the given parallel solution so that it is 0 in the last cell.
 */
 template<class Geometry> void offset_solution(
 	const uint64_t last_cell,
-	const std::vector<uint64_t>& cells,
 	const dccrg::Dccrg<Poisson_Cell, Geometry>& grid
 ) {
 	MPI_Comm comm = grid.get_communicator();
@@ -124,9 +118,8 @@ template<class Geometry> void offset_solution(
 	MPI_Comm_free(&comm);
 
 	// offset solutions
-	for (const auto& cell: cells) {
-		Poisson_Cell *data = grid[cell];
-		data->solution -= solution;
+	for (const auto& cell: grid.local_cells) {
+		cell.data->solution -= solution;
 	}
 }
 
@@ -184,10 +177,34 @@ int main(int argc, char* argv[])
 			grid_length_y = {{1, number_of_cells, 1}},
 			grid_length_z = {{1, 1, number_of_cells}};
 
-		grid_x.initialize(grid_length_x, comm, "RCB", 0, 0, true, true, true);
-		grid_y.initialize(grid_length_y, comm, "RCB", 0, 0, true, true, true);
-		grid_z.initialize(grid_length_z, comm, "RCB", 0, 0, true, true, true);
-		grid_serial.initialize(grid_length_x, MPI_COMM_SELF, "RCB", 0, 0, true, true, true);
+		grid_x
+			.set_initial_length(grid_length_x)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_y
+			.set_initial_length(grid_length_y)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_z
+			.set_initial_length(grid_length_z)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(comm);
+		grid_serial
+			.set_initial_length(grid_length_x)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RCB")
+			.set_periodic(true, true, true)
+			.initialize(MPI_COMM_SELF);
 
 		dccrg::Cartesian_Geometry::Parameters geom_params;
 		geom_params.start[0] =
@@ -210,14 +227,12 @@ int main(int argc, char* argv[])
 		grid_z.set_geometry(geom_params);
 		geom_params.level_0_cell_length[2] = 1;
 
-		const std::vector<uint64_t> initial_cells = grid_x.get_cells();
-
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
-		for (const auto& cell: initial_cells) {
-			const int target_process = cell % comm_size;
-			grid_x.pin(cell, target_process);
-			grid_y.pin(cell, target_process);
-			grid_z.pin(cell, target_process);
+		for (const auto& cell: grid_x.local_cells) {
+			const int target_process = cell.id % comm_size;
+			grid_x.pin(cell.id, target_process);
+			grid_y.pin(cell.id, target_process);
+			grid_z.pin(cell.id, target_process);
 		}
 		grid_x.balance_load(false);
 		grid_y.balance_load(false);
@@ -226,25 +241,23 @@ int main(int argc, char* argv[])
 		grid_y.unpin_all_cells();
 		grid_z.unpin_all_cells();
 
-		const std::vector<uint64_t> cells = grid_x.get_cells();
-
 		// initialize parallel
-		for (const auto& cell: cells) {
+		for (const auto& cell: grid_x.local_cells) {
 			Poisson_Cell
-				*data_x = grid_x[cell],
-				*data_y = grid_y[cell],
-				*data_z = grid_z[cell];
+				*data_x = grid_x[cell.id],
+				*data_y = grid_y[cell.id],
+				*data_z = grid_z[cell.id];
 
-			if (data_x == NULL || data_y == NULL || data_z == NULL) {
+			if (data_x == nullptr || data_y == nullptr || data_z == nullptr) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell " << cell
+					<< " No data for cell " << cell.id
 					<< std::endl;
 				abort();
 			}
 
 			data_x->rhs =
 			data_y->rhs =
-			data_z->rhs = reference_solver.get_rhs(cell - 1);
+			data_z->rhs = reference_solver.get_rhs(cell.id - 1);
 
 			data_x->solution =
 			data_y->solution =
@@ -252,34 +265,26 @@ int main(int argc, char* argv[])
 		}
 
 		// initialize serial
-		const std::vector<uint64_t> cells_serial = grid_serial.get_cells();
-		for (const auto& cell: cells_serial) {
-			Poisson_Cell* data = grid_serial[cell];
-			if (data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell " << cell
-					<< std::endl;
-				abort();
-			}
-			data->rhs = reference_solver.get_rhs(cell - 1);
-			data->solution = 0;
+		for (const auto& cell: grid_serial.local_cells) {
+			cell.data->rhs = reference_solver.get_rhs(cell.id - 1);
+			cell.data->solution = 0;
 		}
 
-		solver.solve(cells, grid_x);
-		solver.solve(cells, grid_y);
-		solver.solve(cells, grid_z);
-		solver.solve(cells_serial, grid_serial);
+		solver.solve(grid_x.get_cells(), grid_x);
+		solver.solve(grid_y.get_cells(), grid_y);
+		solver.solve(grid_z.get_cells(), grid_z);
+		solver.solve(grid_serial.get_cells(), grid_serial);
 
-		offset_solution(number_of_cells, cells, grid_x);
-		offset_solution(number_of_cells, cells, grid_y);
-		offset_solution(number_of_cells, cells, grid_z);
-		offset_solution(number_of_cells, cells_serial, grid_serial);
+		offset_solution(number_of_cells, grid_x);
+		offset_solution(number_of_cells, grid_y);
+		offset_solution(number_of_cells, grid_z);
+		offset_solution(number_of_cells, grid_serial);
 
 		// check that serial solution close to parallel
 		const double
 			p_of_norm = 2,
 			// comm of first grid used in Allreduce so serial must be second
-			norm_serial = get_p_norm(cells, grid_x, grid_serial, p_of_norm),
+			norm_serial = get_p_norm(grid_x, grid_serial, p_of_norm),
 			// parallel solver doesn't get closer regardless of stopping residual
 			norm_threshold = 3e-7;
 
@@ -297,12 +302,12 @@ int main(int argc, char* argv[])
 
 		// check that parallel solutions are close to reference and each other
 		const double
-			norm_x  = get_p_norm(cells, grid_x, reference_solver, p_of_norm),
-			norm_y  = get_p_norm(cells, grid_y, reference_solver, p_of_norm),
-			norm_z  = get_p_norm(cells, grid_z, reference_solver, p_of_norm),
-			norm_xy = get_p_norm(cells, grid_x, grid_y, p_of_norm),
-			norm_xz = get_p_norm(cells, grid_x, grid_z, p_of_norm),
-			norm_yz = get_p_norm(cells, grid_y, grid_z, p_of_norm);
+			norm_x  = get_p_norm(grid_x, reference_solver, p_of_norm),
+			norm_y  = get_p_norm(grid_y, reference_solver, p_of_norm),
+			norm_z  = get_p_norm(grid_z, reference_solver, p_of_norm),
+			norm_xy = get_p_norm(grid_x, grid_y, p_of_norm),
+			norm_xz = get_p_norm(grid_x, grid_z, p_of_norm),
+			norm_yz = get_p_norm(grid_y, grid_z, p_of_norm);
 
 		if (norm_x > norm_threshold) {
 			success = 1;
@@ -375,14 +380,8 @@ int main(int argc, char* argv[])
 	MPI_Finalize();
 
 	if (success == 0) {
-		if (rank == 0) {
-			cout << "PASSED" << endl;
-		}
 		return EXIT_SUCCESS;
 	} else {
-		if (rank == 0) {
-			cout << "FAILED" << endl;
-		}
 		return EXIT_FAILURE;
 	}
 }

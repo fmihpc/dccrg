@@ -1,7 +1,8 @@
 /*
 1d Poisson solver test of dccrg with boundaries.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015,
+2016, 2019 Finnish Meteorological Institute
 Copyright 2014, 2015, 2016 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -118,7 +119,12 @@ int main(int argc, char* argv[])
 
 		const std::array<uint64_t, 3> grid_length = {{cells + 4, 1, 1}};
 
-		grid.initialize(grid_length, comm, "RANDOM", 0, 0, false, false, false);
+		grid
+			.set_initial_length(grid_length)
+			.set_neighborhood_length(0)
+			.set_maximum_refinement_level(0)
+			.set_load_balancing_method("RANDOM")
+			.initialize(comm);
 
 		Cartesian_Geometry::Parameters geom_params;
 		geom_params.start[0] = -2 * cell_length;
