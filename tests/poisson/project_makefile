@@ -1,0 +1,204 @@
+TESTS_POISSON_EXECUTABLES = \
+  tests/poisson/reference_poisson_example.exe \
+  tests/poisson/reference_poisson_test.exe \
+  tests/poisson/poisson1d.exe \
+  tests/poisson/poisson1d_skip_cells.exe \
+  tests/poisson/poisson1d_boundary.exe \
+  tests/poisson/poisson1d_stretched.exe \
+  tests/poisson/poisson1d_amr.exe \
+  tests/poisson/poisson2d.exe \
+  tests/poisson/poisson2d_boundary.exe \
+  tests/poisson/poisson3d.exe
+
+tests/poisson/executables: $(TESTS_POISSON_EXECUTABLES)
+
+TESTS_POISSON_TESTS = \
+  tests/poisson/reference_poisson_example.tst \
+  tests/poisson/reference_poisson_example.mtst \
+  tests/poisson/reference_poisson_test.tst \
+  tests/poisson/reference_poisson_test.mtst \
+  tests/poisson/poisson1d.tst \
+  tests/poisson/poisson1d.mtst \
+  tests/poisson/poisson1d_skip_cells.tst \
+  tests/poisson/poisson1d_skip_cells.mtst \
+  tests/poisson/poisson1d_boundary.tst \
+  tests/poisson/poisson1d_boundary.mtst \
+  tests/poisson/poisson1d_stretched.tst \
+  tests/poisson/poisson1d_stretched.mtst \
+  tests/poisson/poisson1d_amr.tst \
+  tests/poisson/poisson1d_amr.mtst \
+  tests/poisson/poisson2d.tst \
+  tests/poisson/poisson2d.mtst \
+  tests/poisson/poisson2d_boundary.tst \
+  tests/poisson/poisson2d_boundary.mtst \
+  tests/poisson/poisson3d.tst \
+  tests/poisson/poisson3d.mtst
+
+tests/poisson/tests: $(TESTS_POISSON_TESTS)
+
+tests/poisson/clean:
+	@printf "CLEAN tests/poisson\n" && rm -f \
+	  $(TESTS_POISSON_EXECUTABLES) $(TESTS_POISSON_TESTS)
+
+EXECUTABLES += tests/poisson/executables
+CLEAN += tests/poisson/clean
+
+
+TESTS_POISSON_COMMON_DEPS = \
+  $(DCCRG_HEADERS) \
+  tests/poisson/project_makefile \
+  $(ENVIRONMENT_MAKEFILE) \
+  Makefile
+
+TESTS_POISSON_COMPILE_COMMAND = \
+  @printf "MPICXX $<\n" && $(MPICXX) $< -o $@ -DDEBUG \
+  $(CPPFLAGS) \
+  $(CXXFLAGS) \
+  $(LDFLAGS) \
+  $(BOOST_CPPFLAGS) \
+  $(BOOST_LDFLAGS) \
+  $(BOOST_LIBS) \
+  $(ZOLTAN_CPPFLAGS) \
+  $(ZOLTAN_LDFLAGS) \
+  $(ZOLTAN_LIBS)
+
+
+
+tests/poisson/reference_poisson_example.exe: \
+  tests/poisson/reference_poisson_example.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/reference_poisson_example.tst: \
+  tests/poisson/reference_poisson_example.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/reference_poisson_example.mtst: \
+  tests/poisson/reference_poisson_example.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/reference_poisson_test.exe: \
+  tests/poisson/reference_poisson_test.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/reference_poisson_test.tst: \
+  tests/poisson/reference_poisson_test.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/reference_poisson_test.mtst: \
+  tests/poisson/reference_poisson_test.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson1d.exe: \
+  tests/poisson/poisson1d.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson1d.tst: \
+  tests/poisson/poisson1d.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson1d.mtst: \
+  tests/poisson/poisson1d.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson1d_skip_cells.exe: \
+  tests/poisson/poisson1d_skip_cells.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson1d_skip_cells.tst: \
+  tests/poisson/poisson1d_skip_cells.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson1d_skip_cells.mtst: \
+  tests/poisson/poisson1d_skip_cells.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson1d_boundary.exe: \
+  tests/poisson/poisson1d_boundary.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson1d_boundary.tst: \
+  tests/poisson/poisson1d_boundary.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson1d_boundary.mtst: \
+  tests/poisson/poisson1d_boundary.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson1d_stretched.exe: \
+  tests/poisson/poisson1d_stretched.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson1d_stretched.tst: \
+  tests/poisson/poisson1d_stretched.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson1d_stretched.mtst: \
+  tests/poisson/poisson1d_stretched.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson1d_amr.exe: \
+  tests/poisson/poisson1d_amr.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson1d_amr.tst: \
+  tests/poisson/poisson1d_amr.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson1d_amr.mtst: \
+  tests/poisson/poisson1d_amr.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson2d.exe: \
+  tests/poisson/poisson2d.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson2d.tst: \
+  tests/poisson/poisson2d.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson2d.mtst: \
+  tests/poisson/poisson2d.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson2d_boundary.exe: \
+  tests/poisson/poisson2d_boundary.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson2d_boundary.tst: \
+  tests/poisson/poisson2d_boundary.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson2d_boundary.mtst: \
+  tests/poisson/poisson2d_boundary.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/poisson/poisson3d.exe: \
+  tests/poisson/poisson3d.cpp \
+  $(TESTS_POISSON_COMMON_DEPS)
+	$(TESTS_POISSON_COMPILE_COMMAND)
+
+tests/poisson/poisson3d.tst: \
+  tests/poisson/poisson3d.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/poisson/poisson3d.mtst: \
+  tests/poisson/poisson3d.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
