@@ -49,7 +49,7 @@ template<class Geometry> double get_p_norm(
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		local += std::pow(fabs(cell.data->solution - reference.get_solution(cell.id - 1)), p_of_norm);
 	}
 	MPI_Comm temp = grid.get_communicator();
@@ -72,7 +72,7 @@ template<class Geometry> double get_p_norm(
 	const double p_of_norm
 ) {
 	double local = 0, global = 0;
-	for (const auto& cell: grid1.local_cells) {
+	for (const auto& cell: grid1.local_cells()) {
 		Poisson_Cell* data2 = grid2[cell.id];
 		local += std::pow(fabs(cell.data->solution - data2->solution), p_of_norm);
 	}
@@ -118,7 +118,7 @@ template<class Geometry> void offset_solution(
 	MPI_Comm_free(&comm);
 
 	// offset solutions
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->solution -= solution;
 	}
 }
@@ -228,7 +228,7 @@ int main(int argc, char* argv[])
 		geom_params.level_0_cell_length[2] = 1;
 
 		// emulate RANDOM load balance but make local cells identical in grid_x, y and z
-		for (const auto& cell: grid_x.local_cells) {
+		for (const auto& cell: grid_x.local_cells()) {
 			const int target_process = cell.id % comm_size;
 			grid_x.pin(cell.id, target_process);
 			grid_y.pin(cell.id, target_process);
@@ -242,7 +242,7 @@ int main(int argc, char* argv[])
 		grid_z.unpin_all_cells();
 
 		// initialize parallel
-		for (const auto& cell: grid_x.local_cells) {
+		for (const auto& cell: grid_x.local_cells()) {
 			Poisson_Cell
 				*data_x = grid_x[cell.id],
 				*data_y = grid_y[cell.id],
@@ -265,7 +265,7 @@ int main(int argc, char* argv[])
 		}
 
 		// initialize serial
-		for (const auto& cell: grid_serial.local_cells) {
+		for (const auto& cell: grid_serial.local_cells()) {
 			cell.data->rhs = reference_solver.get_rhs(cell.id - 1);
 			cell.data->solution = 0;
 		}

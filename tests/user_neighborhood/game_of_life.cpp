@@ -223,12 +223,11 @@ int main(int argc, char* argv[])
 
 		grid.balance_load();
 		grid.update_copies_of_remote_neighbors(neighborhood_id);
-		vector<uint64_t> cells = grid.get_cells();
 
 		// check that the result is correct
 		if (step % 4 == 0) {
 			const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], step);
-			for (const auto& cell: grid.local_cells) {
+			for (const auto& cell: grid.local_cells()) {
 				if (cell.data->data[0] == 0) {
 					if (live_cells.count(cell.id) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
@@ -267,6 +266,7 @@ int main(int argc, char* argv[])
 		}
 
 		// write the grid into a file
+		vector<uint64_t> cells = grid.get_cells();
 		sort(cells.begin(), cells.end());
 		grid.write_vtk_file(current_output_name.c_str());
 		// prepare to write the game data into the same file

@@ -71,7 +71,7 @@ int main(int argc, char* argv[])
 		.initialize(comm);
 
 	// default neighbor lists should have 5^3 - 1 = 124 neighbors
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto nofs = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
 		if (nofs != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
 		if (neighbors->size() != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -138,7 +138,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
 		if (neighbors->size() != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -179,7 +179,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -220,7 +220,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
 		if (neighbors->size() != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -262,7 +262,7 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		// check number of neighbors
 		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
 		if (neighbors->size() != 124) {

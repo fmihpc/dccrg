@@ -250,7 +250,7 @@ int main(int argc, char* argv[])
 
 	// initial condition
 	const unsigned int max_particles_per_cell = 5;
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 
 		const std::array<double, 3>
 			cell_min = grid.geometry.get_min(cell.id),

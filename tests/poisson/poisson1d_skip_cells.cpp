@@ -62,7 +62,7 @@ template<class Geometry> double get_p_norm(
 ) {
 	double local = 0, global = 0;
 
-	for(const auto& cell: grid.local_cells) {
+	for(const auto& cell: grid.local_cells()) {
 		const double coord = grid.geometry.get_center(cell.id)[0];
 		local += std::pow(
 			fabs(cell.data->solution - get_solution_value(coord)),
@@ -148,7 +148,7 @@ int main(int argc, char* argv[])
 			.initialize(comm);
 
 		// emulate RANDOM but predictable load balance
-		for(const auto& cell: grid.local_cells) {
+		for(const auto& cell: grid.local_cells()) {
 			const dccrg::Types<3>::indices_t indices = grid.mapping.get_indices(cell.id);
 			// move cells in middle of grid to same process as in reference grid
 			if (indices[1] == 1 && indices[2] == 1) {
@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
 				grid.pin(cell.id, target_process);
 			}
 		}
-		for(const auto& cell: grid_reference.local_cells) {
+		for(const auto& cell: grid_reference.local_cells()) {
 			const dccrg::Types<3>::indices_t indices = grid_reference.mapping.get_indices(cell.id);
 			const int target_process = indices[0] % comm_size;
 			grid_reference.pin(cell.id, target_process);
