@@ -176,7 +176,7 @@ int main(int argc, char* argv[])
 		);
 
 		// verify refined/unrefined game
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 
 			const int refinement_level = grid.get_refinement_level(cell.id);
 			uint64_t reference_cell;

@@ -61,12 +61,12 @@ template<class Grid> void check_for_adaptation(
 	cells_not_to_unrefine.clear();
 	cells_to_unrefine.clear();
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->max_diff() = 0;
 	}
 
 	// collect maximum relative differences
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const int cell_length = grid.mapping.get_cell_length_in_indices(cell.id);
 
 		for (const auto& neighbor: cell.neighbors_of) {
@@ -106,7 +106,7 @@ template<class Grid> void check_for_adaptation(
 	}
 
 	// decide whether to refine or unrefine cells
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 
 		const int refinement_level = grid.get_refinement_level(cell.id);
 
@@ -300,7 +300,7 @@ template<class Grid> std::pair<uint64_t, uint64_t> adapt_grid(
 	grid.clear_refined_unrefined_data();
 
 	// update velocities and lengths
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->vx() = get_vx(cell.center[1]);
 		cell.data->vy() = get_vy(cell.center[0]);
 		cell.data->vz() = 0;

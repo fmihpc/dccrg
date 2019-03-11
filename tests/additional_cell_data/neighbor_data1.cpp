@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
 		.set_load_balancing_method("RANDOM")
 		.initialize(comm);
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (const auto& neighbor: cell.neighbors_of) {
 			if (neighbor.additional_neighbor_data1 != 1) {
 				std::cerr << neighbor.id << ": " << neighbor.additional_neighbor_data1 << std::endl;

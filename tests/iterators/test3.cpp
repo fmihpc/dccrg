@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
 		// check that local cell neighbor iterators work
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			set<uint64_t> ref_neighbors_of{all_cells};
 			ref_neighbors_of.erase(cell.id);
 			if (cell.id % 2 == 0) {
@@ -127,7 +127,7 @@ int main(int argc, char* argv[])
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
 		// check that local cell neighbor iterators work
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			set<uint64_t> ref_neighbors_of{all_cells};
 			ref_neighbors_of.erase(cell.id);
 			if (cell.id == 3 or cell.id == 7 or cell.id == 11 or cell.id == 15) {
@@ -162,7 +162,7 @@ int main(int argc, char* argv[])
 
 	for (int i = 0; i < 5; i++) {
 		// check that local cell neighbor iterators work
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			set<uint64_t> ref_neighbors_of;
 
 			if (cell.id > 18) {

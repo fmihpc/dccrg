@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
 		// check that local cell neighbor iterators work
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			vector<uint64_t> ref_neighbors_of;
 			const auto
 				start_cell = [&]()->uint64_t{

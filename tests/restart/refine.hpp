@@ -40,7 +40,7 @@ template<class Geometry> void refine(
 ) {
 	// refine random unrefined cells and unrefine random refined cells
 	std::vector<uint64_t> cells;
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cells.push_back(cell.id);
 	}
 	std::random_shuffle(cells.begin(), cells.end());

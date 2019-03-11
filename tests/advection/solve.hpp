@@ -48,9 +48,9 @@ template<class Grid> void calculate_fluxes(
 ) {
 	const auto& cells = [&](){
 		if (solve_inner) {
-			return grid.inner_cells;
+			return grid.inner_cells();
 		} else {
-			return grid.outer_cells;
+			return grid.outer_cells();
 		}
 	}();
 
@@ -269,7 +269,7 @@ template<class Grid> void calculate_fluxes(
 Applies fluxes to local cells and zeroes the fluxes afterwards.
 */
 template<class Grid> void apply_fluxes(Grid& grid) {
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->density() += cell.data->flux();
 		cell.data->flux() = 0;
 	}
@@ -289,7 +289,7 @@ template<class Grid> double max_time_step(
 ) {
 	double min_step = std::numeric_limits<double>::max();
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const std::array<double, 3>
 			current_steps{{
 				cell.data->length_x() / fabs(cell.data->vx()),

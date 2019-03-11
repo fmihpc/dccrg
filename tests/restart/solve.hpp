@@ -35,7 +35,7 @@ Works only if cells within the grid have been refined <= 1 time.
 */
 template<class Geometry> void solve(dccrg::Dccrg<Cell, Geometry>& grid) {
 	// get the neighbor counts of every cell
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (int i = 0; i < 12; i++) {
 			cell.data->data[1 + i] = 0;
 		}
@@ -157,7 +157,7 @@ template<class Geometry> void solve(dccrg::Dccrg<Cell, Geometry>& grid) {
 	grid.update_copies_of_remote_neighbors();
 
 	// get the total neighbor counts of refined cells
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		if (grid.get_refinement_level(cell.id) == 0) {
 			continue;
 		}
@@ -187,7 +187,7 @@ template<class Geometry> void solve(dccrg::Dccrg<Cell, Geometry>& grid) {
 	}
 
 	// calculate the next turn
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		if (cell.data->data[1] == 3) {
 			cell.data->data[0] = true;
 		} else if (cell.data->data[1] != 2) {

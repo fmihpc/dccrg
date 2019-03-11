@@ -95,13 +95,12 @@ bool
 /*
 Migrates cells off every third process.
 */
-template <class Grid_T> void migrate_cells(Grid_T& grid)
+template <class Grid> void migrate_cells(Grid& grid)
 {
 	if (grid.get_rank() % 3 == 0) {
 		if (grid.get_comm_size() > grid.get_rank() + 1) {
-			const std::vector<uint64_t> cells = grid.get_cells();
-			for (const auto& cell: cells) {
-				grid.pin(cell, grid.get_rank() + 1);
+			for (const auto& cell: grid.local_cells()) {
+				grid.pin(cell.id, grid.get_rank() + 1);
 			}
 		}
 	}
@@ -194,22 +193,13 @@ int main(int argc, char* argv[])
 		migrate_cells(grid);
 
 		// initialize
-		const std::vector<uint64_t> cells = grid.get_cells();
-		for(const auto& cell: cells) {
-			Cell* const cell_data = grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell: " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (cell % 4 != 0) {
-				for (uint64_t i = 0; i < cell; i++) {
-					cell_data->data.push_back(int(i));
+		for(const auto& cell: grid.local_cells()) {
+			if (cell.id % 4 != 0) {
+				for (uint64_t i = 0; i < cell.id; i++) {
+					cell.data->data.push_back(int(i));
 				}
 			}
-			cell_data->data_size = cell_data->data.size();
+			cell.data->data_size = cell.data->data.size();
 		}
 
 		std::tuple<void*, int, MPI_Datatype> header;
@@ -253,27 +243,18 @@ int main(int argc, char* argv[])
 		}
 
 		// verify loaded data
-		const std::vector<uint64_t> cells = grid.get_cells();
-		for(const auto& cell: cells) {
-			const Cell* const cell_data = grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell: " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (cell % 4 != 0) {
-				if (cell_data->data_size != cell) {
+		for(const auto& cell: grid.local_cells()) {
+			if (cell.id % 4 != 0) {
+				if (cell.data->data_size != cell.id) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< cell << ": " << cell_data->data_size
+						<< cell.id << ": " << cell.data->data_size
 						<< std::endl;
 					abort();
 				}
 			} else {
-				if (cell_data->data_size != 0) {
+				if (cell.data->data_size != 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
-						<< cell << ": " << cell_data->data_size
+						<< cell.id << ": " << cell.data->data_size
 						<< std::endl;
 					abort();
 				}
@@ -281,16 +262,8 @@ int main(int argc, char* argv[])
 		}
 
 		// resize cell vectors to fit incoming data
-		for(const auto& cell: cells) {
-			Cell* const cell_data = grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell: " << cell
-					<< std::endl;
-				abort();
-			}
-
-			cell_data->data.resize(cell_data->data_size);
+		for(const auto& cell: grid.local_cells()) {
+			cell.data->data.resize(cell.data->data_size);
 		}
 
 		// load rest of cell data
@@ -302,19 +275,11 @@ int main(int argc, char* argv[])
 		}
 
 		// verify loaded data
-		for(const auto& cell: cells) {
-			const Cell* const cell_data = grid[cell];
-			if (cell_data == NULL) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No data for cell: " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (cell_data->data.size() != cell_data->data_size) {
+		for(const auto& cell: grid.local_cells()) {
+			if (cell.data->data.size() != cell.data->data_size) {
 				std::cerr << __FILE__ << ":" << __LINE__ << ": "
-					<< cell << ", " << cell_data->data_size << ", " << cell_data->data.size()
-					<< " but should be " << ((cell % 4 != 0) ? cell : 0)
+					<< cell.id << ", " << cell.data->data_size << ", " << cell.data->data.size()
+					<< " but should be " << ((cell.id % 4 != 0) ? cell.id : 0)
 					<< std::endl;
 				abort();
 			}

@@ -79,7 +79,7 @@ int main(int argc, char* argv[])
 	grid.clear_refined_unrefined_data();
 
 	for (int i = 0; i < 5; i++) {
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			const auto cell_i = grid.mapping.get_indices(cell.id);
 			for (const auto& neighbor: cell.neighbors_of) {
 				const auto neigh_i = grid.mapping.get_indices(neighbor.id);
