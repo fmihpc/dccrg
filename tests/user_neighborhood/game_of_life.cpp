@@ -200,12 +200,12 @@ int main(int argc, char* argv[])
 
 	// every process outputs the game state into its own file
 	ostringstream basename, suffix(".vtk");
-	basename << "general_neighborhood_" << rank << "_";
+	basename << "tests/user_neighborhood/general_neighborhood_" << rank << "_";
 	ofstream outfile, visit_file;
 
 	// visualize the game with visit -o game_of_life_test.visit
 	if (rank == 0) {
-		visit_file.open("general_neighborhood.visit");
+		visit_file.open("tests/user_neighborhood/general_neighborhood.visit");
 		visit_file << "!NBLOCKS " << comm_size << endl;
 	}
 

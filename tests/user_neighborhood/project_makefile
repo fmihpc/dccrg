@@ -17,6 +17,7 @@ tests/user_neighborhood/tests: $(TESTS_USER_NEIGHBORHOOD_TESTS)
 
 tests/user_neighborhood/results:
 	@printf "CLEAN results in tests/user_neighborhood\n" && rm -f \
+	  tests/user_neighborhood/*dc \
 	  tests/user_neighborhood/*vtk \
 	  tests/user_neighborhood/*visit
 
