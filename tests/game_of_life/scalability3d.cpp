@@ -103,7 +103,7 @@ int main(int argc, char* argv[])
 	MPI_Barrier(comm);
 
 	// initialize the game with random cells alive
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX <= 0.2) {
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
 		Get the neighbor counts of every cell, starting with the cells whose neighbor
 		data doesn't come from other processes while those transfers are carried out.
 		*/
-		for (const auto& cell: grid.inner_cells) {
+		for (const auto& cell: grid.inner_cells()) {
 			cell.data->live_neighbor_count = 0;
 
 			for (const auto& neighbor: cell.neighbors_of) {
@@ -145,7 +145,7 @@ int main(int argc, char* argv[])
 
 		// wait for neighbor data updates to finish and go through the rest of the cells
 		grid.wait_remote_neighbor_copy_updates();
-		for (const auto& cell: grid.outer_cells) {
+		for (const auto& cell: grid.outer_cells()) {
 			cell.data->live_neighbor_count = 0;
 
 			for (const auto& neighbor: cell.neighbors_of) {
@@ -156,7 +156,7 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = true;
 			} else if (cell.data->live_neighbor_count != 2) {
@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
 	}
 	MPI_Barrier(comm);
 
-	const auto number_of_cells = std::distance(grid.local_cells.begin(), grid.local_cells.end());
+	const auto number_of_cells = std::distance(grid.local_cells().begin(), grid.local_cells().end());
 	cout << "Process " << rank << ": "
 		<< number_of_cells * TIME_STEPS
 		<< " cells processed at the speed of "

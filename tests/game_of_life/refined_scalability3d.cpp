@@ -92,7 +92,7 @@ int main(int argc, char* argv[])
 	grid.balance_load();
 
 	vector<uint64_t> cells;
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cells.push_back(cell.id);
 	}
 	// refine random cells until every process has enough cells
@@ -115,13 +115,13 @@ int main(int argc, char* argv[])
 
 	cout << "Process " << rank
 		<< ": number of cells with local neighbors: "
-		<< std::distance(grid.inner_cells.begin(), grid.inner_cells.end())
+		<< std::distance(grid.inner_cells().begin(), grid.inner_cells().end())
 		<< ", number of cells with a remote neighbor: "
-		<< std::distance(grid.outer_cells.begin(), grid.outer_cells.end())
+		<< std::distance(grid.outer_cells().begin(), grid.outer_cells().end())
 		<< endl;
 
 	// initialize the game with a line of living cells in the x direction in the middle
-	for (const auto& cell: grid.inner_cells) {
+	for (const auto& cell: grid.inner_cells()) {
 		cell.data->live_neighbor_count = 0;
 
 		const std::array<double, 3>
@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
 			cell.data->is_alive = 0;
 		}
 	}
-	for (const auto& cell: grid.outer_cells) {
+	for (const auto& cell: grid.outer_cells()) {
 		cell.data->live_neighbor_count = 0;
 
 		const std::array<double, 3>
@@ -155,9 +155,9 @@ int main(int argc, char* argv[])
 	}
 	double avg_neighbors = 0.0;
 	int max_neighbors = 0, min_neighbors = 999;
-	const auto number_of_cells = std::distance(grid.local_cells.begin(), grid.local_cells.end());
+	const auto number_of_cells = std::distance(grid.local_cells().begin(), grid.local_cells().end());
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		const double neighbors_size = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
 		avg_neighbors += neighbors_size / number_of_cells;
 
@@ -219,7 +219,7 @@ int main(int argc, char* argv[])
 		grid.start_remote_neighbor_copy_updates();
 		// get the neighbor counts of every cell, starting with the
 		// cells whose neighbor data doesn't come from other processes
-		for (const auto& cell: grid.inner_cells) {
+		for (const auto& cell: grid.inner_cells()) {
 			cell.data->live_neighbor_count = 0;
 			for (const auto& neighbor: cell.neighbors_of) {
 				if (neighbor.data->is_alive) {
@@ -231,7 +231,7 @@ int main(int argc, char* argv[])
 
 		// wait for neighbor data updates to finish and go through the rest of the cells
 		grid.wait_remote_neighbor_copy_updates();
-		for (const auto& cell: grid.outer_cells) {
+		for (const auto& cell: grid.outer_cells()) {
 			cell.data->live_neighbor_count = 0;
 			for (const auto& neighbor: cell.neighbors_of) {
 				if (neighbor.data->is_alive) {
@@ -242,14 +242,14 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: grid.inner_cells) {
+		for (const auto& cell: grid.inner_cells()) {
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->live_neighbor_count != 2) {
 				cell.data->is_alive = 0;
 			}
 		}
-		for (const auto& cell: grid.outer_cells) {
+		for (const auto& cell: grid.outer_cells()) {
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->live_neighbor_count != 2) {

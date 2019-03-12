@@ -105,7 +105,7 @@ template<class Cell_Data, class Geometry> void initialize(
 
 	const auto live_cells = get_live_cells(grid_size);
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (auto& item: cell.data->data) {
 			item = 0;
 		}

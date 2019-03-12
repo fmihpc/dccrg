@@ -65,7 +65,7 @@ int main(int argc, char* argv[])
 	for (const auto cell_id: grid.get_remote_cells_on_process_boundary()) {
 		const auto* const cell_data = grid[cell_id];
 		if (cell_data == nullptr) {
-			for (const auto& cell: grid.local_cells) {
+			for (const auto& cell: grid.local_cells()) {
 				if (cell.id == cell_id) {
 					std::cerr << __FILE__  "(" << __LINE__ << ")" << std::endl;
 					fail = true;

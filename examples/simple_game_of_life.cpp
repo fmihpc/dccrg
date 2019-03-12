@@ -78,7 +78,7 @@ int main(int argc, char* argv[])
 	//	.balance_load();
 
 	// initialize the game
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->live_neighbor_count = 0;
 		if (cell.id == 54 or cell.id == 55 or cell.id == 56) {
 			cell.data->is_alive = 1;
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 
 		// get the neighbor counts for every cell
 		// owned by this process
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			cell.data->live_neighbor_count = 0;
 
 			// check life status of each cell that
@@ -111,7 +111,7 @@ int main(int argc, char* argv[])
 		}
 
 		// calculate the next turn
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if (cell.data->live_neighbor_count == 3) {
 				cell.data->is_alive = 1;
 			} else if (cell.data->live_neighbor_count != 2) {
@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 		}
 
 		// verify solution
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if (cell.id == 55) {
 				if (not cell.data->is_alive) {
 					std::cerr << "Internal error!" << std::endl;

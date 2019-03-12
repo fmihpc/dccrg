@@ -40,13 +40,33 @@ struct Cell {
 struct Additional_Neighbor_Data_Item1 {
 	int additional_neighbor_data1 = 1;
 	double additional_neighbor_data2 = 3.125;
-	template<class Grid, class Cell_Item, class Neighbor_Item> void update(const Grid&, const Cell_Item&, const Neighbor_Item&, const Additional_Neighbor_Data_Item1&) {}
+	template<
+		class Grid,
+		class Cell_Item,
+		class Neighbor_Item
+	> void update(
+		const Grid&,
+		const Cell_Item&,
+		const Neighbor_Item&,
+		const int&,
+		const Additional_Neighbor_Data_Item1&
+	) {}
 };
 
 struct Additional_Neighbor_Data_Item2 {
 	std::tuple<int, float> additional_neighbor_data3{2, 3.0625};
 	unsigned int additional_neighbor_data4 = 4;
-	template<class Grid, class Cell_Item, class Neighbor_Item> void update(const Grid&, const Cell_Item&, const Neighbor_Item&, const Additional_Neighbor_Data_Item2&) {}
+	template<
+		class Grid,
+		class Cell_Item,
+		class Neighbor_Item
+	> void update(
+		const Grid&,
+		const Cell_Item&,
+		const Neighbor_Item&,
+		const int&,
+		const Additional_Neighbor_Data_Item2&
+	) {}
 };
 
 int main(int argc, char* argv[])
@@ -82,7 +102,7 @@ int main(int argc, char* argv[])
 		.set_load_balancing_method("RANDOM")
 		.initialize(comm);
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (const auto& neighbor: cell.neighbors_of) {
 			if (neighbor.additional_neighbor_data1 != 1) {
 				std::cerr << neighbor.id << ": " << neighbor.additional_neighbor_data1 << std::endl;

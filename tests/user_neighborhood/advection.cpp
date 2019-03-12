@@ -302,9 +302,9 @@ int main(int argc, char* argv[])
 
 	// save initial state
 	#ifndef DEBUG
-	const string base_output_name("2d_");
+	const string base_output_name("tests/user_neighborhood/2d_");
 	#else
-	const string base_output_name("2d_debug_");
+	const string base_output_name("tests/user_neighborhood/2d_debug_");
 	#endif
 	unsigned int files_saved = 0;
 	if (save_n > -1) {
@@ -318,9 +318,6 @@ int main(int argc, char* argv[])
 	if (verbose && rank == 0) {
 		cout << "Starting simulation" << endl;
 	}
-
-	vector<uint64_t> inner_cells = grid.get_local_cells_not_on_process_boundary(NEIGHBORHOOD_ID);
-	vector<uint64_t> outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 
 	// record solution time for inner cells and amount of neighbor data received
 	double inner_solve_time = 0, outer_solve_time = 0, neighbor_receive_size = 0;
@@ -337,7 +334,7 @@ int main(int argc, char* argv[])
 
 		// solve inner cells
 		const double inner_solve_start = MPI_Wtime();
-		calculate_fluxes(cfl * dt, true, grid);
+		calculate_fluxes(cfl * dt, true, grid, NEIGHBORHOOD_ID);
 		inner_solve_time += MPI_Wtime() - inner_solve_start;
 
 		// wait for remote neighbor data
@@ -345,7 +342,7 @@ int main(int argc, char* argv[])
 
 		// solve outer cells
 		const double outer_solve_start = MPI_Wtime();
-		calculate_fluxes(cfl * dt, false, grid);
+		calculate_fluxes(cfl * dt, false, grid, NEIGHBORHOOD_ID);
 		outer_solve_time += MPI_Wtime() - outer_solve_start;
 
 		// wait until local data has been sent
@@ -374,7 +371,8 @@ int main(int argc, char* argv[])
 				cells_to_refine,
 				cells_not_to_unrefine,
 				cells_to_unrefine,
-				grid
+				grid,
+				NEIGHBORHOOD_ID
 			);
 		}
 
@@ -392,7 +390,7 @@ int main(int argc, char* argv[])
 		data from the same timestep (variables not fluxes which aren't transferred anyway).
 		*/
 
-		apply_fluxes(grid);
+		apply_fluxes(grid, NEIGHBORHOOD_ID);
 
 		// adapt the grid
 		if (adapt_n > 0 && step % adapt_n == 0) {
@@ -406,13 +404,11 @@ int main(int argc, char* argv[])
 					cells_to_refine,
 					cells_not_to_unrefine,
 					cells_to_unrefine,
-					grid
+					grid,
+					NEIGHBORHOOD_ID
 				);
 			created_cells += adapted_cells.first;
 			removed_cells += adapted_cells.second;
-
-			inner_cells = grid.get_local_cells_not_on_process_boundary(NEIGHBORHOOD_ID);
-			outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 
 			// update maximum allowed time step
 			dt = max_time_step(comm, grid);
@@ -429,9 +425,6 @@ int main(int argc, char* argv[])
 			}
 
 			grid.balance_load();
-
-			inner_cells = grid.get_local_cells_not_on_process_boundary(NEIGHBORHOOD_ID);
-			outer_cells = grid.get_local_cells_on_process_boundary(NEIGHBORHOOD_ID);
 		}
 
 		step++;
@@ -502,4 +495,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

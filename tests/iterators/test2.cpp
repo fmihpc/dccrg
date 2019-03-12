@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
 		// check that local cell neighbor iterators work
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			vector<uint64_t> ref_neighbors_of;
 			const auto
 				start_cell = [&]()->uint64_t{
@@ -123,11 +123,60 @@ int main(int argc, char* argv[])
 		grid.balance_load();
 	}
 
-	/* TODO: test user-defined neighborhood
+
 	if (not grid.add_neighborhood(0, {{1, 0, 0}, {2, 0, 0}, {3, 0, 0}})) {
 		cout << "FAILED" << endl;
 		cerr << "Failed to add neighborhood with id 0" << endl;
-	}*/
+	}
+
+	// do a few iterations with random load balancing
+	for (int i = 0; i < 5; i++) {
+		// check that local cell neighbor iterators work
+		for (const auto& cell: grid.local_cells(0)) {
+			vector<uint64_t> ref_neighbors_of;
+			const auto
+				end_cell = [&]()->uint64_t{
+					if (cell.id > 997) {
+						return 1000;
+					} else {
+						return cell.id + 3;
+					}
+				}();
+			for (uint64_t c = cell.id + 1; c <= end_cell; c++) {
+				ref_neighbors_of.push_back(c);
+			}
+
+			vector<uint64_t> neighbors_of;
+			for (const auto& neighbor: cell.neighbors_of) {
+				neighbors_of.push_back(neighbor.id);
+			}
+			if (ref_neighbors_of != neighbors_of) {
+				cerr << __FILE__ "(" << __LINE__ << "): "
+					<< "Wrong neighbors_of for cell " << cell.id
+					<< "\nResult: ";
+				for (const auto& n: neighbors_of) cerr << n << ", ";
+				cerr << "\nReference: ";
+				for (const auto& n: ref_neighbors_of) cerr << n << ", ";
+				cerr << endl;
+				return EXIT_FAILURE;
+			}
+
+			// check offset
+			for (const auto& neighbor: cell.neighbors_of) {
+				const int ref_diff = (neighbor.id - cell.id) * grid.mapping.get_cell_length_in_indices(cell.id);
+				if (ref_diff != neighbor.x) {
+					cerr << __FILE__ "(" << __LINE__ << "): "
+						<< "Wrong offset for neighbor_of " << neighbor.id
+						<< " of cell " << cell.id << ": " << neighbor.x
+						<< ", should be " << ref_diff << endl;
+					return EXIT_FAILURE;
+				}
+			}
+		}
+
+		grid.balance_load();
+	}
+
 
 	MPI_Finalize();
 

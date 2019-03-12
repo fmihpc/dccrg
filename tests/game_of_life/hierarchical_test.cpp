@@ -83,11 +83,11 @@ int main(int argc, char* argv[])
 
 	grid.balance_load();
 	// assumes no further load balancing, AMR, etc.
-	auto cells = grid.cells;
+	auto cells = grid.get_cells();
 	sort(cells.begin(), cells.end());
 
 	// initialize the game
-	for (const auto& cell: cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -145,7 +145,8 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			if (cell.data->is_alive == 1) {
+			const auto* const cell_data = grid[cell];
+			if (cell_data->is_alive == 1) {
 				outfile << "1";
 			} else {
 				outfile << "0";
@@ -158,14 +159,15 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			outfile << cell.data->live_neighbor_count << endl;
+			const auto* const cell_data = grid[cell];
+			outfile << cell_data->live_neighbor_count << endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			const auto* const neighbors = grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -180,7 +182,7 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			outfile << cell.id << endl;
+			outfile << cell << endl;
 		}
 		outfile.close();
 
@@ -262,10 +264,11 @@ int main(int argc, char* argv[])
 
 		// calculate the next turn
 		for (const auto& cell: cells) {
-			if (cell.data->live_neighbor_count == 3) {
-				cell.data->is_alive = 1;
-			} else if (cell.data->live_neighbor_count != 2) {
-				cell.data->is_alive = 0;
+			auto* const cell_data = grid[cell];
+			if (cell_data->live_neighbor_count == 3) {
+				cell_data->is_alive = 1;
+			} else if (cell_data->live_neighbor_count != 2) {
+				cell_data->is_alive = 0;
 			}
 		}
 	}

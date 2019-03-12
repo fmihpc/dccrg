@@ -37,7 +37,7 @@ Initializes game with random live cells.
 void initialize_game(
 	dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
 ) {
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		cell.data->live_neighbor_count = 0;
 
 		if (double(rand()) / RAND_MAX < 0.2) {
@@ -73,7 +73,7 @@ Applies the game of life rules to given local cells.
 void apply_rules(
 	const dccrg::Dccrg<game_of_life_cell, dccrg::Cartesian_Geometry>& grid
 ) {
-	for (const auto& cell: grid.cells) {
+	for (const auto& cell: grid.local_cells()) {
 		if (cell.data->live_neighbor_count == 3) {
 			cell.data->is_alive = 1;
 		} else if (cell.data->live_neighbor_count != 2) {
@@ -152,10 +152,10 @@ int main(int argc, char* argv[])
 		write_game_data(turn, grid);
 
 		grid.start_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(grid.inner_cells);
+		get_live_neighbor_counts(grid.inner_cells());
 
 		grid.wait_remote_neighbor_copy_updates();
-		get_live_neighbor_counts(grid.outer_cells);
+		get_live_neighbor_counts(grid.outer_cells());
 
 		apply_rules(grid);
 	}

@@ -152,14 +152,22 @@ public:
 
 struct Is_Local {
 	bool is_local = false;
-	template<class Grid, class Cell_Item, class Neighbor_Item> void update(const Grid& grid, const Cell_Item&, const Neighbor_Item& neighbor, const Is_Local&) {
+	template<
+		class Grid, class Cell_Item, class Neighbor_Item
+	> void update(
+		const Grid& grid, const Cell_Item&, const Neighbor_Item& neighbor, const int&, const Is_Local&
+	) {
 		is_local = grid.is_local(neighbor.id);
 	}
 };
 
 struct Center {
 	std::array<double, 3> center;
-	template<class Grid, class Cell_Item> void update(const Grid& grid, const Cell_Item& cell, const Center&) {
+	template<
+		class Grid, class Cell_Item
+	> void update(
+		const Grid& grid, const Cell_Item& cell, const Center&
+	) {
 		center = grid.geometry.get_center(cell.id);
 	}
 };

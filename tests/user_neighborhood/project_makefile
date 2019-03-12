@@ -1,14 +1,14 @@
 TESTS_USER_NEIGHBORHOOD_EXECUTABLES = \
   tests/user_neighborhood/neighbor_list_length.exe \
   tests/user_neighborhood/game_of_life.exe \
-  tests/user_neighborhood/advection.exe
+  tests/user_neighborhood/advection.exe \
+  tests/user_neighborhood/advection_debug.exe
 
 TESTS_USER_NEIGHBORHOOD_TESTS = \
   tests/user_neighborhood/neighbor_list_length.tst \
   tests/user_neighborhood/neighbor_list_length.mtst \
   tests/user_neighborhood/game_of_life.tst \
   tests/user_neighborhood/game_of_life.mtst \
-  tests/user_neighborhood/advection.tst \
   tests/user_neighborhood/advection.mtst
 
 tests/user_neighborhood/executables: $(TESTS_USER_NEIGHBORHOOD_EXECUTABLES)
@@ -17,6 +17,7 @@ tests/user_neighborhood/tests: $(TESTS_USER_NEIGHBORHOOD_TESTS)
 
 tests/user_neighborhood/results:
 	@printf "CLEAN results in tests/user_neighborhood\n" && rm -f \
+	  tests/user_neighborhood/*dc \
 	  tests/user_neighborhood/*vtk \
 	  tests/user_neighborhood/*visit
 
@@ -39,7 +40,7 @@ TESTS_USER_NEIGHBORHOOD_COMMON_DEPS = \
   Makefile
 
 TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND = \
-  @printf "MPICXX $@\n" && $(MPICXX) -DDEBUG $< -o $@ \
+  @printf "MPICXX $@\n" && $(MPICXX) $< -o $@ \
   $(CPPFLAGS) \
   $(CXXFLAGS) \
   $(LDFLAGS) \
@@ -55,7 +56,7 @@ TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND = \
 tests/user_neighborhood/neighbor_list_length.exe: \
   tests/user_neighborhood/neighbor_list_length.cpp \
   $(TESTS_USER_NEIGHBORHOOD_COMMON_DEPS)
-	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND)
+	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND) -DDEBUG
 
 tests/user_neighborhood/neighbor_list_length.tst: \
   tests/user_neighborhood/neighbor_list_length.exe
@@ -69,7 +70,7 @@ tests/user_neighborhood/neighbor_list_length.mtst: \
 tests/user_neighborhood/game_of_life.exe: \
   tests/user_neighborhood/game_of_life.cpp \
   $(TESTS_USER_NEIGHBORHOOD_COMMON_DEPS)
-	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND)
+	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND) -DDEBUG
 
 tests/user_neighborhood/game_of_life.tst: \
   tests/user_neighborhood/game_of_life.exe
@@ -86,10 +87,13 @@ tests/user_neighborhood/advection.exe: \
   $(TESTS_USER_NEIGHBORHOOD_COMMON_DEPS)
 	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND)
 
-tests/user_neighborhood/advection.tst: \
-  tests/user_neighborhood/advection.exe
-	@printf RUN\ $@...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
-
 tests/user_neighborhood/advection.mtst: \
   tests/user_neighborhood/advection.exe
 	@printf MPIRUN\ $@...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/user_neighborhood/advection_debug.exe: \
+  tests/user_neighborhood/advection.cpp \
+  tests/advection/solve.hpp \
+  $(TESTS_USER_NEIGHBORHOOD_COMMON_DEPS)
+	$(TESTS_USER_NEIGHBORHOOD_COMPILE_COMMAND) -DDEBUG

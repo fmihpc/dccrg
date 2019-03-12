@@ -231,22 +231,13 @@ int main(int argc, char* argv[])
 	}
 
 	#define TIME_STEPS 25
-	/*if (rank == 0) {
-		cout << "step: ";
-		cout.flush();
-	}*/
 	for (int step = 0; step < TIME_STEPS; step++) {
 
 		grid.balance_load();
 		grid.update_copies_of_remote_neighbors();
-		auto cells = grid.cells;
+		auto cells = grid.get_cells();
 		// the library writes the grid into a file in ascending cell order, do the same for the grid data at every time step
 		sort(cells.begin(), cells.end());
-
-		/*if (rank == 0) {
-			cout << step << " ";
-			cout.flush();
-		}*/
 
 		// write the game state into a file named according to the current time step
 		string current_output_name("");
@@ -277,7 +268,8 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			if (cell.data->is_alive > 0) {
+			const auto* const cell_data = grid[cell];
+			if (cell_data->is_alive > 0) {
 				outfile << "1";
 			} else {
 				outfile << "0";
@@ -290,14 +282,15 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			outfile << cell.data->total_live_neighbor_count << endl;
+			const auto* const cell_data = grid[cell];
+			outfile << cell_data->total_live_neighbor_count << endl;
 		}
 
 		// write each cells neighbor count
 		outfile << "SCALARS neighbors int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			const auto* const neighbors = grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell);
 			outfile << neighbors->size() << endl;
 		}
 
@@ -312,25 +305,26 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS id int 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const auto& cell: cells) {
-			outfile << cell.id << endl;
+			outfile << cell << endl;
 		}
 		outfile.close();
 
 		// get the neighbor counts of every cell
 		for (const auto& cell: cells) {
-			cell.data->total_live_neighbor_count = 0;
+			auto* const cell_data = grid[cell];
+			cell_data->total_live_neighbor_count = 0;
 
 			for (int i = 0; i < 3; i++) {
-				cell.data->live_unrefined_neighbors[i] = 0;
+				cell_data->live_unrefined_neighbors[i] = 0;
 			}
 
 			for (int i = 0; i < 8; i++) {
-				cell.data->child_of_processed[i] = 0;
+				cell_data->child_of_processed[i] = 0;
 			}
 
-			const auto* const neighbors = grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell);
 			// unrefined cells just consider neighbor counts at the level of unrefined cells
-			if (grid.get_refinement_level(cell.id) == 0) {
+			if (grid.get_refinement_level(cell) == 0) {
 
 				for (const auto& neighbor_i: *neighbors) {
 					const auto& neighbor = neighbor_i.first;
@@ -342,7 +336,7 @@ int main(int argc, char* argv[])
 					const auto* const neighbor_data = grid[neighbor];
 					if (neighbor_data == nullptr) {
 						cerr << __FILE__ << ":" << __LINE__
-							<< " no data for neighbor of cell " << cell.id
+							<< " no data for neighbor of cell " << cell
 							<< ": " << neighbor
 							<< endl;
 						exit(EXIT_FAILURE);
@@ -350,7 +344,7 @@ int main(int argc, char* argv[])
 
 					if (grid.get_refinement_level(neighbor) == 0) {
 						if (neighbor_data->is_alive) {
-							cell.data->total_live_neighbor_count++;
+							cell_data->total_live_neighbor_count++;
 						}
 					// consider only one sibling...
 					} else {
@@ -358,7 +352,7 @@ int main(int argc, char* argv[])
 						bool sibling_processed = false;
 						uint64_t parent_of_neighbor = grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
-							if (cell.data->child_of_processed[i] == parent_of_neighbor) {
+							if (cell_data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
 								break;
 							}
@@ -369,15 +363,15 @@ int main(int argc, char* argv[])
 							continue;
 						} else {
 							for (int i = 0; i < 8; i++) {
-								if (cell.data->child_of_processed[i] == 0) {
-									cell.data->child_of_processed[i] = parent_of_neighbor;
+								if (cell_data->child_of_processed[i] == 0) {
+									cell_data->child_of_processed[i] = parent_of_neighbor;
 									break;
 								}
 							}
 						}
 
 						if (neighbor_data->is_alive > 0) {
-							cell.data->total_live_neighbor_count++;
+							cell_data->total_live_neighbor_count++;
 						}
 					}
 				}
@@ -395,7 +389,7 @@ int main(int argc, char* argv[])
 					auto* const neighbor_data = grid[neighbor];
 					if (neighbor_data == NULL) {
 						cerr << __FILE__ << ":" << __LINE__
-							<< " no data for neighbor of refined cell " << cell.id
+							<< " no data for neighbor of refined cell " << cell
 							<< ": " << neighbor
 							<< endl;
 						exit(EXIT_FAILURE);
@@ -406,7 +400,7 @@ int main(int argc, char* argv[])
 						// larger neighbors appear several times in the neighbor list
 						bool neighbor_processed = false;
 						for (int i = 0; i < 8; i++) {
-							if (cell.data->child_of_processed[i] == neighbor) {
+							if (cell_data->child_of_processed[i] == neighbor) {
 								neighbor_processed = true;
 								break;
 							}
@@ -416,8 +410,8 @@ int main(int argc, char* argv[])
 							continue;
 						} else {
 							for (int i = 0; i < 8; i++) {
-								if (cell.data->child_of_processed[i] == 0) {
-									cell.data->child_of_processed[i] = neighbor;
+								if (cell_data->child_of_processed[i] == 0) {
+									cell_data->child_of_processed[i] = neighbor;
 									break;
 								}
 							}
@@ -425,8 +419,8 @@ int main(int argc, char* argv[])
 
 						if (neighbor_data->is_alive) {
 							for (int i = 0; i < 3; i++) {
-								if (cell.data->live_unrefined_neighbors[i] == 0) {
-									cell.data->live_unrefined_neighbors[i] = neighbor;
+								if (cell_data->live_unrefined_neighbors[i] == 0) {
+									cell_data->live_unrefined_neighbors[i] = neighbor;
 									break;
 								}
 							}
@@ -436,14 +430,14 @@ int main(int argc, char* argv[])
 					} else {
 
 						// ignore own siblings
-						if (grid.get_parent(cell.id) == grid.get_parent(neighbor)) {
+						if (grid.get_parent(cell) == grid.get_parent(neighbor)) {
 							continue;
 						}
 
 						bool sibling_processed = false;
 						uint64_t parent_of_neighbor = grid.get_parent(neighbor);
 						for (int i = 0; i < 8; i++) {
-							if (cell.data->child_of_processed[i] == parent_of_neighbor) {
+							if (cell_data->child_of_processed[i] == parent_of_neighbor) {
 								sibling_processed = true;
 								break;
 							}
@@ -453,8 +447,8 @@ int main(int argc, char* argv[])
 							continue;
 						} else {
 							for (int i = 0; i < 8; i++) {
-								if (cell.data->child_of_processed[i] == 0) {
-									cell.data->child_of_processed[i] = parent_of_neighbor;
+								if (cell_data->child_of_processed[i] == 0) {
+									cell_data->child_of_processed[i] = parent_of_neighbor;
 									break;
 								}
 							}
@@ -463,8 +457,8 @@ int main(int argc, char* argv[])
 						// ...by recording which parents have been considered
 						if (neighbor_data->is_alive) {
 							for (int i = 0; i < 3; i++) {
-								if (cell.data->live_unrefined_neighbors[i] == 0) {
-									cell.data->live_unrefined_neighbors[i] = parent_of_neighbor;
+								if (cell_data->live_unrefined_neighbors[i] == 0) {
+									cell_data->live_unrefined_neighbors[i] = parent_of_neighbor;
 									break;
 								}
 							}
@@ -478,16 +472,17 @@ int main(int argc, char* argv[])
 
 		// get the total neighbor counts of refined cells
 		for (const auto& cell: cells) {
-			if (grid.get_refinement_level(cell.id) == 0) {
+			auto* const cell_data = grid[cell];
+			if (grid.get_refinement_level(cell) == 0) {
 				continue;
 			}
 
 			unordered_set<uint64_t> current_live_unrefined_neighbors;
 			for (int i = 0; i < 3; i++) {
-				current_live_unrefined_neighbors.insert(cell.data->live_unrefined_neighbors[i]);
+				current_live_unrefined_neighbors.insert(cell_data->live_unrefined_neighbors[i]);
 			}
 
-			const auto* const neighbors = grid.get_neighbors_of(cell.id);
+			const auto* const neighbors = grid.get_neighbors_of(cell);
 			for (const auto& neighbor_i: *neighbors) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -500,7 +495,7 @@ int main(int argc, char* argv[])
 				}
 
 				// total live neighbors counts only between siblings
-				if (grid.get_parent(cell.id) != grid.get_parent(neighbor)) {
+				if (grid.get_parent(cell) != grid.get_parent(neighbor)) {
 					continue;
 				}
 
@@ -511,15 +506,16 @@ int main(int argc, char* argv[])
 			}
 
 			current_live_unrefined_neighbors.erase(0);
-			cell.data->total_live_neighbor_count += current_live_unrefined_neighbors.size();
+			cell_data->total_live_neighbor_count += current_live_unrefined_neighbors.size();
 		}
 
 		// calculate the next turn
 		for (const auto& cell: cells) {
-			if (cell.data->total_live_neighbor_count == 3) {
-				cell.data->is_alive = 1;
-			} else if (cell.data->total_live_neighbor_count != 2) {
-				cell.data->is_alive = 0;
+			auto* const cell_data = grid[cell];
+			if (cell_data->total_live_neighbor_count == 3) {
+				cell_data->is_alive = 1;
+			} else if (cell_data->total_live_neighbor_count != 2) {
+				cell_data->is_alive = 0;
 			}
 		}
 

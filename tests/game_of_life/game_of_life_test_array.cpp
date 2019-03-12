@@ -48,7 +48,7 @@ timestep == 0 means before any turns have been taken.
 */
 int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian_Geometry>& grid)
 {
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		// check cells that are always supposed to be alive
 		switch (cell.id) {
 		case 22:
@@ -347,7 +347,7 @@ int main(int argc, char* argv[])
 
 	// initial state
 	const auto live_cells = get_live_cells(base_length);
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		(*cell.data)[1] = 0;
 		if (live_cells.count(cell.id) > 0) {
 			(*cell.data)[0] = 1;
@@ -375,7 +375,7 @@ int main(int argc, char* argv[])
 			cout.flush();
 		}
 
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			(*cell.data)[1] = 0;
 			for (const auto& neighbor: cell.neighbors_of) {
 				if ((*neighbor.data)[0] > 0) {
@@ -383,7 +383,7 @@ int main(int argc, char* argv[])
 				}
 			}
 		}
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if ((*cell.data)[1] == 3) {
 				(*cell.data)[0] = 1;
 			} else if ((*cell.data)[1] != 2) {

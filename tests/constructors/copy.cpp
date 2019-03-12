@@ -85,10 +85,8 @@ int main(int argc, char* argv[])
 
 	// check that remote neighbor update works in original grid
 	// data in grid1 == process rank
-	const vector<uint64_t> cells1 = grid1.get_cells();
-	for (const auto& cell: cells1) {
-		auto* const cell_data = grid1[cell];
-		cell_data->data = rank;
+	for (const auto& cell: grid1.local_cells()) {
+		cell.data->data = rank;
 	}
 
 	grid1.update_copies_of_remote_neighbors();
@@ -101,7 +99,7 @@ int main(int argc, char* argv[])
 
 	for (const auto& cell: remote_neighbors1) {
 		auto* const cell_data = grid1[cell];
-		if (cell_data == NULL) {
+		if (cell_data == nullptr) {
 			cerr << "No data for cell " << cell << " in grid1" << endl;
 			abort();
 		}
@@ -117,19 +115,20 @@ int main(int argc, char* argv[])
 
 	// check copy constructor
 	dccrg::Dccrg<Cell2, dccrg::Stretched_Cartesian_Geometry> grid2(grid1);
-	const auto cells2 = grid2.get_cells();
 
-	if (cells1.size() != cells2.size()) {
+	const auto
+		cells1_size = std::distance(grid1.local_cells().begin(), grid1.local_cells().end()),
+		cells2_size = std::distance(grid2.local_cells().begin(), grid2.local_cells().end());
+	if (cells1_size != cells2_size) {
 		cerr << "Rank " << rank << ": Number of cells doesn't match" << endl;
 		abort();
 	}
 
-	for (const auto& cell: cells2) {
-		auto* const cell_data = grid2[cell];
-		if (cell_data->data != -2) {
+	for (const auto& cell: grid2.local_cells()) {
+		if (cell.data->data != -2) {
 			cerr << "Rank " << rank
-				<< ": Wrong data in cell " << cell
-				<< ": " << cell_data->data
+				<< ": Wrong data in cell " << cell.id
+				<< ": " << cell.data->data
 				<< ", should be -2"
 				<< endl;
 			abort();
@@ -137,17 +136,17 @@ int main(int argc, char* argv[])
 	}
 
 	// iterators of copied grid
-	const auto nr_local = std::distance(grid2.local_cells.begin(), grid2.local_cells.end());
+	const auto nr_local = std::distance(grid2.local_cells().begin(), grid2.local_cells().end());
 	if (nr_local < 0) {
 		cerr << "Rank " << rank << ": Number of cells in local iterator < 0" << endl;
 		abort();
 	}
-	if ((size_t)nr_local != cells2.size()) {
+	if ((size_t)nr_local != grid2.get_cells().size()) {
 		cerr << "Rank " << rank << ": Number of cells in local iterator doesn't match cell list" << endl;
 		abort();
 	}
 
-	const auto nr_inner = std::distance(grid2.inner_cells.begin(), grid2.inner_cells.end());
+	const auto nr_inner = std::distance(grid2.inner_cells().begin(), grid2.inner_cells().end());
 	const auto inner = grid2.get_local_cells_not_on_process_boundary();
 	if (nr_inner < 0) {
 		cerr << "Rank " << rank << ": Number of cells in inner iterator < 0" << endl;
@@ -158,7 +157,7 @@ int main(int argc, char* argv[])
 		abort();
 	}
 
-	const auto nr_outer = std::distance(grid2.outer_cells.begin(), grid2.outer_cells.end());
+	const auto nr_outer = std::distance(grid2.outer_cells().begin(), grid2.outer_cells().end());
 	const auto outer = grid2.get_local_cells_on_process_boundary();
 	if (nr_outer < 0) {
 		cerr << "Rank " << rank << ": Number of cells in outer iterator < 0" << endl;
@@ -171,9 +170,8 @@ int main(int argc, char* argv[])
 
 	// check that remote neighbor update works in original grid
 	// data in grid2 == 2 * process rank
-	for (const auto& cell: cells2) {
-		auto* const cell_data = grid2[cell];
-		cell_data->data = 2 * rank;
+	for (const auto& cell: grid2.local_cells()) {
+		cell.data->data = 2 * rank;
 	}
 
 	grid2.update_copies_of_remote_neighbors();
@@ -186,7 +184,7 @@ int main(int argc, char* argv[])
 
 	for (const auto& cell: remote_neighbors2) {
 		auto* const cell_data = grid2[cell];
-		if (cell_data == NULL) {
+		if (cell_data == nullptr) {
 			cerr << "No data for cell " << cell << " in grid2" << endl;
 			abort();
 		}

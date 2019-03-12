@@ -53,7 +53,7 @@ timestep == 0 means before any turns have been taken.
 */
 int check_game_of_life_state(int timestep, const Dccrg<Cell, Stretched_Cartesian_Geometry>& grid)
 {
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		// check cells that are always supposed to be alive
 		switch (cell.id) {
 		case 22:

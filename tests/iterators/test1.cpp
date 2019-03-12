@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 	// do a few iterations with random load balancing
 	for (int i = 0; i < 5; i++) {
 		set<uint64_t> inner_ref, outer_ref;
-		for (const auto& cell: grid.cells) {
+		for (const auto& cell: grid.local_cells()) {
 			if (not grid.is_local(cell.id)) {
 				continue;
 			}
@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
 		}
 
 		// check that inner cell iterator works
-		for (const auto& cell: grid.inner_cells) {
+		for (const auto& cell: grid.inner_cells()) {
 			if (inner_ref.count(cell.id) == 0) {
 				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
@@ -133,7 +133,7 @@ int main(int argc, char* argv[])
 		}
 
 		// check that outer cell iterator works
-		for (const auto& cell: grid.outer_cells) {
+		for (const auto& cell: grid.outer_cells()) {
 			if (inner_ref.count(cell.id) > 0) {
 				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id

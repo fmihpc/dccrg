@@ -44,7 +44,7 @@ struct Additional_Neighbor_Data_Item1 {
 	template<
 		class Grid, class Cell_Item, class Neighbor_Item
 	> void update(
-		const Grid&, const Cell_Item& cell, const Neighbor_Item& neighbor, const Additional_Neighbor_Data_Item1&
+		const Grid&, const Cell_Item& cell, const Neighbor_Item& neighbor, const int&, const Additional_Neighbor_Data_Item1&
 	) {
 		additional_neighbor_data1 = neighbor.id;
 		additional_neighbor_data2 = cell.id;
@@ -84,7 +84,7 @@ int main(int argc, char* argv[])
 		.set_load_balancing_method("RANDOM")
 		.initialize(comm);
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (const auto& neighbor: cell.neighbors_of) {
 			if (neighbor.additional_neighbor_data1 != neighbor.id) {
 				std::cerr << __LINE__ << ": " << neighbor.id << " != " << neighbor.additional_neighbor_data1 << std::endl;
@@ -99,7 +99,7 @@ int main(int argc, char* argv[])
 
 	grid.balance_load();
 
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (const auto& neighbor: cell.neighbors_of) {
 			if (neighbor.additional_neighbor_data1 != neighbor.id) {
 				std::cerr << __LINE__ << ": " << neighbor.id << " != " << neighbor.additional_neighbor_data1 << std::endl;

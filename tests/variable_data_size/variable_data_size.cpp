@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
 		.initialize(comm);
 
 	// populate the grid, number of variables in a cell is equal to its id
-	for (const auto& cell: grid.local_cells) {
+	for (const auto& cell: grid.local_cells()) {
 		for (uint64_t i = 0; i < cell.id; i++) {
 			cell.data->variables.push_back(cell.id + i);
 		}
@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
 			for (const auto& variable: cell.data->variables) {
@@ -105,7 +105,7 @@ int main(int argc, char* argv[])
 			continue;
 		}
 
-		for (const auto& cell: grid.local_cells) {
+		for (const auto& cell: grid.local_cells()) {
 
 			cout << "Cell " << cell.id << " data (on process " << rank << "): ";
 
