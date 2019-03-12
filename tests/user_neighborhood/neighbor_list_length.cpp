@@ -102,22 +102,22 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells()) {
-		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
-		if (neighbors->size() != 1) {
+	for (const auto& cell: grid.local_cells(hood_id)) {
+		const auto nofs = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
+		if (nofs != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors->size()
+				<< ": " << nofs
 				<< std::endl;
 			abort();
 		}
-		const auto* const neighbors_to = grid.get_neighbors_to(cell.id, hood_id);
-		if (neighbors_to->size() != 1) {
+		const auto ntos = std::distance(cell.neighbors_to.begin(), cell.neighbors_to.end());
+		if (ntos != 1) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors_to->size()
+				<< ": " << ntos
 				<< std::endl;
 			abort();
 		}
@@ -138,22 +138,22 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells()) {
-		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
-		if (neighbors->size() != 2) {
+	for (const auto& cell: grid.local_cells(hood_id)) {
+		const auto nofs = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
+		if (nofs != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors->size()
+				<< ": " << nofs
 				<< std::endl;
 			abort();
 		}
-		const auto* const neighbors_to = grid.get_neighbors_to(cell.id, hood_id);
-		if (neighbors_to->size() != 2) {
+		const auto ntos = std::distance(cell.neighbors_to.begin(), cell.neighbors_to.end());
+		if (ntos != 2) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors_to->size()
+				<< ": " << ntos
 				<< std::endl;
 			abort();
 		}
@@ -179,22 +179,22 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells()) {
-		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
-		if (neighbors->size() != 24) {
+	for (const auto& cell: grid.local_cells(hood_id)) {
+		const auto nofs = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
+		if (nofs != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors->size()
+				<< ": " << nofs
 				<< std::endl;
 			abort();
 		}
-		const auto* const neighbors_to = grid.get_neighbors_to(cell.id, hood_id);
-		if (neighbors_to->size() != 24) {
+		const auto ntos = std::distance(cell.neighbors_to.begin(), cell.neighbors_to.end());
+		if (ntos != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors_to->size()
+				<< ": " << ntos
 				<< std::endl;
 			abort();
 		}
@@ -220,22 +220,22 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells()) {
-		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
-		if (neighbors->size() != 24) {
+	for (const auto& cell: grid.local_cells(hood_id)) {
+		const auto nofs = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
+		if (nofs != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors->size()
+				<< ": " << nofs
 				<< std::endl;
 			abort();
 		}
-		const auto* const neighbors_to = grid.get_neighbors_to(cell.id, hood_id);
-		if (neighbors_to->size() != 24) {
+		const auto ntos = std::distance(cell.neighbors_to.begin(), cell.neighbors_to.end());
+		if (ntos != 24) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors_to->size()
+				<< ": " << ntos
 				<< std::endl;
 			abort();
 		}
@@ -262,52 +262,24 @@ int main(int argc, char* argv[])
 				<< std::endl;
 			abort();
 	}
-	for (const auto& cell: grid.local_cells()) {
+	for (const auto& cell: grid.local_cells(hood_id)) {
 		// check number of neighbors
-		const auto* const neighbors = grid.get_neighbors_of(cell.id, hood_id);
-		if (neighbors->size() != 124) {
+		const auto nofs = std::distance(cell.neighbors_of.begin(), cell.neighbors_of.end());
+		if (nofs != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors->size()
+				<< ": " << nofs
 				<< std::endl;
 			abort();
 		}
-		const auto* const neighbors_to = grid.get_neighbors_to(cell.id, hood_id);
-		if (neighbors_to->size() != 124) {
+		const auto ntos = std::distance(cell.neighbors_to.begin(), cell.neighbors_to.end());
+		if (ntos != 124) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Incorrect number of neighbors_to for cell " << cell.id
 				<< " and neighborhood id " << hood_id
-				<< ": " << neighbors_to->size()
+				<< ": " << ntos
 				<< std::endl;
-			abort();
-		}
-		// check ids and ordering of neighbors_of
-		const auto* const default_neighbors = grid.get_neighbors_of(cell.id);
-		if (default_neighbors->size() != 124) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Incorrect number of neighbors for cell " << cell.id
-				<< " in default neighborhood"
-				<< std::endl;
-			abort();
-		}
-		if (
-			!std::equal(
-				neighbors->begin(),
-				neighbors->end(),
-				default_neighbors->begin()
-			)
-		) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " User neighbor list of cell " << cell.id << ":\n";
-			for (const auto& neighbor: *neighbors) {
-				std::cerr << neighbor.first << ", ";
-			}
-			std::cerr << "\nnot equal to default neighbor list:\n";
-			for (const auto& neighbor: *default_neighbors) {
-				std::cerr << neighbor.first << ", ";
-			}
-			std::cerr << std::endl;
 			abort();
 		}
 	}

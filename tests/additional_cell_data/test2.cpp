@@ -38,7 +38,11 @@ struct Cell {
 
 struct Additional_Cell_Data_Item1 {
 	uint64_t additional_cell_data1 = dccrg::error_cell;
-	template<class Grid, class Cell> void update(const Grid&, const Cell& cell, const Additional_Cell_Data_Item1&) {
+	template<
+		class Grid, class Cell
+	> void update(
+		const Grid&, const Cell& cell, const Additional_Cell_Data_Item1&
+	) {
 		additional_cell_data1 = cell.id;
 	}
 };
@@ -46,7 +50,11 @@ struct Additional_Cell_Data_Item1 {
 struct Additional_Cell_Data_Item2 {
 	double d1 = 0, d2 = 0, d3 = 0;
 	uint64_t additional_cell_data4 = dccrg::error_cell;
-	template<class Grid, class Cell> void update(const Grid& grid, const Cell& cell, const Additional_Cell_Data_Item2&) {
+	template<
+		class Grid, class Cell
+	> void update(
+		const Grid& grid, const Cell& cell, const Additional_Cell_Data_Item2&
+	) {
 		additional_cell_data4 = cell.id;
 		const auto c = grid.geometry.get_center(cell.id);
 		d1 = c[0]; d2 = c[1]; d3 = c[2];

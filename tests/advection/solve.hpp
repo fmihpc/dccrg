@@ -44,13 +44,14 @@ The total flux to copies of remote neighbors will be incorrect.
 template<class Grid> void calculate_fluxes(
 	const double dt,
 	const bool solve_inner,
-	const Grid& grid
+	const Grid& grid,
+	const int neighborhood_id = dccrg::default_neighborhood_id
 ) {
 	const auto& cells = [&](){
 		if (solve_inner) {
-			return grid.inner_cells();
+			return grid.inner_cells(neighborhood_id);
 		} else {
-			return grid.outer_cells();
+			return grid.outer_cells(neighborhood_id);
 		}
 	}();
 
@@ -268,8 +269,10 @@ template<class Grid> void calculate_fluxes(
 /*!
 Applies fluxes to local cells and zeroes the fluxes afterwards.
 */
-template<class Grid> void apply_fluxes(Grid& grid) {
-	for (const auto& cell: grid.local_cells()) {
+template<class Grid> void apply_fluxes(
+	Grid& grid, const int neighborhood_id = dccrg::default_neighborhood_id
+) {
+	for (const auto& cell: grid.local_cells(neighborhood_id)) {
 		cell.data->density() += cell.data->flux();
 		cell.data->flux() = 0;
 	}
@@ -285,11 +288,12 @@ per dimension.
 */
 template<class Grid> double max_time_step(
 	MPI_Comm& comm,
-	const Grid& grid
+	const Grid& grid,
+	const int neighborhood_id = dccrg::default_neighborhood_id
 ) {
 	double min_step = std::numeric_limits<double>::max();
 
-	for (const auto& cell: grid.local_cells()) {
+	for (const auto& cell: grid.local_cells(neighborhood_id)) {
 		const std::array<double, 3>
 			current_steps{{
 				cell.data->length_x() / fabs(cell.data->vx()),

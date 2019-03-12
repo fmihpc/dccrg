@@ -15,15 +15,6 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 
 #include "../../dccrg.hpp"
 
-struct game_of_life_cell {
-	unsigned int data[2];
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
-	{
-		return std::make_tuple((void*) &(this->data[0]), 1, MPI_UNSIGNED);
-	}
-};
-
 
 using namespace std;
 using namespace dccrg;
@@ -158,7 +149,7 @@ int main(int argc, char* argv[])
 	    abort();
 	}
 
-	Dccrg<game_of_life_cell> grid;
+	Dccrg<std::array<int, 2>> grid;
 
 	const std::array<uint64_t, 3> grid_length = {{18, 18, 1}};
 	grid
@@ -201,9 +192,9 @@ int main(int argc, char* argv[])
 	// initial condition
 	const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], 0);
 	for (const uint64_t cell: live_cells) {
-		game_of_life_cell* cell_data = grid[cell];
+		auto* const cell_data = grid[cell];
 		if (cell_data != nullptr) {
-			cell_data->data[0] = 1;
+			(*cell_data)[0] = 1;
 		}
 	}
 
@@ -227,8 +218,8 @@ int main(int argc, char* argv[])
 		// check that the result is correct
 		if (step % 4 == 0) {
 			const std::unordered_set<uint64_t> live_cells = get_live_cells(grid_length[0], step);
-			for (const auto& cell: grid.local_cells()) {
-				if (cell.data->data[0] == 0) {
+			for (const auto& cell: grid.local_cells(neighborhood_id)) {
+				if ((*cell.data)[0] == 0) {
 					if (live_cells.count(cell.id) > 0) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << cell.id
@@ -277,9 +268,9 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS is_alive float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const uint64_t cell: cells) {
-			game_of_life_cell* cell_data = grid[cell];
+			const auto* const cell_data = grid[cell];
 
-			if (cell_data->data[0] == 1) {
+			if ((*cell_data)[0] == 1) {
 				// color live cells of interlaced games differently
 				const Types<3>::indices_t indices = grid.mapping.get_indices(cell);
 				outfile << 1 + indices[0] % 2 + (indices[1] % 2) * 2;
@@ -293,8 +284,8 @@ int main(int argc, char* argv[])
 		outfile << "SCALARS live_neighbor_count float 1" << endl;
 		outfile << "LOOKUP_TABLE default" << endl;
 		for (const uint64_t cell: cells) {
-			game_of_life_cell* cell_data = grid[cell];
-			outfile << cell_data->data[1] << endl;
+			const auto* const cell_data = grid[cell];
+			outfile << (*cell_data)[1] << endl;
 		}
 
 		// write each cells neighbor count
@@ -320,52 +311,22 @@ int main(int argc, char* argv[])
 		}
 		outfile.close();
 
-		for (const uint64_t cell: cells) {
-			auto* const cell_data = grid[cell];
-			if (cell_data == nullptr) {
-				std::cerr << __FILE__ << ":" << __LINE__ << endl;
-				abort();
-			}
-
-			cell_data->data[1] = 0;
-			const auto* const neighbors = grid.get_neighbors_of(cell, neighborhood_id);
-			if (neighbors == nullptr) {
-				cerr << "Process " << rank << ": No neighbor list for cell " << cell << endl;
-				abort();
-			}
-
-			for (const auto& neighbor: *neighbors) {
-				if (neighbor.first == dccrg::error_cell) {
-					continue;
-				}
-
-				const auto* const neighbor_data = grid[neighbor.first];
-				if (neighbor_data == nullptr) {
-					cout << "Process " << rank
-						<< ": neighbor " << neighbor.first
-						<< " data for cell " << cell
-						<< " not available"
-						<< endl;
-					abort();
-				}
-				if (neighbor_data->data[0] == 1) {
-					cell_data->data[1]++;
+		// get live neighbor counts
+		for (const auto& cell: grid.local_cells(neighborhood_id)) {
+			(*cell.data)[1] = 0;
+			for (const auto& neighbor: cell.neighbors_of) {
+				if ((*neighbor.data)[0] == 1) {
+					(*cell.data)[1]++;
 				}
 			}
 		}
 
 		// calculate the next turn
-		for (const uint64_t cell: cells) {
-			auto* const cell_data = grid[cell];
-			if (cell_data == nullptr) {
-				std::cerr << __FILE__ << ":" << __LINE__ << endl;
-				abort();
-			}
-
-			if (cell_data->data[1] == 3) {
-				cell_data->data[0] = 1;
-			} else if (cell_data->data[1] != 2) {
-				cell_data->data[0] = 0;
+		for (const auto& cell: grid.local_cells(neighborhood_id)) {
+			if ((*cell.data)[1] == 3) {
+				(*cell.data)[0] = 1;
+			} else if ((*cell.data)[1] != 2) {
+				(*cell.data)[0] = 0;
 			}
 		}
 	}
@@ -374,4 +335,3 @@ int main(int argc, char* argv[])
 
 	return EXIT_SUCCESS;
 }
-

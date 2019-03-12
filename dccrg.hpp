@@ -331,6 +331,7 @@ public:
 		- Other_Cell_Data, in other words the other grid's cell data
 		- refined/unrefined cells
 		- everything related to load balancing or remote neighbor updates
+			- including user defined neighborhoods
 
 	A dccrg instance created this way is already initialized.
 	*/
@@ -409,7 +410,15 @@ public:
 			this->cell_data[cell_item->first];
 		}
 
-		this->update_cell_pointers();
+		this->update_cell_pointers(
+			this->cells_rw,
+			this->neighbors_rw,
+			this->inner_cells_default,
+			this->outer_cells_default,
+			this->local_cells_default,
+			this->remote_cells_default,
+			default_neighborhood_id
+		);
 	}
 
 
@@ -505,7 +514,15 @@ public:
 
 		this->allocate_copies_of_remote_neighbors();
 		try {
-			this->update_cell_pointers();
+			this->update_cell_pointers(
+				this->cells_rw,
+				this->neighbors_rw,
+				this->inner_cells_default,
+				this->outer_cells_default,
+				this->local_cells_default,
+				this->remote_cells_default,
+				default_neighborhood_id
+			);
 		} catch (const std::exception& e) {
 			throw std::runtime_error(
 				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
@@ -3986,9 +4003,18 @@ public:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->allocate_copies_of_remote_neighbors();
-		this->update_cell_pointers();
+		this->update_cell_pointers(
+			this->cells_rw,
+			this->neighbors_rw,
+			this->inner_cells_default,
+			this->outer_cells_default,
+			this->local_cells_default,
+			this->remote_cells_default,
+			default_neighborhood_id
+		);
 		for (const auto& item: this->user_hood_of) {
 			this->allocate_copies_of_remote_neighbors(item.first);
+			this->update_cell_pointers_user(item.first);
 		}
 
 		#ifdef DEBUG
@@ -6394,6 +6420,8 @@ public:
 		this->recalculate_neighbor_update_send_receive_lists(neighborhood_id);
 		this->allocate_copies_of_remote_neighbors(neighborhood_id);
 
+		this->update_cell_pointers_user(neighborhood_id);
+
 		#ifdef DEBUG
 		if (!this->is_consistent()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -6466,6 +6494,12 @@ public:
 		this->user_neigh_cells_to_receive.erase(neighborhood_id);
 		this->user_local_cells_on_process_boundary.erase(neighborhood_id);
 		this->user_remote_cells_on_process_boundary.erase(neighborhood_id);
+		this->cells_user.erase(neighborhood_id);
+		this->neighbors_user.erase(neighborhood_id);
+		this->inner_cells_user.erase(neighborhood_id);
+		this->outer_cells_user.erase(neighborhood_id);
+		this->local_cells_user.erase(neighborhood_id);
+		this->remote_cells_user.erase(neighborhood_id);
 		return *this;
 	}
 
@@ -7185,7 +7219,7 @@ private:
 
 
 		// everything done in update_caller() with three or more arguments
-		template<class Grid, class Cell_Item, class Neighbor_Item, class...> void update_caller(const Grid&, const Cell_Item&, const Neighbor_Item&) {}
+		template<class Grid, class Cell_Item, class...> void update_caller(const Grid&, const Cell_Item&, const int&) {}
 
 		/*!
 		@cell is \class Cells_Item of cell whose neighbors are being cached,
@@ -7194,22 +7228,24 @@ private:
 		template<
 			class Grid,
 			class Cell_Item,
-			class Neighbor_Item,
 			class A,
 			class... B
 		> void update_caller(
 			const Grid& grid,
 			const Cell_Item& cell,
-			const Neighbor_Item& neighbor,
+			const int& neighborhood_id,
 			const A& a,
 			const B&... b
 		) {
-			A::update(grid, cell, neighbor, a);
-			update_caller(grid, cell, neighbor, b...);
+			A::update(grid, cell, *this, neighborhood_id, a);
+			update_caller(grid, cell, neighborhood_id, b...);
 		}
 	};
 
 	std::vector<Neighbors_Item> neighbors_rw;
+
+	std::map<int, std::vector<Neighbors_Item>> neighbors_user;
+
 
 public:
 	/*!
@@ -7244,25 +7280,25 @@ private:
 		}
 
 		// everything done in update_caller() with three or more arguments
-		template<class Grid, class Cell, class...> void update_caller(const Grid&, const Cell&) {}
+		template<class Grid, class...> void update_caller(const Grid&) {}
 
 		template<
 			class Grid,
-			class Cell,
 			class A,
 			class... B
 		> void update_caller(
 			const Grid& grid,
-			const Cell& cell,
 			const A& a,
 			const B&... b
 		) {
-			A::update(grid, cell, a);
-			update_caller(grid, cell, b...);
+			A::update(grid, *this, a);
+			update_caller(grid, b...);
 		}
 	};
 	// writable version of this->cells
 	std::vector<Cells_Item> cells_rw;
+
+	std::map<int, std::vector<Cells_Item>> cells_user;
 
 public:
 	/*!
@@ -7300,6 +7336,11 @@ private:
 		//! iterator over copies of cells of other processes that have neighbor(s) on this process
 		remote_cells_default{this->cells.cbegin(), this->cells.cbegin()};
 
+	// above for user defined neighborhoods
+	std::map<int, Iterator_Storage<Cells_Item>>
+		inner_cells_user, outer_cells_user, local_cells_user, remote_cells_user;
+
+
 public:
 	/*!
 	Returns an iterator over inner cells of given neighborhood.
@@ -7332,7 +7373,15 @@ public:
 		if (neighborhood_id == default_neighborhood_id) {
 			return this->inner_cells_default;
 		} else {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Inner cells for non-default neighborhood not implemented yet");
+			try {
+				return this->inner_cells_user.at(neighborhood_id);
+			} catch (const std::out_of_range& e) {
+				using std::to_string;
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): Neighborhood id "
+					+ to_string(neighborhood_id) + " doesn't exist."
+				);
+			}
 		}
 	}
 
@@ -7347,7 +7396,17 @@ public:
 		if (neighborhood_id == default_neighborhood_id) {
 			return this->outer_cells_default;
 		} else {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Outer cells for non-default neighborhood not implemented yet");
+			if (this->outer_cells_user.count(neighborhood_id) == 0) {
+			}
+			try {
+				return this->outer_cells_user.at(neighborhood_id);
+			} catch (const std::out_of_range& e) {
+				using std::to_string;
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): Neighborhood id "
+					+ to_string(neighborhood_id) + " doesn't exist."
+				);
+			}
 		}
 	}
 
@@ -7376,7 +7435,15 @@ public:
 		if (neighborhood_id == default_neighborhood_id) {
 			return this->local_cells_default;
 		} else {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Local cells for non-default neighborhood not implemented yet");
+			try {
+				return this->local_cells_user.at(neighborhood_id);
+			} catch (const std::out_of_range& e) {
+				using std::to_string;
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): Neighborhood id "
+					+ to_string(neighborhood_id) + " doesn't exist."
+				);
+			}
 		}
 	}
 
@@ -7391,7 +7458,15 @@ public:
 		if (neighborhood_id == default_neighborhood_id) {
 			return this->remote_cells_default;
 		} else {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + "): Remote cells for non-default neighborhood not implemented yet");
+			try {
+				return this->remote_cells_user.at(neighborhood_id);
+			} catch (const std::out_of_range& e) {
+				using std::to_string;
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): Neighborhood id "
+					+ to_string(neighborhood_id) + " doesn't exist."
+				);
+			}
 		}
 	}
 
@@ -10217,7 +10292,18 @@ private:
 			this->allocate_copies_of_remote_neighbors(item.first);
 		}
 
-		this->update_cell_pointers();
+		this->update_cell_pointers(
+			this->cells_rw,
+			this->neighbors_rw,
+			this->inner_cells_default,
+			this->outer_cells_default,
+			this->local_cells_default,
+			this->remote_cells_default,
+			default_neighborhood_id
+		);
+		for (const auto& item: this->user_hood_of) {
+			this->update_cell_pointers_user(item.first);
+		}
 
 		return new_cells;
 	}
@@ -10978,27 +11064,46 @@ public:
 
 private:
 	/*!
-	Updates this->cells_rw and this->neighbors_rw.
+	Updates given cell & neighbor caches and iterators to them.
 	*/
-	void update_cell_pointers()
-	{
+	void update_cell_pointers(
+		std::vector<Cells_Item>& cells,
+		std::vector<Neighbors_Item>& neighbors,
+		Iterator_Storage<Cells_Item>& inner_cells,
+		Iterator_Storage<Cells_Item>& outer_cells,
+		Iterator_Storage<Cells_Item>& local_cells,
+		Iterator_Storage<Cells_Item>& remote_cells,
+		const int neighborhood_id
+	) {
 		using std::to_string;
 
-		this->cells_rw.clear();
-		this->neighbors_rw.clear();
+		cells.clear();
+		neighbors.clear();
 
-		this->cells_rw.reserve(this->cell_data.size());
+		cells.reserve(this->cell_data.size());
 		// at least this much should be needed
-		this->neighbors_rw.reserve(2 * this->cell_data.size());
+		neighbors.reserve(2 * this->cell_data.size());
 
 		size_t nr_inner = 0, nr_outer = 0, nr_remote = 0;
 
 		std::vector<uint64_t> ordered_cells;
 		ordered_cells.reserve(this->cell_data.size());
 
+		const auto& on_proc_bdy = [&](){
+			if (neighborhood_id == default_neighborhood_id) {
+				return this->local_cells_on_process_boundary;
+			}
+			if (this->user_hood_of.count(neighborhood_id) > 0) {
+				return this->user_local_cells_on_process_boundary.at(neighborhood_id);
+			}
+			throw std::runtime_error(
+				__FILE__ "(" + to_string(__LINE__) + ") " + to_string(neighborhood_id)
+			);
+		}();
+
 		// local cells without remote neighbors
 		for (const auto& item: this->cell_data) {
-			if (this->local_cells_on_process_boundary.count(item.first) > 0) {
+			if (on_proc_bdy.count(item.first) > 0) {
 				continue;
 			}
 			ordered_cells.push_back(item.first);
@@ -11006,7 +11111,7 @@ private:
 		}
 		// local cells with remote neighbor(s)
 		for (const auto& item: this->cell_data) {
-			if (this->local_cells_on_process_boundary.count(item.first) == 0) {
+			if (on_proc_bdy.count(item.first) == 0) {
 				continue;
 			}
 			ordered_cells.push_back(item.first);
@@ -11026,31 +11131,29 @@ private:
 		std::vector<std::array<size_t, 4>> nr_neighbors(ordered_cells.size());
 
 		for (size_t i = 0; i < ordered_cells.size(); i++) {
-			nr_neighbors[i][0] = this->neighbors_rw.size();
+			nr_neighbors[i][0] = neighbors.size();
 
 			const auto cell = ordered_cells[i];
 			if (cell == error_cell) {
-				std::cerr << __FILE__ "(" << __LINE__ << ")" << std::endl;
-				abort();
+				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
 			}
 
 			Cells_Item new_cells_item{};
 			new_cells_item.id = cell;
 			if (this->cell_data.count(cell) == 0) {
-				std::cerr << __FILE__ "(" << __LINE__ << ")" << std::endl;
-				abort();
+				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
 			}
 			new_cells_item.data = this->operator[](cell);
 			// call user-defined update function(s)
-			new_cells_item.update_caller(*this, new_cells_item, Additional_Cell_Items()...);
-			this->cells_rw.push_back(std::move(new_cells_item));
+			new_cells_item.update_caller(*this, Additional_Cell_Items()...);
+			cells.push_back(std::move(new_cells_item));
 
 			/*
 			Prepare data for creating cell's neighbor iterators
 			*/
 			const auto
-				*neighbors_of = this->get_neighbors_of(cell),
-				*neighbors_to = this->get_neighbors_to(cell);
+				*neighbors_of = this->get_neighbors_of(cell, neighborhood_id),
+				*neighbors_to = this->get_neighbors_to(cell, neighborhood_id);
 			if (neighbors_of == nullptr) {
 				throw std::runtime_error(
 					__FILE__ "(" + to_string(__LINE__)
@@ -11150,13 +11253,18 @@ private:
 				item.y = offsets[1];
 				item.z = offsets[2];
 				// call user-defined update function(s)
-				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
-				this->neighbors_rw.push_back(std::move(item));
+				item.update_caller(
+					*this,
+					cells.back(),
+					neighborhood_id,
+					Additional_Neighbor_Items()...
+				);
+				neighbors.push_back(std::move(item));
 				#ifdef DEBUG
 				if (
-					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].y == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].z == 0
+					neighbors[neighbors.size() - 1].x == 0
+					and neighbors[neighbors.size() - 1].y == 0
+					and neighbors[neighbors.size() - 1].z == 0
 				) {
 					std::cerr << __FILE__ "(" << __LINE__ << "): "
 						<< "Invalid offset saved for neighbor " << item.id
@@ -11173,13 +11281,18 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
-				this->neighbors_rw.push_back(std::move(item));
+				item.update_caller(
+					*this,
+					cells.back(),
+					neighborhood_id,
+					Additional_Neighbor_Items()...
+				);
+				neighbors.push_back(std::move(item));
 				#ifdef DEBUG
 				if (
-					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].y == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].z == 0
+					neighbors[neighbors.size() - 1].x == 0
+					and neighbors[neighbors.size() - 1].y == 0
+					and neighbors[neighbors.size() - 1].z == 0
 				) {
 					std::cerr << __FILE__ "(" << __LINE__ << "): "
 						<< "Invalid offset saved for neighbor " << item.id
@@ -11197,30 +11310,35 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
-				this->neighbors_rw.push_back(std::move(item));
+				item.update_caller(
+					*this,
+					cells.back(),
+					neighborhood_id,
+					Additional_Neighbor_Items()...
+				);
+				neighbors.push_back(std::move(item));
 			}
 		}
 
-		for (size_t i = 0; i < this->cells_rw.size(); i++) {
-			this->cells_rw[i].neighbors_of.begin_ =
-			this->cells_rw[i].neighbors_of.end_   =
-			this->cells_rw[i].neighbors_to.begin_ =
-			this->cells_rw[i].neighbors_to.end_   = this->neighbors.cbegin();
+		for (size_t i = 0; i < cells.size(); i++) {
+			cells[i].neighbors_of.begin_ =
+			cells[i].neighbors_of.end_   =
+			cells[i].neighbors_to.begin_ =
+			cells[i].neighbors_to.end_   = neighbors.cbegin();
 			std::advance(
-				this->cells_rw[i].neighbors_of.begin_,
+				cells[i].neighbors_of.begin_,
 				nr_neighbors[i][0]
 			);
 			std::advance(
-				this->cells_rw[i].neighbors_of.end_,
+				cells[i].neighbors_of.end_,
 				nr_neighbors[i][0] + nr_neighbors[i][1] + nr_neighbors[i][2]
 			);
 			std::advance(
-				this->cells_rw[i].neighbors_to.begin_,
+				cells[i].neighbors_to.begin_,
 				nr_neighbors[i][0] + nr_neighbors[i][1]
 			);
 			std::advance(
-				this->cells_rw[i].neighbors_to.end_,
+				cells[i].neighbors_to.end_,
 				nr_neighbors[i][0] + nr_neighbors[i][1] + nr_neighbors[i][2] + nr_neighbors[i][3]
 			);
 		}
@@ -11228,21 +11346,54 @@ private:
 		// TODO: add remote cells with local neighbor(s)
 
 		// update iterators
-		this->inner_cells_default.begin_  =
-		this->inner_cells_default.end_    =
-		this->outer_cells_default.begin_  =
-		this->outer_cells_default.end_    =
-		this->local_cells_default.begin_  =
-		this->local_cells_default.end_    =
-		this->remote_cells_default.begin_ =
-		this->remote_cells_default.end_   = this->cells.cbegin();
+		inner_cells.begin_  =
+		inner_cells.end_    =
+		outer_cells.begin_  =
+		outer_cells.end_    =
+		local_cells.begin_  =
+		local_cells.end_    =
+		remote_cells.begin_ =
+		remote_cells.end_   = cells.cbegin();
 
-		std::advance(this->inner_cells_default.end_, nr_inner);
-		std::advance(this->outer_cells_default.begin_, nr_inner);
-		std::advance(this->outer_cells_default.end_, nr_inner + nr_outer);
-		std::advance(this->local_cells_default.end_, nr_inner + nr_outer);
-		std::advance(this->remote_cells_default.begin_, nr_inner + nr_outer);
-		std::advance(this->remote_cells_default.end_, nr_inner + nr_outer + nr_remote);
+		std::advance(inner_cells.end_, nr_inner);
+		std::advance(outer_cells.begin_, nr_inner);
+		std::advance(outer_cells.end_, nr_inner + nr_outer);
+		std::advance(local_cells.end_, nr_inner + nr_outer);
+		std::advance(remote_cells.begin_, nr_inner + nr_outer);
+		std::advance(remote_cells.end_, nr_inner + nr_outer + nr_remote);
+	}
+
+
+	/*!
+	As update_cell_pointers but for user defined neighborhoods.
+	*/
+	void update_cell_pointers_user(const int neighborhood_id)
+	{
+		using std::to_string;
+
+		if (this->user_hood_of.count(neighborhood_id) == 0) {
+			throw std::invalid_argument(
+				__FILE__ "(" + to_string(__LINE__) + ") "
+				"Invalid neighborhood id: " + to_string(neighborhood_id)
+			);
+		}
+
+		this->cells_user.erase(neighborhood_id);
+		this->neighbors_user.erase(neighborhood_id);
+		this->inner_cells_user.erase(neighborhood_id);
+		this->outer_cells_user.erase(neighborhood_id);
+		this->local_cells_user.erase(neighborhood_id);
+		this->remote_cells_user.erase(neighborhood_id);
+
+		this->update_cell_pointers(
+			this->cells_user[neighborhood_id],
+			this->neighbors_user[neighborhood_id],
+			this->inner_cells_user[neighborhood_id],
+			this->outer_cells_user[neighborhood_id],
+			this->local_cells_user[neighborhood_id],
+			this->remote_cells_user[neighborhood_id],
+			neighborhood_id
+		);
 	}
 
 

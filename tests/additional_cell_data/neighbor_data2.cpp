@@ -44,7 +44,7 @@ struct Additional_Neighbor_Data_Item1 {
 	template<
 		class Grid, class Cell_Item, class Neighbor_Item
 	> void update(
-		const Grid&, const Cell_Item& cell, const Neighbor_Item& neighbor, const Additional_Neighbor_Data_Item1&
+		const Grid&, const Cell_Item& cell, const Neighbor_Item& neighbor, const int&, const Additional_Neighbor_Data_Item1&
 	) {
 		additional_neighbor_data1 = neighbor.id;
 		additional_neighbor_data2 = cell.id;
