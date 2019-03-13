@@ -2285,16 +2285,20 @@ public:
 	Refines / unrefines take effect only after a call to stop_refining() and are lost
 	after a call to balance_load().
 	Returns true on success.
-	Does nothing and returns false in any of the following cases:
-		- given cell has already been refined (including induced refinement)
+	Does nothing and returns true if given cell:
+		- is at maximum refinement level
+	Does nothing and returns false if given cell:
+		- isn't known to this process
+		- has, or any of its larger neighbors have, been marked by dont_refine()
+		- has already been refined (including induced refinement)
 		  and stop_refining() has not been called afterwards
-		- given cell doesn't exist on this process
-		- given cell's children already exist
-	Children are created on their parent's process.
+		- doesn't exist on this process
+	Children of refined cell(s) are created on their parent's process.
 
 	If given cell is at maximum refinement level dont_unrefine will be invoked instead.
 
 	\see
+	dont_refine()
 	refine_completely_at()
 	unrefine_completely()
 	stop_refining()
@@ -2317,18 +2321,36 @@ public:
 
 		const int refinement_level = this->mapping.get_refinement_level(cell);
 
+		#ifdef DEBUG
 		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
-			return false;
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
 		}
 
 		// not if cell has children
 		if (cell != this->get_child(cell)) {
-			return false;
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
 		}
+		#endif
 
 		if (refinement_level == this->mapping.get_maximum_refinement_level()) {
 			this->dont_unrefine(cell);
+			return true;
+		}
+
+		if (this->cells_not_to_refine.count(cell) > 0) {
 			return false;
+		}
+		const auto* const neighbors = this->get_neighbors_of(cell);
+		if (neighbors == nullptr) {
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+		}
+		for (const auto& neighbor: *neighbors) {
+			if (
+				this->mapping.get_refinement_level(neighbor) < refinement_level
+				and this->cells_not_to_refine.count(neighbor) > 0
+			) {
+				return false;
+			}
 		}
 
 		this->cells_to_refine.insert(cell);
@@ -2487,8 +2509,10 @@ public:
 	Has an effect only during the next call to stop_refining().
 	Has no effect if balance_load() is called before stop_refining().
 	Returns true on success.
+	Doesn't prevent refining given cell.
 	Does nothing and returns true in at least the following cases:
 		- given cell's refinement level is 0
+		- given cell or its sibling(s) already marked by this
 	Does nothing and returns false in the following cases:
 		- given error_cell
 		- given cell doesn't exist on this process
@@ -2496,6 +2520,7 @@ public:
 		- given cell's refinement level is 0
 
 	\see
+	dont_refine()
 	dont_unrefine_at()
 	refine_completely()
 	*/
@@ -2509,17 +2534,18 @@ public:
 			return false;
 		}
 
+		#ifdef DEBUG
 		if (this->cell_data.count(cell) == 0) {
-			return false;
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
 		}
+
+		if (this->cell_process.count(this->mapping.get_child(cell)) > 0) {
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+		}
+		#endif
 
 		if (this->mapping.get_refinement_level(cell) == 0) {
 			return true;
-		}
-
-		if (cell != this->get_child(cell)) {
-			// cell already has children
-			return false;
 		}
 
 		// record only one sibling / process
@@ -2540,6 +2566,59 @@ public:
 		return true;
 	}
 
+
+	/*!
+	As dont_unrefine but prevents refinement of given cell.
+
+	Doesn't prevent unrefining given cell.
+	Returns true and does nothing if:
+		- given cell of maximum refinement level
+	*/
+	bool dont_refine(const uint64_t cell)
+	{
+		using std::to_string;
+
+		#ifdef DEBUG
+		if (not this->grid_initialized) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " DCCRG not initialized before calling " << __func__
+				<< std::endl;
+			abort();
+		}
+		#endif
+
+		if (cell == error_cell) {
+			return false;
+		}
+
+		if (this->cell_process.count(cell) == 0) {
+			return false;
+		}
+
+		#ifdef DEBUG
+		if (this->cell_data.count(cell) == 0) {
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+		}
+
+		if (this->cell_process.count(this->mapping.get_child(cell)) > 0) {
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+		}
+		#endif
+
+		if (
+			this->mapping.get_refinement_level(cell)
+			== this->mapping.get_maximum_refinement_level()
+		) {
+			return true;
+		}
+
+		// override local refines
+		this->cells_to_refine.erase(cell);
+
+		this->cells_not_to_refine.insert(cell);
+
+		return true;
+	}
 
 	/*!
 	Returns cells which share a face with the given cell.
@@ -6722,8 +6801,8 @@ private:
 	// cells to be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
 
-	// cells whose siblings shouldn't be unrefined
-	std::unordered_set<uint64_t> cells_not_to_unrefine;
+	// cells that shouldn't be refined / unrefined after a call to stop_refining()
+	std::unordered_set<uint64_t> cells_not_to_refine, cells_not_to_unrefine;
 
 	// stores user data of cells whose children were created while refining
 	std::unordered_map<uint64_t, Cell_Data> refined_cell_data;
