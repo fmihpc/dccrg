@@ -1,5 +1,6 @@
 TESTS_REFINE_EXECUTABLES = \
   tests/refine/refine_simple.exe \
+  tests/refine/dont_refine.exe \
   tests/refine/unrefine_simple.exe
 
 tests/refine/executables: $(TESTS_REFINE_EXECUTABLES)
@@ -7,6 +8,8 @@ tests/refine/executables: $(TESTS_REFINE_EXECUTABLES)
 TESTS_REFINE_TESTS = \
   tests/refine/refine_simple.tst \
   tests/refine/refine_simple.mtst \
+  tests/refine/dont_refine.tst \
+  tests/refine/dont_refine.mtst \
   tests/refine/unrefine_simple.tst \
   tests/refine/unrefine_simple.mtst
 
@@ -54,6 +57,20 @@ tests/refine/refine_simple.tst: \
 
 tests/refine/refine_simple.mtst: \
   tests/refine/refine_simple.exe
+	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
+
+
+tests/refine/dont_refine.exe: \
+  tests/refine/dont_refine.cpp \
+  $(TESTS_REFINE_COMMON_DEPS)
+	$(TESTS_REFINE_COMPILE_COMMAND)
+
+tests/refine/dont_refine.tst: \
+  tests/refine/dont_refine.exe
+	@printf RUN\ $<...\ \  && $(RUN) ./$< && printf "PASS\n" && touch $@
+
+tests/refine/dont_refine.mtst: \
+  tests/refine/dont_refine.exe
 	@printf MPIRUN\ $<...\ \  && $(MPIRUN) ./$< && printf "PASS\n" && touch $@
 
 
