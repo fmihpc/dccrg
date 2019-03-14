@@ -41,12 +41,13 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
+
 	{
 	Dccrg<int> grid; grid
 		.set_initial_length({3, 1, 1})
 		.set_neighborhood_length(1)
 		.set_maximum_refinement_level(-1)
-		.set_load_balancing_method("RANDOM")
+		.set_load_balancing_method("RCB")
 		.initialize(comm);
 
 	grid.dont_refine(1);
@@ -66,12 +67,13 @@ int main(int argc, char* argv[])
 	}
 	}
 
+
 	{
 	Dccrg<int> grid; grid
 		.set_initial_length({3, 1, 1})
 		.set_neighborhood_length(1)
 		.set_maximum_refinement_level(-1)
-		.set_load_balancing_method("RANDOM")
+		.set_load_balancing_method("RCB")
 		.initialize(comm);
 
 	grid.pin(1, 0);
@@ -96,7 +98,6 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-
 	grid.dont_refine(1);
 	grid.refine_completely(7);
 	grid.stop_refining();
@@ -105,6 +106,41 @@ int main(int argc, char* argv[])
 	for (const auto& cell: grid.local_cells()) {
 		if (cell.id == 4) {
 			cerr << "Cell 1 was refined from further neighbor" << std::endl;
+			failed = 1;
+		}
+	}
+	if (All_Reduce()(failed, comm) > 0) {
+		MPI_Finalize();
+		return EXIT_FAILURE;
+	}
+	}
+
+
+	{
+	Dccrg<int> grid; grid
+		.set_initial_length({3, 1, 1})
+		.set_neighborhood_length(1)
+		.set_maximum_refinement_level(-1)
+		.set_load_balancing_method("RCB")
+		.initialize(comm);
+
+	grid.pin(1, 0);
+	grid.pin(2, 1);
+	grid.pin(3, 1);
+	grid.balance_load(false);
+
+	grid.refine_completely(3);
+	grid.stop_refining();
+	grid.dont_refine(1);
+	grid.refine_completely(8);
+	grid.stop_refining();
+	grid.refine_completely(37);
+	grid.stop_refining();
+
+	uint64_t failed = 0;
+	for (const auto& cell: grid.local_cells()) {
+		if (cell.id == 4) {
+			cerr << "Cell 1 was refined from furthest neighbor" << std::endl;
 			failed = 1;
 		}
 	}
