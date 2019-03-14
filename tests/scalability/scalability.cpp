@@ -205,10 +205,10 @@ int main(int argc, char* argv[])
 
 		grid.start_remote_neighbor_copy_updates();
 
-		total_solution_time += solve(solution_time, grid.inner_cells);
+		total_solution_time += solve(solution_time, grid.inner_cells());
 		grid.wait_remote_neighbor_copy_update_receives();
 
-		total_solution_time += solve(solution_time, grid.outer_cells);
+		total_solution_time += solve(solution_time, grid.outer_cells());
 		grid.wait_remote_neighbor_copy_update_sends();
 	}
 
