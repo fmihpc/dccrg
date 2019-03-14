@@ -9217,40 +9217,56 @@ private:
 	{
 		using std::to_string;
 
+		// spread dont_refines accross processes and neighborhoods
+		std::unordered_set<uint64_t> new_donts, donts, old_donts;
+		do {
+			donts = new_donts;
+			new_donts.clear();
+
+			donts.insert(this->cells_not_to_refine.cbegin(), this->cells_not_to_refine.cend());
+			this->cells_not_to_refine.clear();
+
+			for (const auto& cell: donts) {
+				std::set<uint64_t> all_neighbors;
+
+				const auto* const neighs_of = this->get_neighbors_of(cell);
+				if (neighs_of != nullptr) {
+					for (const auto& n: *neighs_of) {
+						all_neighbors.insert(n.first);
+					}
+				}
+
+				const auto* const neighs_to = this->get_neighbors_to(cell);
+				if (neighs_to != nullptr) {
+					for (const auto& n: *neighs_to) {
+						all_neighbors.insert(n.first);
+					}
+				}
+
+				const auto ref_lvl = this->mapping.get_refinement_level(cell);
+				for (const auto& neighbor: all_neighbors) {
+					if (old_donts.count(neighbor) > 0 or donts.count(neighbor) > 0) {
+						continue;
+					}
+
+					const auto neigh_ref_lvl = this->mapping.get_refinement_level(neighbor);
+					if (neigh_ref_lvl > ref_lvl) {
+						new_donts.insert(neighbor);
+					}
+				}
+			}
+			old_donts.insert(donts.cbegin(), donts.cend());
+			donts.clear();
+
+			this->all_to_all_set(new_donts);
+		} while (new_donts.size() > 0);
+
+		this->cells_not_to_refine = old_donts;
 		this->all_to_all_set(this->cells_not_to_refine);
 
 		for (const auto& cell: this->cells_not_to_refine) {
 			this->cells_to_refine.erase(cell);
-
-			// dont refine neighbors smaller than current dont_refine cell
-			const auto ref_lvl = this->mapping.get_refinement_level(cell);
-
-			const auto* const neighs_of = this->get_neighbors_of(cell);
-			if (neighs_of == nullptr) {
-				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
-			}
-			const auto* const neighs_to = this->get_neighbors_to(cell);
-			if (neighs_to == nullptr) {
-				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
-			}
-
-			std::set<uint64_t> all_neighbors;
-			for (const auto& n: *neighs_of) {
-				all_neighbors.insert(n.first);
-			}
-			for (const auto& n: *neighs_to) {
-				all_neighbors.insert(n.first);
-			}
-
-			for (const auto& neighbor: all_neighbors) {
-				const auto neigh_ref_lvl = this->mapping.get_refinement_level(neighbor);
-				if (neigh_ref_lvl < ref_lvl) {
-					this->cells_to_refine.erase(neighbor);
-				}
-			}
-
 		}
-		this->cells_not_to_refine.clear();
 
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.cbegin(), this->cells_to_refine.cend());
@@ -9292,43 +9308,6 @@ private:
 					<< " to be refined has no data"
 					<< std::endl;
 				abort();
-			}
-
-			const int ref_lvl = this->mapping.get_refinement_level(refined);
-
-			// neighbors_of
-			const auto neighbors
-				= this->find_neighbors_of(this->get_parent(refined), this->neighborhood_of);
-
-			for (const auto& neighbor_i: neighbors) {
-				const auto& neighbor = neighbor_i.first;
-
-				if (neighbor == error_cell) {
-					continue;
-				}
-
-				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
-
-				if (neighbor_ref_lvl > ref_lvl) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor " << neighbor
-						<< " of cell that will be refined (" << refined
-						<< ", ref lvl " << ref_lvl
-						<< ") has too large refinement level: " << neighbor_ref_lvl
-						<< std::endl;
-					abort();
-				}
-
-				if (neighbor_ref_lvl == ref_lvl
-				&& this->cells_to_refine.count(neighbor) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor " << neighbor
-						<< " of cell that will be refined (" << refined
-						<< ", ref lvl " << ref_lvl
-						<< ") is identical in size and will be refined"
-						<< std::endl;
-					abort();
-				}
 			}
 		}
 
