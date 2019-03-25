@@ -410,15 +410,19 @@ public:
 			this->cell_data[cell_item->first];
 		}
 
-		this->update_cell_pointers(
-			this->cells_rw,
-			this->neighbors_rw,
-			this->inner_cells_default,
-			this->outer_cells_default,
-			this->local_cells_default,
-			this->remote_cells_default,
-			default_neighborhood_id
-		);
+		try {
+			this->update_cell_pointers(
+				this->cells_rw,
+				this->neighbors_rw,
+				this->inner_cells_default,
+				this->outer_cells_default,
+				this->local_cells_default,
+				this->remote_cells_default,
+				default_neighborhood_id
+			);
+		} catch (...) {
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
+		}
 	}
 
 
@@ -513,6 +517,7 @@ public:
 		}
 
 		this->allocate_copies_of_remote_neighbors();
+
 		try {
 			this->update_cell_pointers(
 				this->cells_rw,
@@ -4077,17 +4082,21 @@ public:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->allocate_copies_of_remote_neighbors();
-		this->update_cell_pointers(
-			this->cells_rw,
-			this->neighbors_rw,
-			this->inner_cells_default,
-			this->outer_cells_default,
-			this->local_cells_default,
-			this->remote_cells_default,
-			default_neighborhood_id
-		);
+
+		try {
+			this->update_cell_pointers(
+				this->cells_rw,
+				this->neighbors_rw,
+				this->inner_cells_default,
+				this->outer_cells_default,
+				this->local_cells_default,
+				this->remote_cells_default,
+				default_neighborhood_id
+			);
+		} catch (...) {
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
+		}
 		for (const auto& item: this->user_hood_of) {
-			this->allocate_copies_of_remote_neighbors(item.first);
 			this->update_cell_pointers_user(item.first);
 		}
 
@@ -6485,14 +6494,15 @@ public:
 			this->user_hood_to.at(neighborhood_id).push_back(neigh_item_to);
 		}
 
-		for (const auto& item: this->cell_data) {
+		for (const auto& item: this->cell_process) {
 			this->update_user_neighbors(item.first, neighborhood_id);
 		}
 
 		this->update_user_remote_neighbor_info(neighborhood_id);
 
 		this->recalculate_neighbor_update_send_receive_lists(neighborhood_id);
-		this->allocate_copies_of_remote_neighbors(neighborhood_id);
+
+		this->allocate_copies_of_remote_neighbors();
 
 		this->update_cell_pointers_user(neighborhood_id);
 
@@ -7029,18 +7039,16 @@ public:
 			throw std::invalid_argument("Neighborhood with given id doesn't exist.");
 		}
 
-		const auto& receives_to_use = [&neighborhood_id, this](){
+		const auto& cells = [&neighborhood_id, this](){
 			if (neighborhood_id == default_neighborhood_id) {
-				return this->cells_to_receive;
+				return this->remote_cells_on_process_boundary;
 			} else {
-				return this->user_neigh_cells_to_receive.at(neighborhood_id);
+				return this->user_remote_cells_on_process_boundary.at(neighborhood_id);
 			}
 		}();
 
-		for (const auto& sender : receives_to_use) {
-			for (const auto& item: sender.second) {
-				this->remote_neighbors[item.first];
-			}
+		for (const auto& cell: cells) {
+			this->remote_neighbors[cell];
 		}
 
 		return *this;
@@ -10474,19 +10482,20 @@ private:
 		this->recalculate_neighbor_update_send_receive_lists();
 
 		this->allocate_copies_of_remote_neighbors();
-		for (const auto& item: this->user_hood_of) {
-			this->allocate_copies_of_remote_neighbors(item.first);
-		}
 
-		this->update_cell_pointers(
-			this->cells_rw,
-			this->neighbors_rw,
-			this->inner_cells_default,
-			this->outer_cells_default,
-			this->local_cells_default,
-			this->remote_cells_default,
-			default_neighborhood_id
-		);
+		try {
+			this->update_cell_pointers(
+				this->cells_rw,
+				this->neighbors_rw,
+				this->inner_cells_default,
+				this->outer_cells_default,
+				this->local_cells_default,
+				this->remote_cells_default,
+				default_neighborhood_id
+			);
+		} catch (...) {
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+		}
 		for (const auto& item: this->user_hood_of) {
 			this->update_cell_pointers_user(item.first);
 		}
@@ -11294,6 +11303,11 @@ private:
 			}
 			ordered_cells.push_back(item.first);
 			nr_inner++;
+			if (this->cell_data.count(item.first) == 0) {
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): " + to_string(item.first)
+				);
+			}
 		}
 		// local cells with remote neighbor(s)
 		for (const auto& item: this->cell_data) {
@@ -11302,6 +11316,19 @@ private:
 			}
 			ordered_cells.push_back(item.first);
 			nr_outer++;
+			if (this->cell_data.count(item.first) == 0) {
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): " + to_string(item.first)
+				);
+			}
+		}
+		// remote cells with local neighbor(s)
+		for (const auto& cell: this->remote_cells_on_process_boundary) {
+			ordered_cells.push_back(cell);
+			nr_remote++;
+			if (this->remote_neighbors.count(cell) == 0) {
+				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+			}
 		}
 
 		/*
@@ -11326,9 +11353,6 @@ private:
 
 			Cells_Item new_cells_item{};
 			new_cells_item.id = cell;
-			if (this->cell_data.count(cell) == 0) {
-				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
-			}
 			new_cells_item.data = this->operator[](cell);
 			// call user-defined update function(s)
 			new_cells_item.update_caller(*this, Additional_Cell_Items()...);
@@ -11529,8 +11553,6 @@ private:
 			);
 		}
 
-		// TODO: add remote cells with local neighbor(s)
-
 		// update iterators
 		inner_cells.begin_  =
 		inner_cells.end_    =
@@ -11571,15 +11593,19 @@ private:
 		this->local_cells_user.erase(neighborhood_id);
 		this->remote_cells_user.erase(neighborhood_id);
 
-		this->update_cell_pointers(
-			this->cells_user[neighborhood_id],
-			this->neighbors_user[neighborhood_id],
-			this->inner_cells_user[neighborhood_id],
-			this->outer_cells_user[neighborhood_id],
-			this->local_cells_user[neighborhood_id],
-			this->remote_cells_user[neighborhood_id],
-			neighborhood_id
-		);
+		try {
+			this->update_cell_pointers(
+				this->cells_user[neighborhood_id],
+				this->neighbors_user[neighborhood_id],
+				this->inner_cells_user[neighborhood_id],
+				this->outer_cells_user[neighborhood_id],
+				this->local_cells_user[neighborhood_id],
+				this->remote_cells_user[neighborhood_id],
+				neighborhood_id
+			);
+		} catch (...) {
+			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+		}
 	}
 
 
