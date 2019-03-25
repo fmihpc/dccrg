@@ -1,7 +1,8 @@
 /*
 Program for testing dccrg iterators.
 
-Copyright 2013, 2014, 2015, 2016, 2018 Finnish Meteorological Institute
+Copyright 2013, 2014, 2015, 2016,
+2018, 2019 Finnish Meteorological Institute
 Copyright 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -70,12 +71,13 @@ int main(int argc, char* argv[])
 		set<uint64_t> inner_ref, outer_ref;
 		for (const auto& cell: grid.local_cells()) {
 			if (not grid.is_local(cell.id)) {
-				continue;
+				cerr << "Cell isn't local: " << cell.id << endl;
+				abort();
 			}
 
 			const auto* const neighbors_of = grid.get_neighbors_of(cell.id);
 			if (neighbors_of == nullptr) {
-				cout << "No neighbors_of for cell " << cell.id << endl;
+				cerr << "No neighbors_of for cell " << cell.id << endl;
 				abort();
 			}
 
@@ -116,7 +118,6 @@ int main(int argc, char* argv[])
 		// check that inner cell iterator works
 		for (const auto& cell: grid.inner_cells()) {
 			if (inner_ref.count(cell.id) == 0) {
-				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is not in inner cells"
 					<< endl;
@@ -124,7 +125,6 @@ int main(int argc, char* argv[])
 			}
 
 			if (outer_ref.count(cell.id) > 0) {
-				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is in outer cells"
 					<< endl;
@@ -135,7 +135,6 @@ int main(int argc, char* argv[])
 		// check that outer cell iterator works
 		for (const auto& cell: grid.outer_cells()) {
 			if (inner_ref.count(cell.id) > 0) {
-				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is in inner cells"
 					<< endl;
@@ -143,9 +142,20 @@ int main(int argc, char* argv[])
 			}
 
 			if (outer_ref.count(cell.id) == 0) {
-				cout << "FAILED" << endl;
 				cerr << "Cell " << cell.id
 					<< " is not in outer cells"
+					<< endl;
+				abort();
+			}
+		}
+
+		// check that remote cell iterator works
+		const auto temp = grid.get_remote_cells_on_process_boundary();
+		const std::set<uint64_t> remote_ref(temp.cbegin(), temp.cend());
+		for (const auto& cell: grid.remote_cells()) {
+			if (remote_ref.count(cell.id) == 0) {
+				cerr << "Cell " << cell.id
+					<< " is not in remote cells"
 					<< endl;
 				abort();
 			}
