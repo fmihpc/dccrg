@@ -26,6 +26,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "cstdlib"
 #include "iomanip"
 #include "iostream"
+#include "random"
 #include "string"
 #include "zoltan.h"
 
@@ -58,60 +59,39 @@ void propagate_particles(Dccrg<Cell>& grid) {
 		= grid.get_remote_cells_on_process_boundary_internal();
 	cells.insert(cells.begin(), remote_neighbors.begin(), remote_neighbors.end());
 
-	for (const uint64_t& cell: cells) {
-
-		auto* const cell_data = grid[cell];
-		if (cell_data == NULL) {
-			cerr << __FILE__ << ":" << __LINE__ << " No data for cell " << cell << endl;
-			abort();
-		}
-
-		for (auto& particle: cell_data->particles) {
+	for (const auto& cell: grid.all_cells()) {
+		for (auto& particle: cell.data->particles) {
 			particle[0] += vx;
 		}
 	}
 
 	// move particles to the particle list of the cell the particles are currently inside of
-	for (const auto& previous_cell: cells) {
-
-		auto* const previous_data = grid[previous_cell];
-		if (previous_data == NULL) {
-			cerr << __FILE__ << ":" << __LINE__
-				<< " No data for cell " << previous_cell
-				<< endl;
-			abort();
-		}
-
+	for (const auto& previous_cell: grid.all_cells()) {
 		vector<std::array<double, 3>>::size_type i = 0;
-		while (i < previous_data->particles.size()) {
+		while (i < previous_cell.data->particles.size()) {
 
 			// hande grid wrap around
-			previous_data->particles[i] = grid.geometry.get_real_coordinate(previous_data->particles[i]);
+			previous_cell.data->particles[i] = grid.geometry.get_real_coordinate(previous_cell.data->particles[i]);
 
-			const uint64_t current_cell = grid.get_existing_cell(previous_data->particles[i]);
+			const uint64_t current_cell_id = grid.get_existing_cell(previous_cell.data->particles[i]);
 
 			// do nothing if particle hasn't changed cell
-			if (current_cell == previous_cell) {
+			if (current_cell_id == previous_cell.id) {
 				i++;
 				continue;
 			}
 
-			// change only local cell data because remote data will be overwritten anyway
-
-			// add particle to the current cell's list
-			if (grid.is_local(current_cell)) {
-				auto* const current_data = grid[current_cell];
-				current_data->particles.push_back(previous_data->particles[i]);
-				current_data->number_of_particles = current_data->particles.size();
+			// potentially add particle to the new cell's list
+			for (const auto& neighbor: previous_cell.neighbors_of) {
+				if (current_cell_id == neighbor.id) {
+					neighbor.data->particles.push_back(previous_cell.data->particles[i]);
+					neighbor.data->number_of_particles = neighbor.data->particles.size();
+				}
 			}
 
-			// remove particle from its previous cell
-			if (grid.is_local(previous_cell)) {
-				previous_data->particles.erase(previous_data->particles.begin() + i);
-				previous_data->number_of_particles = previous_data->particles.size();
-			} else {
-				i++;
-			}
+			previous_cell.data->particles.erase(previous_cell.data->particles.begin() + i);
+			previous_cell.data->number_of_particles = previous_cell.data->particles.size();
+			i++;
 		}
 	}
 }
@@ -252,17 +232,19 @@ int main(int argc, char* argv[])
 	const unsigned int max_particles_per_cell = 5;
 	for (const auto& cell: grid.local_cells()) {
 
+		std::mt19937 generator{cell.id};
+		std::uniform_real_distribution<> distribution{0, 1};
 		const std::array<double, 3>
 			cell_min = grid.geometry.get_min(cell.id),
 			cell_max = grid.geometry.get_max(cell.id);
 
 		const unsigned int number_of_particles
-			= (unsigned int)ceil(max_particles_per_cell * double(rand()) / RAND_MAX);
+			= (unsigned int)ceil(max_particles_per_cell * distribution(generator));
 		for (unsigned int i = 0; i < number_of_particles; i++) {
 			std::array<double, 3> coordinates = {{
-				cell_min[0] + (cell_max[0] - cell_min[0]) * double(rand()) / RAND_MAX,
-				cell_min[1] + (cell_max[1] - cell_min[1]) * double(rand()) / RAND_MAX,
-				cell_min[2] + (cell_max[2] - cell_min[2]) * double(rand()) / RAND_MAX
+				cell_min[0] + (cell_max[0] - cell_min[0]) * distribution(generator),
+				cell_min[1] + (cell_max[1] - cell_min[1]) * distribution(generator),
+				cell_min[2] + (cell_max[2] - cell_min[2]) * distribution(generator)
 			}};
 
 			cell.data->particles.push_back(coordinates);
@@ -292,12 +274,8 @@ int main(int argc, char* argv[])
 		// append current output file names to the visit files
 		if (rank == 0) {
 			for (int i = 0; i < comm_size; i++) {
-				visit_particles << "tests/particles/simple_"
-					<< i << "_"
-					<< step << ".vtk\n";
-				visit_grid << "tests/particles/simple_"
-					<< i << "_"
-					<< step << "_grid.vtk\n";
+				visit_particles << "simple_" << i << "_" << step << ".vtk\n";
+				visit_grid << "simple_" << i << "_" << step << "_grid.vtk\n";
 			}
 		}
 
@@ -307,12 +285,8 @@ int main(int argc, char* argv[])
 		Cell::transfer_particles = false;
 		grid.update_copies_of_remote_neighbors();
 
-		const std::unordered_set<uint64_t>& remote_neighbors
-			= grid.get_remote_cells_on_process_boundary_internal();
-
-		for (const auto& remote_neighbor: remote_neighbors) {
-			auto* const data = grid[remote_neighbor];
-			data->resize();
+		for (const auto& cell: grid.remote_cells()) {
+			cell.data->resize();
 		}
 
 		// update particle data between neighboring cells on different processes
@@ -325,12 +299,8 @@ int main(int argc, char* argv[])
 	// append final output file names to the visit files
 	if (rank == 0) {
 		for (int i = 0; i < comm_size; i++) {
-				visit_particles << "tests/particles/simple_"
-					<< rank << "_"
-					<< max_steps << ".vtk\n";
-				visit_grid << "tests/particles/simple_"
-					<< rank << "_"
-					<< max_steps << "_grid.vtk\n";
+			visit_particles << "simple_" << rank << "_" << max_steps << ".vtk\n";
+			visit_grid << "simple_" << rank << "_" << max_steps << "_grid.vtk\n";
 		}
 		visit_particles.close();
 		visit_grid.close();

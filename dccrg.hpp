@@ -418,6 +418,7 @@ public:
 				this->outer_cells_default,
 				this->local_cells_default,
 				this->remote_cells_default,
+				this->all_cells_default,
 				default_neighborhood_id
 			);
 		} catch (...) {
@@ -526,6 +527,7 @@ public:
 				this->outer_cells_default,
 				this->local_cells_default,
 				this->remote_cells_default,
+				this->all_cells_default,
 				default_neighborhood_id
 			);
 		} catch (const std::exception& e) {
@@ -4091,6 +4093,7 @@ public:
 				this->outer_cells_default,
 				this->local_cells_default,
 				this->remote_cells_default,
+				this->all_cells_default,
 				default_neighborhood_id
 			);
 		} catch (...) {
@@ -7416,11 +7419,14 @@ private:
 		//! iterator over local cells
 		local_cells_default{this->cells.cbegin(), this->cells.cbegin()},
 		//! iterator over copies of cells of other processes that have neighbor(s) on this process
-		remote_cells_default{this->cells.cbegin(), this->cells.cbegin()};
+		remote_cells_default{this->cells.cbegin(), this->cells.cbegin()},
+		//! iterator over local and remote cells
+		all_cells_default{this->cells.cbegin(), this->cells.cbegin()};
 
 	// above for user defined neighborhoods
 	std::map<int, Iterator_Storage<Cells_Item>>
-		inner_cells_user, outer_cells_user, local_cells_user, remote_cells_user;
+		inner_cells_user, outer_cells_user, local_cells_user,
+		remote_cells_user, all_cells_user;
 
 
 public:
@@ -7542,6 +7548,29 @@ public:
 		} else {
 			try {
 				return this->remote_cells_user.at(neighborhood_id);
+			} catch (const std::out_of_range& e) {
+				using std::to_string;
+				throw std::runtime_error(
+					__FILE__ "(" + to_string(__LINE__) + "): Neighborhood id "
+					+ to_string(neighborhood_id) + " doesn't exist."
+				);
+			}
+		}
+	}
+
+	/*!
+	Returns an iterator to all cells known by this process.
+
+	\see inner_cells
+	*/
+	const decltype(all_cells_default)& all_cells(
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+		if (neighborhood_id == default_neighborhood_id) {
+			return this->all_cells_default;
+		} else {
+			try {
+				return this->all_cells_user.at(neighborhood_id);
 			} catch (const std::out_of_range& e) {
 				using std::to_string;
 				throw std::runtime_error(
@@ -10491,6 +10520,7 @@ private:
 				this->outer_cells_default,
 				this->local_cells_default,
 				this->remote_cells_default,
+				this->all_cells_default,
 				default_neighborhood_id
 			);
 		} catch (...) {
@@ -11268,6 +11298,7 @@ private:
 		Iterator_Storage<Cells_Item>& outer_cells,
 		Iterator_Storage<Cells_Item>& local_cells,
 		Iterator_Storage<Cells_Item>& remote_cells,
+		Iterator_Storage<Cells_Item>& all_cells,
 		const int neighborhood_id
 	) {
 		using std::to_string;
@@ -11561,7 +11592,9 @@ private:
 		local_cells.begin_  =
 		local_cells.end_    =
 		remote_cells.begin_ =
-		remote_cells.end_   = cells.cbegin();
+		remote_cells.end_   =
+		all_cells.begin_    =
+		all_cells.end_      = cells.cbegin();
 
 		std::advance(inner_cells.end_, nr_inner);
 		std::advance(outer_cells.begin_, nr_inner);
@@ -11569,6 +11602,7 @@ private:
 		std::advance(local_cells.end_, nr_inner + nr_outer);
 		std::advance(remote_cells.begin_, nr_inner + nr_outer);
 		std::advance(remote_cells.end_, nr_inner + nr_outer + nr_remote);
+		std::advance(all_cells.end_, nr_inner + nr_outer + nr_remote);
 	}
 
 
@@ -11601,6 +11635,7 @@ private:
 				this->outer_cells_user[neighborhood_id],
 				this->local_cells_user[neighborhood_id],
 				this->remote_cells_user[neighborhood_id],
+				this->all_cells_user[neighborhood_id],
 				neighborhood_id
 			);
 		} catch (...) {

@@ -3,11 +3,10 @@ store and use a variable amount of data in dccrg cells.
 See the ../README file for information common to all tests.
 
 simple_result.gif shows the expected result when visualized
-with VisIt: Open simple_grid.visit then overlay
-simple_particles.visit. Then click Add->Pseudocolor->cell
-then select simple_grid.visit and click activate. Click
-Add->Mesh->mesh and if VisIt asks about database
-correlation answer yes. Double-click on Pseudocolor-cell
-and change Point size (pixels) to 20. Finally click draw,
-the result should be quite close to simple_result.gif.
-
+with VisIt: Open (tests/particles/)simple_grid.visit and click
+Add->Mesh->mesh, then open (tests/particles/)simple_particles.visit
+and click Overlay. Click Add->Pseudocolor->cell and click
+yes when VisIt asks about database correlation. Double-click
+on Pseudocolor-cell and in Geometry tab change Point size
+(pixels) to 20 and click Apply. Finally click draw and rotate
+the view to match that in simple_result.gif.
