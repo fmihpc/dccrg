@@ -337,8 +337,17 @@ public:
 	*/
 	template<
 		class Other_Cell_Data,
-		class Other_Geometry
-	> Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other) :
+		class Other_Geometry,
+		class... Other_Additional_Cell_Items,
+		class... Other_Additional_Neighbor_Items
+	> Dccrg(
+		const Dccrg<
+			Other_Cell_Data,
+			Other_Geometry,
+			std::tuple<Other_Additional_Cell_Items...>,
+			std::tuple<Other_Additional_Neighbor_Items...>
+		 >& other
+	) :
 		topology_rw(other.topology),
 		mapping_rw(other.mapping),
 		geometry_rw(length, mapping, topology),
