@@ -419,6 +419,8 @@ public:
 			this->cell_data[cell_item->first];
 		}
 
+		this->allocate_copies_of_remote_neighbors();
+
 		try {
 			this->update_cell_pointers(
 				this->cells_rw,
