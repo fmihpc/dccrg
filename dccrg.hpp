@@ -4330,6 +4330,7 @@ public:
 	if given error_cell.
 	*/
 	// TODO: make private?
+	// TODO: should same neighbor appear several times in returned list?
 	std::vector<
 		std::pair<
 			uint64_t,
@@ -7365,10 +7366,18 @@ private:
 		uint64_t id = error_cell;
 		Cell_Data* data = nullptr;
 		Iterator_Storage<Neighbors_Item>
-			//! iterator to cells considered as neighbor by this cell
+			/*!
+			iterator to cells considered as neighbor by this cell,
+			may (and probably does) overlap with neighbors_to
+			*/
 			neighbors_of,
-			//! iterator to cells that consider this one as neighbor
-			neighbors_to;
+			/*!
+			iterator to cells that consider this one as neighbor,
+			may (and probably does) overlap with neighbors_of
+			*/
+			neighbors_to,
+			//! iterates over both neighbors_of and neighbors_to
+			all_neighbors;
 
 		friend bool operator < (const Cells_Item& a, const Cells_Item& b)
 		{
@@ -11573,10 +11582,12 @@ private:
 		}
 
 		for (size_t i = 0; i < cells.size(); i++) {
-			cells[i].neighbors_of.begin_ =
-			cells[i].neighbors_of.end_   =
-			cells[i].neighbors_to.begin_ =
-			cells[i].neighbors_to.end_   = neighbors.cbegin();
+			cells[i].neighbors_of.begin_  =
+			cells[i].neighbors_of.end_    =
+			cells[i].neighbors_to.begin_  =
+			cells[i].neighbors_to.end_    =
+			cells[i].all_neighbors.begin_ =
+			cells[i].all_neighbors.end_   = neighbors.cbegin();
 			std::advance(
 				cells[i].neighbors_of.begin_,
 				nr_neighbors[i][0]
@@ -11591,6 +11602,14 @@ private:
 			);
 			std::advance(
 				cells[i].neighbors_to.end_,
+				nr_neighbors[i][0] + nr_neighbors[i][1] + nr_neighbors[i][2] + nr_neighbors[i][3]
+			);
+			std::advance(
+				cells[i].all_neighbors.begin_,
+				nr_neighbors[i][0]
+			);
+			std::advance(
+				cells[i].all_neighbors.end_,
 				nr_neighbors[i][0] + nr_neighbors[i][1] + nr_neighbors[i][2] + nr_neighbors[i][3]
 			);
 		}

@@ -107,6 +107,21 @@ int main(int argc, char* argv[])
 				return EXIT_FAILURE;
 			}
 
+			// check all_neighbors
+			if (not std::equal(
+				cell.neighbors_of.begin(),
+				cell.neighbors_to.end(),
+				cell.all_neighbors.begin(),
+				[](const auto& first, const auto& second){
+					return first.id == second.id;
+				}
+			)) {
+				cerr << __FILE__ "(" << __LINE__ << "): "
+					<< "all_neighbors of cell " << cell.id
+					<< " doesn't equal neighbors_of + _to" << endl;
+				return EXIT_FAILURE;
+			}
+
 			// check offset
 			for (const auto& neighbor: cell.neighbors_of) {
 				const int ref_diff = (neighbor.id - cell.id) * grid.mapping.get_cell_length_in_indices(cell.id);

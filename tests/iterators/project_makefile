@@ -64,7 +64,7 @@ tests/iterators/test1.mtst: \
 tests/iterators/test2.exe: \
   tests/iterators/test2.cpp \
   $(TESTS_ITERATORS_COMMON_DEPS)
-	$(TESTS_ITERATORS_COMPILE_COMMAND)
+	$(TESTS_ITERATORS_COMPILE_COMMAND) -std=c++14
 
 tests/iterators/test2.tst: \
   tests/iterators/test2.exe
