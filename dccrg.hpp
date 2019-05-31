@@ -4323,6 +4323,11 @@ public:
 	/*!
 	Returns neighbors of given cell based on given neighborhood.
 
+	Same neighbor appears once for each neighborhood item.
+	For example in one cell grid priodic in all dimensions
+	with neighborhood size 1 the cell itself will appear
+	26 times at various offsets.
+
 	If given cell owned by another process, returned
 	neighbors might not be complete.
 
@@ -4330,7 +4335,6 @@ public:
 	if given error_cell.
 	*/
 	// TODO: make private?
-	// TODO: should same neighbor appear several times in returned list?
 	std::vector<
 		std::pair<
 			uint64_t,
@@ -4682,16 +4686,23 @@ public:
 
 
 	/*!
-	Returns cells (which don't have children) that consider given cell as a neighbor.
+	Returns cells that consider given cell as a neighbor.
+
+	If given cell is owned by another process returned
+	neighbors_to might not be complete.
 
 	Returns nothing in following cases:
-		- given cell has children
-		- given cell doesn't exist on any process
+		- current process doesn't know about given cell
+		- given error_cell
+
 	Returned cells are not in any particular order.
+
+	Returned offset are all 0.
+
+	Returned cells are unique, i.e. each cell only appears once.
+
 	Assumes a maximum refinement level difference of one between neighbors
 	(both cases: neighbors_of, neighbors_to).
-
-	TODO: currently returned offsets are all 0.
 	*/
 	std::vector<
 		std::pair<
@@ -4718,7 +4729,6 @@ public:
 		if (
 			cell == error_cell
 			or cell > this->mapping.get_last_cell()
-			or this->cell_process.count(cell) == 0
 			or cell != this->get_child(cell)
 		) {
 			throw std::invalid_argument(
@@ -4751,12 +4761,6 @@ public:
 		}
 		#endif
 
-		/*
-		FIXME: neighbors should be unique only in within
-		each offset in user neighborhood?
-		Would allow users to have the same offset
-		multiple times in their neighborhoods.
-		*/
 		std::unordered_map<uint64_t, std::array<int, 3>> unique_neighbors;
 
 		// neighbor_to larger than given cell
@@ -11439,80 +11443,74 @@ private:
 					and neighbor.second[1] == 0
 					and neighbor.second[2] == 0
 				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): "
-						<< "Invalid offset for neighbor " << neighbor.first
-						<< " of cell " << cell << std::endl;
-					abort();
+					throw std::runtime_error(
+						__FILE__ "(" + to_string(__LINE__)
+						+ "): Invalid offset for neighbor " + to_string(neighbor.first)
+						+ " of cell " + to_string(cell)
+					);
 				}
 			}
 			#endif
 
-			std::set<uint64_t> ids_of, ids_to;
+			std::set<std::pair<uint64_t, std::array<int, 3>>> ids_of, ids_to;
 			for (const auto& n: *neighbors_of) {
 				if (n.first != error_cell) {
-					ids_of.insert(n.first);
+					ids_of.insert(n);
 				}
 			}
 			for (const auto& n: *neighbors_to) {
 				if (n.first != error_cell) {
-					ids_to.insert(n.first);
+					#ifdef DEBUG
+					if (
+						n.second[0] != 0
+						and n.second[1] != 0
+						and n.second[2] != 0
+					) {
+						throw std::runtime_error(
+							__FILE__ "(" + to_string(__LINE__)
+							+ "): Neighbor_to " + to_string(n.first)
+							+ " of cell " + to_string(cell)
+							+ " has non-zero offset: " + to_string(n.second[0])
+							+ "," + to_string(n.second[1])
+							+ "," + to_string(n.second[2])
+						);
+					}
+					#endif
+					ids_to.insert(n);
 				}
 			}
-			ids_of.erase(error_cell);
-			ids_to.erase(error_cell);
 
-			std::set<uint64_t> only_neighbors_of, only_neighbors_to, neighbors_both;
+			std::set<std::pair<uint64_t, std::array<int, 3>>> only_neighbors_of, only_neighbors_to, neighbors_both;
 
-			std::set_difference(
-				ids_of.cbegin(), ids_of.cend(),
-				ids_to.cbegin(), ids_to.cend(),
-				std::inserter(only_neighbors_of, only_neighbors_of.begin())
-			);
+			for (const auto& n: ids_to) {
+				only_neighbors_to.insert(n);
+			}
+			for (const auto& n: ids_of) {
+				// items in _to always have offset 0, 0, 0
+				auto temp = n;
+				temp.second = {0, 0, 0};
+
+				only_neighbors_to.erase(temp);
+
+				if (ids_to.count(temp) > 0) {
+					neighbors_both.insert(n);
+				} else {
+					only_neighbors_of.insert(n);
+				}
+			}
+
 			nr_neighbors[i][1] = only_neighbors_of.size();
-
-			std::set_intersection(
-				ids_of.cbegin(), ids_of.cend(),
-				ids_to.cbegin(), ids_to.cend(),
-				std::inserter(neighbors_both, neighbors_both.begin())
-			);
 			nr_neighbors[i][2] = neighbors_both.size();
-
-			std::set_difference(
-				ids_to.cbegin(), ids_to.cend(),
-				ids_of.cbegin(), ids_of.cend(),
-				std::inserter(only_neighbors_to, only_neighbors_to.begin())
-			);
 			nr_neighbors[i][3] = only_neighbors_to.size();
 
 			// add cell's neighbors
-			std::map<uint64_t, std::array<int, 3>> all_neighbors;
-			for (const auto& n: *neighbors_of) {
-				if (n.first == error_cell) {
-					continue;
-				}
-				if (all_neighbors.count(n.first) > 0) {
-					continue;
-				}
-				all_neighbors[n.first] = n.second;
-			}
-			for (const auto& n: *neighbors_to) {
-				if (n.first == error_cell) {
-					continue;
-				}
-				if (all_neighbors.count(n.first) > 0) {
-					continue;
-				}
-				all_neighbors[n.first] = n.second;
-			}
-
-			for (const auto& neighbor_id: only_neighbors_of) {
-				const auto& offsets = all_neighbors.at(neighbor_id);
+			for (const auto& neighbor: only_neighbors_of) {
 				Neighbors_Item item{};
-				item.id = neighbor_id;
+				item.id = neighbor.first;
 				item.data = this->operator[](item.id);
-				item.x = offsets[0];
-				item.y = offsets[1];
-				item.z = offsets[2];
+				item.x = neighbor.second[0];
+				item.y = neighbor.second[1];
+				item.z = neighbor.second[2];
 				// call user-defined update function(s)
 				item.update_caller(
 					*this,
@@ -11534,14 +11532,13 @@ private:
 				}
 				#endif
 			}
-			for (const auto& neighbor_id: neighbors_both) {
-				const auto& offsets = all_neighbors.at(neighbor_id);
+			for (const auto& neighbor: neighbors_both) {
 				Neighbors_Item item{};
-				item.id = neighbor_id;
+				item.id = neighbor.first;
 				item.data = this->operator[](item.id);
-				item.x = offsets[0];
-				item.y = offsets[1];
-				item.z = offsets[2];
+				item.x = neighbor.second[0];
+				item.y = neighbor.second[1];
+				item.z = neighbor.second[2];
 				item.update_caller(
 					*this,
 					cells.back(),
@@ -11563,14 +11560,13 @@ private:
 				}
 				#endif
 			}
-			for (const auto& neighbor_id: only_neighbors_to) {
-				const auto& offsets = all_neighbors.at(neighbor_id);
+			for (const auto& neighbor: only_neighbors_to) {
 				Neighbors_Item item{};
-				item.id = neighbor_id;
+				item.id = neighbor.first;
 				item.data = this->operator[](item.id);
-				item.x = offsets[0];
-				item.y = offsets[1];
-				item.z = offsets[2];
+				item.x = neighbor.second[0];
+				item.y = neighbor.second[1];
+				item.z = neighbor.second[2];
 				item.update_caller(
 					*this,
 					cells.back(),
