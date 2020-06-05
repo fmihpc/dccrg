@@ -1,5 +1,6 @@
 TESTS_INIT_EXECUTABLES = \
-  tests/init/init.exe
+  tests/init/init.exe \
+  tests/init/init_sfc.exe
 
 tests/init/executables: $(TESTS_INIT_EXECUTABLES)
 
@@ -35,3 +36,7 @@ tests/init/init.exe: \
   $(TESTS_INIT_COMMON_DEPS)
 	$(TESTS_INIT_COMPILE_COMMAND)
 
+tests/init/init_sfc.exe: \
+  tests/init/init_sfc.cpp \
+  $(TESTS_INIT_COMMON_DEPS)
+	$(TESTS_INIT_COMPILE_COMMAND) -DDCCRG_USE_SFC $(SFC_CPPFLAGS)
