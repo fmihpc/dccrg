@@ -2820,10 +2820,6 @@ public:
 
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
-		if (this->cell_data.count(cell) == 0) {
-			return ret_val;
-		}
-
 		if (this->neighbors_.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Internal error." << std::endl;

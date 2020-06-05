@@ -34,6 +34,7 @@ include \
   tests/get_cell_datatype/project_makefile \
   tests/constructors/project_makefile \
   tests/get_neighbors_/project_makefile \
+  tests/get_face_neighbors/project_makefile \
   tests/iterators/project_makefile \
   tests/additional_cell_data/project_makefile \
   tests/mpi_support/project_makefile \
