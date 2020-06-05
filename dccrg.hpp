@@ -51,7 +51,10 @@ dccrg::Dccrg for a starting point in the API.
 #include "vector"
 
 #include "mpi.h"
+
+#ifndef DCCRG_NO_LB
 #include "zoltan.h"
+#endif
 
 #ifdef USE_SFC
 #include "sfc++.hpp"
@@ -663,12 +666,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " get_cells() must not be called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		std::vector<uint64_t> ret_val;
 
@@ -975,12 +980,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " update_copies_of_remote_neighbors(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		bool ret_val = true;
 
@@ -1018,6 +1025,8 @@ public:
 		- the data of local copies of remote neighbors of local cells
 
 	TODO: throws on failure (on one or more processes).
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	\see
 	initialize_balance_load()
 	*/
@@ -1028,6 +1037,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& balance_load(const bool use_zoltan = true)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -1040,6 +1050,7 @@ public:
 		this->initialize_balance_load(use_zoltan);
 		this->continue_balance_load();
 		this->finish_balance_load();
+		#endif
 		return *this;
 	}
 
@@ -3734,6 +3745,7 @@ public:
 	must not be queried after calling this, for example the remote neighbors
 	of local cells, local cells, etc.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	\see
 	balance_load()
 	continue_balance_load()
@@ -3745,6 +3757,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& initialize_balance_load(const bool use_zoltan)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3880,6 +3893,7 @@ public:
 			}
 		}
 		#endif
+		#endif
 		return *this;
 	}
 
@@ -3893,6 +3907,8 @@ public:
 	must be called by all processes) must be either this again or
 	finish_balance_load().
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	finish_balance_load()
 	*/
@@ -3903,6 +3919,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& continue_balance_load()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3930,6 +3947,7 @@ public:
 		this->wait_user_data_transfer_receives();
 
 		this->wait_user_data_transfer_sends();
+		#endif
 		return *this;
 	}
 
@@ -3938,6 +3956,8 @@ public:
 
 	Must be called by all processes and not before initialize_balance_load(...)
 	has been called.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	Dccrg<
 		Cell_Data,
@@ -3946,6 +3966,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& finish_balance_load()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -4143,6 +4164,7 @@ public:
 		this->added_cells.clear();
 		this->removed_cells.clear();
 		this->balancing_load = false;
+		#endif
 		return *this;
 	}
 
@@ -5568,6 +5590,7 @@ public:
 	Assigns default partitioning options for the added level.
 	Does nothing if processes_per_part < 1.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	\see
 	add_partitioning_option()
 	remove_partitioning_level()
@@ -5580,6 +5603,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& add_partitioning_level(const int processes)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5603,6 +5627,7 @@ public:
 		default_load_balance_options["LB_METHOD"] = "HYPERGRAPH";
 		default_load_balance_options["PHG_CUT_OBJECTIVE"] = "CONNECTIVITY";
 		this->partitioning_options.push_back(default_load_balance_options);
+		#endif
 		return *this;
 	}
 
@@ -5613,6 +5638,7 @@ public:
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	\see
 	add_partitioning_level()
 	*/
@@ -5623,6 +5649,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& remove_partitioning_level(const int hierarchial_partitioning_level)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5643,6 +5670,7 @@ public:
 		this->partitioning_options.erase(
 			this->partitioning_options.begin() + hierarchial_partitioning_level
 		);
+		#endif
 		return *this;
 	}
 
@@ -5656,6 +5684,7 @@ public:
 		- option name is one of: RETURN_LISTS, ...
 		- given level doesn't exist
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	\see
 	remove_partitioning_option()
 	add_partitioning_level()
@@ -5670,6 +5699,7 @@ public:
 		const std::string name,
 		const std::string value
 	) {
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5692,6 +5722,7 @@ public:
 		}
 
 		this->partitioning_options[hierarchial_partitioning_level][name] = value;
+		#endif
 		return *this;
 	}
 
@@ -5702,6 +5733,7 @@ public:
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	\see
 	add_partitioning_option()
 	*/
@@ -5714,6 +5746,7 @@ public:
 		const int hierarchial_partitioning_level,
 		const std::string name
 	) {
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5729,6 +5762,7 @@ public:
 		}
 
 		this->partitioning_options[hierarchial_partitioning_level].erase(name);
+		#endif
 		return *this;
 	}
 
@@ -5736,7 +5770,8 @@ public:
 	/*!
 	Returns the names of partitioning options for hierarchial partitioning at given level.
 
-	Returns nothing if given level doesn't exist.
+	Returns nothing if given level doesn't exist or DCCRG_NO_LB is defined when compiling.
+
 	*/
 	std::vector<std::string> get_partitioning_options(const int hierarchial_partitioning_level) const
 	{
@@ -5751,6 +5786,7 @@ public:
 
 		std::vector<std::string> partitioning_options;
 
+		#ifndef DCCRG_NO_LB
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return partitioning_options;
@@ -5763,6 +5799,7 @@ public:
 		) {
 			partitioning_options.push_back(option->first);
 		}
+		#endif
 
 		return partitioning_options;
 	}
@@ -5771,7 +5808,9 @@ public:
 	/*!
 	Returns the value of given non-hierarchial partitioning option.
 
-	Returns an empty string if given option or given level doesn't exist.
+	Returns an empty string if given option or given level doesn't
+	exist or DCCRG_NO_LB is defined when compiling.
+
 	*/
 	std::string get_partitioning_option_value(
 		const int hierarchial_partitioning_level,
@@ -5788,6 +5827,7 @@ public:
 
 		std::string value;
 
+		#ifndef DCCRG_NO_LB
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return value;
@@ -5796,6 +5836,7 @@ public:
 		if (this->partitioning_options.at(hierarchial_partitioning_level).count(name) > 0) {
 			value = this->partitioning_options.at(hierarchial_partitioning_level).at(name);
 		}
+		#endif
 
 		return value;
 	}
@@ -5826,6 +5867,8 @@ public:
 	/*!
 	Given cell is kept on this process during subsequent load balancing.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	pin(const uint64_t cell, const int process)
 	*/
@@ -5852,12 +5895,15 @@ public:
 		- given cell has children
 		- given process doesn't exist
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	unpin()
 	pin(const uint64_t cell)
 	*/
 	bool pin(const uint64_t cell, const int process)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5890,6 +5936,7 @@ public:
 		}
 
 		this->new_pin_requests[cell] = (uint64_t) process;
+		#endif
 
 		return true;
 	}
@@ -5902,12 +5949,15 @@ public:
 		- given cell doesn't exist
 		- given cell exists on another process
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	unpin_local_cells()
 	pin(const uint64_t cell)
 	*/
 	bool unpin(const uint64_t cell)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5935,6 +5985,7 @@ public:
 		} else {
 			this->new_pin_requests.erase(cell);
 		}
+		#endif
 
 		return true;
 	}
@@ -5946,11 +5997,14 @@ public:
 
 	TODO: only execute for cells that are pinned
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	unpin()
 	*/
 	bool unpin_local_cells()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5990,13 +6044,16 @@ public:
 			}
 		}
 		#endif
+		#endif
 
 		bool ret_val = true;
+		#ifndef DCCRG_NO_LB
 		for (const auto& item: this->cell_data) {
 			if (!this->unpin(item.first)) {
 				ret_val = false;
 			}
 		}
+		#endif
 
 		return ret_val;
 	}
@@ -6005,6 +6062,8 @@ public:
 	All cells in the grid are free to move between processes.
 
 	Must be called simultaneously on all processes.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 
 	\see
 	unpin()
@@ -6016,6 +6075,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& unpin_all_cells()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -6027,6 +6087,7 @@ public:
 
 		this->new_pin_requests.clear();
 		this->pin_requests.clear();
+		#endif
 		return *this;
 	}
 
@@ -7688,9 +7749,13 @@ private:
 
 	/*!
 	Initializes Zoltan related stuff.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	*/
 	bool initialize_zoltan()
 	{
+		#ifndef DCCRG_NO_LB
 		int ret_val = -1;
 
 		MPI_Comm temp; // give a separate comminucator to zoltan
@@ -7882,6 +7947,7 @@ private:
 			>::set_partitioning_options,
 			this
 		);
+		#endif
 
 		return true;
 	}
@@ -8213,6 +8279,8 @@ public:
 
 	Must be called before initialize().
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see balance_load()
 	*/
 	Dccrg<
@@ -8221,7 +8289,9 @@ public:
 		std::tuple<Additional_Cell_Items...>,
 		std::tuple<Additional_Neighbor_Items...>
 	>& set_load_balancing_method(const std::string& given_method) {
+		#ifndef DCCRG_NO_LB
 		this->load_balancing_method = given_method;
+		#endif
 		return *this;
 	}
 
@@ -8345,9 +8415,13 @@ private:
 	Zoltan if use_zoltan is true.
 
 	Updates send & receive lists.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	*/
 	void make_new_partition(const bool use_zoltan)
 	{
+		#ifndef DCCRG_NO_LB
 		this->update_pin_requests();
 
 		int
@@ -8578,6 +8652,7 @@ private:
 				receiver->second[i].second = tag;
 			}
 		}
+		#endif
 	}
 
 
