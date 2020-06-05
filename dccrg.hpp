@@ -8090,7 +8090,7 @@ private:
 
 		#else // ifndef USE_SFC
 
-		const dccrg::Types<3>::indices_t sfc_length = {{
+		const std::array<uint64_t, 3> sfc_length = {{
 			this->length.get()[0],
 			this->length.get()[1],
 			this->length.get()[2]
@@ -8111,7 +8111,12 @@ private:
 		uint64_t cache_start = 0, cache_end = batch_size - 1;
 		sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
 
-		uint64_t sfc_index = 0;
+		// find limits of own cells so others far enough can be ignored
+		uint64_t
+			sfc_index = 0,
+			x_max = 0, x_min = ~(0ull),
+			y_max = 0, y_min = ~(0ull),
+			z_max = 0, z_min = ~(0ull);
 		for (uint64_t process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
@@ -8136,22 +8141,145 @@ private:
 					sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
 				}
 
-				dccrg::Types<3>::indices_t indices = sfc_mapping.get_indices(sfc_index);
+				std::array<uint64_t, 3> indices = sfc_mapping.get_indices(sfc_index);
 				// transform indices to those of refinement level 0 cells
 				indices[0] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
 				indices[1] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
 				indices[2] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
 				const uint64_t cell_to_create = this->mapping.get_cell_from_indices(indices, 0);
 
-				this->cell_process[cell_to_create] = process;
 				if (process == this->rank) {
-					this->cell_data[cell_to_create];
+					const auto indices = this->mapping.get_indices(cell_to_create);
+					const auto length = this->mapping.get_cell_length_in_indices(cell_to_create);
+
+					if (x_min > indices[0]) {
+						x_min = indices[0];
+					}
+					if (x_max < indices[0] + length) {
+						x_max = indices[0] + length;
+					}
+
+					if (y_min > indices[1]) {
+						y_min = indices[1];
+					}
+					if (y_max < indices[1] + length) {
+						y_max = indices[1] + length;
+					}
+
+					if (z_min > indices[2]) {
+						z_min = indices[2];
+					}
+					if (z_max < indices[2] + length) {
+						z_max = indices[2] + length;
+					}
 				}
 
 				sfc_index++;
 			}
 		}
 		sfc_mapping.clear();
+		auto neighborhood_addition = this->neighborhood_length * (uint64_t(1) << this->mapping.get_maximum_refinement_level());
+		if (neighborhood_addition == 0) {
+			neighborhood_addition = uint64_t(1) << this->mapping.get_maximum_refinement_level();
+		}
+		if (x_min > neighborhood_addition) {
+			x_min -= neighborhood_addition;
+		} else {
+			x_min = 0;
+		}
+		if (x_max < ~0ull - neighborhood_addition) {
+			x_max += neighborhood_addition;
+		} else {
+			x_max = ~0ull;
+		}
+		if (y_min > neighborhood_addition) {
+			y_min -= neighborhood_addition;
+		} else {
+			y_min = 0;
+		}
+		if (y_max < ~0ull - neighborhood_addition) {
+			y_max += neighborhood_addition;
+		} else {
+			y_max = ~0ull;
+		}
+		if (z_min > neighborhood_addition) {
+			z_min -= neighborhood_addition;
+		} else {
+			z_min = 0;
+		}
+		if (z_max < ~0ull - neighborhood_addition) {
+			z_max += neighborhood_addition;
+		} else {
+			z_max = ~0ull;
+		}
+
+{
+		sfc::Sfc<3, uint64_t> sfc_mapping(sfc_length);
+
+		/*
+		Cache only batch_size number of sfc indices at a time.
+		Saves memory and can even be faster than caching everything at once
+		*/
+		uint64_t batch_size;
+		if (sfc_mapping.size() % sfc_caching_batches > 0) {
+			batch_size = 1 + sfc_mapping.size() / sfc_caching_batches;
+		} else {
+			batch_size = sfc_mapping.size() / sfc_caching_batches;
+		}
+
+		uint64_t cache_start = 0, cache_end = batch_size - 1;
+		sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
+
+		sfc_index = 0;
+		for (uint64_t process = 0; process < this->comm_size; process++) {
+
+			uint64_t cells_to_create;
+			if (process < procs_with_fewer) {
+				cells_to_create = cells_per_process - 1;
+			} else {
+				cells_to_create = cells_per_process;
+			}
+
+			for (uint64_t i = 0; i < cells_to_create; i++) {
+
+				// cache new sfc index batch
+				if (sfc_index > cache_end) {
+					cache_start = cache_end;
+					cache_end = cache_start + batch_size;
+
+					if (cache_end >= sfc_mapping.size()) {
+						cache_end = sfc_mapping.size() - 1;
+					}
+
+					sfc_mapping.clear();
+					sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
+				}
+
+				const auto temp = sfc_mapping.get_indices(sfc_index);
+				dccrg::Types<3>::indices_t indices{temp[0], temp[1], temp[2]};
+				// transform indices to those of refinement level 0 cells
+				indices[0] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				indices[1] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				indices[2] *= uint64_t(1) << this->mapping.get_maximum_refinement_level();
+				const uint64_t cell_to_create = this->mapping.get_cell_from_indices(indices, 0);
+
+				const auto cell_i = this->mapping.get_indices(cell_to_create);
+				if (
+					cell_i[0] >= x_min and cell_i[0] <= x_max
+					and cell_i[1] >= y_min and cell_i[1] <= y_max
+					and cell_i[2] >= z_min and cell_i[2] <= z_max
+				) {
+					this->cell_process[cell_to_create] = process;
+					if (process == this->rank) {
+						this->cell_data[cell_to_create];
+					}
+				}
+
+				sfc_index++;
+			}
+		}
+		sfc_mapping.clear();
+}
 
 		if (sfc_index != total_cells) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Process " << this->rank
