@@ -39,4 +39,4 @@ tests/init/init.exe: \
 tests/init/init_sfc.exe: \
   tests/init/init_sfc.cpp \
   $(TESTS_INIT_COMMON_DEPS)
-	$(TESTS_INIT_COMPILE_COMMAND) -DDCCRG_USE_SFC $(SFC_CPPFLAGS)
+	$(TESTS_INIT_COMPILE_COMMAND) $(SFC_CPPFLAGS)

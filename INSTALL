@@ -18,7 +18,7 @@ dccrg can use it for initializing the grid with better
 initial cell partitioning than the default.
 sfc++ is also a header only library so just place the
 sfc++.hpp file somewhere where your compiler can find it.
-To use sfc++ in dccrg define USE_SFC when compiling a
+To use sfc++ in dccrg define DCCRG_USE_SFC when compiling a
 program using dccrg and sfc++ will be used to partition
 the initial cells between processes using a Hilber
 space-filling curve.

@@ -56,7 +56,7 @@ dccrg::Dccrg for a starting point in the API.
 #include "zoltan.h"
 #endif
 
-#ifdef USE_SFC
+#ifdef DCCRG_USE_SFC
 #include "sfc++.hpp"
 #endif
 
@@ -8023,7 +8023,7 @@ private:
 	/*!
 	Creates cells of refinement level 0 and assigns them to processes.
 
-	If USE_SFC is defined when compiling the cells will be assigned to
+	If DCCRG_USE_SFC is defined when compiling the cells will be assigned to
 	processes using a space-filling curve which should improve the
 	initial computational load.
 
@@ -8057,7 +8057,7 @@ private:
 		// some processes get fewer cells if grid size not divisible by this->comm_size
 		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - total_cells;
 
-		#ifndef USE_SFC
+		#ifndef DCCRG_USE_SFC
 
 		uint64_t cell_to_create = 1;
 		for (uint64_t process = 0; process < this->comm_size; process++) {
@@ -8088,7 +8088,7 @@ private:
 		}
 		#endif
 
-		#else // ifndef USE_SFC
+		#else // ifndef DCCRG_USE_SFC
 
 		const std::array<uint64_t, 3> sfc_length = {{
 			this->length.get()[0],
@@ -8289,7 +8289,7 @@ private:
 			abort();
 		}
 
-		#endif // ifndef USE_SFC
+		#endif // ifndef DCCRG_USE_SFC
 		// TODO: check that the last index in the grid in every direction is less than error_index
 
 		return true;
