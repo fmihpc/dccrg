@@ -2624,8 +2624,14 @@ public:
 		}
 		#endif
 
-		const auto neighbors
-			= this->find_neighbors_of(parent, this->neighborhood_of);
+		const auto neighbors = [&](){
+			try {
+				return this->find_neighbors_of(parent, this->neighborhood_of);
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
+				abort();
+			}
+		}();
 
 		for(const auto& neighbor_i: neighbors) {
 			const auto& neighbor = neighbor_i.first;
@@ -8241,8 +8247,14 @@ private:
 	{
 		// update neighbor lists of local cells and remote neighbors
 		for (const auto& item: this->cell_process) {
-			this->neighbors_of[item.first]
-				= this->find_neighbors_of(item.first, this->neighborhood_of);
+			this->neighbors_of[item.first] = [&](){
+				try {
+					return this->find_neighbors_of(item.first, this->neighborhood_of);
+				} catch (...) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << item.first << std::endl;
+					abort();
+				}
+			}();
 			#ifdef DEBUG
 			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
 				if (neighbor.first == error_cell) {
@@ -8924,8 +8936,22 @@ private:
 			return;
 		}
 
-		this->neighbors_of[cell] = this->find_neighbors_of(cell, this->neighborhood_of);
-		this->neighbors_to[cell] = this->find_neighbors_to(cell, this->neighborhood_to);
+		this->neighbors_of[cell] = [&](){
+			try {
+				return this->find_neighbors_of(cell, this->neighborhood_of);
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
+				abort();
+			}
+		}();
+		this->neighbors_to[cell] = [&](){
+			try {
+				return this->find_neighbors_to(cell, this->neighborhood_to);
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
+				abort();
+			}
+		}();
 
 		#ifdef DEBUG
 		if (
@@ -8973,11 +8999,23 @@ private:
 	*/
 	void update_user_neighbors(const uint64_t cell, const int neighborhood_id)
 	{
-		this->user_neigh_of[neighborhood_id][cell]
-			= this->find_neighbors_of(cell, this->user_hood_of.at(neighborhood_id));
+		this->user_neigh_of[neighborhood_id][cell] = [&](){
+			try {
+				return this->find_neighbors_of(cell, this->user_hood_of.at(neighborhood_id));
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << ", " << neighborhood_id << std::endl;
+				abort();
+			}
+		}();
 
-		this->user_neigh_to[neighborhood_id][cell]
-			= this->find_neighbors_to(cell, this->user_hood_to.at(neighborhood_id));
+		this->user_neigh_to[neighborhood_id][cell] = [&](){
+			try {
+				return this->find_neighbors_to(cell, this->user_hood_to.at(neighborhood_id));
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << ", " << neighborhood_id << std::endl;
+				abort();
+			}
+		}();
 	}
 
 
@@ -9715,8 +9753,14 @@ private:
 		// check that all required refines have been induced
 		for (const uint64_t refined: this->cells_to_refine) {
 
-			const auto neighbors_of
-				= this->find_neighbors_of(refined, this->neighborhood_of);
+			const auto neighbors_of = [&](){
+				try {
+					return this->find_neighbors_of(refined, this->neighborhood_of);
+				} catch (...) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << refined << std::endl;
+				abort();
+				}
+			}();
 
 			for (const auto& neighbor_of_i: neighbors_of) {
 				const auto& neighbor_of = neighbor_of_i.first;
@@ -9942,8 +9986,14 @@ private:
 			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
 
 			// neighbors_of
-			const auto neighbors
-				= this->find_neighbors_of(this->get_parent(unrefined), this->neighborhood_of);
+			const auto neighbors = [&](){
+				try {
+					return this->find_neighbors_of(this->get_parent(unrefined), this->neighborhood_of);
+				} catch (...) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << unrefined << ", " << this->get_parent(unrefined) << std::endl;
+					abort();
+				}
+			}();
 
 			for (const auto& neighbor_i: neighbors) {
 				const auto& neighbor = neighbor_i.first;
@@ -12403,8 +12453,14 @@ private:
 		}
 
 		// reference
-		const auto compare_neighbors
-			= this->find_neighbors_of(cell, hood_of);
+		const auto compare_neighbors = [&](){
+			try {
+				return this->find_neighbors_of(cell, hood_of);
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
+				abort();
+			}
+		}();
 
 		if (
 			neighbor_of_lists.at(cell).size() != compare_neighbors.size()
@@ -12718,8 +12774,14 @@ private:
 				bool no_remote_neighbor = true;
 
 				// search in neighbors_of
-				const auto neighbors_of
-					= this->find_neighbors_of(item.first, this->neighborhood_of);
+				const auto neighbors_of = [&](){
+					try {
+						return this->find_neighbors_of(item.first, this->neighborhood_of);
+					} catch (...) {
+						std::cerr << __FILE__ "(" << __LINE__ << "): " << item.first << std::endl;
+						abort();
+					}
+				}();
 
 				for (const auto& neighbor_i: neighbors_of) {
 					const auto& neighbor = neighbor_i.first;
