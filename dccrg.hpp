@@ -371,6 +371,8 @@ public:
 		cell_process(other.get_cell_process()),
 		local_cells_on_process_boundary(other.get_local_cells_on_process_boundary_internal()),
 		remote_cells_on_process_boundary(other.get_remote_cells_on_process_boundary_internal()),
+		known_extent_min(other.get_known_extent_min()),
+		known_extent_max(other.get_known_extent_max()),
 		user_local_cells_on_process_boundary(other.get_user_local_cells_on_process_boundary()),
 		user_remote_cells_on_process_boundary(other.get_user_remote_cells_on_process_boundary()),
 		cells_to_send(other.get_cells_to_send()),
@@ -510,7 +512,12 @@ public:
 			);
 		}
 
-		this->initialize_neighborhoods();
+		try {
+			this->initialize_neighborhoods();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
 
 		if (!this->create_level_0_cells(sfc_caching_batches)) {
 			throw std::invalid_argument(
@@ -519,7 +526,12 @@ public:
 			);
 		}
 
-		this->update_neighbors_();
+		try {
+			this->update_neighbors_();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
 
 		if (!this->initialize_neighbors()) {
 			throw std::invalid_argument(
@@ -835,8 +847,23 @@ public:
 		#endif
 
 		if (this->cell_process.count(cell) > 0) {
+			if (this->neighbors_.count(cell) == 0) {
+				return nullptr;
+			}
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
+				const auto index = this->mapping.get_indices(cell);
+				for (size_t d = 0; d < 3; d++) {
+					if (
+						index[d] < this->known_extent_min[d]
+						or index[d] > this->known_extent_max[d]
+					) {
+						std::cerr << __FILE__ "(" << __LINE__ << "): "
+							<< cell << ", " << index[d] << ", "
+							<< this->known_extent_min[d] << ", "
+							<< this->known_extent_max[d] << std::endl;
+					}
+				}
 				if (this->neighbors_of.count(cell) == 0) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
@@ -899,7 +926,9 @@ public:
 		#endif
 
 		if (this->cell_process.count(cell) > 0) {
-
+			if (this->neighbors_.count(cell) == 0) {
+				return nullptr;
+			}
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
 				if (this->neighbors_to.count(cell) == 0) {
@@ -1983,7 +2012,12 @@ public:
 
 		this->grid_initialized = true;
 
-		this->update_neighbors_();
+		try {
+			this->update_neighbors_();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
 
 		if (!this->initialize_neighbors()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -2629,7 +2663,7 @@ public:
 				return this->find_neighbors_of(parent, this->neighborhood_of);
 			} catch (...) {
 				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
-				abort();
+				throw;
 			}
 		}();
 
@@ -4066,16 +4100,46 @@ public:
 		}
 		#endif
 
-		this->update_neighbors_();
+		try {
+			this->update_neighbors_();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
 
-		this->update_neighbors();
+		try {
+			this->update_neighbors();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
+
 		for (const auto& h: this->user_hood_of) {
 			this->user_neigh_of.at(h.first).clear();
 			this->user_neigh_to.at(h.first).clear();
 		}
 		for (const auto& i: this->cell_process) {
+			const auto index = this->mapping.get_indices(i.first);
+			bool skip = false;
+			for (size_t d = 0; d < 3; d++) {
+				if (
+					index[d] < this->known_extent_min[d]
+					or index[d] > this->known_extent_max[d]
+				) {
+					skip = true;
+					break;
+				}
+			}
+			if (skip) {
+				continue;
+			}
 			for (const auto& j: this->user_hood_of) {
-				this->update_user_neighbors(i.first, j.first);
+				try {
+					this->update_user_neighbors(i.first, j.first);
+				} catch (...) {
+					std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+					throw;
+				}
 			}
 		}
 
@@ -4558,10 +4622,7 @@ public:
 				or offset[2] + curr_len - 1 < off_start[2] or offset[2] > off_end[2]
 			) {
 				if (this->neighbors_.count(current) == 0) {
-					throw std::runtime_error(
-						__FILE__ "(" + to_string(__LINE__) + ") "
-						"No neighbors_ for cell " + to_string(current)
-					);
+					break;
 				}
 				const auto& neighs = this->neighbors_.at(current);
 
@@ -6515,8 +6576,27 @@ public:
 			this->user_hood_to.at(neighborhood_id).push_back(neigh_item_to);
 		}
 
-		for (const auto& item: this->cell_process) {
-			this->update_user_neighbors(item.first, neighborhood_id);
+		for (const auto& i: this->cell_process) {
+			const auto index = this->mapping.get_indices(i.first);
+			bool skip = false;
+			for (size_t d = 0; d < 3; d++) {
+				if (
+					index[d] < this->known_extent_min[d]
+					or index[d] > this->known_extent_max[d]
+				) {
+					skip = true;
+					break;
+				}
+			}
+			if (skip) {
+				continue;
+			}
+			try {
+				this->update_user_neighbors(i.first, neighborhood_id);
+			} catch (...) {
+				std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+				throw;
+			}
 		}
 
 		this->update_user_remote_neighbor_info(neighborhood_id);
@@ -6854,6 +6934,15 @@ public:
 	const std::unordered_map<uint64_t, uint64_t>& get_cell_process() const
 	{
 		return this->cell_process;
+	}
+
+	const std::array<uint64_t, 3>& get_known_extent_min() const
+	{
+		return this->known_extent_min;
+	}
+	const std::array<uint64_t, 3>& get_known_extent_max() const
+	{
+		return this->known_extent_max;
 	}
 
 	/*!
@@ -7209,6 +7298,10 @@ private:
 	// cells on other processes that have a neighbor on this process
 	// or are considered as a neighbor of a cell on this process
 	std::unordered_set<uint64_t> remote_cells_on_process_boundary;
+
+	// extent in indices of grid structure known by this process,
+	// min > max means it extends from opposide side into grid
+	std::array<uint64_t, 3> known_extent_min, known_extent_max;
 
 	/*
 	User defined versions of local_cells_on_process_boundary and remote_cells_on_process_boundary
@@ -8246,17 +8339,17 @@ private:
 	bool initialize_neighbors()
 	{
 		// update neighbor lists of local cells and remote neighbors
-		for (const auto& item: this->cell_process) {
-			this->neighbors_of[item.first] = [&](){
+		for (const auto& i: this->cell_data) {
+			this->neighbors_of[i.first] = [&](){
 				try {
-					return this->find_neighbors_of(item.first, this->neighborhood_of);
+					return this->find_neighbors_of(i.first, this->neighborhood_of);
 				} catch (...) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): " << item.first << std::endl;
-					abort();
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << i.first << std::endl;
+					throw;
 				}
 			}();
 			#ifdef DEBUG
-			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
+			for (const auto& neighbor: this->neighbors_of.at(i.first)) {
 				if (neighbor.first == error_cell) {
 					continue;
 				}
@@ -8267,15 +8360,72 @@ private:
 				) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< "Invalid offset for neighbor " << neighbor.first
-						<< " of cell " << item.first << std::endl;
+						<< " of cell " << i.first << std::endl;
 					abort();
 				}
 			}
 			#endif
 
-			this->neighbors_to[item.first]
-				= this->find_neighbors_to(item.first, this->neighborhood_to);
+			this->neighbors_to[i.first] = [&](){
+				try {
+					return this->find_neighbors_to(i.first, this->neighborhood_to);
+				} catch (...) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << i.first << std::endl;
+					throw;
+				}
+			}();
+
+			#ifdef DEBUG
+			using std::to_string;
+			const auto know_len = this->mapping.get_cell_length_in_indices(1) * (1 + this->neighborhood_length);
+			const auto index = this->mapping.get_indices(i.first);
+			for (size_t d = 0; d < 3; d++) {
+				if (index[d] < know_len) {
+					if (not this->known_extent_min[d] == 0) {
+						throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
+					}
+				} else if (index[d] - know_len < this->known_extent_min[d]) {
+					throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
+				}
+
+				if (index[d] + know_len > this->known_extent_max[d]) {
+					throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
+				}
+			}
+			#endif
 		}
+
+		for (const auto& i: this->cell_process) {
+			const auto index = this->mapping.get_indices(i.first);
+			bool find = true;
+			for (size_t d = 0; d < 3; d++) {
+				if (
+					index[d] < this->known_extent_min[d]
+					or index[d] > this->known_extent_max[d]
+				) {
+					find = false;
+				}
+			}
+			if (find) {
+				this->neighbors_of[i.first] = [&](){
+					try {
+						return this->find_neighbors_of(i.first, this->neighborhood_of);
+					} catch (...) {
+						std::cerr << __FILE__ "(" << __LINE__ << "): " << i.first << std::endl;
+						throw;
+					}
+				}();
+				this->neighbors_to[i.first] = [&](){
+					try {
+						return this->find_neighbors_to(i.first, this->neighborhood_to);
+					} catch (...) {
+						std::cerr << __FILE__ "(" << __LINE__ << "): " << i.first << std::endl;
+						throw;
+					}
+				}();
+			}
+		}
+
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -8905,10 +9055,57 @@ private:
 	// using update_neighbors(cell)
 	void update_neighbors()
 	{
+		using std::max;
+		using std::min;
+		using std::to_string;
+
 		this->neighbors_of.clear();
 		this->neighbors_to.clear();
+
+		const auto know_len = this->mapping.get_cell_length_in_indices(1) * (1 + this->neighborhood_length);
+
+		for (const auto& i: this->cell_data) {
+			try {
+				this->update_neighbors(i.first);
+			} catch (...) {
+				std::cerr << __FILE__ "(" << __LINE__ << "): " << i.first << std::endl;
+				throw;
+			}
+			const auto index = this->mapping.get_indices(i.first);
+			for (size_t d = 0; d < 3; d++) {
+				if (index[d] < know_len) {
+					if (not this->known_extent_min[d] == 0) {
+						throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
+					}
+				} else if (index[d] - know_len < this->known_extent_min[d]) {
+					throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
+				}
+
+				if (index[d] + know_len > this->known_extent_max[d]) {
+					throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
+				}
+			}
+		}
+
 		for (const auto& i: this->cell_process) {
-			this->update_neighbors(i.first);
+			const auto index = this->mapping.get_indices(i.first);
+			bool find = true;
+			for (size_t d = 0; d < 3; d++) {
+				if (
+					index[d] < this->known_extent_min[d]
+					or index[d] > this->known_extent_max[d]
+				) {
+					find = false;
+				}
+			}
+			if (find) {
+				try {
+					this->update_neighbors(i.first);
+				} catch (...) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << i.first << std::endl;
+					throw;
+				}
+			}
 		}
 	}
 
@@ -8941,7 +9138,7 @@ private:
 				return this->find_neighbors_of(cell, this->neighborhood_of);
 			} catch (...) {
 				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
-				abort();
+				throw;
 			}
 		}();
 		this->neighbors_to[cell] = [&](){
@@ -8949,7 +9146,7 @@ private:
 				return this->find_neighbors_to(cell, this->neighborhood_to);
 			} catch (...) {
 				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
-				abort();
+				throw;
 			}
 		}();
 
@@ -9004,7 +9201,7 @@ private:
 				return this->find_neighbors_of(cell, this->user_hood_of.at(neighborhood_id));
 			} catch (...) {
 				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << ", " << neighborhood_id << std::endl;
-				abort();
+				throw;
 			}
 		}();
 
@@ -9013,7 +9210,7 @@ private:
 				return this->find_neighbors_to(cell, this->user_hood_to.at(neighborhood_id));
 			} catch (...) {
 				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << ", " << neighborhood_id << std::endl;
-				abort();
+				throw;
 			}
 		}();
 	}
@@ -9350,9 +9547,56 @@ private:
 	// recalculates this->neighbors_ for all known cells
 	void update_neighbors_()
 	{
+		using std::max;
+		using std::min;
+
+		this->known_extent_max = {0, 0, 0};
+		this->known_extent_min = {~0ull, ~0ull, ~0ull};
 		this->neighbors_.clear();
-		for (const auto& i: this->cell_process) {
+
+		const auto know_len = this->mapping.get_cell_length_in_indices(1) * (1 + this->neighborhood_length);
+
+		for (const auto& i: this->cell_data) {
 			this->update_neighbors_(i.first);
+			const auto index = this->mapping.get_indices(i.first);
+			for (size_t d = 0; d < 3; d++) {
+				if (index[d] < know_len) {
+					this->known_extent_min[d] = 0;
+					this->known_extent_max[d] = ~0ull;
+				} else {
+					this->known_extent_min[d] = min(index[d] - know_len, this->known_extent_min[d]);
+				}
+
+				const auto len = this->mapping.length.get();
+				const auto mrl = this->mapping.get_maximum_refinement_level();
+				const std::array<uint64_t, 3> past_end_index{
+					len[0] * (1 << mrl),
+					len[1] * (1 << mrl),
+					len[2] * (1 << mrl),
+				};
+				if (index[d] + know_len >= past_end_index[d]) {
+					this->known_extent_max[d] = ~0ull;
+					this->known_extent_min[d] = 0;
+				} else {
+					this->known_extent_max[d] = max(index[d] + know_len, this->known_extent_max[d]);
+				}
+			}
+		}
+
+		for (const auto& i: this->cell_process) {
+			const auto index = this->mapping.get_indices(i.first);
+			bool find = true;
+			for (size_t d = 0; d < 3; d++) {
+				if (
+					index[d] < this->known_extent_min[d]
+					or index[d] > this->known_extent_max[d]
+				) {
+					find = false;
+				}
+			}
+			if (find) {
+				this->update_neighbors_(i.first);
+			}
 		}
 	}
 
@@ -9639,6 +9883,9 @@ private:
 
 			// induced refines on this process
 			for (const uint64_t refined: all_new_refines.at(this->rank)) {
+				if (this->neighbors_of.count(refined) == 0) {
+					continue;
+				}
 
 				// refine local neighbors that are too large
 				for (const auto& neighbor_i: this->neighbors_of.at(refined)) {
@@ -9667,6 +9914,13 @@ private:
 							unique_induced_refines.insert(neighbor);
 						}
 					}
+				}
+
+				if (this->neighbors_to.count(refined) == 0) {
+					std::cerr << __FILE__ "(" << __LINE__
+						<< "): No neighbors to for cell " << refined
+						<< " on rank " << this->rank << std::endl;
+					abort();
 				}
 
 				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
@@ -9752,13 +10006,16 @@ private:
 		#ifdef DEBUG
 		// check that all required refines have been induced
 		for (const uint64_t refined: this->cells_to_refine) {
+			if (this->neighbors_.count(refined) == 0) {
+				continue;
+			}
 
 			const auto neighbors_of = [&](){
 				try {
 					return this->find_neighbors_of(refined, this->neighborhood_of);
 				} catch (...) {
 					std::cerr << __FILE__ "(" << __LINE__ << "): " << refined << std::endl;
-				abort();
+					throw;
 				}
 			}();
 
@@ -9781,8 +10038,14 @@ private:
 				}
 			}
 
-			const auto neighbors_to
-				= this->find_neighbors_to(refined, this->neighborhood_to);
+			const auto neighbors_to = [&](){
+				try {
+					return this->find_neighbors_to(refined, this->neighborhood_to);
+				} catch (...) {
+					std::cerr << __FILE__ "(" << __LINE__ << "): " << refined << std::endl;
+					throw;
+				}
+			}();
 			for (const auto& neighbor_to_i: neighbors_to) {
 				const auto& neighbor_to = neighbor_to_i.first;
 
@@ -9983,17 +10246,24 @@ private:
 				abort();
 			}
 
-			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
+			if (this->neighbors_.count(this->get_parent(unrefined)) == 0) {
+				continue;
+			}
 
 			// neighbors_of
 			const auto neighbors = [&](){
 				try {
 					return this->find_neighbors_of(this->get_parent(unrefined), this->neighborhood_of);
 				} catch (...) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): " << unrefined << ", " << this->get_parent(unrefined) << std::endl;
-					abort();
+					std::cerr << __FILE__ "(" << __LINE__ << "): "
+						<< unrefined << ", " << this->get_parent(unrefined)
+						<< ", " << this->cell_process.at(unrefined) << ", "
+						<< this->rank << std::endl;
+					throw;
 				}
 			}();
+
+			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
 
 			for (const auto& neighbor_i: neighbors) {
 				const auto& neighbor = neighbor_i.first;
@@ -10550,16 +10820,46 @@ private:
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
 
-		this->update_neighbors_();
+		try {
+			this->update_neighbors_();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
 
-		this->update_neighbors();
+		try {
+			this->update_neighbors();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
+
 		for (const auto& h: this->user_hood_of) {
 			this->user_neigh_of.at(h.first).clear();
 			this->user_neigh_to.at(h.first).clear();
 		}
 		for (const auto& i: this->cell_process) {
+			const auto index = this->mapping.get_indices(i.first);
+			bool skip = false;
+			for (size_t d = 0; d < 3; d++) {
+				if (
+					index[d] < this->known_extent_min[d]
+					or index[d] > this->known_extent_max[d]
+				) {
+					skip = true;
+					break;
+				}
+			}
+			if (skip) {
+				continue;
+			}
 			for (const auto& j: this->user_hood_of) {
-				this->update_user_neighbors(i.first, j.first);
+				try {
+					this->update_user_neighbors(i.first, j.first);
+				} catch (...) {
+					std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+					throw;
+				}
 			}
 		}
 
@@ -11469,7 +11769,9 @@ private:
 				throw std::runtime_error(
 					__FILE__ "(" + to_string(__LINE__)
 					+ "): No neighbors of list for cell "
-					+ to_string(cell)
+					+ to_string(cell) + " owned by rank "
+					+ to_string(this->cell_process.at(cell))
+					+ " on rank " + to_string(this->rank)
 				);
 			}
 			if (neighbors_to == nullptr) {
@@ -12458,7 +12760,7 @@ private:
 				return this->find_neighbors_of(cell, hood_of);
 			} catch (...) {
 				std::cerr << __FILE__ "(" << __LINE__ << "): " << cell << std::endl;
-				abort();
+				throw;
 			}
 		}();
 
@@ -12779,7 +13081,7 @@ private:
 						return this->find_neighbors_of(item.first, this->neighborhood_of);
 					} catch (...) {
 						std::cerr << __FILE__ "(" << __LINE__ << "): " << item.first << std::endl;
-						abort();
+						throw;
 					}
 				}();
 
