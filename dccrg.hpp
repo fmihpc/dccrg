@@ -1066,9 +1066,26 @@ public:
 		}
 		#endif
 
-		this->initialize_balance_load(use_zoltan);
-		this->continue_balance_load();
-		this->finish_balance_load();
+		try {
+			this->initialize_balance_load(use_zoltan);
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
+
+		try {
+			this->continue_balance_load();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
+
+		try {
+			this->finish_balance_load();
+		} catch (...) {
+			std::cerr << __FILE__ ":" << __LINE__ << std::endl;
+			throw;
+		}
 		return *this;
 	}
 
@@ -3852,6 +3869,11 @@ public:
 		this->cells_not_to_refine.clear();
 		this->cells_not_to_unrefine.clear();
 		this->cell_weights.clear();
+		this->neighbors_.clear();
+		this->neighbors_of.clear();
+		this->neighbors_to.clear();
+		this->user_neigh_of.clear();
+		this->user_neigh_to.clear();
 
 		#ifdef DEBUG
 		// check that there are no duplicate adds / removes
@@ -4115,8 +4137,8 @@ public:
 		}
 
 		for (const auto& h: this->user_hood_of) {
-			this->user_neigh_of.at(h.first).clear();
-			this->user_neigh_to.at(h.first).clear();
+			this->user_neigh_of[h.first].clear();
+			this->user_neigh_to[h.first].clear();
 		}
 		for (const auto& i: this->cell_process) {
 			const auto index = this->mapping.get_indices(i.first);
