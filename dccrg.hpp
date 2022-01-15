@@ -3218,7 +3218,6 @@ public:
 			abort();
 		}
 
-		// No check whether start_refining() has been called...
 		this->start_user_data_transfers(
 			this->unrefined_cell_data,
 			this->cells_to_receive,
@@ -3297,7 +3296,6 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " stop_refining() called with unrefined cells. "
 				<< std::endl;
-			abort();
 		}
 		this->finish_refining();
 		return ret_val;
