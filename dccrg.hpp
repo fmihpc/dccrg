@@ -3163,6 +3163,16 @@ public:
 	*/
 	std::vector<uint64_t> start_refining(const bool sorted = false)
 	{
+		if (this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " start_refining() called the second time "
+				<< "before calling finish_refining() first"
+				<< std::endl;
+			abort();
+		}
+
+		this->refining = true;
+
 		this->induce_refines();
 
 		// update dont_refines between processes
@@ -3200,6 +3210,14 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& continue_refining()
 	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " continue_refining() called without "
+				<< "calling start_refining() first."
+				<< std::endl;
+			abort();
+		}
+
 		// No check whether start_refining() has been called...
 		this->start_user_data_transfers(
 			this->unrefined_cell_data,
@@ -3226,7 +3244,14 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& finish_refining()
 	{
-		// No check whether start_refining() has been called...
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " finish_refining() called without "
+				<< "calling start_refining() first."
+				<< std::endl;
+			abort();
+		}
+
 		this->cells_to_receive.clear();
 		this->cells_to_send.clear();
 
@@ -3258,6 +3283,7 @@ public:
 			this->allocate_copies_of_remote_neighbors(item.first);
 		}
 
+		this->refining = false;
 		return *this;
 	}
 
@@ -3267,7 +3293,12 @@ public:
 	std::vector<uint64_t> stop_refining(const bool sorted = false)
 	{
 		std::vector<uint64_t> ret_val = this->start_refining();
-		continue_refining();
+		if (!this->unrefined_cell_data.empty()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " stop_refining() called with unrefined cells. "
+				<< std::endl;
+			abort();
+		}
 		this->finish_refining();
 		return ret_val;
 	}
@@ -6725,6 +6756,7 @@ private:
 	std::unordered_set<uint64_t> neighbor_processes;
 
 	bool balancing_load = false;
+	bool refining = false;
 
 
 	//! stores begin and end iterators for range-based for loop
