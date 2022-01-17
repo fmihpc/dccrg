@@ -3161,8 +3161,18 @@ public:
 	By default returned cells are in random order but if sorted == true
 	they are sorted using std::sort before returning.
 	*/
-	std::vector<uint64_t> stop_refining(const bool sorted = false)
+	std::vector<uint64_t> start_refining(const bool sorted = false)
 	{
+		if (this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " start_refining() called the second time "
+				<< "before calling finish_refining() first"
+				<< std::endl;
+			abort();
+		}
+
+		this->refining = true;
+
 		this->induce_refines();
 
 		// update dont_refines between processes
@@ -3177,6 +3187,117 @@ public:
 			std::sort(ret_val.begin(), ret_val.end());
 		}
 
+		return ret_val;
+	}
+
+	/*!
+	Transfers unrefined cell data between processes.
+
+	Must be called by all processes and not before start_refining()
+	has been called.
+
+	The next function to be called after this one (from those that
+	must be called by all processes) must be either this again or
+	finish_refining().
+
+	\see
+	finish_refining()
+	*/
+	Dccrg<
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
+	>& continue_refining()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " continue_refining() called without "
+				<< "calling start_refining() first."
+				<< std::endl;
+			abort();
+		}
+
+		this->start_user_data_transfers(
+			this->unrefined_cell_data,
+			this->cells_to_receive,
+			this->cells_to_send,
+			-3
+		);
+
+		this->wait_user_data_transfer_receives();
+		this->wait_user_data_transfer_sends();
+		return *this;
+	}
+
+	/*!
+	Finishes the procedure of moving cells between processes.
+
+	Must be called by all processes and not before initialize_balance_load(...)
+	has been called.
+	*/
+	Dccrg<
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
+	>& finish_refining()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " finish_refining() called without "
+				<< "calling start_refining() first."
+				<< std::endl;
+			abort();
+		}
+
+		this->cells_to_receive.clear();
+		this->cells_to_send.clear();
+
+		#ifdef DEBUG
+		if (!this->verify_user_data()) {
+			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
+			exit(EXIT_FAILURE);
+		}
+		#endif
+
+		// remove user data of unrefined cells from this->cell_data
+		for (std::unordered_set<uint64_t>::const_iterator
+			unrefined = this->all_to_unrefine.begin();
+			unrefined != this->all_to_unrefine.end();
+			unrefined++
+		) {
+			this->cell_data.erase(*unrefined);
+		}
+
+		this->cells_to_refine.clear();
+		this->cells_to_unrefine.clear();
+		this->all_to_unrefine.clear();
+
+		this->recalculate_neighbor_update_send_receive_lists();
+
+		this->allocate_copies_of_remote_neighbors();
+		this->update_cell_pointers();
+		for (const auto& item: this->user_hood_of) {
+			this->allocate_copies_of_remote_neighbors(item.first);
+		}
+
+		this->refining = false;
+		return *this;
+	}
+
+	/*!
+	Calls start_refining and finish_refining() in case transfers aren't needed, i.e. no unrefining
+	*/
+	std::vector<uint64_t> stop_refining(const bool sorted = false)
+	{
+		std::vector<uint64_t> ret_val = this->start_refining();
+		if (!this->unrefined_cell_data.empty()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " stop_refining() called with unrefined cells. "
+				<< std::endl;
+		}
+		this->finish_refining();
 		return ret_val;
 	}
 
@@ -6599,7 +6720,7 @@ private:
 	std::unordered_set<uint64_t> added_cells, removed_cells;
 
 	// cells to be refined / unrefined after a call to stop_refining()
-	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
+	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
 
 	// cells whose siblings shouldn't be unrefined
 	std::unordered_set<uint64_t> cells_not_to_unrefine;
@@ -6633,6 +6754,7 @@ private:
 	std::unordered_set<uint64_t> neighbor_processes;
 
 	bool balancing_load = false;
+	bool refining = false;
 
 
 	//! stores begin and end iterators for range-based for loop
@@ -9238,7 +9360,6 @@ private:
 
 		// initially only one sibling is recorded per process when unrefining,
 		// insert the rest of them now
-		std::unordered_set<uint64_t> all_to_unrefine;
 		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
@@ -9309,11 +9430,11 @@ private:
 			}
 			#endif
 
-			all_to_unrefine.insert(siblings.begin(), siblings.end());
+			this->all_to_unrefine.insert(siblings.begin(), siblings.end());
 		}
 
 		// unrefines
-		for (const uint64_t unrefined: all_to_unrefine) {
+		for (const uint64_t unrefined: this->all_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
 			#ifdef DEBUG
@@ -9416,14 +9537,6 @@ private:
 				receiver->second[i].second = tag;
 			}
 		}
-
-
-		this->start_user_data_transfers(
-			this->unrefined_cell_data,
-			this->cells_to_receive,
-			this->cells_to_send,
-			-3
-		);
 
 		// update data for parents (and their neighborhood) of unrefined cells
 		for (const uint64_t parent: parents_of_unrefined) {
@@ -9543,7 +9656,7 @@ private:
 		}
 
 		// remove neighbor lists of removed cells
-		for (const uint64_t unrefined: all_to_unrefine) {
+		for (const uint64_t unrefined: this->all_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
 			// also from user neighborhood
@@ -9576,41 +9689,9 @@ private:
 		}
 		#endif
 
-		this->wait_user_data_transfer_receives();
-		this->wait_user_data_transfer_sends();
-		this->cells_to_send.clear();
-		this->cells_to_receive.clear();
-
-		#ifdef DEBUG
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
-		// remove user data of unrefined cells from this->cell_data
-		for (std::unordered_set<uint64_t>::const_iterator
-			unrefined = all_to_unrefine.begin();
-			unrefined != all_to_unrefine.end();
-			unrefined++
-		) {
-			this->cell_data.erase(*unrefined);
-		}
-
-		this->cells_to_refine.clear();
-		this->cells_to_unrefine.clear();
-
-		this->recalculate_neighbor_update_send_receive_lists();
-
-		this->allocate_copies_of_remote_neighbors();
-		this->update_cell_pointers();
-		for (const auto& item: this->user_hood_of) {
-			this->allocate_copies_of_remote_neighbors(item.first);
-		}
 
 		return new_cells;
 	}
-
 
 	/*!
 	Starts user data transfers between processes based on cells_to_send and cells_to_receive.
