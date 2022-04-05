@@ -134,7 +134,7 @@ int main(int argc, char* argv[])
 	// make room for incoming cell data
 	const auto& cells_to_receive = grid.get_cells_to_receive();
 	for (const auto& sender: cells_to_receive) {
-		for (const auto item: sender.second) {
+		for (const auto& item: sender.second) {
 			const auto cell = item.first;
 			auto* const cell_data = grid[cell];
 			if (cell_data == NULL) { abort(); }
@@ -189,7 +189,7 @@ int main(int argc, char* argv[])
 
 	grid.initialize_balance_load(true);
 	for (const auto& sender: cells_to_receive) {
-		for (const auto item: sender.second) {
+		for (const auto& item: sender.second) {
 			const auto cell = item.first;
 			auto* const cell_data = grid[cell];
 			if (cell_data == NULL) { abort(); }
