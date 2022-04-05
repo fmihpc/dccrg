@@ -1,7 +1,8 @@
 /*
 Supporting routines for MPI of dccrg.
 
-Copyright 2012, 2013, 2014, 2015, 2016 Finnish Meteorological Institute
+Copyright 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020,
+2021, 2022 Finnish Meteorological Institute
 
 Dccrg is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License version 3
@@ -21,15 +22,17 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #define DCCRG_MPI_SUPPORT_HPP
 
 #include "algorithm"
-#include "climits"
 #include "cstdint"
 #include "cstdlib"
 #include "iostream"
-#include "mpi.h"
+#include "limits"
 #include "string"
 #include "unordered_map"
 #include "unordered_set"
 #include "vector"
+
+#include "mpi.h"
+
 
 namespace dccrg {
 
@@ -120,7 +123,7 @@ public:
 
 		// TODO: make send_count uint64_t when they can be given to MPI_Allgatherv
 		int send_count = 0;
-		if (values.size() > INT_MAX) {
+		if (values.size() > std::numeric_limits<int>::max()) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Tried to send more values than INT_MAX."
 				<< std::endl;
@@ -379,4 +382,3 @@ public:
 } // namespace
 
 #endif
-
