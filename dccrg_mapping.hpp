@@ -24,6 +24,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "array"
 #include "cmath"
 #include "cstdint"
+#include "fstream"
 #include "iostream"
 
 #include "dccrg_length.hpp"
@@ -554,6 +555,44 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't read maximum refinement level: " << Error_String()(ret_val)
 				<< std::endl;
+			return false;
+		}
+
+		if (!this->set_maximum_refinement_level(max_ref_lvl)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< "Couldn't set maximum refinement level to " << max_ref_lvl
+				<< std::endl;
+			return false;
+		}
+
+		return true;
+	}
+
+	/*! As read(MPI_File...) but for ifstream
+	*/
+	bool read(std::ifstream& file)
+	{
+		int max_ref_lvl = -1;
+
+		Grid_Length::type length = {{0, 0, 0}};
+		file.read(reinterpret_cast<char*>(&length), sizeof length);
+		if (not file.good()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read length data" << std::endl;
+			return false;
+		}
+
+		if (!this->set_length(length)) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't set length of grid"
+				<< std::endl;
+			return false;
+		}
+
+		file.read(reinterpret_cast<char*>(&max_ref_lvl), sizeof max_ref_lvl);
+		if (not file.good()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read maximum refinement level" << std::endl;
 			return false;
 		}
 

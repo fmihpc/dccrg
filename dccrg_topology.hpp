@@ -23,6 +23,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
 #include "array"
+#include "fstream"
 
 #include "dccrg_mpi_support.hpp"
 
@@ -119,6 +120,31 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't read topology data: " << Error_String()(ret_val)
 				<< std::endl;
+			return false;
+		}
+
+		for (size_t dimension = 0; dimension < this->periodic.size(); dimension++) {
+			const bool is_periodic = (data[dimension] > 0) ? true : false;
+			if (!this->set_periodicity(dimension, is_periodic)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Couldn't set periodicity in dimension: " << dimension
+					<< std::endl;
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/*! As read(MPI_File...) but for ifstream
+	*/
+	bool read(std::ifstream& file)
+	{
+		topology_file_data_t data = {{0, 0, 0}};
+		file.read(reinterpret_cast<char*>(&data), sizeof data);
+		if (not file.good()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read topology data" << std::endl;
 			return false;
 		}
 

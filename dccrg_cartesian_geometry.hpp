@@ -25,11 +25,13 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "cassert"
 #include "cmath"
 #include "cstdlib"
+#include "fstream"
 #include "iostream"
 #include "limits"
-#include "mpi.h"
-#include "stdint.h"
+#include "cstdint"
 #include "vector"
+
+#include "mpi.h"
 
 #include "dccrg_length.hpp"
 #include "dccrg_mapping.hpp"
@@ -740,6 +742,57 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't read level 0 cell length from file: " << Error_String()(ret_val)
 				<< std::endl;
+			return false;
+		}
+
+		if (!this->set(read_parameters)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	/*! As read(MPI_File...) but for ifstream
+	*/
+	bool read(std::ifstream& file)
+	{
+		int read_geometry_id = Cartesian_Geometry::geometry_id + 1;
+		file.read(
+			reinterpret_cast<char*>(&read_geometry_id),
+			sizeof read_geometry_id
+		);
+		if (not file.good()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry id" << std::endl;
+			return false;
+		}
+
+		// TODO: don't error out if given No_Geometry
+		if (read_geometry_id != Cartesian_Geometry::geometry_id) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Wrong geometry: " << read_geometry_id
+				<< ", should be " << Cartesian_Geometry::geometry_id
+				<< std::endl;
+			return false;
+		}
+
+		Parameters read_parameters;
+		file.read(
+			reinterpret_cast<char*>(read_parameters.start.data()),
+			3 * sizeof(double)
+		);
+		if (not file.good()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read geometry start" << std::endl;
+			return false;
+		}
+		file.read(
+			reinterpret_cast<char*>(read_parameters.level_0_cell_length.data()),
+			3 * sizeof(double)
+		);
+		if (not file.good()) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " Couldn't read level 0 cell lengths" << std::endl;
 			return false;
 		}
 
