@@ -2342,7 +2342,7 @@ public:
 		}
 		const auto* const neighbors = this->get_neighbors_of(cell);
 		if (neighbors == nullptr) {
-			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
 		}
 		for (const auto& neighbor: *neighbors) {
 			if (
@@ -9268,17 +9268,18 @@ private:
 			this->cells_to_refine.erase(cell);
 		}
 
-		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.cbegin(), this->cells_to_refine.cend());
 		std::vector<std::vector<uint64_t>> all_refines;
 		All_Gather()(refines, all_refines, this->comm);
 
+		// We can't collect refines from all processes, since induce_refines() wants only local refines
 		this->cells_to_refine.clear();
 		for (unsigned int process = 0; process < this->comm_size; process++) {
-			this->cells_to_refine.insert(
-				all_refines[process].begin(),
-				all_refines[process].end()
-			);
+			for (auto i : all_refines[process]) {
+				if (is_local(i)) {
+					this->cells_to_refine.insert(i);
+				}
+			}
 		}
 
 		#ifdef DEBUG
