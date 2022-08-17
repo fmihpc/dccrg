@@ -4650,7 +4650,7 @@ public:
 				}
 			}
 
-			if (current != siblings[current_i]) {
+			if (current_i >= siblings.size() or current != siblings[current_i]) {
 				throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + "): Internal error");
 			}
 
