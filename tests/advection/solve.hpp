@@ -73,7 +73,7 @@ template<class Grid> void calculate_fluxes(
 			// skip non-face neighbors that overlap in < 2 dimensions
 			int overlaps = 0, direction = 0;
 
-			if (neighbor.x < cell_length and neighbor.x > -neighbor_length) {
+			if ((neighbor.x < cell_length) and neighbor.x > -neighbor_length) {
 				overlaps++;
 			} else if (neighbor.x == cell_length) {
 				direction = 1;
@@ -81,7 +81,7 @@ template<class Grid> void calculate_fluxes(
 				direction = -1;
 			}
 
-			if (neighbor.y < cell_length and neighbor.y > -neighbor_length) {
+			if ((neighbor.y < cell_length) and neighbor.y > -neighbor_length) {
 				overlaps++;
 			} else if (neighbor.y == cell_length) {
 				direction = 2;
@@ -89,7 +89,7 @@ template<class Grid> void calculate_fluxes(
 				direction = -2;
 			}
 
-			if (neighbor.z < cell_length and neighbor.z > -neighbor_length) {
+			if ((neighbor.z < cell_length) and neighbor.z > -neighbor_length) {
 				overlaps++;
 			} else if (neighbor.z == cell_length) {
 				direction = 3;
