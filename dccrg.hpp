@@ -3020,19 +3020,19 @@ public:
 			return ret_val;
 		}
 
-		const std::vector<uint64_t>& neighbors_ref
+		const std::vector<std::pair<uint64_t,std::array<int, 4>>>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
 			? this->neighbors_of.at(cell)
 			: this->user_neigh_of.at(neighborhood_id).at(cell);
 
 		for(const auto& neighbor: neighbors_ref) {
 
-			if (neighbor == error_cell) {
+			if (neighbor.first == error_cell) {
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->rank) {
-				ret_val.push_back(neighbor);
+			if (this->cell_process.at(neighbor.first) != this->rank) {
+				ret_val.push_back(neighbor.first);
 			}
 		}
 
@@ -3072,19 +3072,19 @@ public:
 			return ret_val;
 		}
 
-		const std::vector<uint64_t>& neighbors_ref
+		const std::vector<std::pair<uint64_t,std::array<int, 4>>>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
 			? this->neighbors_to.at(cell)
 			: this->user_neigh_to.at(neighborhood_id).at(cell);
 
 		for(const auto& neighbor: neighbors_ref) {
 
-			if (neighbor == error_cell) {
+			if (neighbor.first == error_cell) {
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->rank) {
-				ret_val.push_back(neighbor);
+			if (this->cell_process.at(neighbor.first) != this->rank) {
+				ret_val.push_back(neighbor.first);
 			}
 		}
 
