@@ -2,7 +2,7 @@
 A distributed cartesian cell-refinable grid.
 
 Copyright 2009, 2010, 2011, 2012, 2013,
-2014, 2015, 2016, 2018, 2019 Finnish Meteorological Institute
+2014, 2015, 2016, 2018, 2019, 2023 Finnish Meteorological Institute
 Copyright 2014, 2015, 2016, 2018 Ilja Honkonen
 
 This program is free software: you can redistribute it and/or modify
@@ -51,7 +51,13 @@ dccrg::Dccrg for a starting point in the API.
 #include "vector"
 
 #include "mpi.h"
+
+#ifndef DCCRG_NO_LB
 #include "zoltan.h"
+#else
+typedef void Zoltan_Struct;
+typedef int* ZOLTAN_ID_PTR;
+#endif
 
 #ifdef USE_SFC
 #include "sfc++.hpp"
@@ -408,7 +414,9 @@ public:
 			abort();
 		}
 
+		#ifndef DCCRG_NO_LB
 		this->zoltan = Zoltan_Copy(other.get_zoltan());
+		#endif
 
 		// default construct Other_Cell_Data of local cells
 		for (typename std::unordered_map<uint64_t, Other_Cell_Data>::const_iterator
@@ -503,12 +511,14 @@ public:
 			);
 		}
 
+		#ifndef DCCRG_NO_LB
 		if (!this->initialize_zoltan()) {
 			throw std::invalid_argument(
 				"\n" __FILE__ "(" + to_string(__LINE__) + "): "
 				+ "Couldn't set up Zoltan"
 			);
 		}
+		#endif
 
 		this->initialize_neighborhoods();
 
@@ -663,12 +673,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " get_cells() must not be called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		std::vector<uint64_t> ret_val;
 
@@ -975,12 +987,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " update_copies_of_remote_neighbors(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		bool ret_val = true;
 
@@ -1018,6 +1032,9 @@ public:
 		- the data of local copies of remote neighbors of local cells
 
 	TODO: throws on failure (on one or more processes).
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	initialize_balance_load()
 	*/
@@ -1028,6 +1045,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& balance_load(const bool use_zoltan = true)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -1040,6 +1058,8 @@ public:
 		this->initialize_balance_load(use_zoltan);
 		this->continue_balance_load();
 		this->finish_balance_load();
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -1914,6 +1934,7 @@ public:
 			return false;
 		}
 
+		#ifndef DCCRG_NO_LB
 		this->load_balancing_method = load_balancing_method;
 		if (!this->initialize_zoltan()) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -1921,6 +1942,7 @@ public:
 				<< std::endl;
 			return false;
 		}
+		#endif
 
 		// initialize mapping
 		if (!this->mapping_rw.read(this->grid_data_file, offset)) {
@@ -3734,6 +3756,8 @@ public:
 	must not be queried after calling this, for example the remote neighbors
 	of local cells, local cells, etc.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	balance_load()
 	continue_balance_load()
@@ -3745,6 +3769,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& initialize_balance_load(const bool use_zoltan)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3879,7 +3904,8 @@ public:
 				}
 			}
 		}
-		#endif
+		#endif // ifdef DEBUG
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -3893,6 +3919,8 @@ public:
 	must be called by all processes) must be either this again or
 	finish_balance_load().
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	finish_balance_load()
 	*/
@@ -3903,6 +3931,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& continue_balance_load()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -3930,6 +3959,8 @@ public:
 		this->wait_user_data_transfer_receives();
 
 		this->wait_user_data_transfer_sends();
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -3938,6 +3969,8 @@ public:
 
 	Must be called by all processes and not before initialize_balance_load(...)
 	has been called.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	Dccrg<
 		Cell_Data,
@@ -3946,6 +3979,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& finish_balance_load()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -4143,6 +4177,8 @@ public:
 		this->added_cells.clear();
 		this->removed_cells.clear();
 		this->balancing_load = false;
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -5019,12 +5055,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " start_remote_neighbor_data_update(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		bool ret_val = true;
 
@@ -5169,12 +5207,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " start_remote_neighbor_data_update(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		bool ret_val = true;
 
@@ -5276,12 +5316,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_remote_neighbor_copy_updates(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		bool ret_val = true;
 
@@ -5313,12 +5355,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_remote_neighbor_copy_update_sends() called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		return this->wait_user_data_transfer_sends();
 	}
@@ -5342,12 +5386,14 @@ public:
 		}
 		#endif
 
+		#ifndef DCCRG_NO_LB
 		if (this->balancing_load) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " wait_remote_neighbor_copy_update_receives(...) called while balancing load"
 				<< std::endl;
 			abort();
 		}
+		#endif
 
 		bool ret_val = true;
 
@@ -5530,6 +5576,8 @@ public:
 	Call this with name = LB_METHOD and value = HIER to use hierarchial
 	partitioning.
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	get_partitioning_option_value()
 	add_partitioning_level()
@@ -5541,6 +5589,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& set_partitioning_option(const std::string name, const std::string value)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5558,6 +5607,8 @@ public:
 		}
 
 		Zoltan_Set_Param(this->zoltan, name.c_str(), value.c_str());
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -5567,6 +5618,8 @@ public:
 
 	Assigns default partitioning options for the added level.
 	Does nothing if processes_per_part < 1.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 
 	\see
 	add_partitioning_option()
@@ -5580,6 +5633,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& add_partitioning_level(const int processes)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5603,6 +5657,8 @@ public:
 		default_load_balance_options["LB_METHOD"] = "HYPERGRAPH";
 		default_load_balance_options["PHG_CUT_OBJECTIVE"] = "CONNECTIVITY";
 		this->partitioning_options.push_back(default_load_balance_options);
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -5612,6 +5668,8 @@ public:
 
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 
 	\see
 	add_partitioning_level()
@@ -5623,6 +5681,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& remove_partitioning_level(const int hierarchial_partitioning_level)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5643,6 +5702,8 @@ public:
 		this->partitioning_options.erase(
 			this->partitioning_options.begin() + hierarchial_partitioning_level
 		);
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -5655,6 +5716,8 @@ public:
 	Does nothing in the following cases:
 		- option name is one of: RETURN_LISTS, ...
 		- given level doesn't exist
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 
 	\see
 	remove_partitioning_option()
@@ -5670,6 +5733,7 @@ public:
 		const std::string name,
 		const std::string value
 	) {
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5692,6 +5756,8 @@ public:
 		}
 
 		this->partitioning_options[hierarchial_partitioning_level][name] = value;
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -5701,6 +5767,8 @@ public:
 
 	Level numbering starts from 0.
 	Does nothing if given level doesn't exist.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 
 	\see
 	add_partitioning_option()
@@ -5714,6 +5782,7 @@ public:
 		const int hierarchial_partitioning_level,
 		const std::string name
 	) {
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5729,6 +5798,8 @@ public:
 		}
 
 		this->partitioning_options[hierarchial_partitioning_level].erase(name);
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -5736,7 +5807,9 @@ public:
 	/*!
 	Returns the names of partitioning options for hierarchial partitioning at given level.
 
-	Returns nothing if given level doesn't exist.
+	Returns an empty vector if given level doesn't exist.
+
+	Returns an empty vector if DCCRG_NO_LB is defined when compiling.
 	*/
 	std::vector<std::string> get_partitioning_options(const int hierarchial_partitioning_level) const
 	{
@@ -5751,6 +5824,7 @@ public:
 
 		std::vector<std::string> partitioning_options;
 
+		#ifndef DCCRG_NO_LB
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return partitioning_options;
@@ -5763,6 +5837,7 @@ public:
 		) {
 			partitioning_options.push_back(option->first);
 		}
+		#endif // ifndef DCCRG_NO_LB
 
 		return partitioning_options;
 	}
@@ -5772,6 +5847,8 @@ public:
 	Returns the value of given non-hierarchial partitioning option.
 
 	Returns an empty string if given option or given level doesn't exist.
+
+	Returns an empty string if DCCRG_NO_LB is defined when compiling.
 	*/
 	std::string get_partitioning_option_value(
 		const int hierarchial_partitioning_level,
@@ -5788,6 +5865,7 @@ public:
 
 		std::string value;
 
+		#ifndef DCCRG_NO_LB
 		if (hierarchial_partitioning_level < 0
 		|| hierarchial_partitioning_level >= int(this->processes_per_part.size())) {
 			return value;
@@ -5796,6 +5874,7 @@ public:
 		if (this->partitioning_options.at(hierarchial_partitioning_level).count(name) > 0) {
 			value = this->partitioning_options.at(hierarchial_partitioning_level).at(name);
 		}
+		#endif // ifndef DCCRG_NO_LB
 
 		return value;
 	}
@@ -5826,11 +5905,14 @@ public:
 	/*!
 	Given cell is kept on this process during subsequent load balancing.
 
+	Does nothing and returns false if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	pin(const uint64_t cell, const int process)
 	*/
 	bool pin(const uint64_t cell)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5841,6 +5923,9 @@ public:
 		#endif
 
 		return this->pin(cell, this->rank);
+		#else
+		return false;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 	/*!
@@ -5852,12 +5937,15 @@ public:
 		- given cell has children
 		- given process doesn't exist
 
+	Does nothing and returns false if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	unpin()
 	pin(const uint64_t cell)
 	*/
 	bool pin(const uint64_t cell, const int process)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5892,6 +5980,9 @@ public:
 		this->new_pin_requests[cell] = (uint64_t) process;
 
 		return true;
+		#else
+		return false;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 	/*!
@@ -5902,12 +5993,15 @@ public:
 		- given cell doesn't exist
 		- given cell exists on another process
 
+	Does nothing and returns false if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	unpin_local_cells()
 	pin(const uint64_t cell)
 	*/
 	bool unpin(const uint64_t cell)
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5937,6 +6031,9 @@ public:
 		}
 
 		return true;
+		#else
+		return false;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 	/*!
@@ -5946,11 +6043,14 @@ public:
 
 	TODO: only execute for cells that are pinned
 
+	Does nothing and returns false if DCCRG_NO_LB is defined when compiling.
+
 	\see
 	unpin()
 	*/
 	bool unpin_local_cells()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -5999,12 +6099,17 @@ public:
 		}
 
 		return ret_val;
+		#else
+		return false;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 	/*!
 	All cells in the grid are free to move between processes.
 
 	Must be called simultaneously on all processes.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 
 	\see
 	unpin()
@@ -6016,6 +6121,7 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& unpin_all_cells()
 	{
+		#ifndef DCCRG_NO_LB
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -6027,6 +6133,8 @@ public:
 
 		this->new_pin_requests.clear();
 		this->pin_requests.clear();
+
+		#endif // ifndef DCCRG_NO_LB
 		return *this;
 	}
 
@@ -6958,10 +7066,16 @@ public:
 
 	/*!
 	Returns the pointer to this instances Zoltan data structure.
+
+	Returns nullptr if DCCRG_NO_LB is defined when compiling.
 	*/
 	const Zoltan_Struct* get_zoltan() const
 	{
+		#ifndef DCCRG_NO_LB
 		return this->zoltan;
+		#else
+		return nullptr;
+		#endif
 	}
 
 	/*!
@@ -7255,7 +7369,9 @@ private:
 	std::unordered_map<uint64_t, uint64_t> new_pin_requests;
 
 	// variables for load balancing using Zoltan
+	#ifndef DCCRG_NO_LB
 	Zoltan_Struct* zoltan;
+	#endif
 	// number of processes per part in a hierarchy level (numbering starts from 0)
 	std::vector<unsigned int> processes_per_part;
 	// options for each level of hierarchial load balancing (numbering start from 0)
@@ -7688,9 +7804,12 @@ private:
 
 	/*!
 	Initializes Zoltan related stuff.
+
+	Does nothing and returns false if DCCRG_NO_LB is defined when compiling.
 	*/
 	bool initialize_zoltan()
 	{
+		#ifndef DCCRG_NO_LB
 		int ret_val = -1;
 
 		MPI_Comm temp; // give a separate comminucator to zoltan
@@ -7884,6 +8003,9 @@ private:
 		);
 
 		return true;
+		#else
+		return false;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
@@ -8213,6 +8335,8 @@ public:
 
 	Must be called before initialize().
 
+	Does nothing if DCCRG_NO_LB is defined when compiling.
+
 	\see balance_load()
 	*/
 	Dccrg<
@@ -8220,8 +8344,15 @@ public:
 		Geometry,
 		std::tuple<Additional_Cell_Items...>,
 		std::tuple<Additional_Neighbor_Items...>
-	>& set_load_balancing_method(const std::string& given_method) {
+	>& set_load_balancing_method(
+		const std::string&
+		#ifndef DCCRG_NO_LB
+		given_method
+		#endif
+	) {
+		#ifndef DCCRG_NO_LB
 		this->load_balancing_method = given_method;
+		#endif
 		return *this;
 	}
 
@@ -8345,6 +8476,8 @@ private:
 	Zoltan if use_zoltan is true.
 
 	Updates send & receive lists.
+
+	use_zoltan has no effect if DCCRG_NO_LB is defined when compiling.
 	*/
 	void make_new_partition(const bool use_zoltan)
 	{
@@ -8365,6 +8498,7 @@ private:
 			global_ids_to_send,
 			local_ids_to_send;
 
+		#ifndef DCCRG_NO_LB
 		if (use_zoltan && Zoltan_LB_Balance(
 			this->zoltan,
 			&partition_changed,
@@ -8413,6 +8547,7 @@ private:
 			}
 			#endif
 		}
+		#endif // ifndef DCCRG_NO_LB
 
 		this->added_cells.clear();
 		this->removed_cells.clear();
@@ -8441,6 +8576,7 @@ private:
 		}
 
 		// migration from Zoltan
+		#ifndef DCCRG_NO_LB
 		if (use_zoltan) {
 			for (int i = 0; i < number_to_receive; i++) {
 
@@ -8471,6 +8607,7 @@ private:
 				this->added_cells.insert(global_ids_to_receive[i]);
 			}
 		}
+		#endif // ifndef DCCRG_NO_LB
 
 		// receive cells in known order and add message tags
 		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::iterator
@@ -8518,6 +8655,7 @@ private:
 		}
 
 		// migration from Zoltan
+		#ifndef DCCRG_NO_LB
 		if (use_zoltan) {
 			for (int i = 0; i < number_to_send; i++) {
 
@@ -8557,6 +8695,7 @@ private:
 				&receiver_processes
 			);
 		}
+		#endif // ifndef DCCRG_NO_LB
 
 		// send cells in known order and add message tags
 		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::iterator
@@ -11671,13 +11810,17 @@ private:
 	*/
 	static int get_grid_dimensionality(void* /*data*/, int* error)
 	{
+		#ifndef DCCRG_NO_LB
 		*error = ZOLTAN_OK;
+		#endif
 		return 3;
 	}
 
 
 	/*!
 	Fills geom_vec with the coordinates of cells given in global_id
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_with_cell_coordinates(
 		void *data,
@@ -11690,6 +11833,7 @@ private:
 		double *geom_vec,
 		int *error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -11722,6 +11866,7 @@ private:
 			geom_vec[3 * i + 1] = coordinate[1];
 			geom_vec[3 * i + 2] = coordinate[2];
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
@@ -11743,13 +11888,17 @@ private:
 				std::tuple<Additional_Neighbor_Items...>
 			>*
 		>(data);
+		#ifndef DCCRG_NO_LB
 		*error = ZOLTAN_OK;
+		#endif
 		return int(dccrg_instance->cell_data.size());
 	}
 
 
 	/*!
 	Writes all cell ids on this process to the global_ids array
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_cell_list(
 		void* data,
@@ -11761,6 +11910,7 @@ private:
 		float* object_weights,
 		int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -11798,11 +11948,14 @@ private:
 
 			i++;
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Writes the number of neighbors into number_of_neighbors for all cells given in global_ids.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_number_of_neighbors_for_cells(
 		void* data,
@@ -11814,6 +11967,7 @@ private:
 		int* number_of_neighbors,
 		int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -11850,11 +12004,14 @@ private:
 				}
 			}
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Writes neighbor lists of given cells into neighbors, etc.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_neighbor_lists(
 		void* data,
@@ -11869,6 +12026,7 @@ private:
 		int number_of_weights_per_edge,
 		float* edge_weights, int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -11921,11 +12079,14 @@ private:
 				current_neighbor_number++;
 			}
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Writes the number of hyperedges (self + one per neighbor cell) in the grid for all cells on this process.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_number_of_hyperedges(
 		void* data,
@@ -11933,6 +12094,7 @@ private:
 		int* number_of_connections,
 		int* format, int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -11966,11 +12128,14 @@ private:
 				}
 			}
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Writes the hypergraph in compressed edge format
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_hyperedge_lists(
 		void* data,
@@ -11983,6 +12148,7 @@ private:
 		ZOLTAN_ID_PTR connections,
 		int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -12046,14 +12212,18 @@ private:
 			*error = ZOLTAN_FATAL;
 			return;
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Writes the number of hyperedge weights (one per hyperedge) on this process
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_number_of_edge_weights(void* data, int* number_of_edge_weights, int* error)
 	{
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -12070,12 +12240,14 @@ private:
 		*error = ZOLTAN_OK;
 
 		*number_of_edge_weights = int(dccrg_instance->cell_data.size());
-		return;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Writes hyperedge weights (one per hyperedge) on this process
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void fill_edge_weights(
 		void* data,
@@ -12088,6 +12260,7 @@ private:
 		float* hyperedge_weights,
 		int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -12135,14 +12308,18 @@ private:
 
 			i++;
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Returns the number of hierarchies to use for load balancing.
+
+	Returns -1 if DCCRG_NO_LB is defined when compiling.
 	*/
 	static int get_number_of_load_balancing_hierarchies(void* data, int* error)
 	{
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -12158,14 +12335,20 @@ private:
 		>(data);
 		*error = ZOLTAN_OK;
 		return int(dccrg_instance->processes_per_part.size());
+		#else
+		return -1;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Returns the part number of this process on given hierarchy level of load balancing.
+
+	Returns -1 if DCCRG_NO_LB is defined when compiling.
 	*/
 	static int get_part_number(void* data, int level, int* error)
 	{
+		#ifndef DCCRG_NO_LB
 		Dccrg<
 			Cell_Data,
 			Geometry,
@@ -12201,18 +12384,24 @@ private:
 		}
 
 		return part;
+		#else
+		return -1;
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 
 	/*!
 	Sets the partitioning options of given zoltan instance for given level.
+
+	Does nothing if DCCRG_NO_LB is defined when compiling.
 	*/
 	static void set_partitioning_options(
 		void* data,
 		int level,
-		struct Zoltan_Struct* zz,
+		Zoltan_Struct* zz,
 		int* error
 	) {
+		#ifndef DCCRG_NO_LB
 		if (zz == NULL) {
 			std::cerr << "Zoltan gave a NULL pointer for zz" << std::endl;
 			*error = ZOLTAN_FATAL;
@@ -12253,6 +12442,7 @@ private:
 		) {
 			Zoltan_Set_Param(zz, option->first.c_str(), option->second.c_str());
 		}
+		#endif // ifndef DCCRG_NO_LB
 	}
 
 

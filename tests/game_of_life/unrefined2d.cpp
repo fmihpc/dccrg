@@ -27,7 +27,9 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 #include "boost/lexical_cast.hpp"
 #include "boost/program_options.hpp"
 #include "mpi.h"
+#ifndef DCCRG_NO_LB
 #include "zoltan.h"
+#endif
 
 #include "dccrg_stretched_cartesian_geometry.hpp"
 #include "dccrg.hpp"
@@ -95,11 +97,13 @@ int main(int argc, char* argv[])
 	}
 
 	// initialize Zoltan
+	#ifndef DCCRG_NO_LB
 	float zoltan_version;
 	if (Zoltan_Initialize(argc, argv, &zoltan_version) != ZOLTAN_OK) {
 		cerr << "Zoltan_Initialize failed" << endl;
 		exit(EXIT_FAILURE);
 	}
+	#endif
 
 	// initialize grids, reference grid doesn't refine/unrefine
 	Dccrg<Cell, Stretched_Cartesian_Geometry> grid, reference_grid;
@@ -185,7 +189,9 @@ int main(int argc, char* argv[])
 
 		Refine<Stretched_Cartesian_Geometry>::refine(grid, int(grid_length[0]), step, comm_size);
 
+		#ifndef DCCRG_NO_LB
 		grid.balance_load();
+		#endif
 		grid.update_copies_of_remote_neighbors();
 
 		if (verbose && rank == 0) {
