@@ -11470,16 +11470,11 @@ private:
 			return;
 		}
 
-		int i = 0;
-		for (const auto& item: dccrg_instance->cell_data) {
-
-			hyperedges[i] = item.first;
-
-			if (number_of_weights_per_hyperedge > 0) {
-				hyperedge_weights[i] = get_cell_weight(i);
+		for (int i = 0; i < dccrg_instance->cell_data.size(); ++i) {
+			hyperedges[i] = dccrg_instance->cell_data[i];
+			for (int j = 0; j < number_of_weights_per_hyperedge; ++j) {
+				hyperedge_weights[i+j] = dccrg_instance->get_cell_weight(i);
 			}
-
-			i++;
 		}
 	}
 
