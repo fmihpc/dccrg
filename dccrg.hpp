@@ -11471,7 +11471,6 @@ private:
 		}
 
 		for (int i = 0; i < dccrg_instance->cell_data.size(); ++i) {
-			hyperedges[i] = dccrg_instance->cell_data[i];
 			for (int j = 0; j < number_of_weights_per_hyperedge; ++j) {
 				hyperedge_weights[i+j] = dccrg_instance->get_cell_weight(i);
 			}
