@@ -3958,6 +3958,20 @@ public:
 	}
 
 	/*!
+	Cancel and clear refines
+	*/
+	void cancel_refining()
+	{
+		this->cells_to_receive.clear();
+		this->cells_to_send.clear();
+		this->cells_to_refine.clear();
+		this->cells_to_unrefine.clear();
+		this->all_to_unrefine.clear();
+		this->refining = false;
+		return;
+	}
+
+	/*!
 	Calls initialize_refines(), execute_refines() and finish_refining() in case transfers aren't needed, i.e. no unrefining
 	*/
 	std::vector<uint64_t> stop_refining(const bool sorted = false)
