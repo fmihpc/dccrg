@@ -11476,19 +11476,7 @@ private:
 			hyperedges[i] = item.first;
 
 			if (number_of_weights_per_hyperedge > 0) {
-				int number_of_hyperedges = 0;
-
-				for (const auto& neighbor_i: dccrg_instance->neighbors_of.at(item.first)) {
-					const auto neighbor = neighbor_i.first;
-					if (neighbor != 0
-					/* Zoltan 3.501 crashes in hierarchial
-					if a cell is a neighbor to itself (periodic grid) */
-					&& neighbor != item.first) {
-						number_of_hyperedges++;
-					}
-				}
-
-				hyperedge_weights[i] = float(1.0 * number_of_hyperedges);
+				hyperedge_weights[i] = get_cell_weight(i);
 			}
 
 			i++;
