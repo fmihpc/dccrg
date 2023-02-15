@@ -804,6 +804,21 @@ public:
 		return NULL;
 	}
 
+	const std::vector<std::pair<uint64_t, std::array<int, 4>>> get_mutual_neighbors(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
+	) const {
+        std::vector<std::pair<uint64_t, std::array<int, 4>>> neighbors;
+        for (auto& i : *get_neighbors_of(cell, neighborhood_id)) {
+            for (auto& j : *get_neighbors_to(cell, neighborhood_id)) {
+                if (i.first == j.first) {
+                    neighbors.push_back(i);
+                }
+            }
+        }
+		return neighbors;
+	}
+
 	void set_partitioning_neighborhood_id (int id) {
 		partitioning_neighborhood_id = id;
 	}
@@ -11368,7 +11383,7 @@ private:
 
 			(*number_of_connections)++;
 
-			for (const auto& neighbor_i: *dccrg_instance->get_neighbors_of(item.first, dccrg_instance->partitioning_neighborhood_id)) {
+			for (const auto& neighbor_i: dccrg_instance->get_mutual_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
 				const auto& neighbor = neighbor_i.first;
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
@@ -11434,7 +11449,7 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const auto& neighbor_i: *dccrg_instance->get_neighbors_of(item.first, dccrg_instance->partitioning_neighborhood_id)) {
+			for (const auto& neighbor_i: dccrg_instance->get_mutual_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
 				const auto& neighbor = neighbor_i.first;
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
