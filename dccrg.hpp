@@ -365,6 +365,7 @@ public:
 		no_load_balancing(other.get_no_load_balancing()),
 		reserved_options(other.get_reserved_options()),
 		cell_weights(other.get_cell_weights()),
+		communication_weights(other.get_communication_weights()),
 		neighbor_processes(other.get_neighbor_processes()),
 		balancing_load(other.get_balancing_load())
 	{
@@ -803,6 +804,9 @@ public:
 		return NULL;
 	}
 
+	void set_partitioning_neighborhood_id (int id) {
+		partitioning_neighborhood_id = id;
+	}
 
 	/*!
 	Returns a pointer to the cells that consider given cell as a neighbor.
@@ -3422,12 +3426,18 @@ public:
 			}
 
 			// children of refined cells inherit their weight
-			if (this->rank == process_of_refined
-			&& this->cell_weights.count(refined) > 0) {
+			if (this->rank == process_of_refined && this->cell_weights.count(refined) > 0) {
 				for (const uint64_t child: children) {
 					this->cell_weights[child] = this->cell_weights.at(refined);
 				}
 				this->cell_weights.erase(refined);
+			}
+
+			if (this->rank == process_of_refined && this->communication_weights.count(refined) > 0) {
+				for (const uint64_t child: children) {
+					this->communication_weights[child] = this->communication_weights.at(refined);
+				}
+				this->communication_weights.erase(refined);
 			}
 
 			// use local neighbor lists to find cells whose neighbor lists have to updated
@@ -3589,6 +3599,7 @@ public:
 			this->pin_requests.erase(unrefined);
 			this->new_pin_requests.erase(unrefined);
 			this->cell_weights.erase(unrefined);
+			this->communication_weights.erase(unrefined);
 
 			// don't send unrefined cells' user data to self
 			if (this->rank == process_of_unrefined
@@ -4266,6 +4277,7 @@ public:
 		this->cells_not_to_refine.clear();
 		this->cells_not_to_unrefine.clear();
 		this->cell_weights.clear();
+		this->communication_weights.clear();
 
 		#ifdef DEBUG
 		// check that there are no duplicate adds / removes
@@ -6456,6 +6468,25 @@ public:
 		return true;
 	}
 
+	bool set_communication_weight(const uint64_t cell, const double weight)
+	{
+		if (this->cell_process.count(cell) == 0) {
+			return false;
+		}
+
+		if (this->cell_process.at(cell) != this->rank) {
+			return false;
+		}
+
+		if (cell != this->get_child(cell)) {
+			return false;
+		}
+
+		this->communication_weights[cell] = weight;
+
+		return true;
+	}
+
 	/*!
 	Returns the weight of given local existing cell without children.
 
@@ -6476,13 +6507,31 @@ public:
 			return std::numeric_limits<double>::quiet_NaN();
 		}
 
-		if (this->cell_weights.count(cell) == 0) {
-			return 1;
-		} else {
-			return this->cell_weights.at(cell);
-		}
+		return this->cell_weights.count(cell) ? this->cell_weights.at(cell) : 1.0;
 	}
 
+	/*!
+	Returns the weight of given local existing cell without children.
+
+	Returns a quiet nan if above conditions are not met.
+	Unset cell weights are assumed to be 1.
+	*/
+	double get_communication_weight(const uint64_t cell) const
+	{
+		if (this->cell_process.count(cell) == 0) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		if (this->cell_process.at(cell) != this->rank) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		if (cell != this->get_child(cell)) {
+			return std::numeric_limits<double>::quiet_NaN();
+		}
+
+		return this->communication_weights.count(cell) ? this->communication_weights.at(cell) : 1.0;
+	}
 
 	/*!
 	Returns the cells that will be added to this process by load balancing.
@@ -6617,6 +6666,10 @@ public:
 		return this->cell_weights;
 	}
 
+	const std::unordered_map<uint64_t, double>& get_communication_weights() const
+	{
+		return this->communication_weights;
+	}
 
 	/*!
 	Adds a new neighborhood for updating Cell_Data between neighbors on different processes.
@@ -7345,6 +7398,8 @@ private:
 		std::vector<Types<3>::neighborhood_item_t>
 	> user_hood_of, user_hood_to;
 
+	int partitioning_neighborhood_id{default_neighborhood_id};
+
 	/*!
 	Cell on this process and those cells that aren't neighbors of
 	this cell but whose neighbor this cell is.
@@ -7458,8 +7513,11 @@ private:
 	// reserved options that the user cannot change
 	std::unordered_set<std::string> reserved_options;
 
-	// optional user-given weights of cells on this process
+	// optional user-given processing weights of cells on this process
 	std::unordered_map<uint64_t, double> cell_weights;
+
+	// optional user-given communication weights of cells on this process
+	std::unordered_map<uint64_t, double> communication_weights;
 
 	// processes which have cells close enough from cells of this process
 	std::unordered_set<uint64_t> neighbor_processes;
@@ -11147,11 +11205,7 @@ private:
 			global_ids[i] = item.first;
 
 			if (number_of_weights_per_object > 0) {
-				if (dccrg_instance->cell_weights.count(item.first) > 0) {
-					object_weights[i] = float(dccrg_instance->cell_weights.at(item.first));
-				} else {
-					object_weights[i] = 1;
-				}
+                object_weights[i] = dccrg_instance->get_cell_weight(item.first);
 			}
 
 			i++;
@@ -11314,12 +11368,11 @@ private:
 
 			(*number_of_connections)++;
 
-			for (const auto& neighbor_i: dccrg_instance->neighbors_of.at(item.first)) {
+			for (const auto& neighbor_i: *dccrg_instance->get_neighbors_of(item.first, dccrg_instance->partitioning_neighborhood_id)) {
 				const auto& neighbor = neighbor_i.first;
-				if (neighbor != 0
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
-				&& neighbor != item.first) {
+				if (neighbor != 0 && neighbor != item.first) {
 					(*number_of_connections)++;
 				}
 			}
@@ -11381,12 +11434,11 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const auto& neighbor_i: dccrg_instance->neighbors_of.at(item.first)) {
+			for (const auto& neighbor_i: *dccrg_instance->get_neighbors_of(item.first, dccrg_instance->partitioning_neighborhood_id)) {
 				const auto& neighbor = neighbor_i.first;
-				if (neighbor == 0
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
-				|| neighbor == item.first) {
+				if (neighbor == 0 || neighbor == item.first) {
 					continue;
 				}
 
@@ -11471,8 +11523,8 @@ private:
 		}
 
 		for (int i = 0; i < dccrg_instance->cell_data.size(); ++i) {
-			for (int j = 0; j < number_of_weights_per_hyperedge; ++j) {
-				hyperedge_weights[i+j] = dccrg_instance->get_cell_weight(i);
+			if (number_of_weights_per_hyperedge) {
+				hyperedge_weights[i] = dccrg_instance->get_communication_weight(i);
 			}
 		}
 	}
@@ -11572,7 +11624,6 @@ private:
 				std::tuple<Additional_Neighbor_Items...>
 			>*
 		>(data);
-
 		if (level < 0 || level >= int(dccrg_instance->processes_per_part.size())) {
 			std::cerr
 				<< "Zoltan wanted partitioning options for an invalid hierarchy "
@@ -11594,8 +11645,6 @@ private:
 			Zoltan_Set_Param(zz, option->first.c_str(), option->second.c_str());
 		}
 	}
-
-
 
 	#ifdef DEBUG
 	/*!
