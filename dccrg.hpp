@@ -2669,39 +2669,40 @@ public:
 
 		// get location of face neighbors' offsets in neighborhood_of
 		std::array<size_t, 2 * 3> neighborhood_of_indices = {{0, 0, 0, 0, 0, 0}};
-		for (int direction = -1; direction <= 1; direction += 2)
-		for (size_t dimension = 0; dimension < 3; dimension++) {
+		for (int direction : {-1, 1}) {
+			for (size_t dimension = 0; dimension < 3; dimension++) {
 
-			// neigh_of_indices[n] == negative direction in dimension n,
-			// n + 1 positive direction
-			const size_t neigh_of_indices_index
-				= 2 * dimension + ((direction > 0) ? 1 : 0);
+				// neigh_of_indices[n] == negative direction in dimension n,
+				// n + 1 positive direction
+				const size_t neigh_of_indices_index
+					= 2 * dimension + ((direction > 0) ? 1 : 0);
 
-			for (size_t i = 0; i <= this->neighborhood_of.size(); i++) {
-				if (i == this->neighborhood_of.size()) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighborhood_of offsets not found for face neighbors in dimension: "
-						<< dimension << ", direction: " << direction
-						<< std::endl;
-					abort();
-				}
+				for (size_t i = 0; i <= this->neighborhood_of.size(); i++) {
+					if (i == this->neighborhood_of.size()) {
+						std::cerr << __FILE__ << ":" << __LINE__
+							<< " Neighborhood_of offsets not found for face neighbors in dimension: "
+							<< dimension << ", direction: " << direction
+							<< std::endl;
+						abort();
+					}
 
-				bool found = true;
-				for (size_t other_dims = 0; other_dims < 3; other_dims++) {
-					if (other_dims != dimension
-					&& this->neighborhood_of[i][other_dims] != 0) {
+					bool found = true;
+					for (size_t other_dims = 0; other_dims < 3; other_dims++) {
+						if (other_dims != dimension
+						&& this->neighborhood_of[i][other_dims] != 0) {
+							found = false;
+							break;
+						}
+					}
+
+					if (this->neighborhood_of[i][dimension] != direction) {
 						found = false;
+					}
+
+					if (found) {
+						neighborhood_of_indices[neigh_of_indices_index] = i;
 						break;
 					}
-				}
-
-				if (this->neighborhood_of[i][dimension] != direction) {
-					found = false;
-				}
-
-				if (found) {
-					neighborhood_of_indices[neigh_of_indices_index] = i;
-					break;
 				}
 			}
 		}
@@ -2812,6 +2813,50 @@ public:
 		}
 
 		return ret_val;
+	}
+
+	// Recursively find Vlasov solver neighbors
+	// Janky, and most likely incredibly inefficient
+	std::set<uint64_t> get_vlasov_neighbors(
+		const uint64_t cell
+	) const {
+		int stencil_width {0};
+		switch (neighborhood_length) {
+		case 1:
+			break;
+		case 3:
+			stencil_width = 2;
+			break;
+		case 5:
+			stencil_width = 3;
+			break;
+		default:
+			// Placeholder error
+			std::cerr << "Weird stencil width" << std::endl;
+			break;
+		}
+
+		std::set<uint64_t> ret;
+		auto last_neighbors {get_face_neighbors_of(cell)};
+		for (auto p : last_neighbors) {
+			ret.insert(p.first);
+		}
+
+		for (int i = 1; i < stencil_width; ++i) {
+			std::vector<std::pair<uint64_t, int>> new_neighbors;
+			for (auto p : last_neighbors) {
+				for (auto pp : get_face_neighbors_of(p.first)) {
+					if (p.second == pp.second) {
+						new_neighbors.push_back(pp);
+						ret.insert(pp.first);
+					}
+				}
+			}
+
+			last_neighbors = new_neighbors;
+		}
+
+		return ret;
 	}
 
 
@@ -7848,7 +7893,7 @@ private:
 		Set reserved options
 		*/
 		// 0 because Zoltan crashes in hierarchial with larger values
-		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");
+		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "1");
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
 		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
@@ -7925,6 +7970,17 @@ private:
 				std::tuple<Additional_Cell_Items...>,
 				std::tuple<Additional_Neighbor_Items...>
 			>::fill_neighbor_lists,
+			this
+		);
+
+		Zoltan_Set_Obj_Size_Multi_Fn(
+			this->zoltan,
+			&Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>::fill_with_communication_weights,
 			this
 		);
 
@@ -11352,6 +11408,49 @@ private:
 
 
 	/*!
+	Fills sizes with communication weights of cells in global_ids
+	*/
+	static void fill_with_communication_weights(
+		void *data,
+		int /*global_id_size*/,
+		int /*local_id_size*/,
+		int number_of_cells,
+		ZOLTAN_ID_PTR global_ids,
+		ZOLTAN_ID_PTR /*local_ids*/,
+		int *sizes,
+		int *error
+	) {
+		Dccrg<
+			Cell_Data,
+			Geometry,
+			std::tuple<Additional_Cell_Items...>,
+			std::tuple<Additional_Neighbor_Items...>
+		>* dccrg_instance = reinterpret_cast<
+			Dccrg<
+				Cell_Data,
+				Geometry,
+				std::tuple<Additional_Cell_Items...>,
+				std::tuple<Additional_Neighbor_Items...>
+			>*
+		>(data);
+		*error = ZOLTAN_OK;
+
+		for (int i = 0; i < number_of_cells; i++) {
+			uint64_t cell = uint64_t(global_ids[i]);
+			if (dccrg_instance->cell_data.count(cell) == 0) {
+				*error = ZOLTAN_FATAL;
+				std::cerr << "Process " << dccrg_instance->rank
+					<< ": Zoltan wanted the weight of a non-existing cell " << cell
+					<< std::endl;
+				return;
+			}
+
+			sizes[i] = dccrg_instance->get_communication_weight(i);
+		}
+	}
+
+
+	/*!
 	Writes the number of hyperedges (self + one per neighbor cell) in the grid for all cells on this process.
 	*/
 	static void fill_number_of_hyperedges(
@@ -11383,8 +11482,7 @@ private:
 
 			(*number_of_connections)++;
 
-			for (const auto& neighbor_i: dccrg_instance->get_mutual_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
-				const auto& neighbor = neighbor_i.first;
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first)) {
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
 				if (neighbor != 0 && neighbor != item.first) {
@@ -11449,8 +11547,7 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const auto& neighbor_i: dccrg_instance->get_mutual_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
-				const auto& neighbor = neighbor_i.first;
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first)) {
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
 				if (neighbor == 0 || neighbor == item.first) {
