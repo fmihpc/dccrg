@@ -11445,7 +11445,7 @@ private:
 				return;
 			}
 
-			sizes[i] = dccrg_instance->get_communication_weight(i);
+			sizes[i] = dccrg_instance->get_communication_weight(cell);
 		}
 	}
 
@@ -11634,10 +11634,13 @@ private:
 			return;
 		}
 
-		for (int i = 0; i < dccrg_instance->cell_data.size(); ++i) {
+		int i = 0;
+		for (const auto& item : dccrg_instance->cell_data) {
+			hyperedges[i] = item.first;
 			if (number_of_weights_per_hyperedge) {
-				hyperedge_weights[i] = dccrg_instance->get_communication_weight(i);
+				hyperedge_weights[i] = dccrg_instance->get_communication_weight(item.first);
 			}
+			++i;
 		}
 	}
 
