@@ -2838,14 +2838,14 @@ public:
 
 		std::set<uint64_t> ret;
 		auto last_neighbors {get_face_neighbors_of(cell)};
-		for (auto p : last_neighbors) {
-			ret.insert(p.first);
+		for (const auto& [id, dir] : last_neighbors) {
+			ret.insert(id);
 		}
 
 		for (int i = 1; i < stencil_width; ++i) {
 			std::vector<std::pair<uint64_t, int>> new_neighbors;
-			for (auto p : last_neighbors) {
-				for (auto pp : get_face_neighbors_of(p.first)) {
+			for (const auto& p : last_neighbors) {
+				for (const auto pp : get_face_neighbors_of(p.first)) {
 					if (p.second == pp.second) {
 						new_neighbors.push_back(pp);
 						ret.insert(pp.first);
@@ -7879,6 +7879,15 @@ private:
 			this->no_load_balancing = false;
 		}
 
+		// Hardcoded for now
+		if (this->load_balancing_method == "HIER") {
+			add_partitioning_level(4);	// Level 0 - Nodes
+			add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
+
+			add_partitioning_level(1);	// Level 1 - Processes
+			add_partitioning_option(1, "LB_METHOD", "RCB");
+		}
+
 		// reserved options that the user cannot change
 		this->reserved_options.insert("EDGE_WEIGHT_DIM");
 		this->reserved_options.insert("NUM_GID_ENTRIES");
@@ -11323,8 +11332,7 @@ private:
 			}
 
 			number_of_neighbors[i] = 0;
-			for (const auto& neighbor_i: dccrg_instance->neighbors_of.at(cell)) {
-				const auto& neighbor = neighbor_i.first;
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell)) {
 				if (neighbor != 0
 				/* Zoltan 3.501 crashes in hierarchial
 				if a cell is a neighbor to itself */
@@ -11380,8 +11388,7 @@ private:
 
 			number_of_neighbors[i] = 0;
 
-			for (const auto& neighbor_i: dccrg_instance->neighbors_of.at(cell)) {
-				const auto& neighbor = neighbor_i.first;
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell)) {
 
 				if (neighbor == 0
 				/* Zoltan 3.501 crashes in hierarchial
@@ -11398,7 +11405,7 @@ private:
 
 				// weight of edge from cell to *neighbor
 				if (number_of_weights_per_edge > 0) {
-					edge_weights[current_neighbor_number] = 1.0;
+					edge_weights[current_neighbor_number] = dccrg_instance->get_communication_weight(neighbor);
 				}
 
 				current_neighbor_number++;
