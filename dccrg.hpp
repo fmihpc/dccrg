@@ -2815,10 +2815,27 @@ public:
 		return ret_val;
 	}
 
-	// Recursively find Vlasov solver neighbors
-	// Janky, and most likely incredibly inefficient
-	std::set<uint64_t> get_vlasov_neighbors(
-		const uint64_t cell
+	// Get maximum displacement between cells a and b
+	double get_maximum_displacement(
+		const uint64_t a, 
+		const uint64_t b
+	) const {
+		auto x_a = get_center(a);
+		auto x_b = get_center(b);
+		double ret {0};
+		for (int i = 0; i < 3; ++i) {
+			double r = std::abs(x_a[i] - x_b[i]);
+			ret = r > ret ? r : ret;
+		}
+		return ret;
+	}
+
+	// Get Vlasov stencil neighbors by calculating distance
+	// Assumes neighborhood given is a + -shaped stencil
+	// Probably inefficient
+	std::vector<uint64_t> get_vlasov_neighbors(
+		const uint64_t cell,
+		const int neighborhood_id = default_neighborhood_id
 	) const {
 		int stencil_width {0};
 		switch (neighborhood_length) {
@@ -2835,25 +2852,18 @@ public:
 			std::cerr << "Weird stencil width" << std::endl;
 			break;
 		}
+		
+		std::vector<uint64_t> ret;
+		int my_ref {mapping.get_refinement_level(cell)};
 
-		std::set<uint64_t> ret;
-		auto last_neighbors {get_face_neighbors_of(cell)};
-		for (const auto& [id, dir] : last_neighbors) {
-			ret.insert(id);
-		}
+		for (auto& [neigh, dir] : *get_neighbors_of(cell, neighborhood_id)) {
+			double r {get_maximum_displacement(cell, neigh)};
+			int other_ref {mapping.get_refinement_level(neigh)};
 
-		for (int i = 1; i < stencil_width; ++i) {
-			std::vector<std::pair<uint64_t, int>> new_neighbors;
-			for (const auto& p : last_neighbors) {
-				for (const auto pp : get_face_neighbors_of(p.first)) {
-					if (p.second == pp.second) {
-						new_neighbors.push_back(pp);
-						ret.insert(pp.first);
-					}
-				}
+			// 0.1 purely for floating point errors, assume cubical cells
+			if (r < (stencil_width + 0.1) * geometry.get_length((my_ref < other_ref) ? neigh : cell)[0]) {
+				ret.push_back(neigh);
 			}
-
-			last_neighbors = new_neighbors;
 		}
 
 		return ret;
@@ -11332,11 +11342,9 @@ private:
 			}
 
 			number_of_neighbors[i] = 0;
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell)) {
-				if (neighbor != 0
-				/* Zoltan 3.501 crashes in hierarchial
-				if a cell is a neighbor to itself */
-				&& neighbor != cell) {
+			for (const auto& neighbor : dccrg_instance->get_vlasov_neighbors(cell, dccrg_instance->partitioning_neighborhood_id)) {
+				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
+				if (neighbor != 0 && neighbor != cell) {
 					number_of_neighbors[i]++;
 				}
 			}
@@ -11388,12 +11396,9 @@ private:
 
 			number_of_neighbors[i] = 0;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell)) {
-
-				if (neighbor == 0
-				/* Zoltan 3.501 crashes in hierarchial
-				if a cell is a neighbor to itself */
-				|| neighbor == cell) {
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell, dccrg_instance->partitioning_neighborhood_id)) {
+				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
+				if (neighbor == 0 || neighbor == cell) {
 					continue;
 				}
 
@@ -11489,9 +11494,8 @@ private:
 
 			(*number_of_connections)++;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first)) {
-				/* Zoltan 3.501 crashes in hierarchial
-				if a cell is a neighbor to itself */
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
+				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 				if (neighbor != 0 && neighbor != item.first) {
 					(*number_of_connections)++;
 				}
@@ -11554,9 +11558,8 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first)) {
-				/* Zoltan 3.501 crashes in hierarchial
-				if a cell is a neighbor to itself */
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
+				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 				if (neighbor == 0 || neighbor == item.first) {
 					continue;
 				}
