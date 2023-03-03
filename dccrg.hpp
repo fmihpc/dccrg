@@ -2815,27 +2815,82 @@ public:
 		return ret_val;
 	}
 
-	// Get maximum displacement between cells a and b
-	double get_maximum_displacement(
-		const uint64_t a, 
-		const uint64_t b
-	) const {
-		auto x_a = get_center(a);
-		auto x_b = get_center(b);
-		double ret {0};
+	// Consider giving index as argument to reduce calculations
+	static std::array<double, 3> distance_to_double(const std::array<int, 4>& in) 
+	{
+		std::array<double, 3> ret;
 		for (int i = 0; i < 3; ++i) {
-			double r = std::abs(x_a[i] - x_b[i]);
-			ret = r > ret ? r : ret;
+			ret[i] = static_cast<double>(in[i]) / (in[3] > 0 ? in[3] : 1.0);
 		}
 		return ret;
 	}
 
-	// Get Vlasov stencil neighbors by calculating distance
-	// Assumes neighborhood given is a + -shaped stencil
-	// Probably inefficient
-	std::vector<uint64_t> get_vlasov_neighbors(
+	std::map<double, std::vector<uint64_t>> get_vlasov_neighbors(
 		const uint64_t cell,
-		const int neighborhood_id = default_neighborhood_id
+		const int neighborhood_id,
+		const int dimension,
+		const int stencil_width
+	) const {
+		std::map<double, std::vector<uint64_t>> ret;
+		int my_ref {mapping.get_refinement_level(cell)};
+
+		std::vector<std::pair<uint64_t, std::array<int, 4>>> neighs;
+		const auto* p = get_neighbors_of(cell, neighborhood_id);
+		if (!p) {
+			return ret;
+		}
+
+		neighs = *p;
+		// We still need to sort since more refined cells are in xyz order
+		std::stable_sort(neighs.begin(), neighs.end(),
+			[this, dimension] (const std::pair<uint64_t, std::array<int, 4>>& a, const std::pair<uint64_t, std::array<int, 4>>& b) {
+				return distance_to_double(a.second)[dimension] < distance_to_double(b.second)[dimension];
+			}
+		);
+
+		auto it = neighs.begin();
+		while (it < neighs.end() && it->second[dimension] < 0) {
+			++it;
+		}
+		
+		int found {0};
+		for (auto neg = it - 1; neg >= neighs.begin(); --neg) {
+			double offset = distance_to_double(neg->second)[dimension];
+			if (ret.count(offset)) {
+				ret[offset].push_back(neg->first);
+			} else if (found < stencil_width) {
+				++found;
+				ret[offset] = std::vector<uint64_t> {neg->first};
+			} else {
+				break;
+			}
+		}
+
+		while (it < neighs.end() && it->second[dimension] <= 0) {
+			++it;
+		}
+
+		found = 0;
+		for (auto pos = it; pos < neighs.end(); ++pos) {
+			double offset = distance_to_double(pos->second)[dimension];
+			if (ret.count(offset)) {
+				ret[offset].push_back(pos->first);
+			} else if (found < stencil_width) {
+				++found;
+				ret[offset] = std::vector<uint64_t> {pos->first};
+			} else {
+				break;
+			}
+		}
+
+		return ret;
+	}
+
+	// Get actual Vlasov stencil neighbors
+	// Assumes linear 3 linear stencils from neighborhood_id to neighborhood_id + 2
+	std::set<uint64_t> get_vlasov_neighbors(
+		const uint64_t cell,
+		const int neighborhood_id
 	) const {
 		int stencil_width {0};
 		switch (neighborhood_length) {
@@ -2852,20 +2907,13 @@ public:
 			std::cerr << "Weird stencil width" << std::endl;
 			break;
 		}
-		
-		std::vector<uint64_t> ret;
-		int my_ref {mapping.get_refinement_level(cell)};
 
-		for (auto& [neigh, dir] : *get_neighbors_of(cell, neighborhood_id)) {
-			double r {get_maximum_displacement(cell, neigh)};
-			int other_ref {mapping.get_refinement_level(neigh)};
-
-			// 0.1 purely for floating point errors, assume cubical cells
-			if (r < (stencil_width + 0.1) * geometry.get_length((my_ref < other_ref) ? neigh : cell)[0]) {
-				ret.push_back(neigh);
+		std::set<uint64_t> ret;
+		for (int dim = 0; dim < 3; ++dim) {
+			for (auto& [dist, cells] : get_vlasov_neighbors(cell, neighborhood_id + dim, dim, stencil_width)) {
+				ret.insert(cells.begin(), cells.end());
 			}
 		}
-
 		return ret;
 	}
 
@@ -7896,6 +7944,7 @@ private:
 
 			add_partitioning_level(1);	// Level 1 - Processes
 			add_partitioning_option(1, "LB_METHOD", "RCB");
+			//add_partitioning_option(1, "LB_METHOD", "RIB");
 		}
 
 		// reserved options that the user cannot change
