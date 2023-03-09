@@ -819,7 +819,7 @@ public:
 		return neighbors;
 	}
 
-	void set_partitioning_neighborhood_id (int id) {
+	void set_partitioning_neighborhood (int id) {
 		partitioning_neighborhood_id = id;
 	}
 
@@ -2820,23 +2820,23 @@ public:
 	{
 		std::array<double, 3> ret;
 		for (int i = 0; i < 3; ++i) {
-			ret[i] = static_cast<double>(in[i]) / (in[3] > 0 ? in[3] : 1.0);
+			ret[i] = static_cast<double>(in[i]) / static_cast<double>(in[3] > 0 ? in[3] : 1);
 		}
 		return ret;
 	}
 
-	std::map<double, std::vector<uint64_t>> get_vlasov_neighbors(
+	std::map<int, std::vector<uint64_t>> get_vlasov_neighbors(
 		const uint64_t cell,
 		const int neighborhood_id,
 		const int dimension,
 		const int stencil_width
 	) const {
-		std::map<double, std::vector<uint64_t>> ret;
+		std::map<int, std::vector<uint64_t>> ret;
 		int my_ref {mapping.get_refinement_level(cell)};
-
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> neighs;
 		const auto* p = get_neighbors_of(cell, neighborhood_id);
 		if (!p) {
+			std::cerr << "Cell " << cell << ", neighborhood " << neighborhood_id << ", dimension " << dimension << " not found" << std::endl;
 			return ret;
 		}
 
@@ -2848,40 +2848,46 @@ public:
 			}
 		);
 
-		auto it = neighs.begin();
-		while (it < neighs.end() && it->second[dimension] < 0) {
+		auto it = neighs.cbegin();
+		while (it < neighs.cend() && it->second[dimension] < 0) {
 			++it;
 		}
 		
 		int found {0};
-		for (auto neg = it - 1; neg >= neighs.begin(); --neg) {
+		std::uint64_t previous_cell {error_cell};
+		double previous_offset {0.0};
+		for (auto neg = std::make_reverse_iterator(it); neg != neighs.crend(); ++neg) {
 			double offset = distance_to_double(neg->second)[dimension];
-			if (ret.count(offset)) {
-				ret[offset].push_back(neg->first);
-			} else if (found < stencil_width) {
-				++found;
-				ret[offset] = std::vector<uint64_t> {neg->first};
-			} else {
-				break;
+			if (neg->first == previous_cell || neg->first == error_cell) {
+				continue;
+			} else if (offset < previous_offset) {
+				if (++found > stencil_width)
+					break;
 			}
+
+			ret[-found].push_back(neg->first);
+			previous_cell = neg->first;
 		}
 
-		while (it < neighs.end() && it->second[dimension] <= 0) {
+		while (it < neighs.cend() && it->second[dimension] <= 0) {
 			++it;
 		}
 
 		found = 0;
-		for (auto pos = it; pos < neighs.end(); ++pos) {
+		previous_cell = error_cell;
+		previous_offset = 0.0;
+		for (auto pos = it; pos != neighs.cend(); ++pos) {
 			double offset = distance_to_double(pos->second)[dimension];
-			if (ret.count(offset)) {
-				ret[offset].push_back(pos->first);
-			} else if (found < stencil_width) {
-				++found;
-				ret[offset] = std::vector<uint64_t> {pos->first};
-			} else {
-				break;
+			if (pos->first == previous_cell || pos->first == error_cell) {
+				continue;
+			} else if (offset > previous_offset) {
+				if (++found > stencil_width)
+					break;
 			}
-		}
+
+			ret[found].push_back(pos->first);
+			previous_cell = pos->first;
+		} 
 
 		return ret;
 	}
@@ -2889,8 +2895,7 @@ public:
 	// Get actual Vlasov stencil neighbors
 	// Assumes linear 3 linear stencils from neighborhood_id to neighborhood_id + 2
 	std::set<uint64_t> get_vlasov_neighbors(
-		const uint64_t cell,
-		const int neighborhood_id
+		const uint64_t cell
 	) const {
 		int stencil_width {0};
 		switch (neighborhood_length) {
@@ -2910,7 +2915,7 @@ public:
 
 		std::set<uint64_t> ret;
 		for (int dim = 0; dim < 3; ++dim) {
-			for (auto& [dist, cells] : get_vlasov_neighbors(cell, neighborhood_id + dim, dim, stencil_width)) {
+			for (auto& [dist, cells] : get_vlasov_neighbors(cell, partitioning_neighborhood_id + dim, dim, stencil_width)) {
 				ret.insert(cells.begin(), cells.end());
 			}
 		}
@@ -11390,13 +11395,7 @@ private:
 				return;
 			}
 
-			number_of_neighbors[i] = 0;
-			for (const auto& neighbor : dccrg_instance->get_vlasov_neighbors(cell, dccrg_instance->partitioning_neighborhood_id)) {
-				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
-				if (neighbor != 0 && neighbor != cell) {
-					number_of_neighbors[i]++;
-				}
-			}
+			number_of_neighbors[i] = dccrg_instance->get_vlasov_neighbors(cell).size();
 		}
 	}
 
@@ -11445,7 +11444,7 @@ private:
 
 			number_of_neighbors[i] = 0;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell, dccrg_instance->partitioning_neighborhood_id)) {
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell)) {
 				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 				if (neighbor == 0 || neighbor == cell) {
 					continue;
@@ -11540,15 +11539,7 @@ private:
 
 		*number_of_connections = 0;
 		for (const auto& item: dccrg_instance->cell_data) {
-
-			(*number_of_connections)++;
-
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
-				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
-				if (neighbor != 0 && neighbor != item.first) {
-					(*number_of_connections)++;
-				}
-			}
+			(*number_of_connections) += 1 +  dccrg_instance->get_vlasov_neighbors(item.first).size();
 		}
 	}
 
@@ -11607,7 +11598,7 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first, dccrg_instance->partitioning_neighborhood_id)) {
+			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first)) {
 				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 				if (neighbor == 0 || neighbor == item.first) {
 					continue;
