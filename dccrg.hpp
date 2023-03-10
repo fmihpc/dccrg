@@ -2825,69 +2825,77 @@ public:
 		return ret;
 	}
 
-	std::map<int, std::vector<uint64_t>> get_vlasov_neighbors(
+	std::set<uint64_t> get_vlasov_neighbors(
 		const uint64_t cell,
 		const int neighborhood_id,
 		const int dimension,
 		const int stencil_width
 	) const {
-		std::map<int, std::vector<uint64_t>> ret;
-		int my_ref {mapping.get_refinement_level(cell)};
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> neighs;
+		std::set<uint64_t> ret;
 		const auto* p = get_neighbors_of(cell, neighborhood_id);
 		if (!p) {
 			std::cerr << "Cell " << cell << ", neighborhood " << neighborhood_id << ", dimension " << dimension << " not found" << std::endl;
 			return ret;
 		}
 
-		neighs = *p;
-		// We still need to sort since more refined cells are in xyz order
-		std::stable_sort(neighs.begin(), neighs.end(),
-			[this, dimension] (const std::pair<uint64_t, std::array<int, 4>>& a, const std::pair<uint64_t, std::array<int, 4>>& b) {
-				return distance_to_double(a.second)[dimension] < distance_to_double(b.second)[dimension];
+		// Create list of unique distances
+		std::set<int> distances_plus;
+		std::set<int> distances_minus;
+		std::set<uint64_t> found_neighbors_plus;
+		std::set<uint64_t> found_neighbors_minus;
+		/** Using sets of cells as well, we should only get one distance per
+		 (potentially less refined) cell. This should result in safe behaviour
+			as long as the neighborhood of a cell does not contain cells with a
+			refinement level more than 1 level apart from the cell itself.
+		*/
+		for (const auto& [neighbor, coords] : *p) {
+			if(coords[dimension] > 0) {
+				if (!found_neighbors_plus.count(neighbor)) {
+					distances_plus.insert(coords[dimension]);
+					found_neighbors_plus.insert(neighbor);
+				}
 			}
-		);
-
-		auto it = neighs.cbegin();
-		while (it < neighs.cend() && it->second[dimension] < 0) {
-			++it;
-		}
-		
-		int found {0};
-		std::uint64_t previous_cell {error_cell};
-		double previous_offset {0.0};
-		for (auto neg = std::make_reverse_iterator(it); neg != neighs.crend(); ++neg) {
-			double offset = distance_to_double(neg->second)[dimension];
-			if (neg->first == previous_cell || neg->first == error_cell) {
-				continue;
-			} else if (offset < previous_offset) {
-				if (++found > stencil_width)
-					break;
+			if(coords[dimension] < 0) {
+				if (!found_neighbors_minus.count(neighbor)) {
+					distances_minus.insert(-coords[dimension]);
+					found_neighbors_minus.insert(neighbor);
+				}
 			}
-
-			ret[-found].push_back(neg->first);
-			previous_cell = neg->first;
 		}
 
-		while (it < neighs.cend() && it->second[dimension] <= 0) {
-			++it;
-		}
+		int iSrc = stencil_width - 1;
+		// Iterate through positive distances for VLASOV_STENCIL_WIDTH elements starting from the smallest distance.
+		for (const auto& distance : distances_plus) {
+			if (iSrc < 0) 
+				break; // found enough elements
+			for (const auto& [neighbor, coords] : *p) {
+				if (neighbor == error_cell)
+					continue;
+				if (coords[dimension] == distance) {
+					if (ret.count(neighbor)) 
+						continue;
+					ret.insert(neighbor);
+				}
+			} // end loop over neighbors
+			iSrc--;
+		} // end loop over positive distances
 
-		found = 0;
-		previous_cell = error_cell;
-		previous_offset = 0.0;
-		for (auto pos = it; pos != neighs.cend(); ++pos) {
-			double offset = distance_to_double(pos->second)[dimension];
-			if (pos->first == previous_cell || pos->first == error_cell) {
-				continue;
-			} else if (offset > previous_offset) {
-				if (++found > stencil_width)
-					break;
-			}
-
-			ret[found].push_back(pos->first);
-			previous_cell = pos->first;
-		} 
+		iSrc = stencil_width - 1;
+		// Iterate through negtive distances for VLASOV_STENCIL_WIDTH elements starting from the smallest distance.
+		for (const auto& distance : distances_minus) {
+			if (iSrc < 0)
+				break; // found enough elements
+			for (const auto& [neighbor, coords] : *p) {
+				if (neighbor == error_cell) 
+					continue;
+				if (coords[dimension] == distance) {
+					if (ret.count(neighbor)) 
+						continue;
+					ret.insert(neighbor);
+				}
+			} // end loop over neighbors
+			iSrc--;
+		} // end loop over negative distances
 
 		return ret;
 	}
@@ -2915,9 +2923,8 @@ public:
 
 		std::set<uint64_t> ret;
 		for (int dim = 0; dim < 3; ++dim) {
-			for (auto& [dist, cells] : get_vlasov_neighbors(cell, partitioning_neighborhood_id + dim, dim, stencil_width)) {
-				ret.insert(cells.begin(), cells.end());
-			}
+			auto neighs_dim = get_vlasov_neighbors(cell, partitioning_neighborhood_id + dim, dim, stencil_width);
+			ret.insert(neighs_dim.begin(), neighs_dim.end());
 		}
 		return ret;
 	}
