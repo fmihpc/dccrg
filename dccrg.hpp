@@ -2618,6 +2618,11 @@ public:
 		return true;
 	}
 
+	std::vector<std::pair<uint64_t, int>> get_face_neighbors_of (const uint64_t cell) const
+	{
+		return face_neighbors_of.at(cell);
+	}
+
 	/*!
 	Returns cells which share a face with the given cell.
 
@@ -2638,7 +2643,7 @@ public:
 	default_neighborhood_id()
 	get_neighbors_of()
 	*/
-	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
+	std::vector<std::pair<uint64_t, int> > find_face_neighbors_of(
 		const uint64_t cell/*,
 		const int neighborhood_id = default_neighborhood_id*/
 	) const {
@@ -7298,6 +7303,9 @@ private:
 		>
 	> neighbors_of;
 
+	// Cached face neighbors on this process
+	std::unordered_map<uint64_t, std::vector<std::pair<uint64_t, int>>> face_neighbors_of;
+
 	/*
 	Offsets of cells that are considered as neighbors of a cell and
 	offsets of cells that consider a cell as a neighbor
@@ -8268,8 +8276,7 @@ private:
 	{
 		// update neighbor lists of created cells
 		for (const auto& item: this->cell_data) {
-			this->neighbors_of[item.first]
-				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
+			this->neighbors_of[item.first] = this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
 			#ifdef DEBUG
 			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
 				if (neighbor.first == error_cell) {
@@ -8288,8 +8295,8 @@ private:
 			}
 			#endif
 
-			this->neighbors_to[item.first]
-				= this->find_neighbors_to(item.first, this->neighborhood_to);
+			this->neighbors_to[item.first] = this->find_neighbors_to(item.first, this->neighborhood_to);
+			this->face_neighbors_of[item.first] = this->find_face_neighbors_of(item.first);
 		}
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
@@ -8949,6 +8956,8 @@ private:
 			found_neighbors_of.push_back(i.first);
 		}
 		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, found_neighbors_of);
+
+		this->face_neighbors_of[cell] = this->find_face_neighbors_of(cell);
 
 		#ifdef DEBUG
 		if (
@@ -9717,7 +9726,7 @@ private:
 					this->neighborhood_of,
 					2 * this->max_ref_lvl_diff,
 					true
-				);
+				);	// todo PRETTY SURE THIS SHOULDN'T BE HERE!
 
 			for (const auto& neighbor_i: neighbors) {
 				const auto& neighbor = neighbor_i.first;
