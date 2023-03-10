@@ -2618,8 +2618,10 @@ public:
 		return true;
 	}
 
-	std::vector<std::pair<uint64_t, int>> get_face_neighbors_of (const uint64_t cell) const
+	const std::vector<std::pair<uint64_t, int>>& get_face_neighbors_of (const uint64_t cell) const
 	{
+		// Could add checks or return a nullptr / empty vector / whatever
+		// But honestly it's just better to throw
 		return face_neighbors_of.at(cell);
 	}
 
