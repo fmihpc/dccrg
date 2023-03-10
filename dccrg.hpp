@@ -4494,11 +4494,7 @@ public:
 				continue;
 			}
 
-			// TODO: use this->update_neighbors(added_cell)
-			this->neighbors_of[added_cell]
-				= this->find_neighbors_of(added_cell, this->neighborhood_of, this->max_ref_lvl_diff);
-			this->neighbors_to[added_cell]
-				= this->find_neighbors_to(added_cell, this->neighborhood_to);
+			this->update_neighbors(added_cell);
 
 			// also update user neighbor lists
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -8950,12 +8946,12 @@ private:
 			return;
 		}
 
-		this->neighbors_of.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
+		this->neighbors_of[cell] = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
 		std::vector<uint64_t> found_neighbors_of;
-		for (const auto& i: this->neighbors_of.at(cell)) {
+		for (const auto& i: this->neighbors_of[cell]) {
 			found_neighbors_of.push_back(i.first);
 		}
-		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, found_neighbors_of);
+		this->neighbors_to[cell] = this->find_neighbors_to(cell, found_neighbors_of);
 
 		this->face_neighbors_of[cell] = this->find_face_neighbors_of(cell);
 
