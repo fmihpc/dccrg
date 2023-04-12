@@ -4900,7 +4900,7 @@ public:
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
-					return_neighbors.push_back({0, {0, 0, 0, 0}});
+					//return_neighbors.push_back({0, {0, 0, 0, 0}});
 					continue;
 				}
 
@@ -4994,7 +4994,7 @@ public:
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
-					return_neighbors.push_back({0, {0, 0, 0, 0}});
+					//return_neighbors.push_back({0, {0, 0, 0, 0}});
 					continue;
 				}
 
