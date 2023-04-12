@@ -2325,12 +2325,12 @@ public:
 
 		#ifdef DEBUG
 		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
-			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
 		}
 
 		// not if cell has children
 		if (cell != this->get_child(cell)) {
-			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
 		}
 		#endif
 
@@ -2537,11 +2537,7 @@ public:
 
 		#ifdef DEBUG
 		if (this->cell_data.count(cell) == 0) {
-			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
-		}
-
-		if (this->cell_process.count(this->mapping.get_child(cell)) > 0) {
-			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
+			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
 		}
 		#endif
 
@@ -2595,12 +2591,6 @@ public:
 		if (this->cell_process.count(cell) == 0) {
 			return false;
 		}
-
-		#ifdef DEBUG
-		if (this->cell_process.count(this->mapping.get_child(cell)) > 0) {
-			throw std::runtime_error(__FILE__ "(" + to_string(__LINE__) + ")");
-		}
-		#endif
 
 		if (
 			this->mapping.get_refinement_level(cell)
@@ -11750,7 +11740,7 @@ private:
 				const auto neighbors_of
 					= this->find_neighbors_of(
 						item->first,
-						this->neighborhood_of,
+						this->neighborhood_of
 					);
 
 				for (const auto& neighbor_i: neighbors_of) {
