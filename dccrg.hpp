@@ -2473,7 +2473,6 @@ public:
 			= this->find_neighbors_of(
 				parent,
 				this->neighborhood_of,
-				2 * this->max_ref_lvl_diff,
 				true
 			);
 
@@ -3470,7 +3469,6 @@ public:
 					= this->find_neighbors_of(
 						refined,
 						this->neighborhood_of,
-						2 * this->max_ref_lvl_diff,
 						true
 					);
 
@@ -3697,7 +3695,7 @@ public:
 			#endif
 
 			const auto new_neighbors_of
-				= this->find_neighbors_of(parent, this->neighborhood_of, this->max_ref_lvl_diff);
+				= this->find_neighbors_of(parent, this->neighborhood_of);
 
 			for (const auto& neighbor_i: new_neighbors_of) {
 				const auto& neighbor = neighbor_i.first;
@@ -4491,7 +4489,7 @@ public:
 
 			// TODO: use this->update_neighbors(added_cell)
 			this->neighbors_of[added_cell]
-				= this->find_neighbors_of(added_cell, this->neighborhood_of, this->max_ref_lvl_diff);
+				= this->find_neighbors_of(added_cell, this->neighborhood_of);
 			this->neighbors_to[added_cell]
 				= this->find_neighbors_to(added_cell, this->neighborhood_to);
 
@@ -4610,20 +4608,24 @@ public:
    Find the cell (or, potentially, multiple cells) that can be encountered by hopping
    from face neighbour to face neighbour along the given offset path.
    The "offset" parameter defines how many unique cells should be traveled in each dimension.
+	"dims" defines the order in which dimensions are stepped through. For proper
+	matching of neighbors_to and neighbors_of, these should be constructed in
+	opposite direction.
    */
    std::set<uint64_t> find_cells_at_offset(
-         const Types<3>::indices_t starting_point, uint64_t starting_cell,
+			const Types<3>::indices_t starting_point,
+         uint64_t starting_cell,
          int refinement_level,
-         const Types<3>::neighborhood_item_t& offsets) const {
+         const Types<3>::neighborhood_item_t& offsets, std::array<int, 3> dims = {2,0,1}) const {
 
       std::set<uint64_t> retval;
 
-		// grid length in indices
-		const uint64_t grid_length[3] = {
-			this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-			this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		};
+      // grid length in indices
+      const uint64_t grid_length[3] = {
+         this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
+         this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
+         this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+      };
 
       Types<3>::indices_t x = starting_point;
       std::array<int,3> cells_seen = {0,0,0};
@@ -4631,13 +4633,17 @@ public:
 
       // Walk in the same dimensional order as Vlasiator's translation solver.
       // (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
-      for(unsigned int dimension : {2,0,1}) {
+      for(unsigned int dimension : dims) {
          while(cells_seen[dimension] < offsets[dimension]) {
             if(offsets[dimension] < 0) {
                x[dimension]--;
 
                // Handle periodic boundaries
                if (this->topology.is_periodic(dimension)) {
+                  // We can stop stepping if this cell spans the whole periodic domain
+                  if(grid_length[dimension] == 1<<refinement_level) {
+                     cells_seen[dimension]=offsets[dimension];
+                  }
                   if(x[dimension] < 0) {
                      x[dimension] = grid_length[dimension] - 1;
                   }
@@ -4653,6 +4659,9 @@ public:
 
                // Handle periodic boundaries
                if (this->topology.is_periodic(dimension)) {
+                  if(grid_length[dimension] == 1<<refinement_level) {
+                     cells_seen[dimension]=offsets[dimension];
+                  }
                   if(x[dimension] >= grid_length[dimension]) {
                      x[dimension] = 0;
                   }
@@ -4695,13 +4704,13 @@ public:
                // TODO: This can be optimized in the corners.
                // Find at offset (1,0)
                other_path_x[dim1] += 1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1));
-               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset));
+               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
                // Find at offset (1,1)
                other_path_x[dim2] += 1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1));
-               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset));
+               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
                // Find at offset (0,1)
                other_path_x[dim1] = x[dim1];
-               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset));
+               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
                // The fourth path will continue here as before.
             }
          }
@@ -4833,7 +4842,6 @@ public:
 	Returns the existing neighbors (that don't have children) of given cell.
 
 	Uses given neighborhood when searching for neighbors.
-	max_diff is the distance to search in refinement level from given cell inclusive.
 	Returns nothing if the following cases:
 		- given cell has children
 		- given doesn't exist
@@ -4854,7 +4862,6 @@ public:
 	> find_neighbors_of(
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood,
-		const int max_diff,
 		const bool has_children = false
 	) const {
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
@@ -4863,13 +4870,6 @@ public:
 			= this->mapping.get_refinement_level(cell);
 
 		#ifdef DEBUG
-		if (max_diff < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " max_diff must not be negative"
-				<< std::endl;
-			abort();
-		}
-
 		if (cell == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Invalid cell given: " << cell
@@ -4902,47 +4902,42 @@ public:
 			return return_neighbors;
 		}
 
-		const uint64_t cell_length
-			= this->mapping.get_cell_length_in_indices(cell);
-
-      // Iterate through the neighborhood
+		// Iterate through the neighborhood
 		for (const auto& offsets: neighborhood) {
 
-         // Find the neighbour(s) there
-         std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell), cell, refinement_level, offsets);
+			// Find the neighbour(s) there
+			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell), cell, refinement_level, offsets, {2,0,1});
 
-         for (const auto& neighCell : neigh_cells) {
-            if (neighCell == error_cell) {
-               return_neighbors.push_back({0, {0, 0, 0, 0}});
-               continue;
-            }
+			for (const auto& neighCell : neigh_cells) {
+				if (neighCell == error_cell) {
+					return_neighbors.push_back({0, {0, 0, 0, 0}});
+					continue;
+				}
 
-            const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighCell);
-            const auto& index_of = this->mapping.get_indices(neighCell);
+				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighCell);
 
-            // Easy case: neighbour cell has the same or coarser refinement level as us -> return one cell.
-            return_neighbors.push_back({
-               neighCell,
-               {
-                  offsets[0],
-                  offsets[1],
-                  offsets[2],
-                  // NOTE: For whatever reason, return value is negative here if refinement mismatches
-                  [&](){
-                     if(neighbor_ref_lvl == refinement_level) {
-                        return 1;
-                     } else if(neighbor_ref_lvl > refinement_level) {
-                        // Neighbor is finer
-                        return 1;
-                     } else {
-                        // Neighbor is coarser
-                        return -1 * (1 << (refinement_level - neighbor_ref_lvl));
-                     }
-                  }()
-               }
-            });
-         }
-      }
+				return_neighbors.push_back({
+						neighCell,
+						{
+							offsets[0],
+							offsets[1],
+							offsets[2],
+							// NOTE: For whatever reason, return value is negative here if refinement mismatches
+							[&](){
+								if(neighbor_ref_lvl == refinement_level) {
+									return 1;
+								} else if(neighbor_ref_lvl > refinement_level) {
+									// Neighbor is finer
+									return 1;
+								} else {
+									// Neighbor is coarser
+									return -1 * (1 << (refinement_level - neighbor_ref_lvl));
+								}
+							}()
+						}
+				});
+			}
+		}
 		return return_neighbors;
 	}
 
@@ -4957,8 +4952,6 @@ public:
 	Returned cells are not in any particular order.
 	Assumes a maximum refinement level difference of one between neighbors
 	(both cases: neighbors_of, neighbors_to).
-
-	TODO: currently returned offsets and denominator are all 0.
 	*/
 	std::vector<
 		std::pair<
@@ -5002,223 +4995,45 @@ public:
 		}
 		#endif
 
-		/*
-		FIXME: neighbors should be unique only in within
-		each offset in user neighborhood?
-		Would allow users to have the same offset
-		multiple times in their neighborhoods.
-		*/
-		std::unordered_map<uint64_t, std::array<int, 4>> unique_neighbors;
+		// Iterate through the neighborhood
+		for (const auto& offsets: neighborhood) {
 
-		// neighbors_to larger than given cell
-		if (refinement_level > 0) {
-			const auto parent = this->get_parent(cell);
-			const auto indices = this->mapping.get_indices(parent);
-			const auto length_in_indices = this->mapping.get_cell_length_in_indices(parent);
+			// Find the neighbour(s) in opposite direction
+			Types<3>::neighborhood_item_t inverse_offsets = {-offsets[0], -offsets[1], -offsets[2]};
+			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, {1,0,2});
 
-			const auto search_indices = this->indices_from_neighborhood(
-				indices,
-				length_in_indices,
-				neighborhood
-			);
-
-			for (size_t i = 0; i < search_indices.size(); i++) {
-				const auto& search_index = search_indices[i];
-
-				if (search_index[0] == error_index) {
+			for (const auto& neighCell : neigh_cells) {
+				if (neighCell == error_cell) {
+					return_neighbors.push_back({0, {0, 0, 0, 0}});
 					continue;
 				}
 
-				const uint64_t found
-					= this->mapping.get_cell_from_indices(search_index, refinement_level - 1);
+				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighCell);
 
-				// only add if found cell doesn't have children
-				if (found == this->get_child(found)) {
-					unique_neighbors[found] = {0, 0, 0, 0};
-				}
+				return_neighbors.push_back({
+						neighCell,
+						{
+							inverse_offsets[0],
+							inverse_offsets[1],
+							inverse_offsets[2],
+							// NOTE: For whatever reason, return value is negative here if refinement mismatches
+							[&](){
+								if(neighbor_ref_lvl == refinement_level) {
+									return 1;
+								} else if(neighbor_ref_lvl > refinement_level) {
+									// Neighbor is finer
+									return 1;
+								} else {
+									// Neighbor is coarser
+									return -1 * (1 << (refinement_level - neighbor_ref_lvl));
+								}
+							}()
+						}
+				});
 			}
 		}
-
-		// neighbors_to smaller than given cell
-		if (refinement_level < this->mapping.get_maximum_refinement_level()) {
-
-			const std::vector<uint64_t> children = this->get_all_children(cell);
-			#ifdef DEBUG
-			if (children.size() == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Got no children for cell " << cell
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(children[0]);
-
-			for (const auto child: children) {
-
-				const Types<3>::indices_t indices = this->mapping.get_indices(child);
-
-				std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
-					indices,
-					length_in_indices,
-					neighborhood
-				);
-
-				for (const auto& search_index: search_indices) {
-
-					if (search_index[0] == error_index) {
-						continue;
-					}
-
-					const uint64_t found
-						= this->mapping.get_cell_from_indices(search_index, refinement_level + 1);
-
-					if (found == this->get_child(found)) {
-						unique_neighbors[found] = {0, 0, 0, 0};
-					}
-				}
-			}
-		}
-
-		// neighbors_to of the same size as given cell
-		const Types<3>::indices_t indices = this->mapping.get_indices(cell);
-		const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(cell);
-
-		std::vector<Types<3>::indices_t> search_indices = this->indices_from_neighborhood(
-			indices,
-			length_in_indices,
-			neighborhood
-		);
-
-		for (const auto& search_index: search_indices) {
-
-			if (search_index[0] == error_index) {
-				continue;
-			}
-
-			const uint64_t found = this->mapping.get_cell_from_indices(search_index, refinement_level);
-			if (found == this->get_child(found)) {
-				unique_neighbors[found] = {0, 0, 0, 0};
-			}
-		}
-
-		return_neighbors.reserve(unique_neighbors.size());
-
-		for (const auto& neighbor: unique_neighbors) {
-			return_neighbors.push_back(neighbor);
-		}
-
 		return return_neighbors;
 	}
-
-
-	/*!
-	As find_neighbors_to(cell) but uses the given neighbors_of list.
-
-	Given list is assumed to have all neighbors_to of given cell that are
-	as large or smaller than given cell.
-	*/
-	std::vector<
-		std::pair<
-			uint64_t,
-			std::array<int, 4>
-		>
-	> find_neighbors_to(
-		const uint64_t cell,
-		const std::vector<uint64_t>& found_neighbors_of
-	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
-
-		if (
-			cell == 0
-			or cell > this->mapping.get_last_cell()
-			or this->cell_process.count(cell) == 0
-			or cell != this->get_child(cell)
-		) {
-			return return_neighbors;
-		}
-
-		// get neighbors_to of given cell, first from its neighbors_of
-		std::set<uint64_t> unique_neighbors_to;
-
-		for (const auto neighbor_of: found_neighbors_of) {
-			// neighbors_to doesn't store cells that would be outside of the grid
-			if (neighbor_of == 0) {
-				continue;
-			}
-
-			if (this->is_neighbor(neighbor_of, cell)) {
-				unique_neighbors_to.insert(neighbor_of);
-			}
-		}
-
-		const int refinement_level = this->mapping.get_refinement_level(cell);
-		#ifdef DEBUG
-		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level (" << refinement_level
-				<< ") of cell " << cell
-				<< " exceeds maximum refinement level of the grid (" << this->mapping.get_maximum_refinement_level() << ")"
-				<< std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level of cell " << cell
-				<< " is less than 0: " << refinement_level
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		// find cells larger than given cell for neighbors_to list
-		if (refinement_level > 0) {
-
-			const uint64_t parent = this->get_parent(cell);
-			#ifdef DEBUG
-			if (parent == cell) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid parent for cell " << cell
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			const Types<3>::indices_t indices = this->mapping.get_indices(parent);
-			const uint64_t length_in_indices = this->mapping.get_cell_length_in_indices(parent);
-
-			const std::vector<Types<3>::indices_t> search_indices
-				= this->indices_from_neighborhood(
-					indices,
-					length_in_indices,
-					this->neighborhood_to
-				);
-
-			for (const auto& search_index: search_indices) {
-
-				if (search_index[0] == error_index) {
-					continue;
-				}
-
-				const uint64_t found
-					= this->mapping.get_cell_from_indices(search_index, refinement_level - 1);
-
-				// only add if found cell doesn't have children
-				if (found == this->get_child(found)) {
-					unique_neighbors_to.insert(found);
-				}
-			}
-		}
-
-		return_neighbors.reserve(unique_neighbors_to.size());
-		for (const auto& n: unique_neighbors_to) {
-			return_neighbors.push_back({n, {0, 0, 0, 0}});
-		}
-
-		return return_neighbors;
-	}
-
 
 	/*!
 	Returns unique cells within given rectangular box and refinement levels (both inclusive).
@@ -6414,7 +6229,7 @@ public:
 	}
 
 
- 	/*!
+	/*!
 	Returns the siblings of given cell regardless of whether they exist.
 
 	If given a cell of refinement level 0 returns the given cell.
@@ -8164,7 +7979,7 @@ private:
 		// update neighbor lists of created cells
 		for (const auto& item: this->cell_data) {
 			this->neighbors_of[item.first]
-				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
+				= this->find_neighbors_of(item.first, this->neighborhood_of);
 			#ifdef DEBUG
 			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
 				if (neighbor.first == error_cell) {
@@ -8834,12 +8649,8 @@ private:
 			return;
 		}
 
-		this->neighbors_of.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
-		std::vector<uint64_t> found_neighbors_of;
-		for (const auto& i: this->neighbors_of.at(cell)) {
-			found_neighbors_of.push_back(i.first);
-		}
-		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, found_neighbors_of);
+		this->neighbors_of.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of);
+		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, this->neighborhood_to);
 
 		#ifdef DEBUG
 		if (
@@ -9478,7 +9289,7 @@ private:
 		for (const uint64_t refined: this->cells_to_refine) {
 
 			const auto neighbors_of
-				= this->find_neighbors_of(refined, this->neighborhood_of, this->max_ref_lvl_diff);
+				= this->find_neighbors_of(refined, this->neighborhood_of);
 
 			for (const auto& neighbor_of_i: neighbors_of) {
 				const auto& neighbor_of = neighbor_of_i.first;
@@ -9606,7 +9417,6 @@ private:
 				= this->find_neighbors_of(
 					parent,
 					this->neighborhood_of,
-					2 * this->max_ref_lvl_diff,
 					true
 				);
 
@@ -9677,7 +9487,6 @@ private:
 				= this->find_neighbors_of(
 					this->get_parent(unrefined),
 					this->neighborhood_of,
-					2 * this->max_ref_lvl_diff,
 					true
 				);
 
@@ -11624,7 +11433,7 @@ private:
 
 		// neighbors
 		const auto compare_neighbors
-			= this->find_neighbors_of(cell, hood_of, this->max_ref_lvl_diff);
+			= this->find_neighbors_of(cell, hood_of);
 
 		if (
 			neighbor_of_lists.at(cell).size() != compare_neighbors.size()
@@ -11942,7 +11751,6 @@ private:
 					= this->find_neighbors_of(
 						item->first,
 						this->neighborhood_of,
-						this->max_ref_lvl_diff
 					);
 
 				for (const auto& neighbor_i: neighbors_of) {
