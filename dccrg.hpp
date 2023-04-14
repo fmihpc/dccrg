@@ -4608,20 +4608,20 @@ public:
       std::set<uint64_t> retval;
 
       // grid length in indices
-      const uint64_t grid_length[3] = {
-         this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-         this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-         this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
+      const int64_t grid_length[3] = {
+         this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+         this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+         this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
       };
 
-      Types<3>::indices_t x = starting_point;
+      std::array<int,3>  x = {starting_point[0],starting_point[1],starting_point[2]};
       std::array<int,3> cells_seen = {0,0,0};
       uint64_t last_cell_seen = starting_cell;
 
       // Walk in the same dimensional order as Vlasiator's translation solver.
       // (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
-      for(unsigned int dimension : dims) {
-         while(cells_seen[dimension] < offsets[dimension]) {
+      for(int dimension : dims) {
+         while(cells_seen[dimension] < abs(offsets[dimension])) {
             if(offsets[dimension] < 0) {
                x[dimension]--;
 
@@ -4629,7 +4629,7 @@ public:
                if (this->topology.is_periodic(dimension)) {
                   // We can stop stepping if this cell spans the whole periodic domain
                   if(grid_length[dimension] == 1<<refinement_level) {
-                     cells_seen[dimension]=offsets[dimension];
+                     cells_seen[dimension]=abs(offsets[dimension]);
                   }
                   if(x[dimension] < 0) {
                      x[dimension] = grid_length[dimension] - 1;
@@ -4647,7 +4647,7 @@ public:
                // Handle periodic boundaries
                if (this->topology.is_periodic(dimension)) {
                   if(grid_length[dimension] == 1<<refinement_level) {
-                     cells_seen[dimension]=offsets[dimension];
+                     cells_seen[dimension]=abs(offsets[dimension]);
                   }
                   if(x[dimension] >= grid_length[dimension]) {
                      x[dimension] = 0;
@@ -4661,8 +4661,7 @@ public:
                }
             }
 
-            uint64_t cellHere = this->get_existing_cell(x,std::max(refinement_level-1,0), std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
-
+            uint64_t cellHere = this->get_existing_cell({x[0],x[1],x[2]},std::max(refinement_level-1,0), std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
             // Continue stepping if still inside the same cell as before.
             if(cellHere == last_cell_seen) {
                continue;
@@ -4672,6 +4671,11 @@ public:
             // Count how many unique cells were encountered.
             cells_seen[dimension]++;
             last_cell_seen = cellHere;
+
+            // Break if something went wonky.
+            if(last_cell_seen == error_cell) {
+               break;
+            }
 
             // If this cell had a higher refinement, we need to continue multiple paths.
             if(this->mapping.get_refinement_level(cellHere) > refinement_level) {
@@ -4686,7 +4690,7 @@ public:
                   other_path_offset[i] -= cells_seen[i];
                }
 
-               Types<3>::indices_t other_path_x = x;
+               Types<3>::indices_t other_path_x = {x[0], x[1], x[2]};
 
                // TODO: This can be optimized in the corners.
                // Find at offset (1,0)
@@ -5925,12 +5929,8 @@ public:
 	{
 		#ifdef DEBUG
 		// check that all child cells on this process are also in this->cell_data.
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			i = this->cell_process.begin();
-			i != this->cell_process.end();
-			i++
-		) {
-			const uint64_t cell = i->first;
+		for (const auto& i : this->cell_process) {
+			const uint64_t cell = i.first;
 
 			if (this->cell_process.at(cell) != this->rank) {
 				continue;
