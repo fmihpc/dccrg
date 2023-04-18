@@ -4498,12 +4498,12 @@ public:
 
       // grid length in indices
       const int64_t grid_length[3] = {
-         this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
-         this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
-         this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
+         (int64_t)this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+         (int64_t)this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+         (int64_t)this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
       };
 
-      std::array<int,3>  x = {starting_point[0],starting_point[1],starting_point[2]};
+      std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
       std::array<int,3> cells_seen = {0,0,0};
       uint64_t last_cell_seen = starting_cell;
 
@@ -4550,7 +4550,10 @@ public:
                }
             }
 
-            uint64_t cellHere = this->get_existing_cell({x[0],x[1],x[2]},std::max(refinement_level-1,0), std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+            uint64_t cellHere = this->get_existing_cell(
+                  {(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
+                  std::max(refinement_level-1,0), 
+                  std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
             // Continue stepping if still inside the same cell as before.
             if(cellHere == last_cell_seen) {
                continue;
@@ -4579,7 +4582,7 @@ public:
                   other_path_offset[i] -= cells_seen[i];
                }
 
-               Types<3>::indices_t other_path_x = {x[0], x[1], x[2]};
+               Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
 
                // TODO: This can be optimized in the corners.
                // Find at offset (1,0)
