@@ -2638,149 +2638,38 @@ public:
 			return ret_val;
 		}
 
-		// get location of face neighbors' offsets in neighborhood_of
-		std::array<size_t, 2 * 3> neighborhood_of_indices = {{0, 0, 0, 0, 0, 0}};
-		for (int direction = -1; direction <= 1; direction += 2)
-		for (size_t dimension = 0; dimension < 3; dimension++) {
 
-			// neigh_of_indices[n] == negative direction in dimension n,
-			// n + 1 positive direction
-			const size_t neigh_of_indices_index
-				= 2 * dimension + ((direction > 0) ? 1 : 0);
+      // Iterate through neighbours and only return those with a single 1
+      // index.
+      for(const auto& neigh : this->neighbors_of.at(cell)) {
+         uint64_t nbrID = neigh.first;
+         auto offsets = neigh.second;
 
-			for (size_t i = 0; i <= this->neighborhood_of.size(); i++) {
-				if (i == this->neighborhood_of.size()) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighborhood_of offsets not found for face neighbors in dimension: "
-						<< dimension << ", direction: " << direction
-						<< std::endl;
-					abort();
-				}
+         if(nbrID == error_cell) {
+            continue;
+         }
 
-				bool found = true;
-				for (size_t other_dims = 0; other_dims < 3; other_dims++) {
-					if (other_dims != dimension
-					&& this->neighborhood_of[i][other_dims] != 0) {
-						found = false;
-						break;
-					}
-				}
+         // We want all the neighbours with an offset sum of 1.
+         int offsetsum=0;
+         for (size_t dimension = 0; dimension < 3; dimension++) {
+            offsetsum+=abs(offsets[dimension]);
+         }
+         if(offsetsum == 0 || offsetsum > 1) {
+            continue;
+         }
 
-				if (this->neighborhood_of[i][dimension] != direction) {
-					found = false;
-				}
+         // Find the dimension this is a neighbour in
+         for (size_t dimension = 0; dimension < 3; dimension++) {
+            if(abs(offsets[dimension]) == 1) {
+               int final_dir = int(dimension) + 1;
+               if(offsets[dimension] < 0) {
+                  final_dir *= -1;
+               }
 
-				if (found) {
-					neighborhood_of_indices[neigh_of_indices_index] = i;
-					break;
-				}
-			}
-		}
-
-		// gather cells in given cell's neighbor_of list at indices found above
-		std::array<size_t, 2 * 3> current_index = {{0, 0, 0, 0, 0, 0}};
-		const int refinement_level = this->mapping.get_refinement_level(cell);
-
-		for (size_t
-			neighbor_i = 0;
-			neighbor_i < this->neighbors_of.at(cell).size();
-			neighbor_i++
-		) {
-
-			const auto neighbor = this->neighbors_of.at(cell)[neighbor_i].first;
-
-			if (neighbor == error_cell) {
-				for (size_t i = 0; i < current_index.size(); i++) {
-					current_index[i]++;
-				}
-				continue;
-			}
-
-			const int neigh_ref_lvl = this->mapping.get_refinement_level(neighbor);
-
-			for (int direction = -1; direction <= 1; direction += 2)
-			for (size_t dimension = 0; dimension < 3; dimension++) {
-
-				// neigh_of_indices[n] == negative direction, n + 1 positive
-				const size_t neigh_of_indices_index
-					= 2 * dimension + ((direction > 0) ? 1 : 0);
-
-				// at correct index in neighbors_of for current dim & dir
-				if (current_index[neigh_of_indices_index]
-				== neighborhood_of_indices[neigh_of_indices_index]) {
-
-					int final_dir = int(dimension) + 1;
-					if (direction < 0) {
-						final_dir *= -1;
-					}
-
-					// add one neighbor not smaller than given cell
-					if (neigh_ref_lvl <= refinement_level) {
-
-						ret_val.push_back(std::make_pair(neighbor, final_dir));
-
-					// add only face neighbors in current dim & dir
-					} else {
-
-						const uint64_t neighs_in_offset = uint64_t(1) << 3;
-
-						#ifdef DEBUG
-						if (this->neighbors_of.at(cell).size() < neighbor_i + neighs_in_offset) {
-							std::cerr << __FILE__ << ":" << __LINE__
-								<< " Invalid number of neighbors for cell " << cell
-								<< " while processing dimension " << dimension
-								<< " and direction " << direction
-								<< " starting at index " << neighbor_i
-								<< std::endl;
-							abort();
-						}
-						#endif
-
-						// see find_neighbors_of(...) for the order of these
-						std::vector<uint64_t> dir_neighs;
-						for (size_t i = neighbor_i; i < neighbor_i + neighs_in_offset; i++) {
-							dir_neighs.push_back(this->neighbors_of.at(cell)[i].first);
-						}
-
-						// neighbor at offset    0, 1, 2, 3, 4, 5, 6, 7 is
-						// face neighbor of given cell when neighbors are in
-						// dim = 0, dir = -1      , y,  , y,  , y,  , y
-						// dim = 0, dir = +1     y,  , y,  , y,  , y,
-						// dim = 1, dir = -1      ,  , y, y,  ,  , y, y
-						// dim = 1, dir = +1     y, y,  ,  , y, y,  ,
-						// dim = 2, dir = -1      ,  ,  ,  , y, y, y, y
-						// dim = 2, dir = +1     y, y, y, y,  ,  ,  ,
-						const size_t
-							batch_size = size_t(1) << dimension,
-							mod_target = (direction < 0) ? 1 : 0;
-
-						for (size_t i = 0; i < neighs_in_offset; i++) {
-
-							#ifdef DEBUG
-							if (dir_neighs[i] == error_cell) {
-							std::cerr << __FILE__ << ":" << __LINE__
-								<< " Invalid neighbor of cell " << cell
-								<< " at index " << neighbor_i + i
-								<< std::endl;
-							abort();
-							}
-							#endif
-
-							if ((i / batch_size) % 2 == mod_target) {
-								ret_val.push_back(std::make_pair(dir_neighs[i], final_dir));
-							}
-						}
-					}
-				}
-
-				current_index[neigh_of_indices_index]++;
-			}
-
-			// skip all cells in this neighborhood offset
-			if (neigh_ref_lvl > refinement_level) {
-				neighbor_i += 7;
-			}
-		}
+               ret_val.push_back({nbrID, final_dir});
+            }
+         }
+      }
 
 		return ret_val;
 	}
