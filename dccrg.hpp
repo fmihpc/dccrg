@@ -9554,13 +9554,9 @@ private:
 		const std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>& receive_item,
 		const int neighborhood_id
 	) {
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
-			sender = receive_item.begin();
-			sender != receive_item.end();
-			sender++
-		) {
-			const int sending_process = sender->first;
-			const size_t number_of_receives = sender->second.size();
+		for(const auto& sender : receive_item) {
+			const int sending_process = sender.first;
+			const size_t number_of_receives = sender.second.size();
 
 			#ifdef DEBUG
 			if (sending_process == (int) this->rank
@@ -9577,12 +9573,8 @@ private:
 
 			if (this->send_single_cells) {
 
-				for (std::vector<std::pair<uint64_t, int>>::const_iterator
-					item = sender->second.begin();
-					item != sender->second.end();
-					item++
-				) {
-					const uint64_t cell = item->first;
+				for(const auto& item : sender.second) {
+					const uint64_t cell = item.first;
 
 					if (destination.count(cell) == 0) {
 						destination[cell];
@@ -9628,7 +9620,7 @@ private:
 						count,
 						user_datatype,
 						sending_process,
-						item->second,
+						item.second,
 						this->comm,
 						&(this->receive_requests[sending_process].back())
 					);
@@ -9661,7 +9653,7 @@ private:
 				// reserve space for incoming user data in this end
 				// TODO: move into a separate function callable by user
 				for (size_t i = 0; i < number_of_receives; i++) {
-					const uint64_t cell = sender->second[i].first;
+					const uint64_t cell = sender.second[i].first;
 					if (destination.count(cell) == 0) {
 						destination[cell];
 					}
@@ -9673,7 +9665,7 @@ private:
 				std::vector<MPI_Datatype> datatypes(number_of_receives, MPI_DATATYPE_NULL);
 
 				for (size_t i = 0; i < number_of_receives; i++) {
-					const uint64_t cell = sender->second[i].first;
+					const uint64_t cell = sender.second[i].first;
 
 					std::tie(
 						addresses[i],
@@ -9720,21 +9712,21 @@ private:
 					abort();
 				}
 
-				this->receive_requests[sender->first].push_back(MPI_Request());
+				this->receive_requests[sending_process].push_back(MPI_Request());
 
 				ret_val = MPI_Irecv(
 					addresses[0],
 					1,
 					receive_datatype,
-					sender->first,
+					sending_process,
 					0,
 					this->comm,
-					&(this->receive_requests[sender->first].back())
+					&(this->receive_requests[sending_process].back())
 				);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " MPI_Irecv failed for process " << this->rank
-						<< ", source process " << sender->first
+						<< ", source process " << sending_process
 						<< ": " << Error_String()(ret_val)
 						<< std::endl;
 					abort();
@@ -9770,13 +9762,10 @@ private:
 	) {
 		int ret_val = -1;
 
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
-			receiver = send_item.begin();
-			receiver != send_item.end();
-			receiver++
-		) {
-			const int receiving_process = receiver->first;
-			const size_t number_of_sends = receiver->second.size();
+
+		for(const auto& receiver : send_item) {
+			const int receiving_process = receiver.first;
+			const size_t number_of_sends = receiver.second.size();
 
 			#ifdef DEBUG
 			if (receiving_process == (int) this->rank
@@ -9790,12 +9779,8 @@ private:
 
 			if (this->send_single_cells) {
 
-				for (std::vector<std::pair<uint64_t, int>>::const_iterator
-					item = receiver->second.begin();
-					item != receiver->second.end();
-					item++
-				) {
-					const uint64_t cell = item->first;
+				for(const auto& item : receiver.second) {
+					const uint64_t cell = item.first;
 
 					this->send_requests[receiving_process].push_back(MPI_Request());
 
@@ -9837,7 +9822,7 @@ private:
 						count,
 						user_datatype,
 						receiving_process,
-						item->second,
+						item.second,
 						this->comm,
 						&(this->send_requests[receiving_process].back())
 					);
@@ -9873,7 +9858,7 @@ private:
 				std::vector<MPI_Datatype> datatypes(number_of_sends, MPI_DATATYPE_NULL);
 
 				for (size_t i = 0; i < number_of_sends; i++) {
-					const uint64_t cell = receiver->second[i].first;
+					const uint64_t cell = receiver.second[i].first;
 
 					std::tie(
 						addresses[i],
@@ -9921,21 +9906,21 @@ private:
 					abort();
 				}
 
-				this->send_requests[receiver->first].push_back(MPI_Request());
+				this->send_requests[receiving_process].push_back(MPI_Request());
 
 				ret_val = MPI_Isend(
 					addresses[0],
 					1,
 					send_datatype,
-					receiver->first,
+					receiving_process,
 					0,
 					this->comm,
-					&(this->send_requests[receiver->first].back())
+					&(this->send_requests[receiving_process].back())
 				);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " MPI_Isend failed from process " << this->rank
-						<< ", target process " << receiver->first
+						<< ", target process " <<receiving_process
 						<< ": " << Error_String()(ret_val)
 						<< std::endl;
 					abort();
