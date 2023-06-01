@@ -7480,6 +7480,7 @@ private:
 	unsigned int neighborhood_length = 1;
 
 	std::string load_balancing_method{"RCB"};
+	int hierarchical_level_zero {16};
 
 	// maximum value an MPI tag can have
 	unsigned int max_tag;
@@ -7951,12 +7952,12 @@ private:
 
 		// Hardcoded for now
 		if (this->load_balancing_method == "HIER") {
-			add_partitioning_level(4);	// Level 0 - Nodes
+			add_partitioning_level(this->hierarchical_level_zero);	// Level 0 - Nodes
 			add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
 
 			add_partitioning_level(1);	// Level 1 - Processes
-			add_partitioning_option(1, "LB_METHOD", "RCB");
-			//add_partitioning_option(1, "LB_METHOD", "RIB");
+			add_partitioning_option(1, "LB_METHOD", "RIB");
+			//add_partitioning_option(1, "LB_METHOD", "RCB");
 		}
 
 		// reserved options that the user cannot change
@@ -8485,6 +8486,23 @@ public:
 
 	const std::string& get_load_balancing_method() const {
 		return this->load_balancing_method;
+	}
+	
+	/*!
+	Sets amount of tasks for node-level of HIER partition for Zoltan
+
+	Must be called before initialize().
+
+	\see balance_load()
+	*/
+	Dccrg<
+		Cell_Data,
+		Geometry,
+		std::tuple<Additional_Cell_Items...>,
+		std::tuple<Additional_Neighbor_Items...>
+	>& set_load_balancing_hier_level_zero(const int n) {
+		this->hierarchical_level_zero = n;
+		return *this;
 	}
 
 
