@@ -7480,7 +7480,6 @@ private:
 	unsigned int neighborhood_length = 1;
 
 	std::string load_balancing_method{"RCB"};
-	int hierarchical_level_zero {16};
 
 	// maximum value an MPI tag can have
 	unsigned int max_tag;
@@ -7636,6 +7635,7 @@ private:
 	Zoltan_Struct* zoltan;
 	// number of processes per part in a hierarchy level (numbering starts from 0)
 	std::vector<unsigned int> processes_per_part;
+	std::vector<unsigned int> partition_number;
 	// options for each level of hierarchial load balancing (numbering start from 0)
 	std::vector<std::unordered_map<std::string, std::string>> partitioning_options;
 	// record whether Zoltan_LB_Partition is expected to fail
@@ -7952,10 +7952,39 @@ private:
 
 		// Hardcoded for now
 		if (this->load_balancing_method == "HIER") {
-			add_partitioning_level(this->hierarchical_level_zero);	// Level 0 - Nodes
+			// Automagical hierarchical partition
+			std::hash<std::string> hasher; 
+
+			//get name of this node
+			char nodename[MPI_MAX_PROCESSOR_NAME]; 
+			int namelength, nodehash;
+			MPI_Get_processor_name(nodename,&namelength);   
+			nodehash = static_cast<int>(hasher(std::string(nodename, namelength)) % std::numeric_limits<int>::max());
+			
+			//intra-node communicator
+			int rank;
+			MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+			MPI_Comm nodeComm;
+			MPI_Comm_split(MPI_COMM_WORLD, nodehash, rank, &nodeComm);
+
+			//inter-node communicator
+			int nodeRank;
+			MPI_Comm_rank(nodeComm,&nodeRank);
+			MPI_Comm interComm;
+			MPI_Comm_split(MPI_COMM_WORLD, nodeRank, rank, &interComm);
+			int interRank;
+			MPI_Comm_rank(interComm, &interRank);
+
+			// Make sure everyone in node agrees on the number of the node
+			int nodeNumber {interRank};
+			MPI_Bcast(&nodeNumber, 1, MPI_INT, 0, nodeComm);
+
+			add_partitioning_level(1);	// Level 0 - Nodes
+			partition_number.push_back(nodeNumber);
 			add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
 
 			add_partitioning_level(1);	// Level 1 - Processes
+			partition_number.push_back(nodeRank);
 			add_partitioning_option(1, "LB_METHOD", "RIB");
 			//add_partitioning_option(1, "LB_METHOD", "RCB");
 		}
@@ -8488,24 +8517,6 @@ public:
 		return this->load_balancing_method;
 	}
 	
-	/*!
-	Sets amount of tasks for node-level of HIER partition for Zoltan
-
-	Must be called before initialize().
-
-	\see balance_load()
-	*/
-	Dccrg<
-		Cell_Data,
-		Geometry,
-		std::tuple<Additional_Cell_Items...>,
-		std::tuple<Additional_Neighbor_Items...>
-	>& set_load_balancing_hier_level_zero(const int n) {
-		this->hierarchical_level_zero = n;
-		return *this;
-	}
-
-
 private:
 	/*!
 	Initializes local cells' neighbor lists and related data structures.
@@ -11774,15 +11785,17 @@ private:
 			*error = ZOLTAN_OK;
 		}
 
-		int process = int(dccrg_instance->rank);
-		int part;
+		return dccrg_instance->partition_number[level];
 
-		for (int i = 0; i <= level; i++) {
-			part = process / dccrg_instance->processes_per_part[i];
-			process %= dccrg_instance->processes_per_part[i];
-		}
+		// int process = int(dccrg_instance->rank);
+		// int part;
 
-		return part;
+		// for (int i = 0; i <= level; i++) {
+		// 	part = process / dccrg_instance->processes_per_part[i];
+		// 	process %= dccrg_instance->processes_per_part[i];
+		// }
+
+		// return part;
 	}
 
 
