@@ -4496,11 +4496,15 @@ public:
 
       std::set<uint64_t> retval;
 
-      // grid length in indices
+      // grid length in fully-refined indices
       const int64_t grid_length[3] = {
          (int64_t)this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
          (int64_t)this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
          (int64_t)this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
+      };
+
+      auto sign = [](int64_t i) -> int64_t{
+         return (0<i)-(i<0);
       };
 
       std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
@@ -4511,15 +4515,18 @@ public:
       // (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
       for(int dimension : dims) {
          while(cells_seen[dimension] < abs(offsets[dimension])) {
+
+            // We can stop stepping if this cell spans the whole domain in this direction
+            if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
+               cells_seen[dimension]=abs(offsets[dimension]);
+               continue;
+            }
+
             if(offsets[dimension] < 0) {
                x[dimension]--;
 
                // Handle periodic boundaries
                if (this->topology.is_periodic(dimension)) {
-                  // We can stop stepping if this cell spans the whole periodic domain
-                  if(grid_length[dimension] == 1<<refinement_level) {
-                     cells_seen[dimension]=abs(offsets[dimension]);
-                  }
                   if(x[dimension] < 0) {
                      x[dimension] = grid_length[dimension] - 1;
                   }
@@ -4535,9 +4542,6 @@ public:
 
                // Handle periodic boundaries
                if (this->topology.is_periodic(dimension)) {
-                  if(grid_length[dimension] == 1<<refinement_level) {
-                     cells_seen[dimension]=abs(offsets[dimension]);
-                  }
                   if(x[dimension] >= grid_length[dimension]) {
                      x[dimension] = 0;
                   }
@@ -4554,6 +4558,7 @@ public:
                   {(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
                   std::max(refinement_level-1,0), 
                   std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+
             // Continue stepping if still inside the same cell as before.
             if(cellHere == last_cell_seen) {
                continue;
@@ -4586,10 +4591,10 @@ public:
 
                // TODO: This can be optimized in the corners.
                // Find at offset (1,0)
-               other_path_x[dim1] += 1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1));
+               other_path_x[dim1] += sign(offsets[dim1])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
                retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
                // Find at offset (1,1)
-               other_path_x[dim2] += 1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1));
+               other_path_x[dim2] += sign(offsets[dim2])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
                retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
                // Find at offset (0,1)
                other_path_x[dim1] = x[dim1];
