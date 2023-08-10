@@ -4888,7 +4888,7 @@ public:
 
 			// Find the neighbour(s) in opposite direction
 			Types<3>::neighborhood_item_t inverse_offsets = {-offsets[0], -offsets[1], -offsets[2]};
-			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, {1,0,2});
+			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, offsets, {1,0,2});
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
