@@ -9330,7 +9330,7 @@ private:
 		std::vector<std::vector<uint64_t>> all_unrefines;
 		All_Gather()(unrefines, all_unrefines, this->comm);
 
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (unsigned int process = 0; process < all_unrefines.size(); process++) {
 			this->cells_to_unrefine.insert(
 				all_unrefines[process].begin(),
 				all_unrefines[process].end()
