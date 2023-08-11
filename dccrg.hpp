@@ -4514,7 +4514,7 @@ public:
 		// Walk in the same dimensional order as Vlasiator's translation solver.
 		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
 		for(int dimension : dims) {
-			while(cells_seen[dimension] < abs(offsets[dimension])) {
+			while(cells_seen[dimension] < abs(offsets[dimension]) && last_cell_seen != error_cell) {
 
 				// We can stop stepping if this cell spans the whole domain in this direction
 				if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
