@@ -4480,135 +4480,135 @@ public:
 		}
 	}
 
-   /*!
-   Find the cell (or, potentially, multiple cells) that can be encountered by hopping
-   from face neighbour to face neighbour along the given offset path.
-   The "offset" parameter defines how many unique cells should be traveled in each dimension.
+	/*!
+	  Find the cell (or, potentially, multiple cells) that can be encountered by hopping
+	  from face neighbour to face neighbour along the given offset path.
+	  The "offset" parameter defines how many unique cells should be traveled in each dimension.
 	"dims" defines the order in which dimensions are stepped through. For proper
 	matching of neighbors_to and neighbors_of, these should be constructed in
 	opposite direction.
-   */
-   std::set<uint64_t> find_cells_at_offset(
+	*/
+	std::set<uint64_t> find_cells_at_offset(
 			const Types<3>::indices_t starting_point,
-         uint64_t starting_cell,
-         int refinement_level,
-         const Types<3>::neighborhood_item_t& offsets, std::array<int, 3> dims = {2,0,1}) const {
+			uint64_t starting_cell,
+			int refinement_level,
+			const Types<3>::neighborhood_item_t& offsets, std::array<int, 3> dims = {2,0,1}) const {
 
-      std::set<uint64_t> retval;
+		std::set<uint64_t> retval;
 
-      // grid length in fully-refined indices
-      const int64_t grid_length[3] = {
-         (int64_t)this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
-         (int64_t)this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
-         (int64_t)this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
-      };
+		// grid length in fully-refined indices
+		const int64_t grid_length[3] = {
+			(int64_t)this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+			(int64_t)this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+			(int64_t)this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
+		};
 
-      auto sign = [](int64_t i) -> int64_t{
-         return (0<i)-(i<0);
-      };
+		auto sign = [](int64_t i) -> int64_t{
+			return (0<i)-(i<0);
+		};
 
-      std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
-      std::array<int,3> cells_seen = {0,0,0};
-      uint64_t last_cell_seen = starting_cell;
+		std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
+		std::array<int,3> cells_seen = {0,0,0};
+		uint64_t last_cell_seen = starting_cell;
 
-      // Walk in the same dimensional order as Vlasiator's translation solver.
-      // (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
-      for(int dimension : dims) {
-         while(cells_seen[dimension] < abs(offsets[dimension])) {
+		// Walk in the same dimensional order as Vlasiator's translation solver.
+		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
+		for(int dimension : dims) {
+			while(cells_seen[dimension] < abs(offsets[dimension])) {
 
-            // We can stop stepping if this cell spans the whole domain in this direction
-            if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
-               cells_seen[dimension]=abs(offsets[dimension]);
-               continue;
-            }
+				// We can stop stepping if this cell spans the whole domain in this direction
+				if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
+					cells_seen[dimension]=abs(offsets[dimension]);
+					continue;
+				}
 
-            if(offsets[dimension] < 0) {
-               x[dimension]--;
+				if(offsets[dimension] < 0) {
+					x[dimension]--;
 
-               // Handle periodic boundaries
-               if (this->topology.is_periodic(dimension)) {
-                  if(x[dimension] < 0) {
-                     x[dimension] = grid_length[dimension] - 1;
-                  }
-               } else {
-                  // In nonperiodic boundaries, don't step out of the domain
-                  if(x[dimension] < 0) {
-                     last_cell_seen=error_cell;
-                     break;
-                  }
-               }
-            } else {
-               x[dimension]++;
+					// Handle periodic boundaries
+					if (this->topology.is_periodic(dimension)) {
+						if(x[dimension] < 0) {
+							x[dimension] = grid_length[dimension] - 1;
+						}
+					} else {
+						// In nonperiodic boundaries, don't step out of the domain
+						if(x[dimension] < 0) {
+							last_cell_seen=error_cell;
+							break;
+						}
+					}
+				} else {
+					x[dimension]++;
 
-               // Handle periodic boundaries
-               if (this->topology.is_periodic(dimension)) {
-                  if(x[dimension] >= grid_length[dimension]) {
-                     x[dimension] = 0;
-                  }
-               } else {
-                  // In nonperiodic boundaries, don't step out of the domain
-                  if(x[dimension] >= grid_length[dimension]) {
-                     last_cell_seen=error_cell;
-                     break;
-                  }
-               }
-            }
+					// Handle periodic boundaries
+					if (this->topology.is_periodic(dimension)) {
+						if(x[dimension] >= grid_length[dimension]) {
+							x[dimension] = 0;
+						}
+					} else {
+						// In nonperiodic boundaries, don't step out of the domain
+						if(x[dimension] >= grid_length[dimension]) {
+							last_cell_seen=error_cell;
+							break;
+						}
+					}
+				}
 
-            uint64_t cellHere = this->get_existing_cell(
-                  {(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
-                  std::max(refinement_level-1,0), 
-                  std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+				uint64_t cellHere = this->get_existing_cell(
+						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
+						std::max(refinement_level-1,0), 
+						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
 
-            // Continue stepping if still inside the same cell as before.
-            if(cellHere == last_cell_seen) {
-               continue;
-            }
+				// Continue stepping if still inside the same cell as before.
+				if(cellHere == last_cell_seen) {
+					continue;
+				}
 
-            // Apparently, this is a new cell.
-            // Count how many unique cells were encountered.
-            cells_seen[dimension]++;
-            last_cell_seen = cellHere;
+				// Apparently, this is a new cell.
+				// Count how many unique cells were encountered.
+				cells_seen[dimension]++;
+				last_cell_seen = cellHere;
 
-            // Break if something went wonky.
-            if(last_cell_seen == error_cell) {
-               break;
-            }
+				// Break if something went wonky.
+				if(last_cell_seen == error_cell) {
+					break;
+				}
 
-            // If this cell had a higher refinement, we need to continue multiple paths.
-            if(this->mapping.get_refinement_level(cellHere) > refinement_level) {
-               // We select two dimensions perpendicular to our current walking direction
-               // and splitting the path among them.
-               int dim1=(dimension+1)%3;
-               int dim2=(dimension+2)%3;
+				// If this cell had a higher refinement, we need to continue multiple paths.
+				if(this->mapping.get_refinement_level(cellHere) > refinement_level) {
+					// We select two dimensions perpendicular to our current walking direction
+					// and splitting the path among them.
+					int dim1=(dimension+1)%3;
+					int dim2=(dimension+2)%3;
 
-               // The remaining path to walk is shorter.
-               Types<3>::neighborhood_item_t other_path_offset = offsets;
-               for(int i=0; i<3; i++) {
-                  other_path_offset[i] -= cells_seen[i];
-               }
+					// The remaining path to walk is shorter.
+					Types<3>::neighborhood_item_t other_path_offset = offsets;
+					for(int i=0; i<3; i++) {
+						other_path_offset[i] -= cells_seen[i];
+					}
 
-               Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
+					Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
 
-               // TODO: This can be optimized in the corners.
-               // Find at offset (1,0)
-               other_path_x[dim1] += sign(offsets[dim1])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
-               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
-               // Find at offset (1,1)
-               other_path_x[dim2] += sign(offsets[dim2])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
-               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
-               // Find at offset (0,1)
-               other_path_x[dim1] = x[dim1];
-               retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
-               // The fourth path will continue here as before.
-            }
-         }
-      }
+					// TODO: This can be optimized in the corners.
+					// Find at offset (1,0)
+					other_path_x[dim1] += sign(offsets[dim1])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
+					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
+					// Find at offset (1,1)
+					other_path_x[dim2] += sign(offsets[dim2])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
+					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
+					// Find at offset (0,1)
+					other_path_x[dim1] = x[dim1];
+					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
+					// The fourth path will continue here as before.
+				}
+			}
+		}
 
-       // The last cell we encountered must be our neighbour.
-       retval.emplace(last_cell_seen);
+		// The last cell we encountered must be our neighbour.
+		retval.emplace(last_cell_seen);
 
-       return retval;
-   }
+		return retval;
+	}
 
 	/*!
 	Returns the indices corresponding to the given neighborhood at given indices.
@@ -4884,11 +4884,13 @@ public:
 		#endif
 
 		// Iterate through the neighborhood
-		for (const auto& offsets: neighborhood) {
+		// Note that for neighbors_to calculations, these are already
+		// inverted from the "proper" neighborhoods
+		for (const auto& inverse_offsets: neighborhood) {
 
 			// Find the neighbour(s) in opposite direction
-			Types<3>::neighborhood_item_t inverse_offsets = {-offsets[0], -offsets[1], -offsets[2]};
-			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, offsets, {1,0,2});
+			Types<3>::neighborhood_item_t offsets = {-inverse_offsets[0], -inverse_offsets[1], -inverse_offsets[2]};
+			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, {1,0,2});
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
@@ -4901,9 +4903,9 @@ public:
 				return_neighbors.push_back({
 						neighCell,
 						{
-							inverse_offsets[0],
-							inverse_offsets[1],
-							inverse_offsets[2],
+							offsets[0],
+							offsets[1],
+							offsets[2],
 							// NOTE: For whatever reason, return value is negative here if refinement mismatches
 							[&](){
 								if(neighbor_ref_lvl == refinement_level) {
