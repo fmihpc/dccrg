@@ -3202,7 +3202,7 @@ public:
 		std::vector<std::vector<uint64_t>> all_ordered_cells_to_unrefine;
 		All_Gather()(ordered_cells_to_unrefine, all_ordered_cells_to_unrefine, this->comm);
 
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (unsigned int process = 0; process < all_ordered_cells_to_unrefine.size(); process++) {
 			if (!std::equal(
 				all_ordered_cells_to_unrefine[process].begin(),
 				all_ordered_cells_to_unrefine[process].end(),
@@ -4600,6 +4600,7 @@ public:
 					other_path_x[dim1] = x[dim1];
 					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
 					// The fourth path will continue here as before.
+					refinement_level++;
 				}
 			}
 		}
@@ -11682,7 +11683,7 @@ private:
 	*/
 	bool verify_user_data()
 	{
-      for (const auto& item : this->cell_process) {
+		for (const auto& item : this->cell_process) {
 			if (item.second == this->rank
 			&& item.first == this->get_child(item.first)
 			&& this->cell_data.count(item.first) == 0) {
