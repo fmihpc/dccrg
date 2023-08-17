@@ -2639,37 +2639,37 @@ public:
 		}
 
 
-      // Iterate through neighbours and only return those with a single 1
-      // index.
-      for(const auto& neigh : this->neighbors_of.at(cell)) {
-         uint64_t nbrID = neigh.first;
-         auto offsets = neigh.second;
+		// Iterate through neighbours and only return those with a single 1
+		// index.
+		for(const auto& neigh : this->neighbors_of.at(cell)) {
+			uint64_t nbrID = neigh.first;
+			auto offsets = neigh.second;
 
-         if(nbrID == error_cell) {
-            continue;
-         }
+			if(nbrID == error_cell) {
+				continue;
+			}
 
-         // We want all the neighbours with an offset sum of 1.
-         int offsetsum=0;
-         for (size_t dimension = 0; dimension < 3; dimension++) {
-            offsetsum+=abs(offsets[dimension]);
-         }
-         if(offsetsum == 0 || offsetsum > 1) {
-            continue;
-         }
+			// We want all the neighbours with an offset sum of 1.
+			int offsetsum=0;
+			for (size_t dimension = 0; dimension < 3; dimension++) {
+				offsetsum+=abs(offsets[dimension]);
+			}
+			if(offsetsum == 0 || offsetsum > 1) {
+				continue;
+			}
 
-         // Find the dimension this is a neighbour in
-         for (size_t dimension = 0; dimension < 3; dimension++) {
-            if(abs(offsets[dimension]) == 1) {
-               int final_dir = int(dimension) + 1;
-               if(offsets[dimension] < 0) {
-                  final_dir *= -1;
-               }
+			// Find the dimension this is a neighbour in
+			for (size_t dimension = 0; dimension < 3; dimension++) {
+				if(abs(offsets[dimension]) == 1) {
+					int final_dir = int(dimension) + 1;
+					if(offsets[dimension] < 0) {
+						final_dir *= -1;
+					}
 
-               ret_val.push_back({nbrID, final_dir});
-            }
-         }
-      }
+					ret_val.push_back({nbrID, final_dir});
+				}
+			}
+		}
 
 		return ret_val;
 	}
