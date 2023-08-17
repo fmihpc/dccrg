@@ -4514,14 +4514,69 @@ public:
 		// Walk in the same dimensional order as Vlasiator's translation solver.
 		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
 		for(int dimension : dims) {
-			while(cells_seen[dimension] < abs(offsets[dimension]) && last_cell_seen != error_cell) {
+
+			while(cells_seen[dimension] <= abs(offsets[dimension]) && last_cell_seen != error_cell) {
+
+				uint64_t cellHere = this->get_existing_cell(
+						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
+						std::max(refinement_level-1,0), 
+						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+
+				// Apparently, this is a new cell.
+				if(cellHere != last_cell_seen) {
+					// Count how many unique cells were encountered.
+					cells_seen[dimension]++;
+
+					// If this cell had a higher refinement, we need to continue multiple paths.
+					if(this->mapping.get_refinement_level(cellHere) > refinement_level) {
+
+						// We select two dimensions perpendicular to our current walking direction
+						// and splitting the path among them.
+						int dim1=(dimension+1)%3;
+						int dim2=(dimension+2)%3;
+
+						// The remaining path to walk is shorter.
+						Types<3>::neighborhood_item_t other_path_offset = offsets;
+						for(int i=0; i<3; i++) {
+							other_path_offset[i] -= cells_seen[i];
+						}
+
+						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
+
+						// TODO: This can be optimized in the corners.
+						// Find at offset (1,0)
+						other_path_x[dim1] += sign(offsets[dim1])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
+						retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
+						// Find at offset (1,1)
+						other_path_x[dim2] += sign(offsets[dim2])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
+						retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
+						// Find at offset (0,1)
+						other_path_x[dim1] = x[dim1];
+						retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
+						// The fourth path will continue here as before.
+						refinement_level++;
+					}
+
+				}
+
+				last_cell_seen = cellHere;
+				// Stop if we have reached our goal in this direction.
+				if(cells_seen[dimension] == abs(offsets[dimension])) {
+					break;
+				}
+
+				// Break if something went wonky.
+				if(last_cell_seen == error_cell) {
+					break;
+				}
 
 				// We can stop stepping if this cell spans the whole domain in this direction
 				if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
 					cells_seen[dimension]=abs(offsets[dimension]);
-					continue;
+					break;
 				}
 
+				// Now step forward
 				if(offsets[dimension] < 0) {
 					x[dimension]--;
 
@@ -4552,55 +4607,6 @@ public:
 							break;
 						}
 					}
-				}
-
-				uint64_t cellHere = this->get_existing_cell(
-						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
-						std::max(refinement_level-1,0), 
-						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
-
-				// Continue stepping if still inside the same cell as before.
-				if(cellHere == last_cell_seen) {
-					continue;
-				}
-
-				// Apparently, this is a new cell.
-				// Count how many unique cells were encountered.
-				cells_seen[dimension]++;
-				last_cell_seen = cellHere;
-
-				// Break if something went wonky.
-				if(last_cell_seen == error_cell) {
-					break;
-				}
-
-				// If this cell had a higher refinement, we need to continue multiple paths.
-				if(this->mapping.get_refinement_level(cellHere) > refinement_level) {
-					// We select two dimensions perpendicular to our current walking direction
-					// and splitting the path among them.
-					int dim1=(dimension+1)%3;
-					int dim2=(dimension+2)%3;
-
-					// The remaining path to walk is shorter.
-					Types<3>::neighborhood_item_t other_path_offset = offsets;
-					for(int i=0; i<3; i++) {
-						other_path_offset[i] -= cells_seen[i];
-					}
-
-					Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
-
-					// TODO: This can be optimized in the corners.
-					// Find at offset (1,0)
-					other_path_x[dim1] += sign(offsets[dim1])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
-					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
-					// Find at offset (1,1)
-					other_path_x[dim2] += sign(offsets[dim2])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
-					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
-					// Find at offset (0,1)
-					other_path_x[dim1] = x[dim1];
-					retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
-					// The fourth path will continue here as before.
-					refinement_level++;
 				}
 			}
 		}
@@ -9079,8 +9085,7 @@ private:
 					}
 					#endif
 
-					// TODO switch to is_local()
-					if (this->cell_process.at(neighbor) != this->rank) {
+					if (!is_local(neighbor)) {
 						continue;
 					}
 
