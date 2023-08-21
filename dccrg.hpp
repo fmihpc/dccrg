@@ -8930,7 +8930,7 @@ private:
 	/*!
 	Returns true if cell1 considers cell2 as a neighbor, even if neither of them exists
 	*/
-	bool is_neighbor(const uint64_t cell1, const uint64_t cell2) const
+	bool is_neighbor(const uint64_t cell1, const uint64_t cell2, const std::array<int,3> dims = {2,0,1}) const
 	{
 		#ifdef DEBUG
 		if (cell1 == 0) {
@@ -8954,65 +8954,132 @@ private:
 		}
 		#endif
 
+		auto sign = [](int i) -> int{
+			return (0<i)-(i<0);
+		};
+
 		const Types<3>::indices_t indices1 = this->mapping.get_indices(cell1);
 		const Types<3>::indices_t indices2 = this->mapping.get_indices(cell2);
-		const uint64_t cell1_length = this->mapping.get_cell_length_in_indices(cell1);
-		const uint64_t cell2_length = this->mapping.get_cell_length_in_indices(cell2);
+		int cell2_size = (1 << ( this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cell2)));
 
-		// distance in indices between given cells
-		Types<3>::indices_t distance = {{0, 0, 0}};
-
+		// grid length in indices
 		const uint64_t grid_length[3] = {
 			this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
 			this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		};
+			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())};
 
-		uint64_t max_distance = 0;
+		// Each dimension has zero, one or two ranges of steps it wants to take:
+		std::array< std::vector< int >, 3> step_ranges;
+		for(int dimension=0; dimension <3; dimension++) {
 
-		for (unsigned int i = 0; i < 3; i++) {
-			if (indices1[i] <= indices2[i]) {
-				if (indices2[i] <= indices1[i] + cell1_length) {
-					distance[i] = 0;
-				} else {
-					distance[i] = indices2[i] - (indices1[i] + cell1_length);
-				}
-
-				if (this->topology.is_periodic(i)) {
-					const uint64_t distance_to_end = grid_length[i] - (indices2[i] + cell2_length);
-					distance[i] = std::min(distance[i], indices1[i] + distance_to_end);
-				}
-			} else {
-				if (indices1[i] <= indices2[i] + cell2_length) {
-					distance[i] = 0;
-				} else {
-					distance[i] = indices1[i] - (indices2[i] + cell2_length);
-				}
-
-				if (this->topology.is_periodic(i)) {
-					const uint64_t distance_to_end = grid_length[i] - (indices1[i] + cell1_length);
-					distance[i] = std::min(distance[i], indices2[i] + distance_to_end);
-				}
+			// If indices1[dim] == indices2[dim], we do not need to step in this direction at all
+			// (More precisely, if this dimension is already inside the bounds of the target cell)
+			//   => Zero ranges
+			if(indices1[dimension] >= indices2[dimension] && indices1[dimension] < indices2[dimension] + cell2_size) {
+				step_ranges[dimension].push_back(0);
+				continue;
 			}
 
-			max_distance = std::max(max_distance, distance[i]);
-		}
+			int dir = sign((int)indices2[dimension]-(int)indices1[dimension]);
+			// If walking in negative direction, we only need to walk far enough to
+			// catch *any part* of the target cell.
+			int target=indices2[dimension];
+			if(dir < 0) {
+				target += cell2_size - 1;
+			}
 
-		if (this->neighborhood_length == 0) {
-			if (max_distance < cell1_length
-			&& this->overlapping_indices(cell1, cell2) >= 2) {
-				return true;
-			// diagonal cell isn't a neighbor
-			} else {
-				return false;
+			// If they differ, and the dimension is nonperiodic, we walk from indices1[dim] to the target
+			//   => One range
+			step_ranges[dimension].push_back(target-(int)indices1[dimension]);
+
+			// If, additionally, the boundaries are periodic, we need to walk "the other way around", too.
+			//   => Two ranges
+			if (this->topology.is_periodic(dimension)) {
+				dir *= -1;
+				if(dir < 0) {
+					target += cell2_size - 1;
+				}
+				int steps = grid_length[dimension]-abs(target-(int)indices1[dimension]);
+				step_ranges[dimension].push_back(dir*steps);
 			}
 		}
 
-		if (max_distance < this->neighborhood_length * cell1_length) {
-			return true;
-		} else {
-			return false;
+		int refinement_level = this->mapping.get_refinement_level(cell1);
+
+		for(int i=0; i<step_ranges[0].size(); i++) {
+			for(int j=0; j<step_ranges[1].size(); j++) {
+				for(int k=0; k<step_ranges[2].size(); k++) {
+
+					std::array<int, 3> steps({
+							abs(step_ranges[0][i]),
+							abs(step_ranges[1][j]),
+							abs(step_ranges[2][k])});
+					const std::array<int, 3> dir({
+							sign(step_ranges[0][i]),
+							sign(step_ranges[1][j]),
+							sign(step_ranges[2][k])});
+
+					std::array<int,3>  x = {(int)indices1[0],(int)indices1[1],(int)indices1[2]};
+					std::array<int,3> cells_seen = {0,0,0};
+					uint64_t last_cell_seen = cell1;
+
+					for(int dimension : dims) {
+						while(steps[dimension] >= 0) {
+
+							uint64_t cellHere = this->get_existing_cell(
+									{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
+									std::max(refinement_level-1,0), 
+									std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+
+							// Apparently, this is a new cell.
+							if(cellHere != last_cell_seen) {
+								// Count how many unique cells were encountered.
+								cells_seen[dimension]++;
+							}
+
+							if(cells_seen[dimension] > (int)this->neighborhood_length) {
+								goto next_path;
+							}
+
+							if(cellHere == cell2) {
+								return true;
+							}
+
+							last_cell_seen = cellHere;
+
+							if(steps[dimension] == 0) {
+								break;
+							}
+
+							// note we don't need to do any refinement path splitting here
+							x[dimension]+=dir[dimension];
+							if(x[dimension] < 0) {
+								if (this->topology.is_periodic(dimension)) {
+									x[dimension] = grid_length[dimension] - 1;
+								} else {
+									goto next_path;
+								}
+							} else if(x[dimension] >= grid_length[dimension]) {
+								if (this->topology.is_periodic(dimension)) {
+									x[dimension] = 0;
+								} else {
+									goto next_path;
+								}
+							}
+							steps[dimension]--;
+						}
+					}
+
+next_path:
+					continue;
+				}
+			}
 		}
+
+
+		// Not found in the neighborhood.
+		return false;
+
 	}
 
 
