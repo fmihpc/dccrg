@@ -8960,6 +8960,7 @@ private:
 
 		const Types<3>::indices_t indices1 = this->mapping.get_indices(cell1);
 		const Types<3>::indices_t indices2 = this->mapping.get_indices(cell2);
+		int cell1_size = (1 << ( this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cell1)));
 		int cell2_size = (1 << ( this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cell2)));
 
 		// grid length in indices
@@ -8980,35 +8981,42 @@ private:
 				continue;
 			}
 
-			int dir = sign((int)indices2[dimension]-(int)indices1[dimension]);
 			// If walking in negative direction, we only need to walk far enough to
 			// catch *any part* of the target cell.
 			int target=indices2[dimension];
+			int source=indices1[dimension];
+			int dir = sign(target-source);
 			if(dir < 0) {
 				target += cell2_size - 1;
+			} else {
+				source += cell1_size - 1;
 			}
 
 			// If they differ, and the dimension is nonperiodic, we walk from indices1[dim] to the target
 			//   => One range
-			step_ranges[dimension].push_back(target-(int)indices1[dimension]);
+			step_ranges[dimension].push_back(target-source);
 
 			// If, additionally, the boundaries are periodic, we need to walk "the other way around", too.
 			//   => Two ranges
 			if (this->topology.is_periodic(dimension)) {
+				target=indices2[dimension];
+				source=indices1[dimension];
 				dir *= -1;
 				if(dir < 0) {
 					target += cell2_size - 1;
+				} else {
+					source += cell1_size - 1;
 				}
-				int steps = grid_length[dimension]-abs(target-(int)indices1[dimension]);
+				int steps = grid_length[dimension]-abs(target-source);
 				step_ranges[dimension].push_back(dir*steps);
 			}
 		}
 
 		int refinement_level = this->mapping.get_refinement_level(cell1);
 
-		for(int i=0; i<step_ranges[0].size(); i++) {
-			for(int j=0; j<step_ranges[1].size(); j++) {
-				for(int k=0; k<step_ranges[2].size(); k++) {
+		for(int i=0; i<(int)step_ranges[0].size(); i++) {
+			for(int j=0; j<(int)step_ranges[1].size(); j++) {
+				for(int k=0; k<(int)step_ranges[2].size(); k++) {
 
 					std::array<int, 3> steps({
 							abs(step_ranges[0][i]),
@@ -9020,6 +9028,15 @@ private:
 							sign(step_ranges[2][k])});
 
 					std::array<int,3>  x = {(int)indices1[0],(int)indices1[1],(int)indices1[2]};
+
+					// Offset path to the "nearest" end of our source cell, to walk the
+					// shortest possible path
+					for(int dim = 0; dim < 3; dim++) {
+						if(dir[dim] > 0) {
+							x[dim] += cell1_size -1;
+						} 
+					}
+
 					std::array<int,3> cells_seen = {0,0,0};
 					uint64_t last_cell_seen = cell1;
 
@@ -9031,6 +9048,10 @@ private:
 									std::max(refinement_level-1,0), 
 									std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
 
+							if(cellHere == cell2) {
+								return true;
+							}
+
 							// Apparently, this is a new cell.
 							if(cellHere != last_cell_seen) {
 								// Count how many unique cells were encountered.
@@ -9039,10 +9060,6 @@ private:
 
 							if(cells_seen[dimension] > (int)this->neighborhood_length) {
 								goto next_path;
-							}
-
-							if(cellHere == cell2) {
-								return true;
 							}
 
 							last_cell_seen = cellHere;
@@ -9059,7 +9076,7 @@ private:
 								} else {
 									goto next_path;
 								}
-							} else if(x[dimension] >= grid_length[dimension]) {
+							} else if(x[dimension] >= (int)grid_length[dimension]) {
 								if (this->topology.is_periodic(dimension)) {
 									x[dimension] = 0;
 								} else {
@@ -11698,6 +11715,7 @@ private:
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << neighbor
 							<< " should be a neighbor of cell " << item.first
+							<< " with offset (" << neighbor_i.second[0] << ", " << neighbor_i.second[1] << ", " << neighbor_i.second[2] << ")"
 							<< std::endl;
 						abort();
 					}
@@ -11717,12 +11735,13 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(neighbor, item.first)) {
+					if (!this->is_neighbor(neighbor, item.first, {1,0,2})) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << item.first
-							<< " should be a neighbor of cell " << neighbor
+							<< " should be a neighbor to cell " << neighbor
+							<< " with offset (" << neighbor_i.second[0] << ", " << neighbor_i.second[1] << ", " << neighbor_i.second[2] << ")"
 							<< std::endl;
-						exit(EXIT_FAILURE);
+						abort();
 					}
 				}
 
