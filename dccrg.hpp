@@ -4538,7 +4538,11 @@ public:
 						// The remaining path to walk is shorter.
 						Types<3>::neighborhood_item_t other_path_offset = offsets;
 						for(int i=0; i<3; i++) {
-							other_path_offset[i] -= cells_seen[i];
+							if(other_path_offset[i] > 0) {
+								other_path_offset[i] -= cells_seen[i];
+							} else {
+								other_path_offset[i] += cells_seen[i];
+							}
 						}
 
 						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
