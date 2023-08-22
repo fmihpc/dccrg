@@ -4545,7 +4545,7 @@ public:
 
 						// The other paths start such that they are quantized to the refinement level edges
 						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
-						for(int i=0; i<3; i++) {
+						for(int i : {dim1,dim2}) {
 							x[i] -= x[i] % (1<<(this->mapping.get_maximum_refinement_level() - refinement_level));
 						}
 
