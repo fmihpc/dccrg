@@ -4503,13 +4503,10 @@ public:
 			(int64_t)this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
 		};
 
-		auto sign = [](int64_t i) -> int64_t{
-			return (0<i)-(i<0);
-		};
-
 		std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
 		std::array<int,3> cells_seen = {0,0,0};
 		uint64_t last_cell_seen = starting_cell;
+		int steps_inside_this_cell = 0;
 
 		// Walk in the same dimensional order as Vlasiator's translation solver.
 		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
@@ -4526,6 +4523,7 @@ public:
 				if(cellHere != last_cell_seen) {
 					// Count how many unique cells were encountered.
 					cells_seen[dimension]++;
+					steps_inside_this_cell = 0;
 
 					// If this cell had a higher refinement, we need to continue multiple paths.
 					if(this->mapping.get_refinement_level(cellHere) > refinement_level) {
@@ -4545,14 +4543,17 @@ public:
 							}
 						}
 
+						// The other paths start such that they are quantized to the refinement level edges
 						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
+						for(int i=0; i<3; i++) {
+							x[i] -= x[i] % (1<<(this->mapping.get_maximum_refinement_level() - refinement_level));
+						}
 
-						// TODO: This can be optimized in the corners.
 						// Find at offset (1,0)
-						other_path_x[dim1] += sign(offsets[dim1])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
+						other_path_x[dim1] += (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
 						retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
 						// Find at offset (1,1)
-						other_path_x[dim2] += sign(offsets[dim2])* (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
+						other_path_x[dim2] += (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
 						retval.merge(find_cells_at_offset(other_path_x, last_cell_seen, refinement_level+1, other_path_offset, dims));
 						// Find at offset (0,1)
 						other_path_x[dim1] = x[dim1];
@@ -4561,11 +4562,17 @@ public:
 						refinement_level++;
 					}
 
+				} else {
+					steps_inside_this_cell++;
+					if(steps_inside_this_cell > (int64_t(1) << this->mapping.get_maximum_refinement_level())) {
+						// Apparently, we are trapped in a periodic loop.
+						break;
+					}
 				}
 
 				last_cell_seen = cellHere;
 				// Stop if we have reached our goal in this direction.
-				if(cells_seen[dimension] == abs(offsets[dimension])) {
+				if(cells_seen[dimension] >= abs(offsets[dimension])) {
 					break;
 				}
 
@@ -8975,6 +8982,7 @@ private:
 
 		// Each dimension has zero, one or two ranges of steps it wants to take:
 		std::array< std::vector< int >, 3> step_ranges;
+		std::array< std::vector< int >, 3> step_dir;
 		for(int dimension=0; dimension <3; dimension++) {
 
 			// If indices1[dim] == indices2[dim], we do not need to step in this direction at all
@@ -8982,10 +8990,11 @@ private:
 			//   => Zero ranges
 			if(indices1[dimension] >= indices2[dimension] && indices1[dimension] < indices2[dimension] + cell2_size) {
 				step_ranges[dimension].push_back(0);
+				step_dir[dimension].push_back(0);
 				continue;
 			}
 
-			// If walking in negative direction, we only need to walk far enough to
+			// We only need to walk far enough to
 			// catch *any part* of the target cell.
 			int target=indices2[dimension];
 			int source=indices1[dimension];
@@ -8998,7 +9007,8 @@ private:
 
 			// If they differ, and the dimension is nonperiodic, we walk from indices1[dim] to the target
 			//   => One range
-			step_ranges[dimension].push_back(target-source);
+			step_ranges[dimension].push_back(abs(target-source));
+			step_dir[dimension].push_back(dir);
 
 			// If, additionally, the boundaries are periodic, we need to walk "the other way around", too.
 			//   => Two ranges
@@ -9012,7 +9022,8 @@ private:
 					source += cell1_size - 1;
 				}
 				int steps = grid_length[dimension]-abs(target-source);
-				step_ranges[dimension].push_back(dir*steps);
+				step_ranges[dimension].push_back(steps);
+				step_dir[dimension].push_back(dir);
 			}
 		}
 
@@ -9023,13 +9034,13 @@ private:
 				for(int k=0; k<(int)step_ranges[2].size(); k++) {
 
 					std::array<int, 3> steps({
-							abs(step_ranges[0][i]),
-							abs(step_ranges[1][j]),
-							abs(step_ranges[2][k])});
+							step_ranges[0][i],
+							step_ranges[1][j],
+							step_ranges[2][k]});
 					const std::array<int, 3> dir({
-							sign(step_ranges[0][i]),
-							sign(step_ranges[1][j]),
-							sign(step_ranges[2][k])});
+							step_dir[0][i],
+							step_dir[1][j],
+							step_dir[2][k]});
 
 					std::array<int,3>  x = {(int)indices1[0],(int)indices1[1],(int)indices1[2]};
 
@@ -11739,7 +11750,7 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(neighbor, item.first, {1,0,2})) {
+					if (!this->is_neighbor(neighbor, item.first, {2,0,1})) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << item.first
 							<< " should be a neighbor to cell " << neighbor
