@@ -7711,7 +7711,6 @@ private:
 
 		MPI_Comm temp; // give a separate comminucator to zoltan
 		ret_val = MPI_Comm_dup(this->comm, &temp);
-
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << "Couldn't duplicate communicator for Zoltan" << std::endl;
 			return false;
@@ -8006,29 +8005,24 @@ private:
 
 		uint64_t cells_per_process = 0;
 
-
-		constexpr uint64_t worker_procs = 12;
-
-		if (total_cells < worker_procs) {
+		if (total_cells < this->comm_size) {
 			cells_per_process = 1;
-		} else if (total_cells % worker_procs > 0) {
-			cells_per_process = total_cells / worker_procs + 1;
+		} else if (total_cells % this->comm_size > 0) {
+			cells_per_process = total_cells / this->comm_size + 1;
 		} else {
-			cells_per_process = total_cells / worker_procs;
+			cells_per_process = total_cells / this->comm_size;
 		}
 
-		// some processes get fewer cells if grid size not divisible by worker_procs
-		const uint64_t procs_with_fewer = cells_per_process * worker_procs - total_cells;
+		// some processes get fewer cells if grid size not divisible by this->comm_size
+		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - total_cells;
 
-		#ifndef USE_SFCkkkkkk12234
+		#ifndef USE_SFC
 
 		uint64_t cell_to_create = 1;
 		for (uint64_t process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
-			if (process >= worker_procs) {
-		  	cells_to_create = 0;
-			} else if (process < procs_with_fewer) {
+			if (process < procs_with_fewer) {
 				cells_to_create = cells_per_process - 1;
 			} else {
 				cells_to_create = cells_per_process;
