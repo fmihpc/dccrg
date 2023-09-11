@@ -7711,6 +7711,7 @@ private:
 
 		MPI_Comm temp; // give a separate comminucator to zoltan
 		ret_val = MPI_Comm_dup(this->comm, &temp);
+
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << "Couldn't duplicate communicator for Zoltan" << std::endl;
 			return false;
@@ -7727,6 +7728,13 @@ private:
 		} else {
 			this->no_load_balancing = false;
 		}
+
+		// Determine the number of worker processes and check if we are one
+		int comm_rank, comm_size;
+    MPI_Comm_rank(this->comm, &comm_rank);
+		MPI_Comm_size(this->comm, &comm_size);
+		constexpr int worker_procs = 12;
+    const int zoltan_worker = (rank < comm_size - worker_procs) ? 0 : 1;
 
 		// reserved options that the user cannot change
 		this->reserved_options.insert("EDGE_WEIGHT_DIM");
@@ -7753,6 +7761,8 @@ private:
 		Zoltan_Set_Param(this->zoltan, "HIER_DEBUG_LEVEL", "0");
 		Zoltan_Set_Param(this->zoltan, "HIER_CHECKS", "0");
 		Zoltan_Set_Param(this->zoltan, "LB_METHOD", this->load_balancing_method.c_str());
+		Zoltan_Set_Param(this->zoltan, "NUM_GLOBAL_PARTS", std::to_string(worker_procs).c_str());
+		Zoltan_Set_Param(this->zoltan, "NUM_LOCAL_PARTS", std::to_string(zoltan_worker).c_str());
 		Zoltan_Set_Param(this->zoltan, "REMAP", "1");
 
 		// set the grids callback functions in Zoltan
@@ -7996,24 +8006,29 @@ private:
 
 		uint64_t cells_per_process = 0;
 
-		if (total_cells < this->comm_size) {
+
+		constexpr uint64_t worker_procs = 12;
+
+		if (total_cells < worker_procs) {
 			cells_per_process = 1;
-		} else if (total_cells % this->comm_size > 0) {
-			cells_per_process = total_cells / this->comm_size + 1;
+		} else if (total_cells % worker_procs > 0) {
+			cells_per_process = total_cells / worker_procs + 1;
 		} else {
-			cells_per_process = total_cells / this->comm_size;
+			cells_per_process = total_cells / worker_procs;
 		}
 
-		// some processes get fewer cells if grid size not divisible by this->comm_size
-		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - total_cells;
+		// some processes get fewer cells if grid size not divisible by worker_procs
+		const uint64_t procs_with_fewer = cells_per_process * worker_procs - total_cells;
 
-		#ifndef USE_SFC
+		#ifndef USE_SFCkkkkkk12234
 
 		uint64_t cell_to_create = 1;
 		for (uint64_t process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
-			if (process < procs_with_fewer) {
+			if (process >= worker_procs) {
+		  	cells_to_create = 0;
+			} else if (process < procs_with_fewer) {
 				cells_to_create = cells_per_process - 1;
 			} else {
 				cells_to_create = cells_per_process;
@@ -8372,7 +8387,9 @@ private:
 			number_to_receive,
 			number_to_send,
 			*sender_processes,
-			*receiver_processes;
+			*sender_parts,
+			*receiver_processes,
+			*receiver_parts;
 
 		ZOLTAN_ID_PTR
 			global_ids_to_receive,
@@ -8380,7 +8397,7 @@ private:
 			global_ids_to_send,
 			local_ids_to_send;
 
-		if (use_zoltan && Zoltan_LB_Balance(
+		if (use_zoltan && Zoltan_LB_Partition(
 			this->zoltan,
 			&partition_changed,
 			&global_id_size,
@@ -8389,10 +8406,12 @@ private:
 			&global_ids_to_receive,
 			&local_ids_to_receive,
 			&sender_processes,
+			&sender_parts,
 			&number_to_send,
 			&global_ids_to_send,
 			&local_ids_to_send,
-			&receiver_processes
+			&receiver_processes,
+			&receiver_parts
 			) != ZOLTAN_OK
 		) {
 			if (!this->no_load_balancing) {
