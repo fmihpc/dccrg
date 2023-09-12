@@ -7730,11 +7730,14 @@ private:
 
 		// If environment variable DCCRG_PROCS is set, 
     // use that for determining the number of DCCRG worker-processes
+		int obj_weight_dim = 1;
 		int worker_procs = this->comm_size;
 		if(getenv("DCCRG_PROCS") != NULL) {
        const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
-       if(dccrg_procs > 0 && dccrg_procs < this->comm_size)
+       if(dccrg_procs > 0 && dccrg_procs < this->comm_size){
           worker_procs = dccrg_procs;
+					obj_weight_dim = 0;
+			 }
     }
     const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
 
@@ -7755,7 +7758,7 @@ private:
 		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "0");
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
 		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
-		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
+		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", std::to_string(obj_weight_dim).c_str());
 		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
 
 		// set other options
