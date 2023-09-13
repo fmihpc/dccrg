@@ -7736,7 +7736,7 @@ private:
 			const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
 			if(dccrg_procs > 0 && dccrg_procs < this->comm_size){
 				worker_procs = dccrg_procs;
-					obj_weight_dim = 0;
+				obj_weight_dim = 0;
 			}
 		}
 		const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
