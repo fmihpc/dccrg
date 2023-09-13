@@ -7729,7 +7729,7 @@ private:
 		}
 
 		// If environment variable DCCRG_PROCS is set, 
-    // use that for determining the number of DCCRG worker-processes
+		// use that for determining the number of DCCRG worker-processes
 		int obj_weight_dim = 1;
 		int worker_procs = this->comm_size;
 		if(getenv("DCCRG_PROCS") != NULL) {
