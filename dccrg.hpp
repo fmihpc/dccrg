@@ -7733,13 +7733,13 @@ private:
 		int obj_weight_dim = 1;
 		int worker_procs = this->comm_size;
 		if(getenv("DCCRG_PROCS") != NULL) {
-       const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
-       if(dccrg_procs > 0 && dccrg_procs < this->comm_size){
-          worker_procs = dccrg_procs;
+			const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
+			if(dccrg_procs > 0 && dccrg_procs < this->comm_size){
+				worker_procs = dccrg_procs;
 					obj_weight_dim = 0;
-			 }
-    }
-    const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
+			}
+		}
+		const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
 
 		// reserved options that the user cannot change
 		this->reserved_options.insert("EDGE_WEIGHT_DIM");
