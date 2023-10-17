@@ -757,7 +757,6 @@ public:
 	\see
 	get_neighbors_to()
 	update_copies_of_remote_neighbors()
-	get_neighbors_of_at_offset()
 	add_neighborhood()
 	*/
 	const std::vector<
@@ -2794,71 +2793,6 @@ public:
 	{
 		return this->neighborhood_length;
 	}
-
-
-	/*!
-	Returns all neighbors of given cell that are at given offset from it.
-
-	Offset is in units of size of the given cell
-	Returns nothing in the following cases:
-		- given cell doesn't exist
-		- given cell is on another process
-		- any of given offsets is larger in absolute value than the neighborhood
-		  size or larger than 1 if neihgborhood size == 0
-		- x == 0 && y == 0 && z == 0
-
-	\see
-	get_neighbors_of()
-	*/
-	std::vector<
-		std::pair<
-			uint64_t,
-			std::array<int, 4>
-		>
-	> get_neighbors_of_at_offset(
-		const uint64_t cell,
-		const int x,
-		const int y,
-		const int z
-	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
-		if (
-			this->cell_process.count(cell) == 0
-			or this->cell_process.at(cell) != this->rank
-			or (x == 0 and y == 0 and z == 0)
-		) {
-			return return_neighbors;
-		}
-
-		for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
-			const auto& offsets = neighbor_i.second;
-			if (offsets[3] <= 1) {
-				if (offsets[0] == x and offsets[1] == y and offsets[2] == z) {
-					return_neighbors.push_back(neighbor_i);
-				}
-			} else {
-				auto scaled_offsets = offsets;
-				for (size_t i = 0; i < 3; i++) {
-					if (std::abs(scaled_offsets[i]) <= 1) {
-						continue;
-					}
-					// round away from zero, stackoverflow.com/a/2745086
-					if (scaled_offsets[i] > 1) {
-						scaled_offsets[i] += scaled_offsets[3] - 1;
-					} else {
-						scaled_offsets[i] -= scaled_offsets[3] - 1;
-					}
-					scaled_offsets[i] /= scaled_offsets[3];
-				}
-				if (scaled_offsets[0] == x and scaled_offsets[1] == y and scaled_offsets[2] == z) {
-					return_neighbors.push_back(neighbor_i);
-				}
-			}
-		}
-
-		return return_neighbors;
-	}
-
 
 	/*!
 	Returns neighbors of given local cell that are on another process.
@@ -8619,16 +8553,8 @@ private:
 		#endif
 
 		// find neighbors_of, should be in order given by user
-		this->user_neigh_of[neighborhood_id][cell].clear();
-		for (const auto& item: this->user_hood_of[neighborhood_id]) {
-			const auto cells_at_offset
-				= this->get_neighbors_of_at_offset(cell, item[0], item[1], item[2]);
-			this->user_neigh_of[neighborhood_id][cell].insert(
-				this->user_neigh_of[neighborhood_id][cell].end(),
-				cells_at_offset.begin(),
-				cells_at_offset.end()
-			);
-		}
+		this->user_neigh_of[neighborhood_id][cell]
+			= this->find_neighbors_of(cell, this->user_hood_of[neighborhood_id]);
 
 		// find neighbors_to
 		this->user_neigh_to[neighborhood_id][cell]
