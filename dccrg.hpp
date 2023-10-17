@@ -8998,12 +8998,11 @@ private:
 								// Count how many unique cells were encountered.
 								cells_seen[dimension]++;
 							}
-
-							if(cells_seen[dimension] > (int)this->neighborhood_length) {
-								goto next_path;
-							}
-
 							last_cell_seen = cellHere;
+
+							if(cells_seen[dimension] >= (int)this->neighborhood_length) {
+								break;
+							}
 
 							if(steps[dimension] == 0) {
 								break;
