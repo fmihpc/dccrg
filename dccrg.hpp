@@ -4506,11 +4506,11 @@ public:
 		std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
 		std::array<int,3> cells_seen = {0,0,0};
 		uint64_t last_cell_seen = starting_cell;
-		int steps_inside_this_cell = 0;
 
 		// Walk in the same dimensional order as Vlasiator's translation solver.
 		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
 		for(int dimension : dims) {
+			int steps_inside_this_cell = 0;
 
 			while(cells_seen[dimension] <= abs(offsets[dimension]) && last_cell_seen != error_cell) {
 
@@ -4544,10 +4544,10 @@ public:
 						}
 
 						// The other paths start such that they are quantized to the refinement level edges
-						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
 						for(int i : {dim1,dim2}) {
 							x[i] -= x[i] % (1<<(this->mapping.get_maximum_refinement_level() - refinement_level));
 						}
+						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
 
 						// Find at offset (1,0)
 						other_path_x[dim1] += (1<<(this->mapping.get_maximum_refinement_level() - (refinement_level+1)));
