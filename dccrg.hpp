@@ -8865,7 +8865,7 @@ private:
 
 
 	/*!
-	Returns true if cell1 considers cell2 as a neighbor, even if neither of them exists
+	Returns true if cell1 considers cell2 as a neighbor, even
 	*/
 	bool is_neighbor(const uint64_t cell1, const uint64_t cell2, const std::array<int,3> dims = {2,0,1}) const
 	{
@@ -9000,12 +9000,12 @@ private:
 							}
 							last_cell_seen = cellHere;
 
-							if(cells_seen[dimension] >= (int)this->neighborhood_length) {
+							if(steps[dimension] == 0) {
 								break;
 							}
 
-							if(steps[dimension] == 0) {
-								break;
+							if(cells_seen[dimension] > (int)this->neighborhood_length) {
+								goto next_path;
 							}
 
 							// note we don't need to do any refinement path splitting here
