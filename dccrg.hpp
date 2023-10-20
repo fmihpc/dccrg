@@ -8999,16 +8999,22 @@ private:
 									std::max(refinement_level-1,0), 
 									std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
 
-							if(cellHere == cell2) {
-								return true;
-							}
-
 							// Apparently, this is a new cell.
 							if(cellHere != last_cell_seen) {
 								// Count how many unique cells were encountered.
 								cells_seen[dimension]++;
 							}
 							last_cell_seen = cellHere;
+
+							if(cellHere == cell2) {
+								if(cells_seen[0] > (int)this->neighborhood_length ||
+								   cells_seen[1] > (int)this->neighborhood_length ||
+								   cells_seen[2] > (int)this->neighborhood_length) {
+									goto next_path;
+								}
+								return true;
+							}
+
 
 							if(steps[dimension] == 0) {
 								break;
