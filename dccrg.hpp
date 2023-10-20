@@ -8912,10 +8912,18 @@ private:
 		for(int dimension=0; dimension <3; dimension++) {
 
 			// If indices1[dim] == indices2[dim], we do not need to step in this direction at all
-			// (More precisely, if this dimension is already inside the bounds of the target cell)
+			// More precisely, if this dimension is already inside the bounds of the target cell.
 			//   => Zero ranges
 			if(indices1[dimension] >= indices2[dimension] && indices1[dimension] < indices2[dimension] + cell2_size) {
 				step_ranges[dimension].push_back(0);
+				step_dir[dimension].push_back(0);
+				continue;
+			}
+
+			// Oppositely, this cell's bounds encompass the target cell.
+			if(indices2[dimension] >= indices1[dimension] && indices2[dimension] < indices1[dimension] + cell1_size) {
+				// We mark the required path offset by setting a step range, but leaving direction at zero.
+				step_ranges[dimension].push_back(indices2[dimension]-indices1[dimension]);
 				step_dir[dimension].push_back(0);
 				continue;
 			}
@@ -8975,7 +8983,9 @@ private:
 					for(int dim = 0; dim < 3; dim++) {
 						if(dir[dim] > 0) {
 							x[dim] += cell1_size -1;
-						} 
+						} else if(dir[dim] == 0) {
+							x[dim] += steps[dim];
+						}
 					}
 
 					std::array<int,3> cells_seen = {0,0,0};
