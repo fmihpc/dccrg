@@ -4562,6 +4562,137 @@ public:
 		return retval;
 	}
 
+	// From the given starting cell, identify all cells along the given path
+	// offset that would need to get induced refinement to retain this cell's
+	// refinement consistency.
+	//
+	// Return value: set of cellIDs that need refinement
+	std::set<uint64_t> find_speculative_induced_refines(
+			const Types<3>::indices_t starting_point,
+			uint64_t starting_cell,
+			int refinement_level,
+			const std::vector<uint64_t>& new_refines,
+			const Types<3>::neighborhood_item_t& offsets, std::array<int, 3> dims = {2,0,1}) const {
+
+		std::set<uint64_t> retval;
+
+		// grid length in fully-refined indices
+		const int64_t grid_length[3] = {
+			(int64_t)this->length.get()[0] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+			(int64_t)this->length.get()[1] * (int64_t(1) << this->mapping.get_maximum_refinement_level()),
+			(int64_t)this->length.get()[2] * (int64_t(1) << this->mapping.get_maximum_refinement_level())
+		};
+
+		std::array<int,3>  x = {(int)starting_point[0],(int)starting_point[1],(int)starting_point[2]};
+		std::array<int,3> cells_seen = {0,0,0};
+		uint64_t last_cell_seen = starting_cell;
+		//std::cerr << "Starting induced refinement search at cell " << starting_cell << ", location[" << x[0] << "," << x[1] << "," << x[2] << "]\n";
+
+		// Walk in the same dimensional order as Vlasiator's translation solver.
+		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
+		for(int dimension : dims) {
+
+			while(cells_seen[dimension] <= abs(offsets[dimension]) && last_cell_seen != error_cell) {
+
+				uint64_t cellHere = this->get_existing_cell(
+						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
+						std::max(refinement_level-2,0), 
+						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+
+				// Apparently, this is a new cell.
+				if(cellHere != last_cell_seen) {
+
+					if(cellHere == error_cell) {
+						break;
+					}
+
+					// Determine the effective refinement level of the cell here, given the current
+					// speculative state of the refinement process:
+					// - Start with its level before any changes
+					// - Add 1 if is already in the list of cells to be refined
+					// OR
+					// - Add 1 if we determine that it is too coarse for our
+					// starting cell's new refinement state.
+					int effective_refinement_level= this->mapping.get_refinement_level(cellHere);
+					if(find(new_refines.begin(), new_refines.end(), cellHere) != new_refines.end()) {
+						effective_refinement_level++;
+
+						// Also count this cell double.
+						cells_seen[dimension]++;
+					} else if(effective_refinement_level < refinement_level - 1) {
+						effective_refinement_level++;
+						retval.emplace(cellHere);
+
+						// Also count this cell double.
+						cells_seen[dimension]++;
+					}
+
+					// Count how many unique cells were encountered.
+					cells_seen[dimension]++;
+
+					// If this cell had a higher refinement, we don't need to bother further, because
+					// its neighborhood will take care of everything else.
+					if(effective_refinement_level > refinement_level) {
+						return retval;
+					}
+
+				}
+
+				last_cell_seen = cellHere;
+				// Stop if we have reached our goal in this direction.
+				if(cells_seen[dimension] >= abs(offsets[dimension])) {
+					break;
+				}
+
+				// Break if something went wonky.
+				if(last_cell_seen == error_cell) {
+					return retval;
+				}
+
+				// We can stop stepping if this cell spans the whole domain in this direction
+				if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
+					cells_seen[dimension]=abs(offsets[dimension]);
+					break;
+				}
+
+				// Now step forward
+				if(offsets[dimension] < 0) {
+					x[dimension]--;
+
+					// Handle periodic boundaries
+					if (this->topology.is_periodic(dimension)) {
+						if(x[dimension] < 0) {
+							x[dimension] = grid_length[dimension] - 1;
+						}
+					} else {
+						// In nonperiodic boundaries, don't step out of the domain
+						if(x[dimension] < 0) {
+							last_cell_seen=error_cell;
+							break;
+						}
+					}
+				} else {
+					x[dimension]++;
+
+					// Handle periodic boundaries
+					if (this->topology.is_periodic(dimension)) {
+						if(x[dimension] >= grid_length[dimension]) {
+							x[dimension] = 0;
+						}
+					} else {
+						// In nonperiodic boundaries, don't step out of the domain
+						if(x[dimension] >= grid_length[dimension]) {
+							last_cell_seen=error_cell;
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		return retval;
+	}
+
 	/*!
 	Returns the indices corresponding to the given neighborhood at given indices.
 
@@ -9105,94 +9236,66 @@ next_path:
 
 			std::unordered_set<uint64_t> unique_induced_refines;
 
-			// induced refines on this process
-			for (const uint64_t refined: all_new_refines.at(this->rank)) {
-
-				// refine local neighbors that are too large
-				for (const auto& neighbor_i: this->neighbors_of.at(refined)) {
-					const auto& neighbor = neighbor_i.first;
-
-					if (neighbor == error_cell) {
-						continue;
-					}
-
-					#ifdef DEBUG
-					if (this->cell_process.count(neighbor) == 0) {
-						std::cerr << "Process " << this->rank
-							<< ": Cell " << refined
-							<< " had a non-existing neighbor in neighbor list: " << neighbor
-							<< std::endl;
-					}
-					#endif
-
-					if (!is_local(neighbor)) {
-						continue;
-					}
-
-					if (this->mapping.get_refinement_level(neighbor) < this->mapping.get_refinement_level(refined)) {
-						if (this->cells_to_refine.count(neighbor) == 0) {
-							unique_induced_refines.insert(neighbor);
-						}
-					}
-				}
-
-				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
-					const auto& neighbor_to = neighbor_to_i.first;
-
-					if (neighbor_to == error_cell) {
-						continue;
-					}
-
-					#ifdef DEBUG
-					if (this->cell_process.count(neighbor_to) == 0) {
-						std::cerr << "Process " << this->rank
-							<< ": Cell " << refined
-							<< " had a non-existing neighbor in neighbor list: " << neighbor_to
-							<< std::endl;
-					}
-					#endif
-
-					if (this->cell_process.at(neighbor_to) != this->rank) {
-						continue;
-					}
-
-					if (this->mapping.get_refinement_level(neighbor_to) < this->mapping.get_refinement_level(refined)) {
-						if (this->cells_to_refine.count(neighbor_to) == 0) {
-							unique_induced_refines.insert(neighbor_to);
-						}
-					}
-				}
-			}
-
-			// refines induced here by other processes
+			// induced refines from cells on this process *and* remote neighbors
 			for (unsigned int process = 0; process < this->comm_size; process++) {
-
-				if (process == this->rank) {
-					continue;
-				}
-
 				for (const uint64_t refined: all_new_refines.at(process)) {
 
-					if (this->remote_cells_on_process_boundary.count(refined) == 0) {
+					// Skip remote cells that are not remote neighbors.
+					if (process != this->rank && this->remote_cells_on_process_boundary.count(refined)==0) {
 						continue;
 					}
 
-					// refine all local cells that are too large and neighboring the refined cell
-					/*
-					TODO: probably faster to search for local neighbors of refined
-					cell, even faster would be to also store neighbors lists of
-					remote cells with local neighbors
-					*/
-					for (const uint64_t local: this->local_cells_on_process_boundary) {
+					// from the inside out, refine local neighbors that are too large
+					for(int dist=1; dist<=(int)this->get_neighborhood_length(); dist++) {
 
-						if (this->is_neighbor(local, refined)
-						&& this->mapping.get_refinement_level(local) < this->mapping.get_refinement_level(refined)
-						&& this->cells_to_refine.count(local) == 0) {
-							unique_induced_refines.insert(local);
+						std::set<uint64_t> to_be_induced;
+						for(int x=-dist; x<= dist; x++) {
+							for(int y=-dist; y<=dist; y++) {
+								for(int z=-dist; z<=dist; z++) {
+									if(x==0 && y==0 && z==0) {
+										continue;
+									}
+
+									if(abs(x) < dist && abs(y) < dist && abs(z) < dist) {
+										// Skip re-doing the inner neighbours that we
+										// already handled in the previous iteration
+										continue;
+									}
+
+									Types<3>::neighborhood_item_t offsets({x,y,z});
+									Types<3>::indices_t indices = this->mapping.get_indices(refined);
+
+									// Forward path (neighbors_of)
+									to_be_induced.merge(find_speculative_induced_refines(indices,refined,
+												this->mapping.get_refinement_level(refined)+1,
+												all_new_refines.at(this->rank),
+												offsets));
+
+									// Backward path (neighbors_to)
+									to_be_induced.merge(find_speculative_induced_refines(indices,refined,
+												this->mapping.get_refinement_level(refined)+1,
+												all_new_refines.at(this->rank),
+												offsets, {1,0,2}));
+								}
+							}
+						}
+
+						// Include all local induced refines in our new list
+						int count=0;
+						for(const auto inducee : to_be_induced) {
+							if(!is_local(inducee)) {
+								continue;
+							}
+
+							if (this->cells_to_refine.count(inducee) == 0) {
+								unique_induced_refines.insert(inducee);
+								count++;
+							}
 						}
 					}
 				}
 			}
+
 			all_new_refines.clear();
 
 			new_refines.insert(
@@ -9216,59 +9319,6 @@ next_path:
 			this->cells_to_refine.insert(all_refines[process].begin(), all_refines[process].end());
 		}
 
-		#ifdef DEBUG
-		// check that all required refines have been induced
-		for (const uint64_t refined: this->cells_to_refine) {
-
-			const auto neighbors_of
-				= this->find_neighbors_of(refined, this->neighborhood_of);
-
-			for (const auto& neighbor_of_i: neighbors_of) {
-				const auto& neighbor_of = neighbor_of_i.first;
-
-				if (neighbor_of == error_cell) {
-					continue;
-				}
-
-				if (this->mapping.get_refinement_level(neighbor_of) < this->mapping.get_refinement_level(refined)
-				&& this->cells_to_refine.count(neighbor_of) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor (" << neighbor_of
-						<< ") of cell that will be refined (" << refined
-						<< ", ref lvl " << this->mapping.get_refinement_level(refined)
-						<< ") has too small refinement level: " << this->mapping.get_refinement_level(neighbor_of)
-						<< std::endl;
-					abort();
-				}
-			}
-
-			const auto neighbors_to
-				= this->find_neighbors_to(refined, this->neighborhood_to);
-			for (const auto& neighbor_to_i: neighbors_to) {
-				const auto& neighbor_to = neighbor_to_i.first;
-
-				if (neighbor_to == error_cell) {
-					continue;
-				}
-
-				if (this->mapping.get_refinement_level(neighbor_to) < this->mapping.get_refinement_level(refined)
-				&& this->cells_to_refine.count(neighbor_to) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor (" << neighbor_to
-						<< ") of cell that will be refined (" << refined
-						<< ", ref lvl " << this->mapping.get_refinement_level(refined)
-						<< ") has too small refinement level: " << this->mapping.get_refinement_level(neighbor_to)
-						<< std::endl;
-					abort();
-				}
-			}
-		}
-
-		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
-			abort();
-		}
-		#endif
 	}
 
 
@@ -11590,19 +11640,19 @@ private:
 
 				bool should_be_in_remote_cells = false;
 
-				for (const auto& cell: this->cell_data) {
+				for (const auto& local_cell: this->cell_data) {
 
-					if (cell.first != this->get_child(cell.first)) {
+					if (local_cell.first != this->get_child(local_cell.first)) {
 						continue;
 					}
 
-					if (item.first == cell.first) {
+					if (item.first == local_cell.first) {
 						std::cerr << __FILE__ << ":" << __LINE__ << " Same cell." << std::endl;
 						abort();
 					}
 
-					if (this->is_neighbor(item.first, cell.first)
-					|| this->is_neighbor(cell.first, item.first)) {
+					if (this->is_neighbor(item.first, local_cell.first)
+					|| this->is_neighbor(local_cell.first, item.first)) {
 						should_be_in_remote_cells = true;
 					}
 				}
