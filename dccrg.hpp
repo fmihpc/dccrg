@@ -3279,22 +3279,24 @@ public:
 				No need to update local neighbors_to of refined cell, if they are larger
 				they will also be refined and updated.
 				*/
-				const auto neighbors
-					= this->find_neighbors_of(
-						refined,
-						this->neighborhood_of,
-						true
-					);
+				for(const auto& child : children) {
+					const auto neighbors
+						= this->find_neighbors_of(
+							child,
+							this->neighborhood_of,
+							true
+						);
 
-				for (const auto& neighbor_i: neighbors) {
-					const auto& neighbor = neighbor_i.first;
+					for (const auto& neighbor_i: neighbors) {
+						const auto& neighbor = neighbor_i.first;
 
-					if (neighbor == error_cell) {
-						continue;
-					}
+						if (neighbor == error_cell) {
+							continue;
+						}
 
-					if (this->is_local(neighbor)) {
-						update_neighbors.insert(neighbor);
+						if (this->is_local(neighbor)) {
+							update_neighbors.insert(neighbor);
+						}
 					}
 				}
 			}
