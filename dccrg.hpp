@@ -8786,7 +8786,7 @@ private:
 		if (!this->verify_remote_neighbor_info(cell)) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Remote neighbor info for cell " << cell
-				<< " is not consistent"
+				<< " is not consistent on rank " << this->rank
 				<< std::endl;
 			abort();
 		}
@@ -8946,7 +8946,7 @@ private:
 			if (!this->verify_remote_neighbor_info(item.first)) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Remote neighbor info for cell " << item.first
-					<< " is not consistent"
+					<< " is not consistent on rank " << this->rank
 					<< std::endl;
 				abort();
 			}
@@ -8956,7 +8956,7 @@ private:
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info()) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
+				<< " Remote neighbor info is not consistent on rank " << this->rank
 				<< std::endl;
 			abort();
 		}
