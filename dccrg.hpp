@@ -4499,7 +4499,7 @@ public:
 						// Find at offset (0,1)
 						other_path_x[dim1] = x[dim1];
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
-						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, refinement_level+1, other_path_offset, dims, debug+1));
+						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims, debug+1));
 						// The fourth path will continue here as before.
 						other_path_x[dim2] = x[dim2];
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
@@ -9146,6 +9146,35 @@ private:
 								// Count how many unique cells were encountered.
 								cells_seen[dimension]++;
 							}
+
+							// note we don't need to do any refinement path splitting
+							// here, but we *do* have to offset the path at refinement
+							// interfaces
+							if(this->mapping.get_refinement_level(cellHere) > this->mapping.get_refinement_level(last_cell_seen)) {
+
+								// We select two dimensions perpendicular to our current walking direction
+								// and splitting the path among them.
+								int dim1=(dimension+1)%3;
+								int dim2=(dimension+2)%3;
+
+								// The other paths start such that they are quantized to the refinement level edges
+								for(int i : {dim1,dim2}) {
+									x[i] -= x[i] % (1<<(this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level((last_cell_seen))));
+
+									int path_shift = (1<<(this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cellHere)));
+
+									// Shift the path if it brings us closer to the target.
+									if(abs((int)x[i] - (int)indices2[i]) > abs((int)x[i] + path_shift - (int)indices2[i])) {
+										x[i] += path_shift;
+									}
+								}
+
+								// Might be in a different cell now. Note this does not count as a step taken.
+								cellHere = this->get_existing_cell(
+										{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
+										std::max(refinement_level-1,0),
+										std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+							}
 							last_cell_seen = cellHere;
 
 							if(cellHere == cell2) {
@@ -9157,16 +9186,15 @@ private:
 								return true;
 							}
 
+							if(cells_seen[dimension] > (int)this->neighborhood_length) {
+								goto next_path;
+							}
+
 
 							if(steps[dimension] == 0) {
 								break;
 							}
 
-							if(cells_seen[dimension] > (int)this->neighborhood_length) {
-								goto next_path;
-							}
-
-							// note we don't need to do any refinement path splitting here
 							x[dimension]+=dir[dimension];
 							if(x[dimension] < 0) {
 								if (this->topology.is_periodic(dimension)) {
