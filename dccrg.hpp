@@ -4491,19 +4491,19 @@ public:
 						// Find at offset (1,0)
 						other_path_x[dim1] += (1<<(this->mapping.get_maximum_refinement_level() - new_refinement_level));
 						uint64_t otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
-						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims, debug+1));
+						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
 						// Find at offset (1,1)
 						other_path_x[dim2] += (1<<(this->mapping.get_maximum_refinement_level() - new_refinement_level));
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
-						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims, debug+1));
+						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
 						// Find at offset (0,1)
 						other_path_x[dim1] = x[dim1];
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
-						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims, debug+1));
+						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
 						// The fourth path will continue here as before.
 						other_path_x[dim2] = x[dim2];
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
-						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims, debug+1));
+						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
 						return retval;
 					}
 
