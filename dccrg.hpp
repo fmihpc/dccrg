@@ -9033,194 +9033,33 @@ private:
 		}
 		#endif
 
-		auto sign = [](int i) -> int{
-			return (0<i)-(i<0);
-		};
-
 		const Types<3>::indices_t indices1 = this->mapping.get_indices(cell1);
-		const Types<3>::indices_t indices2 = this->mapping.get_indices(cell2);
-		int cell1_size = (1 << ( this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cell1)));
-		int cell2_size = (1 << ( this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cell2)));
+		const int refinement_level = this->mapping.get_refinement_level(cell1);
 
-		// grid length in indices
-		const uint64_t grid_length[3] = {
-			this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-			this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level()),
-			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())};
-
-		// Each dimension has zero, one or two ranges of steps it wants to take:
-		std::array< std::vector< int >, 3> step_ranges;
-		std::array< std::vector< int >, 3> step_dir;
-		for(int dimension=0; dimension <3; dimension++) {
-
-			// If indices1[dim] == indices2[dim], we do not need to step in this direction at all
-			// More precisely, if this dimension is already inside the bounds of the target cell.
-			//   => Zero ranges
-			if(indices1[dimension] >= indices2[dimension] && indices1[dimension] < indices2[dimension] + cell2_size) {
-				step_ranges[dimension].push_back(0);
-				step_dir[dimension].push_back(0);
-				continue;
-			}
-
-			// Oppositely, this cell's bounds encompass the target cell.
-			if(indices2[dimension] >= indices1[dimension] && indices2[dimension] < indices1[dimension] + cell1_size) {
-				// We mark the required path offset by setting a step range, but leaving direction at zero.
-				step_ranges[dimension].push_back(indices2[dimension]-indices1[dimension]);
-				step_dir[dimension].push_back(0);
-				continue;
-			}
-
-			// We only need to walk far enough to
-			// catch *any part* of the target cell.
-			int target=indices2[dimension];
-			int source=indices1[dimension];
-			int dir = sign(target-source);
-			if(dir < 0) {
-				target += cell2_size - 1;
-			} else {
-				source += cell1_size - 1;
-			}
-
-			// If they differ, and the dimension is nonperiodic, we walk from indices1[dim] to the target
-			//   => One range
-			step_ranges[dimension].push_back(abs(target-source));
-			step_dir[dimension].push_back(dir);
-
-			// If, additionally, the boundaries are periodic, we need to walk "the other way around", too.
-			//   => Two ranges
-			if (this->topology.is_periodic(dimension)) {
-				target=indices2[dimension];
-				source=indices1[dimension];
-				dir *= -1;
-				if(dir < 0) {
-					target += cell2_size - 1;
-				} else {
-					source += cell1_size - 1;
-				}
-				int steps = grid_length[dimension]-abs(target-source);
-				step_ranges[dimension].push_back(steps);
-				step_dir[dimension].push_back(dir);
-			}
-		}
-
-		int refinement_level = this->mapping.get_refinement_level(cell1);
-
-		for(int i=0; i<(int)step_ranges[0].size(); i++) {
-			for(int j=0; j<(int)step_ranges[1].size(); j++) {
-				for(int k=0; k<(int)step_ranges[2].size(); k++) {
-
-					std::array<int, 3> steps({
-							step_ranges[0][i],
-							step_ranges[1][j],
-							step_ranges[2][k]});
-					const std::array<int, 3> dir({
-							step_dir[0][i],
-							step_dir[1][j],
-							step_dir[2][k]});
-
-					std::array<int,3>  x = {(int)indices1[0],(int)indices1[1],(int)indices1[2]};
-
-					// Offset path to the "nearest" end of our source cell, to walk the
-					// shortest possible path
-					for(int dim = 0; dim < 3; dim++) {
-						if(dir[dim] > 0) {
-							x[dim] += cell1_size -1;
-						} else if(dir[dim] == 0) {
-							x[dim] += steps[dim];
-						}
+		// Walk through the whole neighborhood and look for our target cell
+		for(int x=-(int)this->neighborhood_length; x<= (int)this->neighborhood_length; x++) {
+			for(int y=-(int)this->neighborhood_length; y<= (int)this->neighborhood_length; y++) {
+				for(int z=-(int)this->neighborhood_length; z<= (int)this->neighborhood_length; z++) {
+					if(x==0 && y==0 && z==0) {
+						continue;
 					}
 
-					std::array<int,3> cells_seen = {0,0,0};
-					uint64_t last_cell_seen = cell1;
-
-					for(int dimension : dims) {
-						while(steps[dimension] >= 0) {
-
-							uint64_t cellHere = this->get_existing_cell(
-									{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
-									std::max(refinement_level-1,0), 
-									std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
-
-							// Apparently, this is a new cell.
-							if(cellHere != last_cell_seen) {
-								// Count how many unique cells were encountered.
-								cells_seen[dimension]++;
-							}
-
-							// note we don't need to do any refinement path splitting
-							// here, but we *do* have to offset the path at refinement
-							// interfaces
-							if(this->mapping.get_refinement_level(cellHere) > this->mapping.get_refinement_level(last_cell_seen)) {
-
-								// We select two dimensions perpendicular to our current walking direction
-								// and splitting the path among them.
-								int dim1=(dimension+1)%3;
-								int dim2=(dimension+2)%3;
-
-								// The other paths start such that they are quantized to the refinement level edges
-								for(int i : {dim1,dim2}) {
-									x[i] -= x[i] % (1<<(this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level((last_cell_seen))));
-
-									int path_shift = (1<<(this->mapping.get_maximum_refinement_level() - this->mapping.get_refinement_level(cellHere)));
-
-									// Shift the path if it brings us closer to the target.
-									if(abs((int)x[i] - (int)indices2[i]) > abs((int)x[i] + path_shift - (int)indices2[i])) {
-										x[i] += path_shift;
-									}
-								}
-
-								// Might be in a different cell now. Note this does not count as a step taken.
-								cellHere = this->get_existing_cell(
-										{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
-										std::max(refinement_level-1,0),
-										std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
-							}
-							last_cell_seen = cellHere;
-
-							if(cellHere == cell2) {
-								if(cells_seen[0] > (int)this->neighborhood_length ||
-								   cells_seen[1] > (int)this->neighborhood_length ||
-								   cells_seen[2] > (int)this->neighborhood_length) {
-									goto next_path;
-								}
-								return true;
-							}
-
-							if(cells_seen[dimension] > (int)this->neighborhood_length) {
-								goto next_path;
-							}
-
-
-							if(steps[dimension] == 0) {
-								break;
-							}
-
-							x[dimension]+=dir[dimension];
-							if(x[dimension] < 0) {
-								if (this->topology.is_periodic(dimension)) {
-									x[dimension] = grid_length[dimension] - 1;
-								} else {
-									goto next_path;
-								}
-							} else if(x[dimension] >= (int)grid_length[dimension]) {
-								if (this->topology.is_periodic(dimension)) {
-									x[dimension] = 0;
-								} else {
-									goto next_path;
-								}
-							}
-							steps[dimension]--;
-						}
+					// Look in neighbors_of
+					std::set<uint64_t> neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {x,y,z}, {2,0,1});
+					if(neighborsHere.count(cell2) > 0) {
+						return true;
 					}
 
-next_path:
-					continue;
+					// Look in neighbors_to
+					neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {-x,-y,-z}, {1,0,2});
+					if(neighborsHere.count(cell2) > 0) {
+						return true;
+					}
 				}
 			}
 		}
 
-
-		// Not found in the neighborhood.
+		// Not found.
 		return false;
 
 	}
