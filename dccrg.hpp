@@ -6642,6 +6642,7 @@ public:
 		const std::vector<Types<3>::neighborhood_item_t>& given_neigh
 	) {
 		if (neighborhood_id == default_neighborhood_id) {
+			throw std::invalid_argument("Trying to add default_neighborhood_id");
 			return false;
 		}
 
@@ -6669,7 +6670,7 @@ public:
 				abort();
 			}
 			#endif
-
+			throw std::invalid_argument("user_hood_of entries exist already, not overwriting");
 			return false;
 		}
 
@@ -6715,11 +6716,13 @@ public:
 			for (const auto& neigh_item: given_neigh) {
 				for (size_t i = 0; i < 3; i++) {
 					if ((unsigned int) abs(neigh_item[i]) > this->neighborhood_length) {
+						throw std::out_of_range("Trying to add a neighborhood with elements outside of neighborhood_length.");
 						return false;
 					}
 				}
 
 				if (neigh_item[0] == 0 && neigh_item[1] == 0 && neigh_item[2] == 0) {
+					throw std::invalid_argument("Trying to add a self-neighboring stencil");
 					return false;
 				}
 			}
@@ -6734,11 +6737,13 @@ public:
 						zero_offsets++;
 					}
 					if (abs(neigh_item[i]) > 1) {
+						throw std::logic_error("Trying to add a non-zero-offset neighbor for max offset zero");
 						return false;
 					}
 				}
 
 				if (zero_offsets != 2) {
+					throw std::logic_error("Trying to add a non-zero-offset neighbor for max offset zero");
 					return false;
 				}
 			}
