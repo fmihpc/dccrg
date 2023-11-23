@@ -3782,6 +3782,7 @@ public:
 
 				this->neighbors_of.erase(refined);
 				this->neighbors_to.erase(refined);
+				this->face_neighbors_of.erase(refined);
 
 				// remove also from user's neighborhood
 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -3799,6 +3800,7 @@ public:
 		for (const uint64_t unrefined: this->all_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
+			this->face_neighbors_of.erase(unrefined);
 			// also from user neighborhood
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
 				item = this->user_hood_of.begin();
@@ -4527,6 +4529,7 @@ public:
 			this->cell_data.erase(removed_cell);
 			this->neighbors_of.erase(removed_cell);
 			this->neighbors_to.erase(removed_cell);
+			this->face_neighbors_of.erase(removed_cell);
 
 			// also user neighbor lists
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
