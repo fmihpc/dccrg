@@ -3679,6 +3679,8 @@ public:
 		}
 
 		// update data for parents (and their neighborhood) of unrefined cells
+		// TODO: this loop happens to casually bypass the update_neighbors function
+		// It gave me a headache and will give one to you too, see if this can be refactored
 		for (const uint64_t parent: parents_of_unrefined) {
 
 			/* TODO: skip unrefined cells far enough away
@@ -3732,6 +3734,7 @@ public:
 				this->cell_data[parent];
 				this->neighbors_of[parent] = new_neighbors_of;
 				this->neighbors_to[parent] = new_neighbors_to;
+				this->face_neighbors_of[parent] = this->find_face_neighbors_of(parent);
 
 				// add user neighbor lists
 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
