@@ -9777,12 +9777,6 @@ private:
 		this->cells_to_unrefine.clear();
 		this->cells_not_to_unrefine.clear();
 
-		for(const auto& cell : final_unrefines) {
-			if(!this->is_local(cell)) {
-				final_unrefines.erase(cell);
-			}
-		}
-
 		// add unrefines from all processes to cells_to_unrefine
 		std::vector<uint64_t> unrefines(final_unrefines.begin(), final_unrefines.end());
 		std::vector<std::vector<uint64_t>> all_unrefines;
