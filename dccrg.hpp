@@ -6971,6 +6971,13 @@ public:
 	{
 		return this->cell_data;
 	}
+	/*!
+	Returns the storage of remote cell ids and their data. Warning, non-const return value!
+	*/
+        std::unordered_map<uint64_t, Cell_Data>& get_remote_cell_data_for_editing()
+	{
+		return this->remote_neighbors;
+	}
 
 	/*!
 	Returns the neighborhood of cells.
