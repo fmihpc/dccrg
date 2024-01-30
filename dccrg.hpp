@@ -9590,6 +9590,12 @@ private:
 			unique_induced_refines.clear();
 		}
 
+		for(const auto& cell : this->cells_to_refine) {
+			if(!this->is_local(cell)) {
+				this->cells_to_refine.erase(cell);
+			}
+		}
+
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		std::vector<std::vector<uint64_t>> all_refines;
@@ -9666,7 +9672,7 @@ private:
 		All_Gather()(local_s, all_s, this->comm);
 
 		for (const auto& i: all_s) {
-			for (const uint64_t cell: i) {
+			for (const uint64_t& cell: i) {
 				s.insert(cell);
 			}
 		}
@@ -9897,6 +9903,12 @@ private:
 
 			this->all_to_all_set(new_donts);
 		} while (new_donts.size() > 0);
+
+		for (const auto& cell : old_donts) {
+			if(!this->is_local(cell)) {
+				old_donts.erase(cell);
+			}
+		}
 
 		this->cells_not_to_refine = old_donts;
 		this->all_to_all_set(this->cells_not_to_refine);
