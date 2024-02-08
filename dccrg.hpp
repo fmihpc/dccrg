@@ -2825,110 +2825,6 @@ public:
 		return ret;
 	}
 
-	std::set<uint64_t> get_vlasov_neighbors(
-		const uint64_t cell,
-		const int neighborhood_id,
-		const int dimension,
-		const int stencil_width
-	) const {
-		std::set<uint64_t> ret;
-		const auto* p = get_neighbors_of(cell, neighborhood_id);
-		if (!p) {
-			std::cerr << "Cell " << cell << ", neighborhood " << neighborhood_id << ", dimension " << dimension << " not found" << std::endl;
-			return ret;
-		}
-
-		// Create list of unique distances
-		std::set<int> distances_plus;
-		std::set<int> distances_minus;
-		std::set<uint64_t> found_neighbors_plus;
-		std::set<uint64_t> found_neighbors_minus;
-		/** Using sets of cells as well, we should only get one distance per
-		 (potentially less refined) cell. This should result in safe behaviour
-			as long as the neighborhood of a cell does not contain cells with a
-			refinement level more than 1 level apart from the cell itself.
-		*/
-		for (const auto& [neighbor, coords] : *p) {
-			if(coords[dimension] > 0) {
-				if (!found_neighbors_plus.count(neighbor)) {
-					distances_plus.insert(coords[dimension]);
-					found_neighbors_plus.insert(neighbor);
-				}
-			}
-			if(coords[dimension] < 0) {
-				if (!found_neighbors_minus.count(neighbor)) {
-					distances_minus.insert(-coords[dimension]);
-					found_neighbors_minus.insert(neighbor);
-				}
-			}
-		}
-
-		int iSrc = stencil_width - 1;
-		// Iterate through positive distances for VLASOV_STENCIL_WIDTH elements starting from the smallest distance.
-		for (const auto& distance : distances_plus) {
-			if (iSrc < 0) 
-				break; // found enough elements
-			for (const auto& [neighbor, coords] : *p) {
-				if (neighbor == error_cell)
-					continue;
-				if (coords[dimension] == distance) {
-					if (ret.count(neighbor)) 
-						continue;
-					ret.insert(neighbor);
-				}
-			} // end loop over neighbors
-			iSrc--;
-		} // end loop over positive distances
-
-		iSrc = stencil_width - 1;
-		// Iterate through negtive distances for VLASOV_STENCIL_WIDTH elements starting from the smallest distance.
-		for (const auto& distance : distances_minus) {
-			if (iSrc < 0)
-				break; // found enough elements
-			for (const auto& [neighbor, coords] : *p) {
-				if (neighbor == error_cell) 
-					continue;
-				if (coords[dimension] == distance) {
-					if (ret.count(neighbor)) 
-						continue;
-					ret.insert(neighbor);
-				}
-			} // end loop over neighbors
-			iSrc--;
-		} // end loop over negative distances
-
-		return ret;
-	}
-
-	// Get actual Vlasov stencil neighbors
-	// Assumes linear 3 linear stencils from neighborhood_id to neighborhood_id + 2
-	std::set<uint64_t> get_vlasov_neighbors(
-		const uint64_t cell
-	) const {
-		int stencil_width {0};
-		switch (neighborhood_length) {
-		case 1:
-			break;
-		case 3:
-			stencil_width = 2;
-			break;
-		case 5:
-			stencil_width = 3;
-			break;
-		default:
-			// Placeholder error
-			std::cerr << "Weird stencil width" << std::endl;
-			break;
-		}
-
-		std::set<uint64_t> ret;
-		for (int dim = 0; dim < 3; ++dim) {
-			auto neighs_dim = get_vlasov_neighbors(cell, partitioning_neighborhood_id + dim, dim, stencil_width);
-			ret.insert(neighs_dim.begin(), neighs_dim.end());
-		}
-		return ret;
-	}
-
 
 	/*!
 	Returns true if given cell's neighbor types match given criterion, false otherwise.
@@ -11394,6 +11290,7 @@ private:
 
 
 	/*!
+	Graph partitioning
 	Writes the number of neighbors into number_of_neighbors for all cells given in global_ids.
 	*/
 	static void fill_number_of_neighbors_for_cells(
@@ -11431,12 +11328,13 @@ private:
 				return;
 			}
 
-			number_of_neighbors[i] = dccrg_instance->get_vlasov_neighbors(cell).size();
+			number_of_neighbors[i] = dccrg_instance->get_neighbors_to(cell, dccrg_instance->partitioning_neighborhood_id)->size();
 		}
 	}
 
 
 	/*!
+	Graph partitioning
 	Writes neighbor lists of given cells into neighbors, etc.
 	*/
 	static void fill_neighbor_lists(
@@ -11480,7 +11378,9 @@ private:
 
 			number_of_neighbors[i] = 0;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(cell)) {
+			// We consider the communication weight from this cell to others
+			auto weight {dccrg_instance->get_communication_weight(cell)};
+			for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, dccrg_instance->partitioning_neighborhood_id)) {
 				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 				if (neighbor == 0 || neighbor == cell) {
 					continue;
@@ -11494,7 +11394,7 @@ private:
 
 				// weight of edge from cell to *neighbor
 				if (number_of_weights_per_edge > 0) {
-					edge_weights[current_neighbor_number] = dccrg_instance->get_communication_weight(neighbor);
+					edge_weights[current_neighbor_number] = weight;
 				}
 
 				current_neighbor_number++;
@@ -11547,7 +11447,7 @@ private:
 
 
 	/*!
-	Writes the number of hyperedges (self + one per neighbor cell) in the grid for all cells on this process.
+	Writes the number of connections (self + one per neighbor cell) in the grid for all cells on this process.
 	*/
 	static void fill_number_of_hyperedges(
 		void* data,
@@ -11575,7 +11475,7 @@ private:
 
 		*number_of_connections = 0;
 		for (const auto& item: dccrg_instance->cell_data) {
-			(*number_of_connections) += 1 +  dccrg_instance->get_vlasov_neighbors(item.first).size();
+			(*number_of_connections) += 1 + dccrg_instance->get_neighbors_to(item.first, dccrg_instance->partitioning_neighborhood_id)->size();
 		}
 	}
 
@@ -11634,7 +11534,7 @@ private:
 			// add a connection to the cell itself from its hyperedge
 			connections[connection_number++] = item.first;
 
-			for (const auto& neighbor: dccrg_instance->get_vlasov_neighbors(item.first)) {
+			for (const auto& [neighbor, dir]: *dccrg_instance->get_neighbors_to(item.first, dccrg_instance->partitioning_neighborhood_id)) {
 				// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 				if (neighbor == 0 || neighbor == item.first) {
 					continue;
