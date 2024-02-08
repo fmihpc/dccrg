@@ -2826,19 +2826,19 @@ public:
 			return ret_val;
 		}
 
-		const std::vector<uint64_t>& neighbors_ref
+		const std::vector<std::pair<uint64_t,std::array<int, 4>>>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
 			? this->neighbors_of.at(cell)
 			: this->user_neigh_of.at(neighborhood_id).at(cell);
 
 		for(const auto& neighbor: neighbors_ref) {
 
-			if (neighbor == error_cell) {
+			if (neighbor.first == error_cell) {
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->rank) {
-				ret_val.push_back(neighbor);
+			if (this->cell_process.at(neighbor.first) != this->rank) {
+				ret_val.push_back(neighbor.first);
 			}
 		}
 
@@ -2878,19 +2878,19 @@ public:
 			return ret_val;
 		}
 
-		const std::vector<uint64_t>& neighbors_ref
+		const std::vector<std::pair<uint64_t,std::array<int, 4>>>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
 			? this->neighbors_to.at(cell)
 			: this->user_neigh_to.at(neighborhood_id).at(cell);
 
 		for(const auto& neighbor: neighbors_ref) {
 
-			if (neighbor == error_cell) {
+			if (neighbor.first == error_cell) {
 				continue;
 			}
 
-			if (this->cell_process.at(neighbor) != this->rank) {
-				ret_val.push_back(neighbor);
+			if (this->cell_process.at(neighbor.first) != this->rank) {
+				ret_val.push_back(neighbor.first);
 			}
 		}
 
@@ -3769,6 +3769,20 @@ public:
 
 		this->refining = false;
 		return *this;
+	}
+
+	/*!
+	Cancel and clear refines
+	*/
+	void cancel_refining()
+	{
+		this->cells_to_receive.clear();
+		this->cells_to_send.clear();
+		this->cells_to_refine.clear();
+		this->cells_to_unrefine.clear();
+		this->all_to_unrefine.clear();
+		this->refining = false;
+		return;
 	}
 
 	/*!
@@ -6330,6 +6344,7 @@ public:
 		const std::vector<Types<3>::neighborhood_item_t>& given_neigh
 	) {
 		if (neighborhood_id == default_neighborhood_id) {
+			throw std::invalid_argument("Trying to add default_neighborhood_id");
 			return false;
 		}
 
@@ -6357,7 +6372,7 @@ public:
 				abort();
 			}
 			#endif
-
+			throw std::invalid_argument("user_hood_of entries exist already, not overwriting");
 			return false;
 		}
 
@@ -6403,11 +6418,13 @@ public:
 			for (const auto& neigh_item: given_neigh) {
 				for (size_t i = 0; i < 3; i++) {
 					if ((unsigned int) abs(neigh_item[i]) > this->neighborhood_length) {
+						throw std::out_of_range("Trying to add a neighborhood with elements outside of neighborhood_length.");
 						return false;
 					}
 				}
 
 				if (neigh_item[0] == 0 && neigh_item[1] == 0 && neigh_item[2] == 0) {
+					throw std::invalid_argument("Trying to add a self-neighboring stencil");
 					return false;
 				}
 			}
@@ -6422,11 +6439,13 @@ public:
 						zero_offsets++;
 					}
 					if (abs(neigh_item[i]) > 1) {
+						throw std::logic_error("Trying to add a non-zero-offset neighbor for max offset zero");
 						return false;
 					}
 				}
 
 				if (zero_offsets != 2) {
+					throw std::logic_error("Trying to add a non-zero-offset neighbor for max offset zero");
 					return false;
 				}
 			}
@@ -6637,6 +6656,20 @@ public:
 	const std::unordered_map<uint64_t, Cell_Data>& get_cell_data() const
 	{
 		return this->cell_data;
+	}
+	/*!
+	Returns the storage of mostly local cell ids and their data. Warning, non-const return value!
+	*/
+        std::unordered_map<uint64_t, Cell_Data>& get_cell_data_for_editing()
+	{
+		return this->cell_data;
+	}
+	/*!
+	Returns the storage of remote cell ids and their data. Warning, non-const return value!
+	*/
+        std::unordered_map<uint64_t, Cell_Data>& get_remote_cell_data_for_editing()
+	{
+		return this->remote_neighbors;
 	}
 
 	/*!
@@ -9188,6 +9221,12 @@ private:
 			unique_induced_refines.clear();
 		}
 
+		for(const auto& cell : this->cells_to_refine) {
+			if(!this->is_local(cell)) {
+				this->cells_to_refine.erase(cell);
+			}
+		}
+
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		std::vector<std::vector<uint64_t>> all_refines;
@@ -9211,7 +9250,7 @@ private:
 		All_Gather()(local_s, all_s, this->comm);
 
 		for (const auto& i: all_s) {
-			for (const uint64_t cell: i) {
+			for (const uint64_t& cell: i) {
 				s.insert(cell);
 			}
 		}
@@ -9440,6 +9479,12 @@ private:
 
 			this->all_to_all_set(new_donts);
 		} while (new_donts.size() > 0);
+
+		for (const auto& cell : old_donts) {
+			if(!this->is_local(cell)) {
+				old_donts.erase(cell);
+			}
+		}
 
 		this->cells_not_to_refine = old_donts;
 		this->all_to_all_set(this->cells_not_to_refine);
