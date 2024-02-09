@@ -8377,7 +8377,7 @@ private:
 
 			const int current_process = int(this->rank);
 
-			// data must be received from neighbors_of
+			// data must be sent/received to/from neighbors_of
 			for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -8389,10 +8389,11 @@ private:
 
 				if (other_process != current_process) {
 					unique_cells_to_receive[other_process].insert(neighbor);
+					unique_cells_to_send[other_process].insert(cell);
 				}
 			}
 
-			// data must be sent to neighbors_to
+			// data must be sent/received to/from neighbors_to
 			for (const auto& neighbor_i: this->neighbors_to.at(cell)) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -8403,6 +8404,7 @@ private:
 				const int other_process = int(this->cell_process.at(neighbor));
 
 				if (other_process != current_process) {
+					unique_cells_to_receive[other_process].insert(neighbor);
 					unique_cells_to_send[other_process].insert(cell);
 				}
 			}
