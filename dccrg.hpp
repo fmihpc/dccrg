@@ -7901,7 +7901,7 @@ private:
 		// 0 because Zoltan crashes in hierarchial with larger values
 		Zoltan_Set_Param(this->zoltan, "EDGE_WEIGHT_DIM", "1");
 		Zoltan_Set_Param(this->zoltan, "NUM_GID_ENTRIES", "1");
-		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "0");
+		Zoltan_Set_Param(this->zoltan, "NUM_LID_ENTRIES", "1");
 		Zoltan_Set_Param(this->zoltan, "OBJ_WEIGHT_DIM", "1");
 		Zoltan_Set_Param(this->zoltan, "RETURN_LISTS", "ALL");
 
