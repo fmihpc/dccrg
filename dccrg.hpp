@@ -11328,6 +11328,7 @@ private:
 				return;
 			}
 
+			number_of_neighbors[i] = 0;
 			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
 				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
 					number_of_neighbors[i] += neighbor > 0 && neighbor != cell;	// We apparently have to do this stupid filtering here
@@ -11371,6 +11372,7 @@ private:
 
 		int current_neighbor_number = 0;
 		for (int i = 0; i < number_of_cells; i++) {
+			int n {0};
 			uint64_t cell = uint64_t(global_ids[i]);
 			if (dccrg_instance->cell_data.count(cell) == 0) {
 				*error = ZOLTAN_FATAL;
@@ -11380,7 +11382,7 @@ private:
 				return;
 			}
 
-			number_of_neighbors[i] = 0;
+			// number_of_neighbors[i] = 0;
 
 			// We consider the communication weight from this cell to others
 			auto weight {dccrg_instance->get_communication_weight(cell)};
@@ -11391,7 +11393,7 @@ private:
 						continue;
 					}
 
-					number_of_neighbors[i]++;
+					// number_of_neighbors[i]++;
 
 					neighbors[current_neighbor_number] = neighbor;
 					processes_of_neighbors[current_neighbor_number]
@@ -11402,7 +11404,8 @@ private:
 						edge_weights[current_neighbor_number] = weight;
 					}
 
-					current_neighbor_number++;
+					++current_neighbor_number;
+					++n;
 				}
 			}
 		}
