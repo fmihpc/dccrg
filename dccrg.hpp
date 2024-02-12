@@ -11329,7 +11329,9 @@ private:
 			}
 
 			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
-				number_of_neighbors[i] += dccrg_instance->get_neighbors_to(cell, neighborhood)->size();
+				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
+					number_of_neighbors[i] += neighbor > 0 && neighbor != cell;	// We apparently have to do this stupid filtering here
+				}
 			}
 		}
 	}
@@ -11480,7 +11482,10 @@ private:
 		*number_of_connections = 0;
 		for (const auto& item: dccrg_instance->cell_data) {
 			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
-				*number_of_connections += 1 + dccrg_instance->get_neighbors_to(item.first, neighborhood)->size();
+				++*number_of_connections;
+				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(item.first, neighborhood)) {
+					*number_of_connections += neighbor > 0 && neighbor != item.first;	// We apparently have to do this stupid filtering here
+				}
 			}
 		}
 	}
