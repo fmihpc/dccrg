@@ -366,6 +366,7 @@ public:
 		reserved_options(other.get_reserved_options()),
 		cell_weights(other.get_cell_weights()),
 		communication_weights(other.get_communication_weights()),
+		partitioning_neighborhoods(other.partitioning_neighborhoods),
 		neighbor_processes(other.get_neighbor_processes()),
 		balancing_load(other.get_balancing_load())
 	{
@@ -819,8 +820,12 @@ public:
 		return neighbors;
 	}
 
-	void add_partitioning_neighborhood (int id) {
-		partitioning_neighborhoods.push_back(id);
+	void clear_partitioning_neighborhoods (uint64_t cell) {
+		partitioning_neighborhoods[cell].clear();
+	}
+
+	void add_partitioning_neighborhood (uint64_t cell, int neighborhood) {
+		partitioning_neighborhoods[cell].insert(neighborhood);
 	}
 
 	/*!
@@ -3466,6 +3471,13 @@ public:
 				this->communication_weights.erase(refined);
 			}
 
+			if (this->rank == process_of_refined && this->partitioning_neighborhoods.count(refined) > 0) {
+				for (const uint64_t child: children) {
+					this->partitioning_neighborhoods[child] = this->partitioning_neighborhoods.at(refined);
+				}
+				this->partitioning_neighborhoods.erase(refined);
+			}
+
 			// use local neighbor lists to find cells whose neighbor lists have to updated
 			if (this->rank == process_of_refined) {
 				// update the neighbor lists of created local cells
@@ -3626,6 +3638,7 @@ public:
 			this->new_pin_requests.erase(unrefined);
 			this->cell_weights.erase(unrefined);
 			this->communication_weights.erase(unrefined);
+			this->partitioning_neighborhoods.erase(unrefined);
 
 			// don't send unrefined cells' user data to self
 			if (this->rank == process_of_unrefined
@@ -7424,8 +7437,6 @@ private:
 		std::vector<Types<3>::neighborhood_item_t>
 	> user_hood_of, user_hood_to;
 
-	std::vector<int> partitioning_neighborhoods {};
-
 	/*!
 	Cell on this process and those cells that aren't neighbors of
 	this cell but whose neighbor this cell is.
@@ -7545,6 +7556,9 @@ private:
 
 	// optional user-given communication weights of cells on this process
 	std::unordered_map<uint64_t, double> communication_weights;
+
+   // Set of neighborhoods each cell communicates in (hyper)graph partitioning
+   std::unordered_map<uint64_t, std::unordered_set<int>> partitioning_neighborhoods;
 
 	// processes which have cells close enough from cells of this process
 	std::unordered_set<uint64_t> neighbor_processes;
@@ -11329,7 +11343,7 @@ private:
 			}
 
 			number_of_neighbors[i] = 0;
-			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
+			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
 				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
 					number_of_neighbors[i] += neighbor > 0 && neighbor != cell;	// We apparently have to do this stupid filtering here
 				}
@@ -11386,7 +11400,7 @@ private:
 
 			// We consider the communication weight from this cell to others
 			auto weight {dccrg_instance->get_communication_weight(cell)};
-			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
+			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
 				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
 					// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
 					if (neighbor == 0 || neighbor == cell) {
@@ -11479,18 +11493,21 @@ private:
 		>(data);
 		*error = ZOLTAN_OK;
 
-		*number_of_hyperedges = int(dccrg_instance->partitioning_neighborhoods.size() * dccrg_instance->cell_data.size());
 		*format = ZOLTAN_COMPRESSED_EDGE;
 
+		*number_of_hyperedges = 0;
 		*number_of_connections = 0;
-		for (const auto& item: dccrg_instance->cell_data) {
-			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
+		for (const auto& [cell, data]: dccrg_instance->cell_data) {
+			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
+            ++*number_of_hyperedges;
 				++*number_of_connections;
-				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(item.first, neighborhood)) {
-					*number_of_connections += neighbor > 0 && neighbor != item.first;	// We apparently have to do this stupid filtering here
+				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
+					*number_of_connections += neighbor > 0 && neighbor != cell;	// We apparently have to do this stupid filtering here
 				}
 			}
 		}
+
+		// std::cerr << "I have " + std::to_string(dccrg_instance->cell_data.size()) + "cells, " + std::to_string(*number_of_hyperedges) + " hedges and " + std::to_string(*number_of_connections) + " connections!\n";
 	}
 
 
@@ -11530,38 +11547,35 @@ private:
 			return;
 		}
 
-		if ((unsigned int) number_of_hyperedges != dccrg_instance->partitioning_neighborhoods.size() * dccrg_instance->cell_data.size()) {
-			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
-				<< " instead of " << dccrg_instance->cell_data.size()
-				<< std::endl;
-			*error = ZOLTAN_FATAL;
-			return;
-		}
-
 		int connection_number = 0;
-		int j = 0;
-		for (auto neighborhood : dccrg_instance->partitioning_neighborhoods) {
-			int i = 0;
-			for (const auto& item: dccrg_instance->cell_data) {
-				hyperedges[i + j * dccrg_instance->cell_data.size()] = item.first;
-				hyperedge_connection_offsets[i + j * dccrg_instance->cell_data.size()] = connection_number;
+		int hedge_number = 0;
+		for (const auto& [cell, data]: dccrg_instance->cell_data) {
+			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
+				hyperedges[hedge_number] = cell;
+				hyperedge_connection_offsets[hedge_number] = connection_number;
 
 				// add a connection to the cell itself from its hyperedge
-				connections[connection_number++] = item.first;
+				connections[connection_number++] = cell;
 
-				for (const auto& [neighbor, dir]: *dccrg_instance->get_neighbors_to(item.first, neighborhood)) {
+				for (const auto& [neighbor, dir]: *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
 					// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
-					if (neighbor == 0 || neighbor == item.first) {
+					if (neighbor == 0 || neighbor == cell) {
 						continue;
 					}
 
 					connections[connection_number++] = neighbor;
 				}
 
-				++i;
+				++hedge_number;
 			}
+		}
 
-			++j;
+		if (number_of_hyperedges != hedge_number) {
+			std::cerr << "Zoltan is expecting wrong number of hyperedges: " << number_of_hyperedges
+				<< " instead of " << dccrg_instance->cell_data.size()
+				<< std::endl;
+			*error = ZOLTAN_FATAL;
+			return;
 		}
 
 		if (connection_number != number_of_connections) {
