@@ -185,6 +185,10 @@ public:
 			total_send_count += (uint64_t) send_count;
 		}
 
+		if(total_send_count == 0) {
+			//Early abort if there is nothing to communicate.
+			return;
+		}
 		std::vector<uint64_t> temp_result(total_send_count, std::numeric_limits<uint64_t>::max());
 
 		// give a sane address to gatherv also when nothing to send
