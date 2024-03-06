@@ -9747,7 +9747,7 @@ private:
 					this->neighborhood_of,
 					2 * this->max_ref_lvl_diff,
 					true
-				);	// todo PRETTY SURE THIS SHOULDN'T BE HERE!
+				);	// todo this should probably be using cached values
 
 			for (const auto& neighbor_i: neighbors) {
 				const auto& neighbor = neighbor_i.first;
