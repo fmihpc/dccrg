@@ -8540,7 +8540,7 @@ private:
 			}
 			#endif
 
-			// data must be received from neighbors_of
+			// data must be sent/received to/from neighbors_of
 			for (const auto& neighbor_i: this->user_neigh_of.at(neighborhood_id).at(cell)) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -8550,10 +8550,11 @@ private:
 
 				if (this->cell_process.at(neighbor) != this->rank) {
 					user_neigh_unique_receives[int(this->cell_process.at(neighbor))].insert(neighbor);
+					user_neigh_unique_sends[int(this->cell_process.at(neighbor))].insert(cell);
 				}
 			}
 
-			// data must be sent to neighbors_to
+			// data must be sent/received to/from neighbors_to
 			for (const auto& neighbor_i: this->user_neigh_to.at(neighborhood_id).at(cell)) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -8562,6 +8563,7 @@ private:
 				}
 
 				if (this->cell_process.at(neighbor) != this->rank) {
+					user_neigh_unique_receives[int(this->cell_process.at(neighbor))].insert(neighbor);
 					user_neigh_unique_sends[int(this->cell_process.at(neighbor))].insert(cell);
 				}
 			}
