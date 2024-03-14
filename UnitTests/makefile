@@ -8,14 +8,16 @@ include ../../../MAKE/Makefile.${ARCH}
 CXXFLAGS+=$(INC_MPI) $(INC_BOOST) $(INC_ZOLTAN) $(INC_GTEST) -DGTEST_HAS_MPI
 LDFLAGS+=$(LIB_BOOST) $(LIB_ZOLTAN) $(LIB_GTEST)
 
-all: simple.exe
+TESTS=validation.exe
 
-simple.exe: simple.o
-	$(CMP) $(CXXFLAGS) simple.o -o $@ $(LDFLAGS)
+all: $(TESTS)
 
-simple.o: simple.cpp common.hpp
-	$(CMP) $(CXXFLAGS) -c simple.cpp
+%.exe: %.o
+	$(CMP) $(CXXFLAGS) $< -o $@ $(LDFLAGS)
+
+%.o: %.cpp
+	$(CMP) -c $(CXXFLAGS) $< -o $@
 
 clean:
-	rm *.exe
+	rm $(TESTS)
 	rm *.o
