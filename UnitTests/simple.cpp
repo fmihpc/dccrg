@@ -38,6 +38,7 @@ class SimpleGrid : public testing::Test {
 TEST_F(SimpleGrid, contents)
 {
 	for (auto cell : grid.get_cells()) {
+		EXPECT_NE_MPI(grid[cell], nullptr);
 		EXPECT_EQ_MPI(*grid[cell], cell);
 	}
 }
@@ -46,6 +47,7 @@ TEST_F(SimpleGrid, contents_after_loadbalance)
 {
 	grid.balance_load();
 	for (auto cell : grid.get_cells()) {
+		EXPECT_NE_MPI(grid[cell], nullptr);
 		EXPECT_EQ_MPI(*grid[cell], cell);
 	}
 }
@@ -78,5 +80,30 @@ TEST_F(SimpleGrid, consistent_neighbors)
 				EXPECT_NE_MPI(std::find_if(other_neighbors_of->begin(), other_neighbors_of->end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_of->end());
 			}
 		}
+	}
+}
+
+// TODO test proper copies and frees of dccrg.comm
+// Right now this can't be done because the getter is not a getter
+TEST_F(SimpleGrid, copy)
+{
+	auto other_grid = grid;
+
+	// Local cells should be identical immediately after copy
+	for (auto cell : grid.get_cells()) {
+		EXPECT_NE_MPI(other_grid[cell], nullptr);
+		EXPECT_EQ_MPI(*other_grid[cell], cell);
+	}
+
+	other_grid.balance_load();
+	for (auto cell : other_grid.get_cells()) {
+		EXPECT_NE_MPI(other_grid[cell], nullptr);
+		EXPECT_EQ_MPI(*other_grid[cell], cell);
+	}
+
+	// Load balancing copy shouldn't affect original
+	for (auto cell : grid.get_cells()) {
+		EXPECT_NE_MPI(grid[cell], nullptr);
+		EXPECT_EQ_MPI(*grid[cell], cell);
 	}
 }
