@@ -1,3 +1,7 @@
+// Validation for MPI functionality and gtest
+// hello.fails_on_all, hello.fails_on_first and hello.fails_on_last should fail
+// And the other tests should pass
+
 #include <gtest/gtest.h>
 #include <mpi.h>
 
@@ -31,14 +35,32 @@ TEST(hello, fails_on_all)
 	ASSERT_EQ_MPI(myRank, -1);
 }
 
-TEST(hello, fails_on_one)
+TEST(hello, fails_on_first)
 {
 	int myRank {0};
+	int size{0};
 	int mpiError {MPI_SUCCESS};
 
 	mpiError = MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 	ASSERT_EQ_MPI(mpiError, MPI_SUCCESS);
+	mpiError = MPI_Comm_size(MPI_COMM_WORLD, &size);
+	ASSERT_EQ_MPI(mpiError, MPI_SUCCESS);
+
 	ASSERT_NE_MPI(myRank, 0);
+}
+
+TEST(hello, fails_on_last)
+{
+	int myRank {0};
+	int size{0};
+	int mpiError {MPI_SUCCESS};
+
+	mpiError = MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+	ASSERT_EQ_MPI(mpiError, MPI_SUCCESS);
+	mpiError = MPI_Comm_size(MPI_COMM_WORLD, &size);
+	ASSERT_EQ_MPI(mpiError, MPI_SUCCESS);
+
+	ASSERT_NE_MPI(myRank, size - 1);
 }
 
 TEST(MPI, sendrecv)
