@@ -65,20 +65,33 @@ TEST_F(SimpleGrid, consistent_neighbors)
 		for (auto [neighbor, dir] : *my_neighbors_of) {
 			if (neighbor != dccrg::error_cell) {
 				EXPECT_NE_MPI(grid[neighbor], nullptr);
+				std::vector<std::pair<uint64_t, std::array<int, 4>>> other_neighbors_to;
 				if (std::find(cells.begin(), cells.end(), neighbor) != cells.end()) {
-					auto* other_neighbors_to {grid.get_neighbors_to(neighbor)};
-					EXPECT_NE_MPI(other_neighbors_to, nullptr);
-					EXPECT_NE_MPI(std::find_if(other_neighbors_to->begin(), other_neighbors_to->end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_to->end());
+					auto* p {grid.get_neighbors_to(neighbor)};
+					EXPECT_NE_MPI(p, nullptr);
+					other_neighbors_to = *p;
+				} else {
+					// Warning: giga jank
+					std::vector<uint64_t> found_neighbors;
+					for (auto& [neigh, dir] : grid.find_neighbors_of(neighbor, grid.get_neighborhood_of(), grid.get_max_ref_lvl_diff())) {
+						found_neighbors.push_back(neigh);
+					}
+					other_neighbors_to = grid.find_neighbors_to(neighbor, found_neighbors);
 				}
+				EXPECT_NE_MPI(std::find_if(other_neighbors_to.begin(), other_neighbors_to.end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_to.end());
 			}
 		}
 
 		for (auto [neighbor, dir] : *my_neighbors_to) {
+			std::vector<std::pair<uint64_t, std::array<int, 4>>> other_neighbors_of;
 			if (std::find(cells.begin(), cells.end(), neighbor) != cells.end()) {
-				auto* other_neighbors_of {grid.get_neighbors_of(neighbor)};
-				EXPECT_NE_MPI(other_neighbors_of, nullptr);
-				EXPECT_NE_MPI(std::find_if(other_neighbors_of->begin(), other_neighbors_of->end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_of->end());
+				auto* p {grid.get_neighbors_of(neighbor)};
+				EXPECT_NE_MPI(p, nullptr);
+				other_neighbors_of = *p;
+			} else {
+				other_neighbors_of = grid.find_neighbors_of(neighbor, grid.get_neighborhood_of(), grid.get_max_ref_lvl_diff());
 			}
+			EXPECT_NE_MPI(std::find_if(other_neighbors_of.begin(), other_neighbors_of.end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_of.end());
 		}
 	}
 }
