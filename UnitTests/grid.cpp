@@ -30,10 +30,16 @@ class GridTest : public testing::TestWithParam<GridType> {
 		typedef dccrg::Types<3>::neighborhood_item_t neigh_t;
 		std::vector<neigh_t> neighborhood;
 
-		grid.set_initial_length({10, 10, 10}).set_neighborhood_length(stencil_width).initialize(MPI_COMM_WORLD);
+		grid.set_initial_length({size, size, size}).set_neighborhood_length(stencil_width).set_maximum_refinement_level(reflevel).initialize(MPI_COMM_WORLD);
 		switch (GetParam()) {
 			case GridType::simple:
 				break; // Defaults should be fine for everything
+			case GridType::magnetospheric:
+				for (int i = 0; i < reflevel; ++i) {
+					grid.refine_completely_at({static_cast<double>(size) / 2.0, static_cast<double>(size) / 2.0, static_cast<double>(size) / 2.0});
+					grid.stop_refining();
+				}
+				// Fallthrough
 			case GridType::vlasovian:
 				// Extended sysboundaries
 				for (int x = -stencil_width; x <= stencil_width; ++x) {
@@ -78,10 +84,13 @@ class GridTest : public testing::TestWithParam<GridType> {
 	dccrg::Dccrg<uint64_t, dccrg::Cartesian_Geometry> grid;
 	int neighborhoods {0};
 	const int stencil_width {3};
+	const uint64_t size {10};
+	int reflevel {2};
 };
 
 INSTANTIATE_TEST_SUITE_P(Simple, GridTest, testing::Values(GridType::simple));
 INSTANTIATE_TEST_SUITE_P(Vlasovian, GridTest, testing::Values(GridType::vlasovian));
+INSTANTIATE_TEST_SUITE_P(Magnetospheric, GridTest, testing::Values(GridType::magnetospheric));
 
 TEST_P(GridTest, contents)
 {
