@@ -8,7 +8,7 @@ include ../../../MAKE/Makefile.${ARCH}
 CXXFLAGS+=$(INC_MPI) $(INC_BOOST) $(INC_ZOLTAN) $(INC_PROFILE) $(INC_GTEST) -DGTEST_HAS_MPI
 LDFLAGS+=$(LIB_BOOST) $(LIB_ZOLTAN) $(LIB_GTEST) $(LIB_PROFILE)
 
-TESTS=validation.exe simple.exe
+TESTS=validation.exe grid.exe
 
 all: $(TESTS)
 
@@ -20,4 +20,3 @@ all: $(TESTS)
 
 clean:
 	rm $(TESTS)
-	rm *.o
