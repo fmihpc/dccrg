@@ -69,7 +69,7 @@ class GridTest : public testing::TestWithParam<GridType> {
 				break;
 		}
 
-		grid.set_load_balancing_method("RANDOM").balance_load();
+		grid.balance_load();
 
 		// Simple data we can check
 		for (auto cell : grid.get_cells()) {
@@ -95,16 +95,40 @@ INSTANTIATE_TEST_SUITE_P(Magnetospheric, GridTest, testing::Values(GridType::mag
 TEST_P(GridTest, contents)
 {
 	for (auto cell : grid.get_cells()) {
-		EXPECT_NE_MPI(grid[cell], nullptr);
+		ASSERT_NE_MPI(grid[cell], nullptr);
 		EXPECT_EQ_MPI(*grid[cell], cell);
+	}
+}
+
+TEST_P(GridTest, remote_contents)
+{
+	for (auto cell : grid.get_cells()) {
+		ASSERT_NE_MPI(grid[cell], nullptr);
+
+		for (auto& [neighbor, dir] : *grid.get_neighbors_of(cell)) {
+			if (neighbor != dccrg::error_cell) {
+				ASSERT_NE_MPI(grid[neighbor], nullptr);
+				EXPECT_EQ_MPI(*grid[neighbor], neighbor);
+			}
+		}
+
+		for (int neighborhood = 0; neighborhood < neighborhoods; ++neighborhood) {
+			for (auto& [neighbor, dir] : *grid.get_neighbors_of(cell, neighborhood)) {
+				if (neighbor != dccrg::error_cell) {
+					ASSERT_NE_MPI(grid[neighbor], nullptr);
+					EXPECT_EQ_MPI(*grid[neighbor], neighbor);
+				}
+			}
+		}
 	}
 }
 
 TEST_P(GridTest, contents_after_loadbalance)
 {
+	grid.set_load_balancing_method("RANDOM").balance_load();
 	grid.balance_load();
 	for (auto cell : grid.get_cells()) {
-		EXPECT_NE_MPI(grid[cell], nullptr);
+		ASSERT_NE_MPI(grid[cell], nullptr);
 		EXPECT_EQ_MPI(*grid[cell], cell);
 	}
 }
@@ -120,7 +144,7 @@ TEST_P(GridTest, consistent_neighbors)
 
 		for (auto [neighbor, dir] : *my_neighbors_of) {
 			if (neighbor != dccrg::error_cell) {
-				EXPECT_NE_MPI(grid[neighbor], nullptr);
+				ASSERT_NE_MPI(grid[neighbor], nullptr);
 				std::vector<std::pair<uint64_t, std::array<int, 4>>> other_neighbors_to;
 				if (std::find(cells.begin(), cells.end(), neighbor) != cells.end()) {
 					auto* p {grid.get_neighbors_to(neighbor)};
@@ -142,7 +166,7 @@ TEST_P(GridTest, consistent_neighbors)
 			std::vector<std::pair<uint64_t, std::array<int, 4>>> other_neighbors_of;
 			if (std::find(cells.begin(), cells.end(), neighbor) != cells.end()) {
 				auto* p {grid.get_neighbors_of(neighbor)};
-				EXPECT_NE_MPI(p, nullptr);
+				ASSERT_NE_MPI(p, nullptr);
 				other_neighbors_of = *p;
 			} else {
 				other_neighbors_of = grid.find_neighbors_of(neighbor, grid.get_neighborhood_of(), grid.get_max_ref_lvl_diff());
@@ -167,7 +191,7 @@ TEST_P(GridTest, consistent_user_neighbors)
 					std::vector<std::pair<uint64_t, std::array<int, 4>>> other_neighbors_to;
 					if (std::find(cells.begin(), cells.end(), neighbor) != cells.end()) {
 						auto* p {grid.get_neighbors_to(neighbor, neighborhood)};
-						EXPECT_NE_MPI(p, nullptr);
+						ASSERT_NE_MPI(p, nullptr);
 						other_neighbors_to = *p;
 						EXPECT_NE_MPI(std::find_if(other_neighbors_to.begin(), other_neighbors_to.end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_to.end());
 					}
@@ -181,7 +205,7 @@ TEST_P(GridTest, consistent_user_neighbors)
 				std::vector<std::pair<uint64_t, std::array<int, 4>>> other_neighbors_of;
 				if (std::find(cells.begin(), cells.end(), neighbor) != cells.end()) {
 					auto* p {grid.get_neighbors_of(neighbor, neighborhood)};
-					EXPECT_NE_MPI(p, nullptr);
+					ASSERT_NE_MPI(p, nullptr);
 					other_neighbors_of = *p;
 					EXPECT_NE_MPI(std::find_if(other_neighbors_of.begin(), other_neighbors_of.end(), [&cell](const std::pair<const uint64_t, std::array<int, 4>> pair){return pair.first == cell;}), other_neighbors_of.end());
 				}
