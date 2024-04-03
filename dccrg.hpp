@@ -11399,7 +11399,7 @@ private:
 			// number_of_neighbors[i] = 0;
 
 			// We consider the communication weight from this cell to others
-			auto weight {dccrg_instance->get_communication_weight(cell)};
+			auto weight {dccrg_instance->get_cell_weight(cell)};
 			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
 				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
 					// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
@@ -11464,7 +11464,7 @@ private:
 				return;
 			}
 
-			sizes[i] = dccrg_instance->get_communication_weight(cell);
+			sizes[i] = (int) dccrg_instance->get_cell_weight(cell);
 		}
 	}
 
@@ -11656,7 +11656,7 @@ private:
 		for (const auto& item : dccrg_instance->cell_data) {
 			hyperedges[i] = item.first;
 			if (number_of_weights_per_hyperedge) {
-				hyperedge_weights[i] = dccrg_instance->get_communication_weight(item.first);
+				hyperedge_weights[i] = dccrg_instance->get_cell_weight(item.first);
 			}
 			++i;
 		}
