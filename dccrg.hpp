@@ -6508,24 +6508,19 @@ public:
 		}
 
 		if (cell_weight_dim == 1 && weight.size() > 1) {
-			// TODO consider p-norms besides Manhattan and Euclidean
-			switch (load_balance_norm) {
-			case 0:
+			if (load_balance_norm == 0) {
 				// Infinity norm i.e. maximum
 				this->cell_weights[cell] = std::vector{*std::max_element(weight.begin(), weight.end())};
-				break;
-			case 1:
-				// 1-norm i.e. Manhattan (sum in this case)
-				this->cell_weights[cell] = std::vector{std::reduce(weight.begin(), weight.end())};
-				break;
-			case 2:
-				// 2-norm i.e. Euclidean
-				this->cell_weights[cell] = std::vector{std::sqrt(std::inner_product(weight.begin(), weight.end(), weight.begin(), 0.0))};
-				break;
-			default:
+			} else if (load_balance_norm > 0) {
+				// p-norm, including Manhattan (sum!) and Euclidian
+				double sum {0.0};
+				for (auto w : weight) {
+					sum += std::pow(w, load_balance_norm);
+				}
+				this->cell_weights[cell] = std::vector{pow(sum, 1.0 / load_balance_norm)};
+			} else {
 				throw std::invalid_argument("Invalid load balance norm!");
 			}
-
 		} else if (cell_weight_dim != weight.size()) {
 			throw std::invalid_argument("Invalid cell weight dimension!");
 		}
