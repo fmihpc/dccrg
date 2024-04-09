@@ -7891,12 +7891,11 @@ private:
 
 			add_partitioning_level(1);	// Level 0 - Nodes
 			partition_number.push_back(nodeNumber);
-			add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
+			add_partitioning_option(0, "LB_METHOD", "GRAPH");
 
 			add_partitioning_level(1);	// Level 1 - Processes
 			partition_number.push_back(nodeRank);
 			add_partitioning_option(1, "LB_METHOD", "RIB");
-			//add_partitioning_option(1, "LB_METHOD", "RCB");
 		}
 
 		// reserved options that the user cannot change
