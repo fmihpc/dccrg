@@ -17,6 +17,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 */
 
 
+#include "cstdint"
 #include "cstdlib"
 #include "iostream"
 #include "tuple"
