@@ -7924,12 +7924,11 @@ private:
 
 			add_partitioning_level(1);	// Level 0 - Nodes
 			partition_number.push_back(nodeNumber);
-			add_partitioning_option(0, "LB_METHOD", "HYPERGRAPH");
+			add_partitioning_option(0, "LB_METHOD", "GRAPH");
 
 			add_partitioning_level(1);	// Level 1 - Processes
 			partition_number.push_back(nodeRank);
 			add_partitioning_option(1, "LB_METHOD", "RIB");
-			//add_partitioning_option(1, "LB_METHOD", "RCB");
 		}
 
 		// reserved options that the user cannot change
@@ -11421,17 +11420,16 @@ private:
 		*error = ZOLTAN_OK;
 
 		// TODO: this could be a different parameter, possibly later
-		if ((unsigned int) number_of_weights_per_edge != dccrg_instance->cell_weight_dim) {
-			std::cerr
-				<< "Zoltan is expecting wrong number of weights per edge: " << number_of_weights_per_edge
-				<< " instead of " << dccrg_instance->cell_weight_dim
-				<< std::endl;
-			*error = ZOLTAN_FATAL;
-			return;
-		}
+		// if ((unsigned int) number_of_weights_per_edge != dccrg_instance->cell_weight_dim) {
+		// 	std::cerr
+		// 		<< "Zoltan is expecting wrong number of weights per edge: " << number_of_weights_per_edge
+		// 		<< " instead of " << dccrg_instance->cell_weight_dim
+		// 		<< std::endl;
+		// 	*error = ZOLTAN_FATAL;
+		// 	return;
+		// }
 
 		int current_neighbor_number = 0;
-		int current_wgt_number = 0;
 		for (int i = 0; i < number_of_cells; i++) {
 			uint64_t cell = uint64_t(global_ids[i]);
 			if (dccrg_instance->cell_data.count(cell) == 0) {
@@ -11445,7 +11443,7 @@ private:
 			// number_of_neighbors[i] = 0;
 
 			// We consider the communication weight from this cell to others
-			auto weights {dccrg_instance->get_cell_weight(cell)};
+			auto weight {dccrg_instance->get_communication_weight(cell)};
 			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
 				for (const auto& [neighbor, dir] : *dccrg_instance->get_neighbors_to(cell, neighborhood)) {
 					// Zoltan 3.501 crashes in hierarchial if a cell is a neighbor to itself
@@ -11459,8 +11457,8 @@ private:
 					processes_of_neighbors[current_neighbor_number] = int(dccrg_instance->cell_process.at(neighbor));
 
 					// weight of edge from cell to *neighbor
-					for (auto w : weights) {
-						edge_weights[current_wgt_number++] = w;
+					if(number_of_weights_per_edge) {
+						edge_weights[current_neighbor_number] = weight;
 					}
 
 					++current_neighbor_number;
@@ -11508,7 +11506,7 @@ private:
 				return;
 			}
 
-			sizes[i] = (int) dccrg_instance->get_communication_weight(cell);
+			sizes[i] = dccrg_instance->get_communication_weight(cell);
 		}
 	}
 
@@ -11697,22 +11695,22 @@ private:
 		}
 
 		// TODO: this coudl be a different parameter, possibly later
-		if ((unsigned int) number_of_weights_per_hyperedge != dccrg_instance->cell_weight_dim) {
-			std::cerr
-				<< "Zoltan is expecting wrong number of weights per hyperedge: " << number_of_weights_per_hyperedge
-				<< " instead of " << dccrg_instance->cell_weight_dim
-				<< std::endl;
-			*error = ZOLTAN_FATAL;
-			return;
-		}
+		// if ((unsigned int) number_of_weights_per_hyperedge != dccrg_instance->cell_weight_dim) {
+		// 	std::cerr
+		// 		<< "Zoltan is expecting wrong number of weights per hyperedge: " << number_of_weights_per_hyperedge
+		// 		<< " instead of " << dccrg_instance->cell_weight_dim
+		// 		<< std::endl;
+		// 	*error = ZOLTAN_FATAL;
+		// 	return;
+		// }
 
 		int i = 0;
-		int j = 0;
 		for (const auto& item : dccrg_instance->cell_data) {
-			hyperedges[i++] = item.first;
-			for (auto w : dccrg_instance->get_cell_weight(item.first)) {
-				hyperedge_weights[j++] = w;
+			hyperedges[i] = item.first;
+			if (number_of_weights_per_hyperedge) {
+				hyperedge_weights[i] = dccrg_instance->get_communication_weight(item.first);
 			}
+			++i;
 		}
 	}
 
