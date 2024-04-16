@@ -6523,9 +6523,9 @@ public:
 			}
 		} else if (cell_weight_dim != weight.size()) {
 			throw std::invalid_argument("Invalid cell weight dimension!");
+		} else {
+			this->cell_weights[cell] = weight;
 		}
-
-		this->cell_weights[cell] = weight;
 
 		return true;
 	}
@@ -11312,6 +11312,11 @@ private:
 		>(data);
 		*error = ZOLTAN_OK;
 
+		if (number_of_weights_per_object != dccrg_instance->cell_weight_dim) {
+			std::cerr << "ERROR Zoltan expected " << number_of_weights_per_object << " weights, dccrg has " << dccrg_instance->cell_weight_dim << std::endl;
+			abort();
+		}
+
 		int i = 0;
 		int j = 0;
 		for (const auto& item: dccrg_instance->cell_data) {
@@ -11326,9 +11331,10 @@ private:
 			global_ids[i] = item.first;
 
 			if (number_of_weights_per_object != dccrg_instance->get_cell_weight(item.first).size()) {
-				std::cerr << "ERROR expected " << number_of_weights_per_object << " weights, got " << dccrg_instance->get_cell_weight(item.first).size() << std::endl;
+				std::cerr << "ERROR Zoltan expected " << number_of_weights_per_object << " weights, cell has " << dccrg_instance->get_cell_weight(item.first).size() << std::endl;
 				abort();
 			}
+
 			for (auto w : dccrg_instance->get_cell_weight(item.first)) {
 				object_weights[j++] = w;
 			}
