@@ -1086,9 +1086,14 @@ public:
 	Writes grid data into given file starting at given offset in bytes.
 
 	All processes write the data necessary for restoring the
-	internal state of the grid with load_grid_data().
-	This includes the geometry of the grid, the list of cells
-	which exist and their Cell_Data.
+	internal state of the grid with load_grid_data() if
+	default arguments are not changed.
+	If write_grid_info is false, info needed when initializing
+	grid is not written.
+	If write_cell_ids is false, ids of cells whose data will be
+	saved to file are not written.
+	If write_data_offsets if false, offsets of cells' data
+	will not be written.
 	All data is written in native endian format.
 
 	The data saved from each cells' user data class Cell_Data is
@@ -1096,11 +1101,14 @@ public:
 	Unless you know what you're doing the method should return
 	the same datatype information both when saving and loading the grid.
 
+	If cells_to_write is not empty, only given cells that must exist
+	and be owned by current process are written.
 	Process 0 writes the data represented by the given header to the
 	file at given offset. The header does not have to be defined
 	on other processes.
 
-	Must be called by all processes with identical arguments.
+	Filename, offset and write_* arguments must be identical on all
+	processes. Header is ignored by ranks other than 0.
 	Returns true on success, false otherwise (one one or more processes).
 
 	During this function the receiving process given to the cells'
@@ -1109,7 +1117,11 @@ public:
 	bool save_grid_data(
 		const std::string& name,
 		MPI_Offset offset,
-		std::tuple<void*, int, MPI_Datatype> header
+		std::tuple<void*, int, MPI_Datatype> header,
+		const std::vector<uint64_t>& cells_to_write = std::vector<uint64_t>(),
+		const bool write_grid_info = true,
+		const bool write_cell_ids = true,
+		const bool write_data_offsets = true
 	) {
 		#ifdef DEBUG
 		if (not this->grid_initialized) {
@@ -1237,6 +1249,7 @@ public:
 			offset += (MPI_Offset) header_size;
 		}
 
+		if (write_grid_info) {
 		// write endianness check
 		if (this->rank == 0) {
 
@@ -1322,38 +1335,47 @@ public:
 			}
 		}
 		offset += this->geometry.data_size();
+		} // if (write_grid_info)
 
 		// write the total number of cells that will be written
 		uint64_t number_of_cells = this->cell_data.size();
+		if (cells_to_write.size() > 0) {
+			number_of_cells = cells_to_write.size();
+		}
 		const uint64_t total_number_of_cells
 			= All_Reduce()(number_of_cells, this->comm);
 
-		if (this->rank == 0) {
-			ret_val = MPI_File_write_at(
-				outfile,
-				offset,
-				(void*) &total_number_of_cells,
-				1,
-				MPI_UINT64_T,
-				MPI_STATUS_IGNORE
-			);
-			if (ret_val != MPI_SUCCESS) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< " Couldn't write cell list to file " << name
-					<< ": " << Error_String()(ret_val)
-					<< std::endl;
-				return false;
+		if (write_grid_info) {
+			if (this->rank == 0) {
+				ret_val = MPI_File_write_at(
+					outfile,
+					offset,
+					(void*) &total_number_of_cells,
+					1,
+					MPI_UINT64_T,
+					MPI_STATUS_IGNORE
+				);
+				if (ret_val != MPI_SUCCESS) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Process " << this->rank
+						<< " Couldn't write cell list to file " << name
+						<< ": " << Error_String()(ret_val)
+						<< std::endl;
+					return false;
+				}
 			}
+			offset += sizeof(uint64_t);
 		}
-		offset += sizeof(uint64_t);
 
 		// contiguous memory version of cell list needed by MPI_Write_...
-		std::vector<uint64_t> cells_to_write = this->get_cells();
-		if (cells_to_write.size() != number_of_cells) {
+		auto cells_to_write_ = cells_to_write;
+		if (cells_to_write_.size() == 0) {
+			cells_to_write_ = this->get_cells();
+		}
+		if (cells_to_write_.size() != number_of_cells) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Number of cells is inconsistent: " << number_of_cells
-				<< ", should be " << cells_to_write.size()
+				<< ", should be " << cells_to_write_.size()
 				<< std::endl;
 			abort();
 		}
@@ -1369,7 +1391,7 @@ public:
 
 		// get intermediate datatypes from user
 		for (size_t i = 0; i < number_of_cells; i++) {
-			const uint64_t cell = cells_to_write[i];
+			const uint64_t cell = cells_to_write_[i];
 
 			std::tie(
 				addresses[i],
@@ -1481,7 +1503,11 @@ public:
 				abort();
 			}
 
-			current_byte_offset += (uint64_t) current_bytes;
+			if (Is_Named_Datatype()(file_datatypes[i])) {
+				current_byte_offset += counts[i] * (uint64_t) current_bytes;
+			} else {
+				current_byte_offset += (uint64_t) current_bytes;
+			}
 		}
 
 		// tell everyone how many bytes everyone will write
@@ -1508,6 +1534,12 @@ public:
 		uint64_t cell_data_start
 			= (uint64_t) offset
 			+ 2 * total_number_of_cells * sizeof(uint64_t);
+		if (not write_cell_ids) {
+			cell_data_start -= total_number_of_cells * sizeof(uint64_t);
+		}
+		if (not write_data_offsets) {
+			cell_data_start -= total_number_of_cells * sizeof(uint64_t);
+		}
 
 		for (size_t i = 0; i < (size_t) this->rank; i++) {
 			cell_data_start += all_number_of_bytes[i];
@@ -1550,9 +1582,25 @@ public:
 
 		// write cell + data displacement list
 		std::vector<uint64_t> cells_and_data_displacements(2 * number_of_cells, 0);
-		for (size_t i = 0; i < number_of_cells; i++) {
-			cells_and_data_displacements[2 * i] = cells_to_write[i];
-			cells_and_data_displacements[2 * i + 1] = file_displacements[i];
+		uint64_t cell_and_disp_len = 0;
+		if (write_cell_ids and write_data_offsets) {
+			cell_and_disp_len = 2 * number_of_cells;
+			for (size_t i = 0; i < number_of_cells; i++) {
+				cells_and_data_displacements[2 * i] = cells_to_write_[i];
+				cells_and_data_displacements[2 * i + 1] = file_displacements[i];
+			}
+		} else if (write_cell_ids) {
+			cell_and_disp_len = number_of_cells;
+			for (size_t i = 0; i < number_of_cells; i++) {
+				cells_and_data_displacements[i] = cells_to_write_[i];
+			}
+		} else if (write_data_offsets) {
+			cell_and_disp_len = number_of_cells;
+			for (size_t i = 0; i < number_of_cells; i++) {
+				cells_and_data_displacements[i] = file_displacements[i];
+			}
+		} else {
+			cell_and_disp_len = 0;
 		}
 
 		// give a valid buffer to ...write_at_all even if no cells to write
@@ -1564,7 +1612,7 @@ public:
 			outfile,
 			(MPI_Offset) cell_list_start,
 			(void*) &cells_and_data_displacements[0],
-			2 * number_of_cells,
+			cell_and_disp_len,
 			MPI_UINT64_T,
 			MPI_STATUS_IGNORE
 		);
@@ -1743,6 +1791,9 @@ public:
 	See initialize() for an explanation of given_comm, load_balancing_method and
 	sfc_caching_bathces. TODO: Reads at most number_of_cells number of cell data
 	offsets at a time, give a smaller number if all cell ids won't fit into memory at once.
+
+	Only supports files that were written with default arguments
+	given to save_grid_data.
 
 	All processes read the same data defined by the given header starting at
 	given file offset in bytes. The header does not have to be defined on
