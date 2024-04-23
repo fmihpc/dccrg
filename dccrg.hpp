@@ -504,9 +504,9 @@ public:
 	}
 
 	void finalize() {
-		if (comm != MPI_COMM_NULL) {
-			MPI_Comm_free(&comm);
-			comm = MPI_COMM_NULL;
+		if (mpi_comm != MPI_COMM_NULL) {
+			MPI_Comm_free(&mpi_comm);
+			mpi_comm = MPI_COMM_NULL;
 		}
 	}
 
