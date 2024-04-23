@@ -2618,6 +2618,13 @@ public:
 		return true;
 	}
 
+	const std::vector<std::pair<uint64_t, int>>& get_face_neighbors_of (const uint64_t cell) const
+	{
+		// Could add checks or return a nullptr / empty vector / whatever
+		// But honestly it's just better to throw
+		return face_neighbors_of.at(cell);
+	}
+
 	/*!
 	Returns cells which share a face with the given cell.
 
@@ -2638,7 +2645,7 @@ public:
 	default_neighborhood_id()
 	get_neighbors_of()
 	*/
-	std::vector<std::pair<uint64_t, int> > get_face_neighbors_of(
+	std::vector<std::pair<uint64_t, int> > find_face_neighbors_of(
 		const uint64_t cell/*,
 		const int neighborhood_id = default_neighborhood_id*/
 	) const {
@@ -3672,6 +3679,8 @@ public:
 		}
 
 		// update data for parents (and their neighborhood) of unrefined cells
+		// TODO: this loop happens to casually bypass the update_neighbors function
+		// It gave me a headache and will give one to you too, see if this can be refactored
 		for (const uint64_t parent: parents_of_unrefined) {
 
 			/* TODO: skip unrefined cells far enough away
@@ -3725,6 +3734,7 @@ public:
 				this->cell_data[parent];
 				this->neighbors_of[parent] = new_neighbors_of;
 				this->neighbors_to[parent] = new_neighbors_to;
+				this->face_neighbors_of[parent] = this->find_face_neighbors_of(parent);
 
 				// add user neighbor lists
 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -3775,6 +3785,7 @@ public:
 
 				this->neighbors_of.erase(refined);
 				this->neighbors_to.erase(refined);
+				this->face_neighbors_of.erase(refined);
 
 				// remove also from user's neighborhood
 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -3792,6 +3803,7 @@ public:
 		for (const uint64_t unrefined: this->all_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
+			this->face_neighbors_of.erase(unrefined);
 			// also from user neighborhood
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
 				item = this->user_hood_of.begin();
@@ -4503,11 +4515,7 @@ public:
 				continue;
 			}
 
-			// TODO: use this->update_neighbors(added_cell)
-			this->neighbors_of[added_cell]
-				= this->find_neighbors_of(added_cell, this->neighborhood_of, this->max_ref_lvl_diff);
-			this->neighbors_to[added_cell]
-				= this->find_neighbors_to(added_cell, this->neighborhood_to);
+			this->update_neighbors(added_cell);
 
 			// also update user neighbor lists
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -4524,6 +4532,7 @@ public:
 			this->cell_data.erase(removed_cell);
 			this->neighbors_of.erase(removed_cell);
 			this->neighbors_to.erase(removed_cell);
+			this->face_neighbors_of.erase(removed_cell);
 
 			// also user neighbor lists
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -7331,6 +7340,9 @@ private:
 		>
 	> neighbors_of;
 
+	// Cached face neighbors on this process
+	std::unordered_map<uint64_t, std::vector<std::pair<uint64_t, int>>> face_neighbors_of;
+
 	/*
 	Offsets of cells that are considered as neighbors of a cell and
 	offsets of cells that consider a cell as a neighbor
@@ -8289,8 +8301,7 @@ private:
 	{
 		// update neighbor lists of created cells
 		for (const auto& item: this->cell_data) {
-			this->neighbors_of[item.first]
-				= this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
+			this->neighbors_of[item.first] = this->find_neighbors_of(item.first, this->neighborhood_of, this->max_ref_lvl_diff);
 			#ifdef DEBUG
 			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
 				if (neighbor.first == error_cell) {
@@ -8309,8 +8320,8 @@ private:
 			}
 			#endif
 
-			this->neighbors_to[item.first]
-				= this->find_neighbors_to(item.first, this->neighborhood_to);
+			this->neighbors_to[item.first] = this->find_neighbors_to(item.first, this->neighborhood_to);
+			this->face_neighbors_of[item.first] = this->find_face_neighbors_of(item.first);
 		}
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
@@ -8960,12 +8971,14 @@ private:
 			return;
 		}
 
-		this->neighbors_of.at(cell) = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
+		this->neighbors_of[cell] = this->find_neighbors_of(cell, this->neighborhood_of, this->max_ref_lvl_diff);
 		std::vector<uint64_t> found_neighbors_of;
-		for (const auto& i: this->neighbors_of.at(cell)) {
+		for (const auto& i: this->neighbors_of[cell]) {
 			found_neighbors_of.push_back(i.first);
 		}
-		this->neighbors_to.at(cell) = this->find_neighbors_to(cell, found_neighbors_of);
+		this->neighbors_to[cell] = this->find_neighbors_to(cell, found_neighbors_of);
+
+		this->face_neighbors_of[cell] = this->find_face_neighbors_of(cell);
 
 		#ifdef DEBUG
 		if (
@@ -9740,7 +9753,7 @@ private:
 					this->neighborhood_of,
 					2 * this->max_ref_lvl_diff,
 					true
-				);
+				);	// todo this should probably be using cached values
 
 			for (const auto& neighbor_i: neighbors) {
 				const auto& neighbor = neighbor_i.first;
