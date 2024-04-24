@@ -503,6 +503,16 @@ public:
 		return *this;
 	}
 
+	void finalize() {
+		if (comm != MPI_COMM_NULL) {
+			MPI_Comm_free(&comm);
+			comm = MPI_COMM_NULL;
+		}
+	}
+
+	~Dccrg() {
+		finalize();
+	}
 
 	/*!
 	Sets the geometry of the grid to given values.
