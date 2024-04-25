@@ -1358,7 +1358,7 @@ public:
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
-						<< " Couldn't write cell list to file " << name
+						<< " Couldn't write number of cells to file " << name
 						<< ": " << Error_String()(ret_val)
 						<< std::endl;
 					return false;
@@ -1577,7 +1577,11 @@ public:
 		// calculate where local cell list will begin in output file
 		uint64_t cell_list_start = (uint64_t) offset;
 		for (size_t i = 0; i < (size_t) this->rank; i++) {
-			cell_list_start += all_number_of_cells[i] * 2 * sizeof(uint64_t);
+			if (write_cell_ids and write_data_offsets) {
+				cell_list_start += all_number_of_cells[i] * 2 * sizeof(uint64_t);
+			} else if (write_cell_ids or write_data_offsets) {
+				cell_list_start += all_number_of_cells[i] * sizeof(uint64_t);
+			}
 		}
 
 		// write cell + data displacement list
