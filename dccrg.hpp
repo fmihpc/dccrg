@@ -7778,7 +7778,7 @@ private:
 		int worker_procs = this->comm_size;
 		if(getenv("DCCRG_PROCS") != NULL) {
 			const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
-			if(dccrg_procs > 0 && dccrg_procs < this->comm_size)
+			if(dccrg_procs > 0 && dccrg_procs < (int)(this->comm_size))
 				worker_procs = dccrg_procs;
 		}
 		const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
