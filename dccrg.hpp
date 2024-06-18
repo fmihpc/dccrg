@@ -9500,11 +9500,12 @@ private:
 			this->all_to_all_set(new_donts);
 		} while (new_donts.size() > 0);
 
-		for (const auto& cell : old_donts) {
-			if(!this->is_local(cell)) {
-				old_donts.erase(cell);
-			}
-		}
+		std::erase_if(old_donts, [this](uint64_t cell)->bool{return !this->is_local(cell);});;
+		//for (const auto& cell : old_donts) {
+		//	if(!this->is_local(cell)) {
+		//		old_donts.erase(cell);
+		//	}
+		//}
 
 		this->cells_not_to_refine = old_donts;
 		this->all_to_all_set(this->cells_not_to_refine);
