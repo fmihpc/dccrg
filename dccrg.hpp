@@ -4622,6 +4622,8 @@ public:
 						std::max(refinement_level-2,0), 
 						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
 
+				int effective_refinement_level = this->mapping.get_refinement_level(cellHere);
+
 				// Apparently, this is a new cell.
 				if(cellHere != last_cell_seen) {
 
@@ -4636,7 +4638,6 @@ public:
 					// OR
 					// - Add 1 if we determine that it is too coarse for our
 					// starting cell's new refinement state.
-					int effective_refinement_level= this->mapping.get_refinement_level(cellHere);
 					if(find(new_refines.begin(), new_refines.end(), cellHere) != new_refines.end()) {
 						effective_refinement_level++;
 
@@ -4673,7 +4674,7 @@ public:
 				}
 
 				// We can stop stepping if this cell spans the whole domain in this direction
-				if(refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
+				if(effective_refinement_level == 0 && grid_length[dimension] == (int64_t(1) << this->mapping.get_maximum_refinement_level()) ) {
 					cells_seen[dimension]=abs(offsets[dimension]);
 					break;
 				}
