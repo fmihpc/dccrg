@@ -9241,11 +9241,7 @@ private:
 			unique_induced_refines.clear();
 		}
 
-		for(const auto& cell : this->cells_to_refine) {
-			if(!this->is_local(cell)) {
-				this->cells_to_refine.erase(cell);
-			}
-		}
+		std::erase_if(cells_to_refine, [this](uint64_t cell){return !this->is_local(cell);});
 
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
@@ -9500,12 +9496,7 @@ private:
 			this->all_to_all_set(new_donts);
 		} while (new_donts.size() > 0);
 
-		std::erase_if(old_donts, [this](uint64_t cell)->bool{return !this->is_local(cell);});;
-		//for (const auto& cell : old_donts) {
-		//	if(!this->is_local(cell)) {
-		//		old_donts.erase(cell);
-		//	}
-		//}
+		std::erase_if(old_donts, [this](uint64_t cell){return !this->is_local(cell);});;
 
 		this->cells_not_to_refine = old_donts;
 		this->all_to_all_set(this->cells_not_to_refine);
