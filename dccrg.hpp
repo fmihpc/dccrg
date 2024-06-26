@@ -4432,9 +4432,9 @@ public:
 	  Find the cell (or, potentially, multiple cells) that can be encountered by hopping
 	  from face neighbour to face neighbour along the given offset path.
 	  The "offset" parameter defines how many unique cells should be traveled in each dimension.
-	"dims" defines the order in which dimensions are stepped through. For proper
-	matching of neighbors_to and neighbors_of, these should be constructed in
-	opposite direction.
+	  "dims" defines the order in which dimensions are stepped through.For proper
+	  matching of neighbors_to and neighbors_of, these should be constructed in
+	  opposite direction.
 	*/
 	std::set<uint64_t> find_cells_at_offset(
 			const Types<3>::indices_t starting_point,
@@ -4523,6 +4523,7 @@ public:
 					steps_inside_this_cell++;
 					if(steps_inside_this_cell > (int64_t(1) << this->mapping.get_maximum_refinement_level())) {
 						// Apparently, we are trapped in a periodic loop.
+						last_cell_seen = error_cell;
 						break;
 					}
 				}
@@ -8553,7 +8554,7 @@ private:
 			}
 			#endif
 
-			// data must be sent/received to/from neighbors_of
+			// data must be sent to neighbors_of
 			for (const auto& neighbor_i: this->user_neigh_of.at(neighborhood_id).at(cell)) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -8563,11 +8564,11 @@ private:
 
 				if (this->cell_process.at(neighbor) != this->rank) {
 					user_neigh_unique_receives[int(this->cell_process.at(neighbor))].insert(neighbor);
-					user_neigh_unique_sends[int(this->cell_process.at(neighbor))].insert(cell);
+					//user_neigh_unique_sends[int(this->cell_process.at(neighbor))].insert(cell);
 				}
 			}
 
-			// data must be sent/received to/from neighbors_to
+			// data must be received from neighbors_to
 			for (const auto& neighbor_i: this->user_neigh_to.at(neighborhood_id).at(cell)) {
 				const auto& neighbor = neighbor_i.first;
 
@@ -8576,7 +8577,7 @@ private:
 				}
 
 				if (this->cell_process.at(neighbor) != this->rank) {
-					user_neigh_unique_receives[int(this->cell_process.at(neighbor))].insert(neighbor);
+					//user_neigh_unique_receives[int(this->cell_process.at(neighbor))].insert(neighbor);
 					user_neigh_unique_sends[int(this->cell_process.at(neighbor))].insert(cell);
 				}
 			}
