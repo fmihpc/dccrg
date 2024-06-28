@@ -220,6 +220,10 @@ private:
 	*/
 	Grid_Topology topology_rw;
 
+	static constexpr std::array<std::array<int,3>,6> dim_permutations = {{
+		{0,1,2}, {0,2,1}, {1,0,2}, {1,2,0}, {2,0,1}, {2,1,0}
+	}};
+
 public:
 	/*!
 	Public read-only version of the grid's topology.
@@ -4903,10 +4907,9 @@ public:
 
 			// Find the neighbour(s) there
 			std::set<uint64_t> neigh_cells;
-			std::array<int,3> dims({0,1,2});
-			do {
+			for(const auto& dims : dim_permutations) {
 				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell), cell, refinement_level, offsets, dims));
-			} while(std::next_permutation(dims.begin(),dims.end()));
+			}
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
@@ -5003,10 +5006,9 @@ public:
 			// Find the neighbour(s) in opposite direction
 			Types<3>::neighborhood_item_t offsets = {-inverse_offsets[0], -inverse_offsets[1], -inverse_offsets[2]};
 			std::set<uint64_t> neigh_cells;
-			std::array<int,3> dims({0,1,2});
-			do {
+			for(const auto& dims : dim_permutations) {
 				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, dims));
-			} while(std::next_permutation(dims.begin(),dims.end()));
+			}
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
@@ -9108,8 +9110,7 @@ private:
 					}
 
 					// Look in neighbors_of
-					std::array<int,3> dims({0,1,2});
-					do {
+					for(const auto& dims : dim_permutations) {
 						std::set<uint64_t> neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {x,y,z}, dims);
 						if(neighborsHere.count(cell2) > 0) {
 							return true;
@@ -9120,7 +9121,7 @@ private:
 						if(neighborsHere.count(cell2) > 0) {
 							return true;
 						}
-					} while(std::next_permutation(dims.begin(),dims.end()));
+					}
 				}
 			}
 		}
@@ -9209,13 +9210,12 @@ private:
 									Types<3>::neighborhood_item_t offsets({x,y,z});
 									Types<3>::indices_t indices = this->mapping.get_indices(refined);
 
-									std::array<int,3> dims({0,1,2});
-									do {
+									for(const auto& dims : dim_permutations) {
 										to_be_induced.merge(find_speculative_induced_refines(indices,refined,
 													this->mapping.get_refinement_level(refined)+1,
 													all_new_refines.at(this->rank),
 													offsets, dims));
-									} while(std::next_permutation(dims.begin(),dims.end()));
+									}
 								}
 							}
 						}
