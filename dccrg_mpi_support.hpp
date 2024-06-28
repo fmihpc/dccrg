@@ -117,6 +117,8 @@ public:
 		}
 
 		std::vector<int> send_counts(comm_size, -1);
+		result.clear();
+		result.resize(comm_size);
 
 		// TODO: make send_count uint64_t when they can be given to MPI_Allgatherv
 		int send_count = 0;
@@ -185,6 +187,10 @@ public:
 			total_send_count += (uint64_t) send_count;
 		}
 
+		if(total_send_count == 0) {
+			//Early abort if there is nothing to communicate.
+			return;
+		}
 		std::vector<uint64_t> temp_result(total_send_count, std::numeric_limits<uint64_t>::max());
 
 		// give a sane address to gatherv also when nothing to send
@@ -214,8 +220,6 @@ public:
 		}
 
 		// fill result
-		result.clear();
-		result.resize(comm_size);
 		for (size_t i = 0; i < (size_t) comm_size; i++) {
 			result[i].resize(send_counts[i]);
 		}
