@@ -4902,7 +4902,11 @@ public:
 		for (const auto& offsets: neighborhood) {
 
 			// Find the neighbour(s) there
-			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell), cell, refinement_level, offsets, {2,0,1});
+			std::set<uint64_t> neigh_cells;
+			std::array<int,3> dims({0,1,2});
+			do {
+				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell), cell, refinement_level, offsets, dims));
+			} while(std::next_permutation(dims.begin(),dims.end()));
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
@@ -4998,7 +5002,11 @@ public:
 
 			// Find the neighbour(s) in opposite direction
 			Types<3>::neighborhood_item_t offsets = {-inverse_offsets[0], -inverse_offsets[1], -inverse_offsets[2]};
-			std::set<uint64_t> neigh_cells = this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, {1,0,2});
+			std::set<uint64_t> neigh_cells;
+			std::array<int,3> dims({0,1,2});
+			do {
+				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, dims));
+			} while(std::next_permutation(dims.begin(),dims.end()));
 
 			for (const auto& neighCell : neigh_cells) {
 				if (neighCell == error_cell) {
@@ -9064,7 +9072,7 @@ private:
 	/*!
 	Returns true if cell1 considers cell2 as a neighbor, even
 	*/
-	bool is_neighbor(const uint64_t cell1, const uint64_t cell2, const std::array<int,3> dims = {2,0,1}) const
+	bool is_neighbor(const uint64_t cell1, const uint64_t cell2) const
 	{
 		#ifdef DEBUG
 		if (cell1 == 0) {
@@ -9100,16 +9108,19 @@ private:
 					}
 
 					// Look in neighbors_of
-					std::set<uint64_t> neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {x,y,z}, {2,0,1});
-					if(neighborsHere.count(cell2) > 0) {
-						return true;
-					}
+					std::array<int,3> dims({0,1,2});
+					do {
+						std::set<uint64_t> neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {x,y,z}, dims);
+						if(neighborsHere.count(cell2) > 0) {
+							return true;
+						}
 
-					// Look in neighbors_to
-					neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {-x,-y,-z}, {1,0,2});
-					if(neighborsHere.count(cell2) > 0) {
-						return true;
-					}
+						// Look in neighbors_to
+						neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {-x,-y,-z}, dims);
+						if(neighborsHere.count(cell2) > 0) {
+							return true;
+						}
+					} while(std::next_permutation(dims.begin(),dims.end()));
 				}
 			}
 		}
@@ -9198,17 +9209,13 @@ private:
 									Types<3>::neighborhood_item_t offsets({x,y,z});
 									Types<3>::indices_t indices = this->mapping.get_indices(refined);
 
-									// Forward path (neighbors_of)
-									to_be_induced.merge(find_speculative_induced_refines(indices,refined,
-												this->mapping.get_refinement_level(refined)+1,
-												all_new_refines.at(this->rank),
-												offsets));
-
-									// Backward path (neighbors_to)
-									to_be_induced.merge(find_speculative_induced_refines(indices,refined,
-												this->mapping.get_refinement_level(refined)+1,
-												all_new_refines.at(this->rank),
-												offsets, {1,0,2}));
+									std::array<int,3> dims({0,1,2});
+									do {
+										to_be_induced.merge(find_speculative_induced_refines(indices,refined,
+													this->mapping.get_refinement_level(refined)+1,
+													all_new_refines.at(this->rank),
+													offsets, dims));
+									} while(std::next_permutation(dims.begin(),dims.end()));
 								}
 							}
 						}
@@ -11678,7 +11685,7 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(neighbor, item.first, {2,0,1})) {
+					if (!this->is_neighbor(neighbor, item.first})) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << item.first
 							<< " should be a neighbor to cell " << neighbor
