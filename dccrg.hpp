@@ -2611,6 +2611,13 @@ public:
 		return true;
 	}
 
+	const std::vector<std::pair<uint64_t, int>>& get_face_neighbors_of (const uint64_t cell) const
+	{
+		// Could add checks or return a nullptr / empty vector / whatever
+		// But honestly it's just better to throw
+		return face_neighbors_of.at(cell);
+	}
+
 	/*!
 	Returns cells which share a face with the given cell.
 
@@ -3545,6 +3552,7 @@ public:
 				this->cell_data[parent];
 				this->neighbors_of[parent] = new_neighbors_of;
 				this->neighbors_to[parent] = new_neighbors_to;
+				this->face_neighbors_of[parent] = this->find_face_neighbors_of(parent);
 
 				// add user neighbor lists
 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -3595,6 +3603,7 @@ public:
 
 				this->neighbors_of.erase(refined);
 				this->neighbors_to.erase(refined);
+				this->face_neighbors_of.erase(refined);
 
 				// remove also from user's neighborhood
 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -3612,6 +3621,7 @@ public:
 		for (const uint64_t unrefined: this->all_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
+			this->face_neighbors_of.erase(unrefined);
 			// also from user neighborhood
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
 				item = this->user_hood_of.begin();
@@ -4336,6 +4346,7 @@ public:
 			this->cell_data.erase(removed_cell);
 			this->neighbors_of.erase(removed_cell);
 			this->neighbors_to.erase(removed_cell);
+			this->face_neighbors_of.erase(removed_cell);
 
 			// also user neighbor lists
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
@@ -7043,6 +7054,9 @@ private:
 		>
 	> neighbors_of;
 
+	// Cached face neighbors on this process
+	std::unordered_map<uint64_t, std::vector<std::pair<uint64_t, int>>> face_neighbors_of;
+
 	/*
 	Offsets of cells that are considered as neighbors of a cell and
 	offsets of cells that consider a cell as a neighbor
@@ -8033,6 +8047,7 @@ private:
 			#endif
 
 			this->neighbors_to[item.first] = this->find_neighbors_to(item.first, this->neighborhood_to);
+			this->face_neighbors_of[item.first] = this->find_face_neighbors_of(item.first);
 		}
 		#ifdef DEBUG
 		if (!this->verify_neighbors()) {
