@@ -772,7 +772,8 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		if (this->cell_data.count(cell) > 0) {
+		//if (this->cell_data.count(cell) > 0) {
+		if (this->cell_process.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
 				if (this->neighbors_of.count(cell) == 0) {
@@ -826,7 +827,8 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		if (this->cell_data.count(cell) > 0) {
+		//if (this->cell_data.count(cell) > 0) {
+		if (this->cell_process.count(cell) > 0) {
 
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
@@ -2644,9 +2646,10 @@ public:
 	) const {
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
-		if (this->cell_data.count(cell) == 0) {
-			return ret_val;
-		}
+		// Allow face neighbour searches for non-local cells
+		// if (this->cell_data.count(cell) == 0) {
+		// 	return ret_val;
+		// }
 
 
 		// Iterate through neighbours and only return those with a single 1
@@ -2828,6 +2831,7 @@ public:
 			return ret_val;
 		}
 
+		// TODO: Comment out? MCB 1.7.2024
 		if (this->cell_process.at(cell) != this->rank) {
 			return ret_val;
 		}
@@ -2880,6 +2884,7 @@ public:
 			return ret_val;
 		}
 
+		// TODO: Comment out? MCB 1.7.2024
 		if (this->cell_process.at(cell) != this->rank) {
 			return ret_val;
 		}
@@ -8697,9 +8702,9 @@ private:
 			return;
 		}
 
-		if (this->cell_process.at(cell) != this->rank) {
-			return;
-		}
+		// if (this->cell_process.at(cell) != this->rank) {
+		// 	return;
+		// }
 
 		if (cell != this->get_child(cell)) {
 			return;
@@ -8711,7 +8716,6 @@ private:
 			found_neighbors_of.push_back(i.first);
 		}
 		this->neighbors_to[cell] = this->find_neighbors_to(cell, this->neighborhood_to);
-
 		#ifdef DEBUG
 		if (
 			!this->verify_neighbors(
@@ -10280,7 +10284,24 @@ private:
 	}
 
 public:
-	/*!
+	void force_update_cell_neighborhoods(const std::vector<uint64_t> cells)
+	{
+		for (uint i=0; i<cells.size(); i++) {
+			this->update_neighbors(cells[i]);
+		}
+		// also remote neighbor data of user neighborhoods
+		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
+			item = this->user_hood_of.begin();
+			item != this->user_hood_of.end();
+			item++
+		) {
+			for (uint i=0; i<cells.size(); i++) {
+				this->update_user_neighbors(cells[i],item->first);
+			}
+		}
+	}
+
+        /*!
 	Returns the smallest existing cell at given indices between given refinement levels inclusive.
 
 	Returns error_cell if no cell between given refinement ranges exists or an index is outside of
