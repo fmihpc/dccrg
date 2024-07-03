@@ -772,7 +772,6 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		//if (this->cell_data.count(cell) > 0) {
 		if (this->cell_process.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
@@ -827,7 +826,6 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		//if (this->cell_data.count(cell) > 0) {
 		if (this->cell_process.count(cell) > 0) {
 
 			if (neighborhood_id == default_neighborhood_id) {
@@ -2646,11 +2644,9 @@ public:
 	) const {
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
-		// Allow face neighbour searches for non-local cells
-		// if (this->cell_data.count(cell) == 0) {
-		// 	return ret_val;
-		// }
-
+		if (this->cell_process.count(cell) > 0) {
+			return ret_val;
+		}
 
 		// Iterate through neighbours and only return those with a single 1
 		// index.
@@ -2831,7 +2827,6 @@ public:
 			return ret_val;
 		}
 
-		// TODO: Comment out? MCB 1.7.2024
 		if (this->cell_process.at(cell) != this->rank) {
 			return ret_val;
 		}
@@ -2884,7 +2879,6 @@ public:
 			return ret_val;
 		}
 
-		// TODO: Comment out? MCB 1.7.2024
 		if (this->cell_process.at(cell) != this->rank) {
 			return ret_val;
 		}
@@ -8702,6 +8696,7 @@ private:
 			return;
 		}
 
+		// Allow neighbors of remote cells to be evaluated
 		// if (this->cell_process.at(cell) != this->rank) {
 		// 	return;
 		// }
