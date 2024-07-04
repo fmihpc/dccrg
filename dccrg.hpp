@@ -2644,7 +2644,7 @@ public:
 	) const {
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
-		if (this->cell_process.count(cell) > 0) {
+		if (this->cell_process.count(cell) == 0) {
 			return ret_val;
 		}
 
@@ -8700,6 +8700,8 @@ private:
 		// if (this->cell_process.at(cell) != this->rank) {
 		// 	return;
 		// }
+		this->neighbors_of[cell].clear();
+		this->neighbors_to[cell].clear();
 
 		if (cell != this->get_child(cell)) {
 			return;
@@ -8772,6 +8774,15 @@ private:
 			abort();
 		}
 		#endif
+
+		if (this->cell_process.count(cell) == 0) {
+			return;
+		}
+		this->user_neigh_of[neighborhood_id][cell].clear();
+		this->user_neigh_to[neighborhood_id][cell].clear();
+		if (cell != this->get_child(cell)) {
+			return;
+		}
 
 		// find neighbors_of, should be in order given by user
 		this->user_neigh_of[neighborhood_id][cell]
