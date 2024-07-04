@@ -8775,11 +8775,11 @@ private:
 		}
 		#endif
 
+		this->user_neigh_of[neighborhood_id][cell].clear();
+		this->user_neigh_to[neighborhood_id][cell].clear();
 		if (this->cell_data.count(cell) == 0) {
 			return;
 		}
-		this->user_neigh_of[neighborhood_id][cell].clear();
-		this->user_neigh_to[neighborhood_id][cell].clear();
 		if (cell != this->get_child(cell)) {
 			return;
 		}
