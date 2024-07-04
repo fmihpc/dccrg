@@ -772,7 +772,7 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		if (this->cell_process.count(cell) > 0) {
+		if (this->cell_data.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
 				if (this->neighbors_of.count(cell) == 0) {
@@ -826,7 +826,7 @@ public:
 		const uint64_t cell,
 		const int neighborhood_id = default_neighborhood_id
 	) const {
-		if (this->cell_process.count(cell) > 0) {
+		if (this->cell_data.count(cell) > 0) {
 
 			if (neighborhood_id == default_neighborhood_id) {
 				#ifdef DEBUG
@@ -2644,7 +2644,7 @@ public:
 	) const {
 		std::vector<std::pair<uint64_t, int> > ret_val;
 
-		if (this->cell_process.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return ret_val;
 		}
 
@@ -8775,7 +8775,7 @@ private:
 		}
 		#endif
 
-		if (this->cell_process.count(cell) == 0) {
+		if (this->cell_data.count(cell) == 0) {
 			return;
 		}
 		this->user_neigh_of[neighborhood_id][cell].clear();
