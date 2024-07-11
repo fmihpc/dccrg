@@ -2923,6 +2923,11 @@ public:
 		return this->neighborhood_length;
 	}
 
+	// round away from zero, stackoverflow.com/a/2745086
+	static int divide_away_from_zero(const int x, const int y)
+	{
+		return x > 0 ? (x + y - 1) / y : (x - y + 1) / y;
+	}
 
 	/*!
 	Returns all neighbors of given cell that are at given offset from it.
@@ -2967,16 +2972,7 @@ public:
 			} else {
 				auto scaled_offsets = offsets;
 				for (size_t i = 0; i < 3; i++) {
-					if (std::abs(scaled_offsets[i]) <= 1) {
-						continue;
-					}
-					// round away from zero, stackoverflow.com/a/2745086
-					if (scaled_offsets[i] > 1) {
-						scaled_offsets[i] += scaled_offsets[3] - 1;
-					} else {
-						scaled_offsets[i] -= scaled_offsets[3] - 1;
-					}
-					scaled_offsets[i] /= scaled_offsets[3];
+					scaled_offsets[i] = divide_away_from_zero(scaled_offsets[i], scaled_offsets[3]);
 				}
 				if (scaled_offsets[0] == x && scaled_offsets[1] == y && scaled_offsets[2] == z) {
 					return_neighbors.push_back(neighbor_i);
@@ -3010,18 +3006,13 @@ public:
 			return return_neighbors;
 		}
 
+		if (denom == 1) {
+			return get_neighbors_of_at_offset(cell, x, y, z);
+		}
+
 		std::vector<int> xyz = {x, y, z};
 		for (size_t i = 0; i < 3; i++) {
-			// round away from zero, stackoverflow.com/a/2745086
-			if (std::abs(xyz[i]) <= 1) {
-				continue;
-			}
-			if (xyz[i] > 1) {
-				xyz[i] += denom - 1;
-			} else {
-				xyz[i] -= denom - 1;
-			}
-			xyz[i] /= denom;
+			xyz[i] = divide_away_from_zero(xyz[i], denom);
 		}
 
 		for (const auto& neighbor_i : this->get_neighbors_of_at_offset(cell, xyz[0], xyz[1], xyz[2])) {
@@ -3035,16 +3026,7 @@ public:
 				std::vector<int> xyz = {x, y, z};
 				int factor = offsets[3] > 0 ? denom/offsets[3] : -offsets[3] * denom;
 				for (size_t i = 0; i < 3; i++) {
-					// round away from zero, stackoverflow.com/a/2745086
-					if (std::abs(xyz[i]) <= 1) {
-						continue;
-					}
-					if (xyz[i] > 1) {
-						xyz[i] += factor - 1;
-					} else {
-						xyz[i] -= factor - 1;
-					}
-					xyz[i] /= factor;
+					xyz[i] = divide_away_from_zero(xyz[i], factor);
 				}
 
 				if (offsets[0] == xyz[0] && offsets[1] == xyz[1] && offsets[2] == xyz[2]) {
@@ -3054,16 +3036,7 @@ public:
 				// If we're looking at cells smaller than denom, calculate their offsets in denom size
 				auto scaled_offsets = offsets;
 				for (size_t i = 0; i < 3; i++) {
-					// round away from zero, stackoverflow.com/a/2745086
-					if (std::abs(scaled_offsets[i]) <= 1) {
-						continue;
-					}
-					if (scaled_offsets[i] > 1) {
-						scaled_offsets[i] += scaled_offsets[3]/denom - 1;
-					} else {
-						scaled_offsets[i] -= scaled_offsets[3]/denom - 1;
-					}
-					scaled_offsets[i] /= scaled_offsets[3]/denom;
+					scaled_offsets[i] = divide_away_from_zero(scaled_offsets[i], scaled_offsets[3] / denom);
 				}
 				if (scaled_offsets[0] == x && scaled_offsets[1] == y && scaled_offsets[2] == z) {
 					return_neighbors.push_back(neighbor_i);
