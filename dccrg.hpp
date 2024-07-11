@@ -2996,6 +2996,10 @@ public:
 		const int z,
 		const int denom
 	) const {
+		if (denom == 1) {
+			return get_neighbors_of_at_offset(cell, x, y, z);
+		}
+
 		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
 		if (
 			this->cell_process.count(cell) == 0 || 
@@ -3004,10 +3008,6 @@ public:
 			denom < 0
 		) {
 			return return_neighbors;
-		}
-
-		if (denom == 1) {
-			return get_neighbors_of_at_offset(cell, x, y, z);
 		}
 
 		std::vector<int> xyz = {x, y, z};
@@ -3023,7 +3023,7 @@ public:
 				}
 			} else if (offsets[3] < denom) {
 				// If we're looking at cells larger than denom, calculate our desired xyz offset in that size
-				std::vector<int> xyz = {x, y, z};
+				xyz = {x, y, z};
 				int factor = offsets[3] > 0 ? denom/offsets[3] : -offsets[3] * denom;
 				for (size_t i = 0; i < 3; i++) {
 					xyz[i] = divide_away_from_zero(xyz[i], factor);
