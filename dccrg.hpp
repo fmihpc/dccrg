@@ -9495,6 +9495,10 @@ private:
 			this->cells_not_to_refine.clear();
 
 			for (const auto& cell: donts) {
+				// Skip non-local cells
+				if (this->cell_data.count(cell) == 0) {
+					continue;
+				}
 				std::set<uint64_t> all_neighbors;
 
 				const auto* const neighs_of = this->get_neighbors_of(cell);
