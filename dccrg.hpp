@@ -4953,7 +4953,49 @@ public:
 		return return_neighbors;
 	}
 
+	/*!
+	  Returns the existing neighbors (that don't have children) of given cell.
+	  Uses given user neighborhood when searching for neighbors.
 
+	  Does not perform new search; rather selects matching neighbors from default neighborhood.
+	  see: find_neighbors_of()
+	*/
+	std::vector<
+		std::pair<
+			uint64_t,
+			std::array<int, 4> // x, y, z offsets and denominator
+			>
+		> find_cached_neighbors_of(
+			const uint64_t cell,
+			const std::vector<Types<3>::neighborhood_item_t>& neighborhood
+			) const {
+		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+
+		if (this->cell_process.count(cell) == 0) {
+			return return_neighbors;
+		}
+
+		if (this->neighbors_of.at(cell).size() == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				  << " Failed to get cached neighbors_of for cell " << cell
+				  << " when updating user neighborhood! " << std::endl;
+			abort();
+		}
+		// Iterate through the neighborhood (requested offsets)
+		for (const auto& offsets: neighborhood) {
+
+			// Check if any of the cached neighbours match these offsets
+                        for (const auto& n: this->neighbors_of.at(cell)) {
+				if ((n.second[0] == offsets[0])
+				    && (n.second[1] == offsets[1])
+				    && (n.second[2] == offsets[2])) {
+					return_neighbors.push_back(n);
+					// Do not break: several cells can exist with same offset
+				}
+			}
+		}
+		return return_neighbors;
+	}
 
 	/*!
 	Returns cells (which don't have children) that consider given cell as a neighbor.
@@ -5047,6 +5089,51 @@ public:
 							}()
 						}
 				});
+			}
+		}
+		return return_neighbors;
+	}
+
+	/*!
+	  Returns the existing neighbors (that don't have children) of given cell.
+	  Uses given user neighborhood when searching for neighbors.
+
+	  Does not perform new search; rather selects matching neighbors from default neighborhood.
+	  see: find_neighbors_to()
+	*/
+	std::vector<
+		std::pair<
+			uint64_t,
+			std::array<int, 4> // x, y, z offsets and denominator
+			>
+		> find_cached_neighbors_to(
+			const uint64_t cell,
+			const std::vector<Types<3>::neighborhood_item_t>& neighborhood
+			) const {
+
+		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+
+		if (this->cell_process.count(cell) == 0) {
+			return return_neighbors;
+		}
+
+		if (this->neighbors_to.at(cell).size() == 0) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				  << " Failed to get cached neighbors_of for cell " << cell
+				  << " when updating user neighborhood! " << std::endl;
+			abort();
+		}
+		// Iterate through the neighborhood (requested offsets)
+		for (const auto& offsets: neighborhood) {
+
+			// Check if any of the cached neighbours match these offsets
+			for (const auto& n: this->neighbors_to.at(cell)) {
+				if ((n.second[0] == offsets[0])
+				    && (n.second[1] == offsets[1])
+				    && (n.second[2] == offsets[2])) {
+					return_neighbors.push_back(n);
+					// Do not break: several cells can exist with same offset
+				}
 			}
 		}
 		return return_neighbors;
@@ -8785,11 +8872,11 @@ private:
 
 		// find neighbors_of, should be in order given by user
 		this->user_neigh_of[neighborhood_id][cell]
-			= this->find_neighbors_of(cell, this->user_hood_of[neighborhood_id]);
+			= this->find_cached_neighbors_of(cell, this->user_hood_of[neighborhood_id]);
 
 		// find neighbors_to
 		this->user_neigh_to[neighborhood_id][cell]
-			= this->find_neighbors_to(cell, this->user_hood_to[neighborhood_id]);
+			= this->find_cached_neighbors_to(cell, this->user_hood_to[neighborhood_id]);
 	}
 
 
@@ -10295,19 +10382,55 @@ private:
 public:
 	void force_update_cell_neighborhoods(const std::vector<uint64_t> cells)
 	{
+		// check; if current neigbourhood list exists and all cells are found, assume neighbourhood is valid.
+		// otherwise re-calculate it.
 		for (uint i=0; i<cells.size(); i++) {
-			this->update_neighbors(cells[i]);
-		}
-		// also remote neighbor data of user neighborhoods
-		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-			item = this->user_hood_of.begin();
-			item != this->user_hood_of.end();
-			item++
-		) {
-			for (uint i=0; i<cells.size(); i++) {
-				this->update_user_neighbors(cells[i],item->first);
+			uint64_t cell = cells[i];
+			bool recalculate = false;
+			if ((this->neighbors_of[cell]).size() == 0) {
+				recalculate = true;
 			}
-		}
+			if ((this->neighbors_to[cell]).size() == 0) {
+				recalculate = true;
+			}
+			if (recalculate == false) {
+				for (const auto& n: (this->neighbors_of[cell])) {
+					if (this->cell_process.count(n.first) == 0) {
+						recalculate = true;
+						break;
+					}
+				}
+			}
+			if (recalculate == false) {
+				for (const auto& n: (this->neighbors_to[cell])) {
+					if (this->cell_process.count(n.first) == 0) {
+						recalculate = true;
+						break;
+					}
+				}
+			}
+			if (recalculate) {
+				this->update_neighbors(cells[i]);
+				// also remote neighbor data of user neighborhoods (now get cached versions)
+				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
+					     item = this->user_hood_of.begin();
+				     item != this->user_hood_of.end();
+				     item++
+					) {
+					auto neighborhood_id = item->first;
+
+					this->user_neigh_of[neighborhood_id][cell].clear();
+					this->user_neigh_to[neighborhood_id][cell].clear();
+					// find neighbors_of using existing full neighborhood
+					this->user_neigh_of[neighborhood_id][cell]
+						= this->find_cached_neighbors_of(cell, this->user_hood_of[neighborhood_id]);
+
+					// find neighbors_to using existing full neighborhood
+					this->user_neigh_to[neighborhood_id][cell]
+						= this->find_cached_neighbors_to(cell, this->user_hood_to[neighborhood_id]);
+				}
+			} // end recalculate
+		} // end loop cells
 	}
 
         /*!
