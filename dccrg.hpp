@@ -946,9 +946,15 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& balance_load(const bool use_zoltan = true)
 	{
+		phiprof::Timer initTimer {"Initialize Balance load"};
 		this->initialize_balance_load(use_zoltan);
+		initTimer.stop();
+		phiprof::Timer contTimer {"Continue Balance load"};
 		this->continue_balance_load();
+		contTimer.stop();
+		phiprof::Timer finishTimer {"Finish Balance load"};
 		this->finish_balance_load();
+		finishTimer.stop();
 		return *this;
 	}
 
@@ -3072,17 +3078,17 @@ public:
 
 		this->refining = true;
 
-		phiprof::start("Override refines");
+		phiprof::Timer orTimer {"Override refines"};
 		this->override_refines();
-		phiprof::stop("Override refines");
+		orTimer.stop();
 
-		phiprof::start("Induce refines");
+		phiprof::Timer irTimer {"Induce refines"};
 		this->induce_refines();
-		phiprof::stop("Induce refines");
+		irTimer.stop();
 
-		phiprof::start("Override unrefines");
+		phiprof::Timer ouTimer {"Override unrefines"};
 		this->override_unrefines();
-		phiprof::stop("Override unrefines");
+		ouTimer.stop();
 	}
 
 
@@ -3266,12 +3272,16 @@ public:
 					if (neighbor == error_cell) {
 						continue;
 					}
-					update_neighbors.insert(neighbor);
+					if (this->cell_process.at(neighbor) == this->rank) {
+						update_neighbors.insert(neighbor);
+					}
 				}
 
 				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
 					const auto& neighbor_to = neighbor_to_i.first;
-					update_neighbors.insert(neighbor_to);
+					if (this->cell_process.at(neighbor_to) == this->rank) {
+						update_neighbors.insert(neighbor_to);
+					}
 				}
 			}
 
@@ -3297,7 +3307,9 @@ public:
 						if (neighbor == error_cell) {
 							continue;
 						}
-                                                update_neighbors.insert(neighbor);
+						if (this->is_local(neighbor)) {
+							update_neighbors.insert(neighbor);
+						}
 					}
 				}
 			}
@@ -3522,14 +3534,18 @@ public:
 				if (neighbor == 0) {
 					continue;
 				}
-				update_neighbors.insert(neighbor);
+				if (this->cell_process.at(neighbor) == this->rank) {
+					update_neighbors.insert(neighbor);
+				}
 			}
 
 			const auto new_neighbors_to
 				= this->find_neighbors_to(parent, this->neighborhood_to);
 			for (const auto& neighbor_i: new_neighbors_to) {
 				const auto& neighbor = neighbor_i.first;
-				update_neighbors.insert(neighbor);
+				if (this->cell_process.at(neighbor) == this->rank) {
+					update_neighbors.insert(neighbor);
+				}
 			}
 
 			// add user data and neighbor lists of local parents of unrefined cells
@@ -8888,6 +8904,7 @@ private:
 		- given cell has children
 	Assumes that update_neighbors(cell) has been called prior to this.
 	*/
+	template <bool allowRemotes = false>
 	void update_user_neighbors(const uint64_t cell, const int neighborhood_id)
 	{
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
@@ -8910,6 +8927,11 @@ private:
 		this->user_neigh_to[neighborhood_id][cell].clear();
 		if (this->cell_process.count(cell) == 0) {
 			return;
+		}
+		if (!allowRemotes) {
+			if (this->cell_data.count(cell) == 0) {
+				return;
+			}
 		}
 		if (cell != this->get_child(cell)) {
 			return;
@@ -10406,7 +10428,7 @@ public:
 					item != this->user_hood_of.end();
 					item++
 				) {
-					this->update_user_neighbors(cell, item->first);
+					this->update_user_neighbors<true>(cell, item->first);
 				}
 			} // end recalculate
 		} // end loop cells
