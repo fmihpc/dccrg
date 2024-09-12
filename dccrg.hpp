@@ -2324,7 +2324,7 @@ public:
 			return false;
 		}
 
-		if (this->cell_data.count(cell) == 0) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return false;
 		}
 
@@ -2433,7 +2433,7 @@ public:
 			return false;
 		}
 
-		if (this->cell_data.count(cell) == 0) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return false;
 		}
 
@@ -2458,7 +2458,7 @@ public:
 			}
 		}
 
-		// unrefinement succeeds if parent of unrefined will fulfill requirements
+		// unrefinement succeeds only if parent of unrefined will fulfill requirements
 		const uint64_t parent = this->get_parent(cell);
 		const int refinement_level = this->mapping.get_refinement_level(parent);
 
@@ -2488,12 +2488,15 @@ public:
 
 			const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
 
-			if (neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) {
-				return true;
-			}
-
-			if (neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
-			&& this->cells_to_refine.count(neighbor) > 0) {
+			if (
+				(neighbor_ref_lvl > refinement_level + this->max_ref_lvl_diff) ||
+				(neighbor_ref_lvl == refinement_level + this->max_ref_lvl_diff
+				 && this->cells_to_refine.count(neighbor) > 0)
+				) {
+				// Store this cell and all siblings in cells_not_to_unrefine
+				for(const auto& sibling: siblings) {
+					this->cells_not_to_unrefine.insert(sibling);
+				}
 				return true;
 			}
 		}
@@ -2505,6 +2508,7 @@ public:
 			}
 		}
 
+                // The rest of the unrefined siblings are added later in execute_refines()
 		this->cells_to_unrefine.insert(cell);
 
 		return true;
@@ -2542,11 +2546,9 @@ public:
 			return false;
 		}
 
-		#ifdef DEBUG
-		if (this->cell_data.count(cell) == 0) {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
+		if (this->cell_process.at(cell) != this->rank) {
+			return false;
 		}
-		#endif
 
 		if (this->mapping.get_refinement_level(cell) == 0) {
 			return true;
@@ -3276,37 +3278,29 @@ public:
 					}
 				}
 
-				for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
-					const auto& neighbor_to = neighbor_to_i.first;
-					if (this->cell_process.at(neighbor_to) == this->rank) {
-						update_neighbors.insert(neighbor_to);
-					}
-				}
+				// Duplicate, not necessary
+				// for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
+				//	const auto& neighbor_to = neighbor_to_i.first;
+				//	if (this->cell_process.at(neighbor_to) == this->rank) {
+				//		update_neighbors.insert(neighbor_to);
+				//	}
+				// }
 			}
 
-			// without using local neighbor lists figure out rest of the
-			// neighbor lists that need updating
+			// figure out rest of the neighbor lists that need updating
 			if (this->remote_cells_on_process_boundary.count(refined) > 0) {
-
-				/*
-				No need to update local neighbors_to of refined cell, if they are larger
-				they will also be refined and updated.
-				*/
-				const auto neighbors
-					= this->find_neighbors_of(
-						refined,
-						this->neighborhood_of,
-						true
-						);
-
-				for (const auto& neighbor_i: neighbors) {
-					const auto& neighbor = neighbor_i.first;
-
-					if (neighbor == error_cell) {
+				// Check through all local cells on process boundary
+				for (const auto& local_candidate: this->local_cells_on_process_boundary) {
+					if (update_neighbors.count(local_candidate) > 0 ) {
 						continue;
 					}
-					if (this->is_local(neighbor)) {
-						update_neighbors.insert(neighbor);
+					// Check if any of their neighbours are the refined cell
+					for (const auto& neighbor: neighbors_of.at(local_candidate) ) {
+						if (neighbor.first == refined) {
+							// Tag this local cell as needing updating
+							update_neighbors.insert(local_candidate);
+							break;
+						}
 					}
 				}
 			}
@@ -3536,22 +3530,21 @@ public:
 				}
 			}
 
+			// Duplicate, not needed
 			// const auto new_neighbors_to
 			//	= this->find_neighbors_to(parent, this->neighborhood_to);
-			const auto new_neighbors_to
-				= this->fill_neighbors_to(parent, this->neighborhood_to);
-			for (const auto& neighbor_i: new_neighbors_to) {
-				const auto& neighbor = neighbor_i.first;
-				if (this->cell_process.at(neighbor) == this->rank) {
-					update_neighbors.insert(neighbor);
-				}
-			}
+			// for (const auto& neighbor_i: new_neighbors_to) {
+			//	const auto& neighbor = neighbor_i.first;
+			//	if (this->cell_process.at(neighbor) == this->rank) {
+			//		update_neighbors.insert(neighbor);
+			//	}
+			// }
 
 			// add user data and neighbor lists of local parents of unrefined cells
 			if (this->cell_process.at(parent) == this->rank) {
 				this->cell_data[parent];
 				this->neighbors_of[parent] = new_neighbors_of;
-				this->neighbors_to[parent] = new_neighbors_to;
+				this->neighbors_to[parent] = this->fill_neighbors_to(parent, this->neighborhood_to);
 				this->face_neighbors_of[parent] = this->find_face_neighbors_of(parent);
 
 				// add user neighbor lists
@@ -8803,7 +8796,7 @@ private:
 			return;
 		}
 		if (!allowRemotes) {
-			if (this->cell_data.count(cell) == 0) {
+			if (this->cell_process.at(cell) != this->rank) {
 				return;
 			}
 		}
@@ -8829,7 +8822,7 @@ private:
 	*/
 	void update_remote_neighbor_info(const uint64_t cell)
 	{
-		if (this->cell_data.count(cell) == 0) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -8921,7 +8914,7 @@ private:
 	*/
 	void update_user_remote_neighbor_info(const uint64_t cell, const int neighborhood_id)
 	{
-		if (this->cell_data.count(cell) == 0) {
+		if (this->cell_process.at(cell) != this->rank) {
 			return;
 		}
 
@@ -9507,7 +9500,7 @@ private:
 
 			for (const auto& cell: donts) {
 				// Skip non-local cells
-				if (this->cell_data.count(cell) == 0) {
+				if (this->cell_process.at(cell) != this->rank) {
 					continue;
 				}
 				std::set<uint64_t> all_neighbors;
@@ -9519,12 +9512,13 @@ private:
 					}
 				}
 
-				const auto* const neighs_to = this->get_neighbors_to(cell);
-				if (neighs_to != nullptr) {
-					for (const auto& n: *neighs_to) {
-						all_neighbors.insert(n.first);
-					}
-				}
+				// Duplicate, not necessary
+				// const auto* const neighs_to = this->get_neighbors_to(cell);
+				// if (neighs_to != nullptr) {
+				//	for (const auto& n: *neighs_to) {
+				//		all_neighbors.insert(n.first);
+				//	}
+				// }
 
 				const auto ref_lvl = this->mapping.get_refinement_level(cell);
 				for (const auto& neighbor: all_neighbors) {
