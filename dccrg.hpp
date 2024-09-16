@@ -4373,9 +4373,10 @@ public:
 
 		this->allocate_copies_of_remote_neighbors();
 		this->update_cell_pointers();
-		for (const auto& item: this->user_hood_of) {
-			this->allocate_copies_of_remote_neighbors(item.first);
-		}
+		// All remote neighbors of user hoods are already included in base hood
+		// for (const auto& item: this->user_hood_of) {
+		//	this->allocate_copies_of_remote_neighbors(item.first);
+		// }
 
 		#ifdef DEBUG
 		if (!this->is_consistent()) {
