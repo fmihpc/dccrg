@@ -4987,7 +4987,7 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 3> // x, y, z offsets and denominator
+			std::array<int, 3> // x, y, z offsets
 			>
 		> find_cached_neighbors_to(
 			const uint64_t cell,
@@ -7207,18 +7207,6 @@ private:
 		\see tests/advection/solve.hpp
 		*/
 		int x, y, z;
-		/*!
-		Denominator / divisor of offset from cell.
-
-		Value is = 1 if neighbor is same size as cell, > 1 if neighbor
-		is smaller than cell and < -1 if neighbor is larger than cell.
-		Value is 2 for neighbor half the size of cell, 4 for neighbor
-		quarter the size of cell, etc.
-		Value is -2 for neighbor twice the size of cell, -4 for neighbor
-		four times the size of cell, etc.
-		*/
-		int denom;
-
 
 		// everything done in update_caller() with three or more arguments
 		template<class Grid, class Cell_Item, class Neighbor_Item, class...> void update_caller(const Grid&, const Cell_Item&, const Neighbor_Item&) {}
@@ -10553,7 +10541,6 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.denom = offsets[3];
 				// call user-defined update function(s)
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
@@ -10578,7 +10565,6 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.denom = offsets[3];
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
 				#ifdef DEBUG
@@ -10603,7 +10589,6 @@ private:
 				item.x = offsets[0];
 				item.y = offsets[1];
 				item.z = offsets[2];
-				item.denom = offsets[3];
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
 			}
