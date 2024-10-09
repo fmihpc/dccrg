@@ -7048,10 +7048,11 @@ private:
 	std::unordered_map<uint64_t, Cell_Data> cell_data;
 
 	/*!
-	Cell on this process and cells it considers as neighbors
+	For each local cell, this data structure contains a list of cells that it
+	considers neighbors, and their offsets and refinement level difference.
 
-	Owner(s) of neighbors_of send user data of neighbors_of to owner
-	of the cell during remote neighbor data update.
+	The ranks owning a neighbor cell according to this array send user data
+	to owner of the cell during remote neighbor data update.
 	*/
 	std::unordered_map<
 		uint64_t,
@@ -7081,18 +7082,12 @@ private:
 	> user_hood_of, user_hood_to;
 
 	/*!
-	Cell on this process and those cells that aren't neighbors of
-	this cell but whose neighbor this cell is.
-	For example with a stencil size of 1 in the following grid:
-\verbatim
-|-----------|
-|     |5 |6 |
-|  1  |--|--|
-|     |9 |10|
-|-----------|
-\endverbatim
-	neighbors_to[6] = 1 because neighbors[6] = 5, 9, 10 while
-	neighbors_to[5] is empty because neighbors[5] = 1, 6, 9, 10
+	As a reverse of neighbors_to, this data structure contains the cells that
+	consider a given cell *as their neighbors*, as well as their offsets and
+	refinement level difference.
+
+	For the symmetric base neighborhood, this will always be symmetric with
+	neighbors_of. But note that asymmetric user neighborhoods below will not be.
 	*/
 	std::unordered_map<
 		uint64_t,
@@ -7105,7 +7100,22 @@ private:
 	> neighbors_to;
 
 	/*
-	User defined versions of neighbors_of and _to
+	User defined versions of neighbors_of and _to.
+	These match the semantics of neighbors_of and neighbors_to above.
+	However, since user neighborhoods do not need to be symmetric, there can be
+	a mismatch between "What cells do I consider my neighbors" and "What cells
+	consider me their neighbors".
+
+	Example: In a neighbor hoodthat only consists of offsets (1,0,0):
+
+	+-----+-----+-----+
+	|     |     |     |
+	|  A--|->B--|->C  |
+	|     |     |     |
+	+-----+-----+-----+
+
+	Cell B's neighbor_of will contain only cell C.
+	But cell B's neighbors_to will contain only cell A.
 	*/
 	std::unordered_map<
 		int, // user defined id of neighbor lists
