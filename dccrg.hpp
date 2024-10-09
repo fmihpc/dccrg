@@ -4907,7 +4907,7 @@ public:
 				refcheck = -2;
 			} else {
 				// Neighbor is coarser
-				refcheck = (1 << (neighbor_ref_lvl - refinement_level));
+				refcheck = 2;
 			}
 			std::pair<uint64_t,std::array<int, 4>> mirror_item{item.first,
 									   {-item.second[0],
@@ -5005,10 +5005,10 @@ public:
 									return 1;
 								} else if(neighbor_ref_lvl > refinement_level) {
 									// Neighbor is finer
-									return 1;
+									return -2;
 								} else {
 									// Neighbor is coarser
-									return -1 * (1 << (refinement_level - neighbor_ref_lvl));
+									return 2;
 								}
 							}()
 						}
