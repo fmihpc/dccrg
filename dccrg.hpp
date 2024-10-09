@@ -764,7 +764,7 @@ public:
 	const std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	>* get_neighbors_of(
 		const uint64_t cell,
@@ -818,7 +818,7 @@ public:
 	const std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	>* get_neighbors_to(
 		const uint64_t cell,
@@ -2729,7 +2729,7 @@ public:
 		const std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>& neighs_of
 			= [&](){
@@ -2755,7 +2755,7 @@ public:
 		const std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>& neighs_to
 			= [&](){
@@ -2841,7 +2841,7 @@ public:
 			return ret_val;
 		}
 
-		const std::vector<std::pair<uint64_t,std::array<int, 4>>>& neighbors_ref
+		const std::vector<std::pair<uint64_t,std::array<int, 3>>>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
 			? this->neighbors_of.at(cell)
 			: this->user_neigh_of.at(neighborhood_id).at(cell);
@@ -2893,7 +2893,7 @@ public:
 			return ret_val;
 		}
 
-		const std::vector<std::pair<uint64_t,std::array<int, 4>>>& neighbors_ref
+		const std::vector<std::pair<uint64_t,std::array<int, 3>>>& neighbors_ref
 			= (neighborhood_id == default_neighborhood_id)
 			? this->neighbors_to.at(cell)
 			: this->user_neigh_to.at(neighborhood_id).at(cell);
@@ -4737,14 +4737,14 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4> // x, y, z offsets and denominator
+			std::array<int, 3> // x, y, z
 		>
 	> find_neighbors_of(
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood,
 		const bool has_children = false
 	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		const int refinement_level
 			= this->mapping.get_refinement_level(cell);
@@ -4797,26 +4797,12 @@ public:
 					continue;
 				}
 
-				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighCell);
-
 				return_neighbors.push_back({
 						neighCell,
 						{
 							offsets[0],
 							offsets[1],
-							offsets[2],
-							// NOTE: For whatever reason, return value is negative here if refinement mismatches
-							[&](){
-								if(neighbor_ref_lvl == refinement_level) {
-									return 1;
-								} else if(neighbor_ref_lvl > refinement_level) {
-									// Neighbor is finer
-									return 1;
-								} else {
-									// Neighbor is coarser
-									return -1 * (1 << (refinement_level - neighbor_ref_lvl));
-								}
-							}()
+							offsets[2]
 						}
 				});
 			}
@@ -4834,13 +4820,13 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4> // x, y, z offsets and denominator
+			std::array<int, 3> // x, y, z offsets
 			>
 		> find_cached_neighbors_of(
 			const uint64_t cell,
 			const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 			) const {
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		if (this->cell_process.count(cell) == 0) {
 			return return_neighbors;
@@ -4877,13 +4863,13 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	> fill_neighbors_to(
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		if (
 			cell == error_cell
@@ -4894,26 +4880,11 @@ public:
 			return return_neighbors;
 		}
 
-		const int refinement_level
-			= this->mapping.get_refinement_level(cell);
 		for (const auto& item: this->neighbors_of.at(cell)) {
-			// Refinement check index logic is mirrored
-			const int neighbor_ref_lvl = this->mapping.get_refinement_level(item.first);
-			int refcheck = 0;
-			if(neighbor_ref_lvl == refinement_level) {
-				refcheck = 1;
-			} else if(neighbor_ref_lvl < refinement_level) {
-				// Neighbor is finer
-				refcheck = -2;
-			} else {
-				// Neighbor is coarser
-				refcheck = 2;
-			}
-			std::pair<uint64_t,std::array<int, 4>> mirror_item{item.first,
+			std::pair<uint64_t,std::array<int, 3>> mirror_item{item.first,
 									   {-item.second[0],
 									    -item.second[1],
-									    -item.second[2],
-									    refcheck}};
+									    -item.second[2]}};
 			return_neighbors.push_back(item);
 		}
 		return return_neighbors;
@@ -4934,13 +4905,13 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4>
+			std::array<int, 3>
 		>
 	> find_neighbors_to(
 		const uint64_t cell,
 		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		if (
 			cell == error_cell
@@ -4998,19 +4969,7 @@ public:
 						{
 							offsets[0],
 							offsets[1],
-							offsets[2],
-							// NOTE: For whatever reason, return value is negative here if refinement mismatches
-							[&](){
-								if(neighbor_ref_lvl == refinement_level) {
-									return 1;
-								} else if(neighbor_ref_lvl > refinement_level) {
-									// Neighbor is finer
-									return -2;
-								} else {
-									// Neighbor is coarser
-									return 2;
-								}
-							}()
+							offsets[2]
 						}
 				});
 			}
@@ -5028,14 +4987,14 @@ public:
 	std::vector<
 		std::pair<
 			uint64_t,
-			std::array<int, 4> // x, y, z offsets and denominator
+			std::array<int, 3> // x, y, z offsets and denominator
 			>
 		> find_cached_neighbors_to(
 			const uint64_t cell,
 			const std::vector<Types<3>::neighborhood_item_t>& neighborhood
 			) const {
 
-		std::vector<std::pair<uint64_t, std::array<int, 4>>> return_neighbors;
+		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
 		if (this->cell_process.count(cell) == 0) {
 			return return_neighbors;
@@ -6752,7 +6711,7 @@ public:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	>& get_all_neighbors_to() const
@@ -6770,7 +6729,7 @@ public:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>
@@ -6789,7 +6748,7 @@ public:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>
@@ -7049,10 +7008,7 @@ private:
 
 	/*!
 	For each local cell, this data structure contains a list of cells that it
-	considers neighbors, and their offsets and size ratio
-	(=1 for cells on the same refinement level, 2 for cells twice the size and
-	-2 for cells half the size).
-
+	considers neighbors, and their offsets. 
 	The ranks owning a neighbor cell according to this array send user data
 	to owner of the cell during remote neighbor data update.
 	*/
@@ -7061,7 +7017,7 @@ private:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	> neighbors_of;
@@ -7085,9 +7041,7 @@ private:
 
 	/*!
 	As a reverse of neighbors_to, this data structure contains the cells that
-	consider a given cell *as their neighbors*, as well as their size ratio
-	(=1 for cells on the same refinement level, 2 for cells twice the size and
-	-2 for cells half the size).
+	consider a given cell *as their neighbors*.
 
 	For the symmetric base neighborhood, this will always be symmetric with
 	neighbors_of. But note that asymmetric user neighborhoods below will not be.
@@ -7097,7 +7051,7 @@ private:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		>
 	> neighbors_to;
@@ -7127,7 +7081,7 @@ private:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>
@@ -10571,7 +10525,7 @@ private:
 			nr_neighbors[i][3] = only_neighbors_to.size();
 
 			// add cell's neighbors
-			std::map<uint64_t, std::array<int, 4>> all_neighbors;
+			std::map<uint64_t, std::array<int, 3>> all_neighbors;
 			for (const auto& n: *neighbors_of) {
 				if (n.first == error_cell) {
 					continue;
@@ -11420,7 +11374,7 @@ private:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>& neighbor_of_lists,
@@ -11429,7 +11383,7 @@ private:
 			std::vector<
 				std::pair<
 					uint64_t,
-					std::array<int, 4>
+					std::array<int, 3>
 				>
 			>
 		>& neighbor_to_lists
@@ -11678,7 +11632,7 @@ private:
 		std::vector<
 			std::pair<
 				uint64_t,
-				std::array<int, 4>
+				std::array<int, 3>
 			>
 		> all_neighbors(
 			this->neighbors_of.at(cell).begin(),
