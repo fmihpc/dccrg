@@ -7049,7 +7049,9 @@ private:
 
 	/*!
 	For each local cell, this data structure contains a list of cells that it
-	considers neighbors, and their offsets and refinement level difference.
+	considers neighbors, and their offsets and size ratio
+	(=1 for cells on the same refinement level, 2 for cells twice the size and
+	-2 for cells half the size).
 
 	The ranks owning a neighbor cell according to this array send user data
 	to owner of the cell during remote neighbor data update.
@@ -7083,8 +7085,9 @@ private:
 
 	/*!
 	As a reverse of neighbors_to, this data structure contains the cells that
-	consider a given cell *as their neighbors*, as well as their offsets and
-	refinement level difference.
+	consider a given cell *as their neighbors*, as well as their size ratio
+	(=1 for cells on the same refinement level, 2 for cells twice the size and
+	-2 for cells half the size).
 
 	For the symmetric base neighborhood, this will always be symmetric with
 	neighbors_of. But note that asymmetric user neighborhoods below will not be.
