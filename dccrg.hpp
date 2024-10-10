@@ -340,8 +340,8 @@ public:
 		max_tag(other.get_max_tag()),
 		send_single_cells(other.get_send_single_cells()),
 		comm(other.get_communicator()),
-		rank(uint64_t(other.get_rank())),
-		comm_size(uint64_t(other.get_comm_size())),
+		rank((other.get_rank())),
+		comm_size((other.get_comm_size())),
 		neighborhood_of(other.get_neighborhood_of()),
 		neighborhood_to(other.get_neighborhood_to()),
 		user_hood_of(other.get_user_hood_of()),
@@ -642,7 +642,7 @@ public:
 				abort();
 			}
 
-			const uint64_t child = this->get_child(cell);
+			const int child = this->get_child(cell);
 			if (child == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
@@ -1386,7 +1386,7 @@ public:
 			= (uint64_t) offset
 			+ 2 * total_number_of_cells * sizeof(uint64_t);
 
-		for (size_t i = 0; i < (size_t) this->rank; i++) {
+		for (int i = 0; i < this->rank; i++) {
 			cell_data_start += all_number_of_bytes[i];
 		}
 
@@ -1421,7 +1421,7 @@ public:
 
 		// calculate where local cell list will begin in output file
 		uint64_t cell_list_start = (uint64_t) offset;
-		for (size_t i = 0; i < (size_t) this->rank; i++) {
+		for (int i = 0; i < this->rank; i++) {
 			cell_list_start += all_number_of_cells[i] * 2 * sizeof(uint64_t);
 		}
 
@@ -2046,7 +2046,7 @@ public:
 					this->cell_data.at(cell),
 					cell,
 					-1,
-					(int) this->rank,
+					this->rank,
 					true,
 					-1
 				);
@@ -3310,7 +3310,7 @@ public:
 		std::vector<std::vector<uint64_t>> all_ordered_cells_to_refine;
 		All_Gather()(ordered_cells_to_refine, all_ordered_cells_to_refine, this->comm);
 
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 			if (!std::equal(
 				all_ordered_cells_to_refine[process].begin(),
 				all_ordered_cells_to_refine[process].end(),
@@ -3330,7 +3330,7 @@ public:
 		std::vector<std::vector<uint64_t>> all_ordered_cells_to_unrefine;
 		All_Gather()(ordered_cells_to_unrefine, all_ordered_cells_to_unrefine, this->comm);
 
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 			if (!std::equal(
 				all_ordered_cells_to_unrefine[process].begin(),
 				all_ordered_cells_to_unrefine[process].end(),
@@ -3392,7 +3392,7 @@ public:
 			}
 			#endif
 
-			const uint64_t process_of_refined = this->cell_process.at(refined);
+			const int process_of_refined = this->cell_process.at(refined);
 
 			// move user data of refined cells into refined_cell_data
 			if (this->rank == process_of_refined) {
@@ -3587,8 +3587,8 @@ public:
 			}
 			#endif
 
-			const uint64_t process_of_parent = this->cell_process.at(parent_of_unrefined);
-			const uint64_t process_of_unrefined = this->cell_process.at(unrefined);
+			const int process_of_parent = this->cell_process.at(parent_of_unrefined);
+			const int process_of_unrefined = this->cell_process.at(unrefined);
 
 			// remove unrefined cells and their siblings from the grid, but don't remove user data yet
 			this->cell_process.erase(unrefined);
@@ -3631,50 +3631,42 @@ public:
 		}
 
 		// receive cells in known order and add message tags
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::iterator
-			sender = this->cells_to_receive.begin();
-			sender != this->cells_to_receive.end();
-			sender++
-		) {
-			std::sort(sender->second.begin(), sender->second.end());
+		for (auto& [process, cell_pairs] : cells_to_receive) {
+			std::sort(cell_pairs.begin(), cell_pairs.end());
 			// TODO: merge with identical code in make_new_partition
-			for (unsigned int i = 0; i < sender->second.size(); i++) {
+			for (size_t i = 0; i < cell_pairs.size(); i++) {
 
-				const int tag = (int) i + 1;
-				if (tag > (int) this->max_tag) {
+				const int tag = static_cast<int>(i) + 1;
+				if (tag > this->max_tag) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
-						<< ": Message tag would overflow for receiving cell " << sender->second[i].first
-						<< " from process " << sender->first
+						<< ": Message tag would overflow for receiving cell " << cell_pairs[i].first
+						<< " from process " << process
 						<< std::endl;
 					abort();
 				}
 
-				sender->second[i].second = tag;
+				cell_pairs[i].second = tag;
 			}
 		}
 
 		// send cells in known order and add message tags
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::iterator
-			receiver = this->cells_to_send.begin();
-			receiver != this->cells_to_send.end();
-			receiver++
-		) {
-			std::sort(receiver->second.begin(), receiver->second.end());
+		for (auto& [process, cell_pairs] : cells_to_send) {
+			std::sort(cell_pairs.begin(), cell_pairs.end());
 			// TODO: check that message tags don't overflow
-			for (unsigned int i = 0; i < receiver->second.size(); i++) {
+			for (size_t i = 0; i < cell_pairs.size(); i++) {
 
-				const int tag = (int) i + 1;
-				if (tag > (int) this->max_tag) {
+				const int tag = static_cast<int>(i) + 1;
+				if (tag > this->max_tag) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
-						<< ": Message tag would overflow for sending cell " << receiver->second[i].first
-						<< " to process " << receiver->first
+						<< ": Message tag would overflow for sending cell " << cell_pairs[i].first
+						<< " to process " << process
 						<< std::endl;
 					abort();
 				}
 
-				receiver->second[i].second = tag;
+				cell_pairs[i].second = tag;
 			}
 		}
 
@@ -4048,16 +4040,12 @@ public:
 		std::vector<uint64_t> ret_val;
 		ret_val.reserve(this->cell_process.size());
 
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			item = this->cell_process.begin();
-			item != this->cell_process.end();
-			item++
-		) {
+		for (const auto& [cell, process] : cell_process) {
 
-			const uint64_t child = this->get_child(item->first);
+			const uint64_t child = this->get_child(cell);
 
-			if (child == item->first) {
-				ret_val.push_back(item->first);
+			if (child == cell) {
+				ret_val.push_back(cell);
 			}
 		}
 
@@ -4249,17 +4237,9 @@ public:
 		this->make_new_partition(use_zoltan);
 
 		// default construct user data of arriving cells
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
-			sender_item = this->cells_to_receive.begin();
-			sender_item != this->cells_to_receive.end();
-			sender_item++
-		) {
-			for (std::vector<std::pair<uint64_t, int>>::const_iterator
-				cell_item = sender_item->second.begin();
-				cell_item != sender_item->second.end();
-				cell_item++
-			) {
-				this->cell_data[cell_item->first];
+		for (const auto& [process, cell_items] : this->cells_to_receive) {
+			for (const auto& [id, process] : cell_items) {
+				this->cell_data[id];
 			}
 		}
 
@@ -6174,7 +6154,7 @@ public:
 			return false;
 		}
 
-		if (process < 0 || process >= (int) this->comm_size) {
+		if (process < 0 || process >= this->comm_size) {
 			return false;
 		}
 
@@ -6866,7 +6846,7 @@ public:
 	/*!
 	Returns the maximum value an MPI tag can have.
 	*/
-	unsigned int get_max_tag() const
+	int get_max_tag() const
 	{
 		return this->max_tag;
 	}
@@ -6954,7 +6934,7 @@ public:
 	*/
 	int get_comm_size() const
 	{
-		return int(this->comm_size);
+		return this->comm_size;
 	}
 
 	/*!
@@ -7076,9 +7056,9 @@ public:
 	}
 
 	/*!
-	Returns the process (2nd value) of each cell (1st value).
+	Returns the each cell's (1st value) process (2nd value).
 	*/
-	const std::unordered_map<uint64_t, uint64_t>& get_cell_process() const
+	const std::unordered_map<uint64_t, int>& get_cell_process() const
 	{
 		return this->cell_process;
 	}
@@ -7174,7 +7154,7 @@ public:
 	/*!
 	Returns pin requests currently in force.
 	*/
-	const std::unordered_map<uint64_t, uint64_t>& get_pin_requests() const
+	const std::unordered_map<uint64_t, int>& get_pin_requests() const
 	{
 		return this->pin_requests;
 	}
@@ -7184,7 +7164,7 @@ public:
 
 	These have not been told to other processes yet.
 	*/
-	const std::unordered_map<uint64_t, uint64_t>& get_new_pin_requests() const
+	const std::unordered_map<uint64_t, int>& get_new_pin_requests() const
 	{
 		return this->new_pin_requests;
 	}
@@ -7202,7 +7182,7 @@ public:
 
 	First partition has vec[0] number of processes, second vec[1], etc.
 	*/
-	const std::vector<unsigned int>& get_processes_per_part() const
+	const std::vector<int>& get_processes_per_part() const
 	{
 		return this->processes_per_part;
 	}
@@ -7239,7 +7219,7 @@ public:
 	Close enough is number of refinement level 0 cells * size of default neighborhood.
 	FIXME not implemented yet so doesn't return anything at the moment.
 	*/
-	const std::unordered_set<uint64_t>& get_neighbor_processes() const
+	const std::unordered_set<int>& get_neighbor_processes() const
 	{
 		return this->neighbor_processes;
 	}
@@ -7308,7 +7288,7 @@ private:
 	std::string load_balancing_method{"RCB"};
 
 	// maximum value an MPI tag can have
-	unsigned int max_tag;
+	int max_tag;
 
 	// maximum difference in refinement level between neighbors
 	int max_ref_lvl_diff = 1;
@@ -7319,7 +7299,8 @@ private:
 
 	// the grid is distributed between these processes
 	MPI_Comm comm;
-	uint64_t rank, comm_size;
+	int rank;
+   int comm_size;
 
 	// cells and their data on this process
 	std::unordered_map<uint64_t, Cell_Data> cell_data;
@@ -7397,8 +7378,8 @@ private:
 		>
 	> user_neigh_of, user_neigh_to;
 
-	// on which process every cell in the grid is
-	std::unordered_map<uint64_t, uint64_t> cell_process;
+	// on which process every cell in the grid is. <cell, process>
+	std::unordered_map<uint64_t, int> cell_process;
 
 	// cells on this process that have a neighbor on another
 	// process or are considered as a neighbor of a cell on another process
@@ -7453,15 +7434,15 @@ private:
 	// stores user data of cells that were removed while unrefining
 	std::unordered_map<uint64_t, Cell_Data> unrefined_cell_data;
 
-	// cell that should be kept on a particular process
-	std::unordered_map<uint64_t, uint64_t> pin_requests;
+	// cell that should be kept on a particular process. <cell, process>
+	std::unordered_map<uint64_t, int> pin_requests;
 	// pin requests given since that last time load was balanced
-	std::unordered_map<uint64_t, uint64_t> new_pin_requests;
+	std::unordered_map<uint64_t, int> new_pin_requests;
 
 	// variables for load balancing using Zoltan
 	Zoltan_Struct* zoltan;
 	// number of processes per part in a hierarchy level (numbering starts from 0)
-	std::vector<unsigned int> processes_per_part;
+	std::vector<int> processes_per_part;
 	// options for each level of hierarchial load balancing (numbering start from 0)
 	std::vector<std::unordered_map<std::string, std::string>> partitioning_options;
 	// record whether Zoltan_LB_Partition is expected to fail
@@ -7474,7 +7455,7 @@ private:
 	std::unordered_map<uint64_t, double> cell_weights;
 
 	// processes which have cells close enough from cells of this process
-	std::unordered_set<uint64_t> neighbor_processes;
+	std::unordered_set<int> neighbor_processes;
 
 	bool balancing_load = false;
 	bool refining = false;
@@ -7710,7 +7691,7 @@ private:
 				<< std::endl;
 			return false;
 		}
-		this->comm_size = (uint64_t) temp_size;
+		this->comm_size = temp_size;
 
 		int temp_rank = 0;
 		ret_val = MPI_Comm_rank(this->comm, &temp_rank);
@@ -7726,7 +7707,7 @@ private:
 				<< std::endl;
 			abort();
 		}
-		this->rank = (uint64_t) temp_rank;
+		this->rank = temp_rank;
 
 		// get maximum tag value
 		int attr_flag = -1, *attr = NULL;
@@ -7741,7 +7722,7 @@ private:
 			// guaranteed by MPI
 			this->max_tag = 32767;
 		} else {
-			this->max_tag = (unsigned int) *attr;
+			this->max_tag = static_cast<int>(*attr);
 		}
 
 		return true;
@@ -7778,7 +7759,7 @@ private:
 		int worker_procs = this->comm_size;
 		if(getenv("DCCRG_PROCS") != NULL) {
 			const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
-			if(dccrg_procs > 0 && dccrg_procs < (int)(this->comm_size))
+			if(dccrg_procs > 0 && dccrg_procs < this->comm_size)
 				worker_procs = dccrg_procs;
 		}
 		const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
@@ -8053,7 +8034,7 @@ private:
 
 		uint64_t cells_per_process = 0;
 
-		if (total_cells < this->comm_size) {
+		if (total_cells < static_cast<uint64_t>(this->comm_size)) {
 			cells_per_process = 1;
 		} else if (total_cells % this->comm_size > 0) {
 			cells_per_process = total_cells / this->comm_size + 1;
@@ -8062,12 +8043,12 @@ private:
 		}
 
 		// some processes get fewer cells if grid size not divisible by this->comm_size
-		const uint64_t procs_with_fewer = cells_per_process * this->comm_size - total_cells;
+		const int procs_with_fewer = cells_per_process * this->comm_size - total_cells;
 
 		#ifndef USE_SFC
 
 		uint64_t cell_to_create = 1;
-		for (uint64_t process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
 			if (process < procs_with_fewer) {
@@ -8119,7 +8100,7 @@ private:
 		sfc_mapping.cache_sfc_index_range(cache_start, cache_end);
 
 		uint64_t sfc_index = 0;
-		for (uint64_t process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 
 			uint64_t cells_to_create;
 			if (process < procs_with_fewer) {
@@ -8371,13 +8352,9 @@ private:
 
 		new_pinned_cells.reserve(this->new_pin_requests.size());
 		new_pinned_processes.reserve(this->new_pin_requests.size());
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			item = this->new_pin_requests.begin();
-			item != this->new_pin_requests.end();
-			item++
-		) {
-			new_pinned_cells.push_back(item->first);
-			new_pinned_processes.push_back(item->second);
+		for (const auto& [cell, process] : new_pin_requests) {
+			new_pinned_cells.push_back(cell);
+			new_pinned_processes.push_back(process);
 		}
 
 		std::vector<std::vector<uint64_t>> all_new_pinned_cells, all_new_pinned_processes;
@@ -8387,7 +8364,7 @@ private:
 		for (uint64_t process = 0; process < all_new_pinned_cells.size(); process++) {
 			for (uint64_t i = 0; i < all_new_pinned_cells.at(process).size(); i++) {
 
-				const uint64_t requested_process = all_new_pinned_processes[process][i];
+				const int requested_process = all_new_pinned_processes[process][i];
 
 				if (requested_process >= this->comm_size) {
 					this->pin_requests.erase(all_new_pinned_cells[process][i]);
@@ -8499,19 +8476,15 @@ private:
 		*/
 
 		// migration from user
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			pin_request = this->pin_requests.begin();
-			pin_request != this->pin_requests.end();
-			pin_request++
-		) {
-			const uint64_t current_process_of_cell = this->cell_process.at(pin_request->first);
+		for (const auto& [cell, process] : pin_requests) {
+			const int current_process_of_cell = this->cell_process.at(cell);
 
-			if (pin_request->second == this->rank
+			if (process == this->rank
 			&& current_process_of_cell != this->rank) {
-				this->cells_to_receive[int(current_process_of_cell)].push_back(
-					std::make_pair(pin_request->first, -1)
+				this->cells_to_receive[current_process_of_cell].push_back(
+					std::make_pair(cell, -1)
 				);
-				this->added_cells.insert(pin_request->first);
+				this->added_cells.insert(cell);
 			}
 		}
 
@@ -8520,7 +8493,7 @@ private:
 			for (int i = 0; i < number_to_receive; i++) {
 
 				// don't send / receive from self
-				if ((uint64_t)sender_processes[i] == this->rank) {
+				if (sender_processes[i] == this->rank) {
 					continue;
 				}
 
@@ -8548,24 +8521,20 @@ private:
 		}
 
 		// receive cells in known order and add message tags
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::iterator
-			sender = this->cells_to_receive.begin();
-			sender != this->cells_to_receive.end();
-			sender++
-		) {
-			std::sort(sender->second.begin(), sender->second.end());
+		for (auto& [process, cell_pairs] : this->cells_to_receive) {
+			std::sort(cell_pairs.begin(), cell_pairs.end());
 
-			for (unsigned int i = 0; i < sender->second.size(); i++) {
-				const int tag = (int) i + 1;
-				if (tag > (int) this->max_tag) {
+			for (size_t i = 0; i < cell_pairs.size(); i++) {
+				const int tag = static_cast<int>(i) + 1;
+				if (tag > this->max_tag) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
-						<< ": Message tag would overflow for receiving cell " << sender->second[i].first
-						<< " from process " << sender->first
+						<< ": Message tag would overflow for receiving cell " << cell_pairs[i].first
+						<< " from process " << process
 						<< std::endl;
 					abort();
 				}
-				sender->second[i].second = tag;
+				cell_pairs[i].second = tag;
 			}
 		}
 
@@ -8575,20 +8544,15 @@ private:
 		*/
 
 		// migration from user
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			pin_request = this->pin_requests.begin();
-			pin_request != this->pin_requests.end();
-			pin_request++
-		) {
-			const uint64_t current_process_of_cell = this->cell_process.at(pin_request->first);
-			const uint64_t destination_process = pin_request->second;
+		for (const auto& [cell, destination_process] : pin_requests) {
+			const int current_process_of_cell = this->cell_process.at(cell);
 
 			if (destination_process != this->rank
 			&& current_process_of_cell == this->rank) {
 				this->cells_to_send[int(destination_process)].push_back(
-					std::make_pair(pin_request->first, -1)
+					std::make_pair(cell, -1)
 				);
-				this->removed_cells.insert(pin_request->first);
+				this->removed_cells.insert(cell);
 			}
 		}
 
@@ -8597,7 +8561,7 @@ private:
 			for (int i = 0; i < number_to_send; i++) {
 
 				// don't send / receive from self
-				if ((uint64_t) receiver_processes[i] == this->rank) {
+				if (receiver_processes[i] == this->rank) {
 					continue;
 				}
 
@@ -8634,23 +8598,19 @@ private:
 		}
 
 		// send cells in known order and add message tags
-		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::iterator
-			receiver = this->cells_to_send.begin();
-			receiver != this->cells_to_send.end();
-			receiver++
-		) {
-			std::sort(receiver->second.begin(), receiver->second.end());
-			for (unsigned int i = 0; i < receiver->second.size(); i++) {
+		for (auto& [process, cell_items] : cells_to_send) {
+			std::sort(cell_items.begin(), cell_items.end());
+			for (unsigned int i = 0; i < cell_items.size(); i++) {
 				const int tag = (int) i + 1;
 				if (tag > (int) this->max_tag) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
-						<< ": Message tag would overflow for sending cell " << receiver->second[i].first
-						<< " to process " << receiver->first
+						<< ": Message tag would overflow for sending cell " << cell_items[i].first
+						<< " to process " << process
 						<< std::endl;
 					abort();
 				}
-				receiver->second[i].second = tag;
+				cell_items[i].second = tag;
 			}
 		}
 	}
@@ -8700,7 +8660,7 @@ private:
 			}
 			#endif
 
-			const int current_process = int(this->rank);
+			const int current_process = this->rank;
 
 			// data must be received from neighbors_of
 			for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
@@ -8738,7 +8698,7 @@ private:
 			const int process = receiver.first;
 
 			#ifdef DEBUG
-			if ((uint64_t) process == this->rank) {
+			if (process == this->rank) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << process << " would send to self"
 					<< std::endl;
@@ -8782,7 +8742,7 @@ private:
 			const int process = sender.first;
 
 			#ifdef DEBUG
-			if ((uint64_t) process == this->rank) {
+			if (process == this->rank) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << process << " would receive from self"
 					<< std::endl;
@@ -9577,7 +9537,7 @@ private:
 			}
 
 			// refines induced here by other processes
-			for (unsigned int process = 0; process < this->comm_size; process++) {
+			for (int process = 0; process < this->comm_size; process++) {
 
 				if (process == this->rank) {
 					continue;
@@ -9630,7 +9590,7 @@ private:
 		std::vector<std::vector<uint64_t>> all_refines;
 		All_Gather()(refines, all_refines, this->comm);
 
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 			this->cells_to_refine.insert(all_refines[process].begin(), all_refines[process].end());
 		}
 
@@ -9795,7 +9755,7 @@ private:
 		std::vector<std::vector<uint64_t>> all_unrefines;
 		All_Gather()(unrefines, all_unrefines, this->comm);
 
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 			this->cells_to_unrefine.insert(
 				all_unrefines[process].begin(),
 				all_unrefines[process].end()
@@ -9952,7 +9912,7 @@ private:
 
 		// We can't collect refines from all processes, since induce_refines() wants only local refines
 		this->cells_to_refine.clear();
-		for (unsigned int process = 0; process < this->comm_size; process++) {
+		for (int process = 0; process < this->comm_size; process++) {
 			for (auto i : all_refines[process]) {
 				if (is_local(i)) {
 					this->cells_to_refine.insert(i);
@@ -10042,7 +10002,7 @@ private:
 			const size_t number_of_receives = sender->second.size();
 
 			#ifdef DEBUG
-			if (sending_process == (int) this->rank
+			if (sending_process == this->rank
 			&& number_of_receives > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
@@ -10081,7 +10041,7 @@ private:
 						destination.at(cell),
 						cell,
 						sending_process,
-						(int) this->rank,
+						this->rank,
 						true,
 						neighborhood_id
 					);
@@ -10162,7 +10122,7 @@ private:
 						destination.at(cell),
 						cell,
 						sending_process,
-						(int) this->rank,
+						this->rank,
 						true,
 						neighborhood_id
 					);
@@ -10258,7 +10218,7 @@ private:
 			const size_t number_of_sends = receiver->second.size();
 
 			#ifdef DEBUG
-			if (receiving_process == (int) this->rank
+			if (receiving_process == this->rank
 			&& number_of_sends > 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Trying to transfer to self"
@@ -10289,7 +10249,7 @@ private:
 					) = detail::get_cell_mpi_datatype(
 						this->cell_data.at(cell),
 						cell,
-						(int) this->rank,
+						this->rank,
 						receiving_process,
 						false,
 						neighborhood_id
@@ -10361,7 +10321,7 @@ private:
 					) = detail::get_cell_mpi_datatype(
 						this->cell_data.at(cell),
 						cell,
-						(int) this->rank,
+						this->rank,
 						receiving_process,
 						false,
 						neighborhood_id
@@ -11588,7 +11548,7 @@ private:
 		std::vector<std::vector<uint64_t>> all_processes;
 		All_Gather()(local_processes, all_processes, this->comm);
 
-		for (uint64_t process = 0; process < this->comm_size; process++) {
+		for (process = 0; process < this->comm_size; process++) {
 			if (!std::equal(
 				all_cells[process].begin(),
 				all_cells[process].end(),
