@@ -7677,37 +7677,33 @@ private:
 			return false;
 		}
 
-		int temp_size = 0;
-		ret_val = MPI_Comm_size(this->comm, &temp_size);
+		ret_val = MPI_Comm_size(this->comm, &this->comm_size);
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't get size of communicator: " << Error_String()(ret_val)
 				<< std::endl;
 			return false;
 		}
-		if (temp_size < 0) {
+		if (this->comm_size < 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Negative MPI comm size not supported: " << temp_size
+				<< " Negative MPI comm size not supported: " << this->comm_size
 				<< std::endl;
 			return false;
 		}
-		this->comm_size = temp_size;
 
-		int temp_rank = 0;
-		ret_val = MPI_Comm_rank(this->comm, &temp_rank);
+		ret_val = MPI_Comm_rank(this->comm, &this->rank);
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " Couldn't get rank for communicator: " << Error_String()(ret_val)
 				<< std::endl;
 			return false;
 		}
-		if (temp_rank < 0) {
+		if (this->rank < 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Negative MPI rank not supported: " << temp_rank
+				<< " Negative MPI rank not supported: " << this->rank
 				<< std::endl;
 			abort();
 		}
-		this->rank = temp_rank;
 
 		// get maximum tag value
 		int attr_flag = -1, *attr = NULL;
