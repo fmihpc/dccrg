@@ -7456,7 +7456,7 @@ private:
 		int worker_procs = this->comm_size;
 		if(getenv("DCCRG_PROCS") != NULL) {
 			const int dccrg_procs = atoi(getenv("DCCRG_PROCS"));
-			if(dccrg_procs > 0 && (uint)dccrg_procs < this->comm_size)
+			if(dccrg_procs > 0 && dccrg_procs < (int)(this->comm_size))
 				worker_procs = dccrg_procs;
 		}
 		const int zoltan_worker = (this->rank < this->comm_size - worker_procs) ? 0 : 1;
@@ -10111,97 +10111,6 @@ private:
 		}
 		return true;
 	}
-
-	/*!
-	Returns true if x indices of given cells overlap, even if they don't exist
-	*/
-	bool x_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (cell1 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell1 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell2 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell2 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-
-		const uint64_t index1 = this->get_x_index(cell1);
-		const uint64_t index2 = this->get_x_index(cell2);
-		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
-
-		return this->indices_overlap(index1, size1, index2, size2);
-	}
-
-	/*!
-	Returns true if y indices of given cells overlap, even if they don't exist
-	*/
-	bool y_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (cell1 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell1 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell2 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell2 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-
-		const uint64_t index1 = this->get_y_index(cell1);
-		const uint64_t index2 = this->get_y_index(cell2);
-		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
-
-		return this->indices_overlap(index1, size1, index2, size2);
-	}
-
-	/*!
-	Returns true if z indices of given cells overlap, even if they don't exist
-	*/
-	bool z_indices_overlap(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (cell1 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell1 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell2 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-		if (cell2 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-			abort();
-		}
-
-		const uint64_t index1 = this->get_z_index(cell1);
-		const uint64_t index2 = this->get_z_index(cell2);
-		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
-		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
-
-		return this->indices_overlap(index1, size1, index2, size2);
-	}
-
 
 	/*!
 	Returns the number of directions in which given cells' indices overlap
