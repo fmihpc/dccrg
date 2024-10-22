@@ -3324,7 +3324,7 @@ public:
 		}
 
 		// check that cells_to_unrefine is identical between processes
-		std::vector<uint64_t> ordered_cells_to_unrefine(this->cells_to_unrefine.begin(), this->cells_to_unrefine.end());
+		std::vector<uint64_t> ordered_cells_to_unrefine(this->all_cells_to_unrefine.begin(), this->all_cells_to_unrefine.end());
 		std::sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
 
 		std::vector<std::vector<uint64_t>> all_ordered_cells_to_unrefine;
