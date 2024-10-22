@@ -3798,6 +3798,30 @@ public:
 		return retVal;
 	}
 
+	size_t get_cells_to_refine_count()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_cells_to_refine_count() called outside refining"
+				<< std::endl;
+			return 0;
+		}
+		
+		return cells_to_refine.size();
+	}
+
+	size_t get_cells_to_unrefine_count()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_cells_to_unrefine_count() called outside refining"
+				<< std::endl;
+			return 0;
+		}
+		
+		return all_to_unrefine.size();
+	}
+
 	/*!
 	Transfers unrefined cell data between processes.
 
