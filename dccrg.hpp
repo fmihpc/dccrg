@@ -3636,8 +3636,8 @@ public:
 			// TODO: merge with identical code in make_new_partition
 			for (size_t i = 0; i < cell_pairs.size(); i++) {
 
-				const int tag = static_cast<int>(i) + 1;
-				if (tag > this->max_tag) {
+				const size_t tag = i + 1;
+				if (tag > static_cast<size_t>(this->max_tag)) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
 						<< ": Message tag would overflow for receiving cell " << cell_pairs[i].first
@@ -3646,7 +3646,7 @@ public:
 					abort();
 				}
 
-				cell_pairs[i].second = tag;
+				cell_pairs[i].second = static_cast<int>(tag);
 			}
 		}
 
@@ -3656,8 +3656,8 @@ public:
 			// TODO: check that message tags don't overflow
 			for (size_t i = 0; i < cell_pairs.size(); i++) {
 
-				const int tag = static_cast<int>(i) + 1;
-				if (tag > this->max_tag) {
+				const size_t tag = i + 1;
+				if (tag > static_cast<size_t>(this->max_tag)) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
 						<< ": Message tag would overflow for sending cell " << cell_pairs[i].first
@@ -3666,7 +3666,7 @@ public:
 					abort();
 				}
 
-				cell_pairs[i].second = tag;
+				cell_pairs[i].second = static_cast<int>(tag);
 			}
 		}
 
@@ -8521,8 +8521,8 @@ private:
 			std::sort(cell_pairs.begin(), cell_pairs.end());
 
 			for (size_t i = 0; i < cell_pairs.size(); i++) {
-				const int tag = static_cast<int>(i) + 1;
-				if (tag > this->max_tag) {
+				const size_t tag = i + 1;
+				if (tag > static_cast<size_t>(this->max_tag)) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " Process " << this->rank
 						<< ": Message tag would overflow for receiving cell " << cell_pairs[i].first
@@ -8530,7 +8530,7 @@ private:
 						<< std::endl;
 					abort();
 				}
-				cell_pairs[i].second = tag;
+				cell_pairs[i].second = static_cast<int>(tag);
 			}
 		}
 
