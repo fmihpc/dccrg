@@ -340,8 +340,8 @@ public:
 		max_tag(other.get_max_tag()),
 		send_single_cells(other.get_send_single_cells()),
 		comm(other.get_communicator()),
-		rank((other.get_rank())),
-		comm_size((other.get_comm_size())),
+		rank(other.get_rank()),
+		comm_size(other.get_comm_size()),
 		neighborhood_of(other.get_neighborhood_of()),
 		neighborhood_to(other.get_neighborhood_to()),
 		user_hood_of(other.get_user_hood_of()),
@@ -7300,7 +7300,7 @@ private:
 	// the grid is distributed between these processes
 	MPI_Comm comm;
 	int rank;
-   int comm_size;
+	int comm_size;
 
 	// cells and their data on this process
 	std::unordered_map<uint64_t, Cell_Data> cell_data;
