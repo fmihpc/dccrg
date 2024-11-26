@@ -565,7 +565,7 @@ public:
 				abort();
 			}
 
-			const int child = this->get_child(cell);
+			const uint64_t child = this->get_child(cell);
 			if (child == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
