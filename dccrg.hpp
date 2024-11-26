@@ -6181,7 +6181,7 @@ public:
 			} else {
 				throw std::invalid_argument("Invalid load balance norm!");
 			}
-		} else if (cell_weight_dim != weight.size()) {
+		} else if (static_cast<size_t>(cell_weight_dim) != weight.size()) {
 			throw std::invalid_argument("Invalid cell weight dimension!");
 		} else {
 			this->cell_weights[cell] = weight;
