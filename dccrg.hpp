@@ -10798,7 +10798,7 @@ private:
 
 			global_ids[i] = item.first;
 
-			if (number_of_weights_per_object != dccrg_instance->get_cell_weight(item.first).size()) {
+			if (static_cast<size_t>(number_of_weights_per_object) != dccrg_instance->get_cell_weight(item.first).size()) {
 				std::cerr << "ERROR Zoltan expected " << number_of_weights_per_object << " weights, cell has " << dccrg_instance->get_cell_weight(item.first).size() << std::endl;
 				abort();
 			}
