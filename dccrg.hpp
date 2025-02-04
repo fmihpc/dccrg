@@ -4386,6 +4386,14 @@ public:
 						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
 						std::max(refinement_level-1,0), 
 						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+				// Check whether we are still inside the starting cell (which
+				// *might* not be the smallest in this location, if we are looking
+				// for speculative neighbors for unrefining.)
+				int cell_at_location = this->mapping.get_cell_from_indices({(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]}, refinement_level);
+				if(cell_at_location == starting_cell) {
+					// Yup, we are.
+					cellHere = starting_cell;
+				}
 
 				// Apparently, this is a new cell.
 				if(cellHere != last_cell_seen) {
