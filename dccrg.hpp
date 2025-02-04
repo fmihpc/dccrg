@@ -4382,10 +4382,21 @@ public:
 
 			while(cells_seen[dimension] <= abs(offsets[dimension]) && last_cell_seen != error_cell) {
 
-				uint64_t cellHere = this->get_existing_cell(
+				uint64_t cellHere;
+
+				// Check whether we are still inside the starting cell (which
+				// *might* not be the smallest in this location, if we are looking
+				// for speculative neighbors for unrefining.)
+				uint64_t cell_at_location = this->mapping.get_cell_from_indices({(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]}, refinement_level);
+				if(cell_at_location == starting_cell) {
+					// Yup, we are.
+					cellHere = starting_cell;
+				} else {
+					cellHere = this->get_existing_cell(
 						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
 						std::max(refinement_level-1,0), 
 						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+				}
 
 				// Apparently, this is a new cell.
 				if(cellHere != last_cell_seen) {
