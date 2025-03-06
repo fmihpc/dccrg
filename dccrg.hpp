@@ -11344,8 +11344,8 @@ private:
 			abort();
 		}
 
-		const uint64_t index1 = this->get_x_index(cell1);
-		const uint64_t index2 = this->get_x_index(cell2);
+		const uint64_t index1 = this->mapping.get_indices(cell1)[0];
+		const uint64_t index2 = this->mapping.get_indices(cell2)[0];
 		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
 		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
@@ -11374,8 +11374,8 @@ private:
 			abort();
 		}
 
-		const uint64_t index1 = this->get_y_index(cell1);
-		const uint64_t index2 = this->get_y_index(cell2);
+		const uint64_t index1 = this->mapping.get_indices(cell1)[1];
+		const uint64_t index2 = this->mapping.get_indices(cell2)[1];
 		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
 		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
@@ -11404,8 +11404,8 @@ private:
 			abort();
 		}
 
-		const uint64_t index1 = this->get_z_index(cell1);
-		const uint64_t index2 = this->get_z_index(cell2);
+		const uint64_t index1 = this->mapping.get_indices(cell1)[2];
+		const uint64_t index2 = this->mapping.get_indices(cell2)[2];
 		const uint64_t size1 = this->mapping.get_cell_length_in_indices(cell1);
 		const uint64_t size2 = this->mapping.get_cell_length_in_indices(cell2);
 
