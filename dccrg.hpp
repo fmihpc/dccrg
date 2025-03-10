@@ -6947,8 +6947,8 @@ private:
 	// cells to be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
 
-   // needed for checking which neighborhoods to update due to unrefining
-   std::unordered_set<uint64_t> parents_of_unrefined;
+	// needed for checking which neighborhoods to update due to unrefining
+	std::unordered_set<uint64_t> parents_of_unrefined;
 
 	// cells that shouldn't be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_not_to_refine, cells_not_to_unrefine;
