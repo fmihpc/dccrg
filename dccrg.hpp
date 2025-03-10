@@ -3220,9 +3220,6 @@ public:
 			}
 		}
 
-		// needed for checking which neighborhoods to update due to unrefining
-		std::unordered_set<uint64_t> parents_of_unrefined;
-
 		// unrefines
 		for (const uint64_t unrefined: this->all_to_unrefine) {
 
@@ -3603,6 +3600,7 @@ public:
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
 		this->all_to_unrefine.clear();
+		this->parents_of_unrefined.clear();
 
 		this->recalculate_neighbor_update_send_receive_lists();
 
@@ -3627,6 +3625,7 @@ public:
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
 		this->all_to_unrefine.clear();
+		this->parents_of_unrefined.clear();
 		this->refining = false;
 		return;
 	}
@@ -3919,6 +3918,7 @@ public:
 		this->cells_not_to_refine.clear();
 		this->cells_not_to_unrefine.clear();
 		this->cell_weights.clear();
+		this->parents_of_unrefined.clear();
 
 		#ifdef DEBUG
 		// check that there are no duplicate adds / removes
@@ -6947,6 +6947,9 @@ private:
 	// cells to be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
 
+   // needed for checking which neighborhoods to update due to unrefining
+   std::unordered_set<uint64_t> parents_of_unrefined;
+
 	// cells that shouldn't be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_not_to_refine, cells_not_to_unrefine;
 
@@ -9146,77 +9149,6 @@ private:
 			);
 		}
 
-		#ifdef DEBUG
-		// check that maximum refinement level difference between future neighbors <= 1
-		for (const uint64_t unrefined: this->cells_to_unrefine) {
-
-			if (unrefined != this->get_child(unrefined)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.count(unrefined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " to be unrefined doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.at(unrefined) == this->rank
-			&& this->cell_data.count(unrefined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " to be unrefined has no data"
-					<< std::endl;
-				abort();
-			}
-
-			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
-
-			// neighbors_of
-			const auto neighbors
-				= this->find_neighbors_of(
-					this->get_parent(unrefined),
-					this->neighborhood_of,
-					true
-				);
-
-			for (const auto& neighbor_i: neighbors) {
-				const auto& neighbor = neighbor_i.first;
-
-				if (neighbor == 0) {
-					continue;
-				}
-
-				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
-
-				if (neighbor_ref_lvl > ref_lvl) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor " << neighbor
-						<< " of cell that will be unrefined (" << unrefined
-						<< ", ref lvl " << ref_lvl
-						<< ") has too large refinement level: " << neighbor_ref_lvl
-						<< std::endl;
-					abort();
-				}
-
-				if (neighbor_ref_lvl == ref_lvl
-				&& this->cells_to_refine.count(neighbor) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor " << neighbor
-						<< " of cell that will be unrefined (" << unrefined
-						<< ", ref lvl " << ref_lvl
-						<< ") is identical in size and will be refined"
-						<< std::endl;
-					abort();
-				}
-			}
-		}
-
 		// initially only one sibling is recorded per process when unrefining,
 		// insert the rest of them now
 		for (const uint64_t unrefined: this->cells_to_unrefine) {
@@ -9292,6 +9224,78 @@ private:
 			this->all_to_unrefine.insert(siblings.begin(), siblings.end());
 		}
 
+
+
+		#ifdef DEBUG
+		// check that maximum refinement level difference between future neighbors <= 1
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
+
+			if (unrefined != this->get_child(unrefined)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has children"
+					<< std::endl;
+				abort();
+			}
+
+			if (this->cell_process.count(unrefined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " to be unrefined doesn't exist"
+					<< std::endl;
+				abort();
+			}
+
+			if (this->cell_process.at(unrefined) == this->rank
+			&& this->cell_data.count(unrefined) == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " to be unrefined has no data"
+					<< std::endl;
+				abort();
+			}
+
+			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
+
+			// neighbors_of
+			const auto neighbors
+				= this->find_neighbors_of(
+					this->get_parent(unrefined),
+					this->neighborhood_of,
+					true
+				);
+
+			for (const auto& neighbor_i: neighbors) {
+				const auto& neighbor = neighbor_i.first;
+
+				if (neighbor == 0) {
+					continue;
+				}
+
+				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
+
+				if (neighbor_ref_lvl > ref_lvl) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbor " << neighbor
+						<< " of cell that will be unrefined (" << unrefined
+						<< ", ref lvl " << ref_lvl
+						<< ") has too large refinement level: " << neighbor_ref_lvl
+						<< std::endl;
+					abort();
+				}
+
+				if (neighbor_ref_lvl == ref_lvl
+				&& this->cells_to_refine.count(neighbor) > 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Neighbor " << neighbor
+						<< " of cell that will be unrefined (" << unrefined
+						<< ", ref lvl " << ref_lvl
+						<< ") is identical in size and will be refined"
+						<< std::endl;
+					abort();
+				}
+			}
+		}
 
 		if (!this->is_consistent()) {
 			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
