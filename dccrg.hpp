@@ -11223,7 +11223,7 @@ private:
 				<< " (child of " << this->get_parent(cell)
 				<< ") don't match "
 				<< neighbor_of_lists.at(cell).size()
-				<< " <-> " << compare_neighbors_to.size()
+				<< " <-> " << compare_neighbors.size()
 				<< ": ";
 
 			for (const auto& c_i: neighbor_of_lists.at(cell)) {
@@ -11555,7 +11555,7 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(neighbor, item.first})) {
+					if (!this->is_neighbor(neighbor, item.first)) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << item.first
 							<< " should be a neighbor to cell " << neighbor
@@ -11625,16 +11625,12 @@ private:
 	*/
 	bool pin_requests_succeeded()
 	{
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			pin_request = this->pin_requests.begin();
-			pin_request != this->pin_requests.end();
-			pin_request++
-		) {
-			if (this->cell_process.at(pin_request->first) != pin_request->second) {
+		for (auto& [cell, process] : pin_requests) {
+			if (this->cell_process.at(cell) != process) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << pin_request->first
-					<< " not at requested process " << pin_request->second
-					<< " but at " << this->cell_process.at(pin_request->first)
+					<< " Cell " << cell
+					<< " not at requested process " << process
+					<< " but at " << this->cell_process.at(cell)
 					<< std::endl;
 				return false;
 			}
