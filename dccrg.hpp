@@ -3066,7 +3066,7 @@ public:
 		}
 
 		// check that cells_to_unrefine is identical between processes
-		std::vector<uint64_t> ordered_cells_to_unrefine(this->all_to_unrefine.begin(), this->all_to_unrefine.end());
+		std::vector<uint64_t> ordered_cells_to_unrefine(this->cells_to_unrefine.begin(), this->cells_to_unrefine.end());
 		std::sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
 
 		std::vector<std::vector<uint64_t>> all_ordered_cells_to_unrefine;
@@ -3221,7 +3221,7 @@ public:
 		}
 
 		// unrefines
-		for (const uint64_t unrefined: this->all_to_unrefine) {
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
 			#ifdef DEBUG
@@ -3419,7 +3419,7 @@ public:
 		}
 
 		// remove neighbor lists of removed cells
-		for (const uint64_t unrefined: this->all_to_unrefine) {
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
 			this->face_neighbors_of.erase(unrefined);
@@ -3513,7 +3513,7 @@ public:
 			return 0;
 		}
 		
-		return all_to_unrefine.size();
+		return cells_to_unrefine.size();
 	}
 
 	/*!
@@ -3590,8 +3590,8 @@ public:
 
 		// remove user data of unrefined cells from this->cell_data
 		for (std::unordered_set<uint64_t>::const_iterator
-			unrefined = this->all_to_unrefine.begin();
-			unrefined != this->all_to_unrefine.end();
+			unrefined = this->cells_to_unrefine.begin();
+			unrefined != this->cells_to_unrefine.end();
 			unrefined++
 		) {
 			this->cell_data.erase(*unrefined);
@@ -3599,7 +3599,6 @@ public:
 
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
-		this->all_to_unrefine.clear();
 		this->parents_of_unrefined.clear();
 
 		this->recalculate_neighbor_update_send_receive_lists();
@@ -3624,7 +3623,6 @@ public:
 		this->cells_to_send.clear();
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
-		this->all_to_unrefine.clear();
 		this->parents_of_unrefined.clear();
 		this->refining = false;
 		return;
@@ -6945,7 +6943,7 @@ private:
 	std::unordered_set<uint64_t> added_cells, removed_cells;
 
 	// cells to be refined / unrefined after a call to stop_refining()
-	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
+	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
 
 	// needed for checking which neighborhoods to update due to unrefining
 	std::unordered_set<uint64_t> parents_of_unrefined;
@@ -9146,8 +9144,11 @@ private:
 			this->cells_to_unrefine.insert(
 				all_unrefines[process].begin(),
 				all_unrefines[process].end()
-			);
-		}
+		);
+	}
+
+		// Janky helper collection
+		std::set<uint64_t> cells_to_add;
 
 		// initially only one sibling is recorded per process when unrefining,
 		// insert the rest of them now
@@ -9221,10 +9222,10 @@ private:
 			}
 			#endif
 
-			this->all_to_unrefine.insert(siblings.begin(), siblings.end());
+			cells_to_add.insert(siblings.begin(), siblings.end());
 		}
 
-
+		this->cells_to_unrefine.insert(cells_to_add.begin(), cells_to_add.end());
 
 		#ifdef DEBUG
 		// check that maximum refinement level difference between future neighbors <= 1
