@@ -3220,86 +3220,8 @@ public:
 			}
 		}
 
-		// needed for checking which neighborhoods to update due to unrefining
-		std::unordered_set<uint64_t> parents_of_unrefined;
-
-		// initially only one sibling is recorded per process when unrefining,
-		// insert the rest of them now
-		for (const uint64_t unrefined: this->cells_to_unrefine) {
-
-			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
-			#ifdef DEBUG
-			if (unrefined != this->get_child(unrefined)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (parent_of_unrefined == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
-				abort();
-			}
-
-			if (parent_of_unrefined == unrefined) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has no parent"
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			parents_of_unrefined.insert(parent_of_unrefined);
-
-			const std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
-
-			#ifdef DEBUG
-			bool unrefined_in_siblings = false;
-			for (const uint64_t sibling: siblings) {
-
-				if (this->cell_process.count(sibling) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-
-				if (sibling != this->get_child(sibling)) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " has has children"
-						<< std::endl;
-					abort();
-				}
-
-				if (this->cell_process.at(sibling) == this->rank
-				&& this->cell_data.count(sibling) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " has no data"
-						<< std::endl;
-					abort();
-				}
-
-				if (unrefined == sibling) {
-					unrefined_in_siblings = true;
-				}
-			}
-
-			if (!unrefined_in_siblings) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell to unrefine isn't its parent's child" << std::endl;
-				abort();
-			}
-			#endif
-
-			this->all_to_unrefine.insert(siblings.begin(), siblings.end());
-		}
-
 		// unrefines
-		for (const uint64_t unrefined: this->all_to_unrefine) {
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
 			#ifdef DEBUG
@@ -3497,7 +3419,7 @@ public:
 		}
 
 		// remove neighbor lists of removed cells
-		for (const uint64_t unrefined: this->all_to_unrefine) {
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
 			this->face_neighbors_of.erase(unrefined);
@@ -3568,6 +3490,30 @@ public:
 				retVal.push_back(i);
 		
 		return retVal;
+	}
+
+	size_t get_cells_to_refine_count()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_cells_to_refine_count() called outside refining"
+				<< std::endl;
+			return 0;
+		}
+		
+		return cells_to_refine.size();
+	}
+
+	size_t get_cells_to_unrefine_count()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_cells_to_unrefine_count() called outside refining"
+				<< std::endl;
+			return 0;
+		}
+		
+		return cells_to_unrefine.size();
 	}
 
 	/*!
@@ -3644,8 +3590,8 @@ public:
 
 		// remove user data of unrefined cells from this->cell_data
 		for (std::unordered_set<uint64_t>::const_iterator
-			unrefined = this->all_to_unrefine.begin();
-			unrefined != this->all_to_unrefine.end();
+			unrefined = this->cells_to_unrefine.begin();
+			unrefined != this->cells_to_unrefine.end();
 			unrefined++
 		) {
 			this->cell_data.erase(*unrefined);
@@ -3653,7 +3599,7 @@ public:
 
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
-		this->all_to_unrefine.clear();
+		this->parents_of_unrefined.clear();
 
 		this->recalculate_neighbor_update_send_receive_lists();
 
@@ -3677,7 +3623,7 @@ public:
 		this->cells_to_send.clear();
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
-		this->all_to_unrefine.clear();
+		this->parents_of_unrefined.clear();
 		this->refining = false;
 		return;
 	}
@@ -3970,6 +3916,7 @@ public:
 		this->cells_not_to_refine.clear();
 		this->cells_not_to_unrefine.clear();
 		this->cell_weights.clear();
+		this->parents_of_unrefined.clear();
 
 		#ifdef DEBUG
 		// check that there are no duplicate adds / removes
@@ -6996,7 +6943,10 @@ private:
 	std::unordered_set<uint64_t> added_cells, removed_cells;
 
 	// cells to be refined / unrefined after a call to stop_refining()
-	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
+	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
+
+	// needed for checking which neighborhoods to update due to unrefining
+	std::unordered_set<uint64_t> parents_of_unrefined;
 
 	// cells that shouldn't be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_not_to_refine, cells_not_to_unrefine;
@@ -9194,8 +9144,88 @@ private:
 			this->cells_to_unrefine.insert(
 				all_unrefines[process].begin(),
 				all_unrefines[process].end()
-			);
+		);
+	}
+
+		// Janky helper collection
+		std::set<uint64_t> cells_to_add;
+
+		// initially only one sibling is recorded per process when unrefining,
+		// insert the rest of them now
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
+
+			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
+			#ifdef DEBUG
+			if (unrefined != this->get_child(unrefined)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has children"
+					<< std::endl;
+				abort();
+			}
+
+			if (parent_of_unrefined == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
+				abort();
+			}
+
+			if (parent_of_unrefined == unrefined) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has no parent"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			parents_of_unrefined.insert(parent_of_unrefined);
+
+			const std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
+
+			#ifdef DEBUG
+			bool unrefined_in_siblings = false;
+			for (const uint64_t sibling: siblings) {
+
+				if (this->cell_process.count(sibling) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+
+				if (sibling != this->get_child(sibling)) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " has has children"
+						<< std::endl;
+					abort();
+				}
+
+				if (this->cell_process.at(sibling) == this->rank
+				&& this->cell_data.count(sibling) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " has no data"
+						<< std::endl;
+					abort();
+				}
+
+				if (unrefined == sibling) {
+					unrefined_in_siblings = true;
+				}
+			}
+
+			if (!unrefined_in_siblings) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell to unrefine isn't its parent's child" << std::endl;
+				abort();
+			}
+			#endif
+
+			cells_to_add.insert(siblings.begin(), siblings.end());
 		}
+
+		this->cells_to_unrefine.insert(cells_to_add.begin(), cells_to_add.end());
 
 		#ifdef DEBUG
 		// check that maximum refinement level difference between future neighbors <= 1
