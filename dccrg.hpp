@@ -313,101 +313,8 @@ public:
 	Dccrg():geometry_rw(length, mapping, topology){}
 
 
-	/*!
-	Creates an instance of the grid based on another instance of the grid.
-
-	Call this with all processes unless you really know what you are doing.
-	Must not be used while the instance being copied is updating remote
-	neighbor data or balancing the load.
-	The Cell_Data class can differ between the two grids.
-	The geometry of this grid must be compatible with the other
-	grid's geometry (it must have a copy contructor taking the
-	other grid's geometry as an argument).
-
-	The following data is not included in the new dccrg instance:
-		- Other_Cell_Data, in other words the other grid's cell data
-		- refined/unrefined cells
-		- everything related to load balancing or remote neighbor updates
-
-	A dccrg instance created this way is already initialized.
-	*/
-	template<
-		class Other_Cell_Data,
-		class Other_Geometry
-	> Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other) :
-		topology_rw(other.topology),
-		mapping_rw(other.mapping),
-		geometry_rw(length, mapping, topology),
-		mapping_initialized(other.get_mapping_initialized()),
-		grid_initialized(other.get_initialized()),
-		neighborhood_length(other.get_neighborhood_length()),
-		max_tag(other.get_max_tag()),
-		send_single_cells(other.get_send_single_cells()),
-		comm(other.get_communicator()),
-		rank(other.get_rank()),
-		comm_size(other.get_comm_size()),
-		neighborhood_of(other.get_neighborhood_of()),
-		neighborhood_to(other.get_neighborhood_to()),
-		user_hood_of(other.get_user_hood_of()),
-		user_hood_to(other.get_user_hood_to()),
-		neighbors_to(other.get_all_neighbors_to()),
-		user_neigh_of(other.get_all_user_neigh_of()),
-		user_neigh_to(other.get_all_user_neigh_to()),
-		cell_process(other.get_cell_process()),
-		local_cells_on_process_boundary(other.get_local_cells_on_process_boundary_internal()),
-		remote_cells_on_process_boundary(other.get_remote_cells_on_process_boundary_internal()),
-		user_local_cells_on_process_boundary(other.get_user_local_cells_on_process_boundary()),
-		user_remote_cells_on_process_boundary(other.get_user_remote_cells_on_process_boundary()),
-		cells_to_send(other.get_cells_to_send()),
-		cells_to_receive(other.get_cells_to_receive()),
-		user_neigh_cells_to_send(other.get_user_neigh_cells_to_send()),
-		user_neigh_cells_to_receive(other.get_user_neigh_cells_to_receive()),
-		pin_requests(other.get_pin_requests()),
-		new_pin_requests(other.get_new_pin_requests()),
-		processes_per_part(other.get_processes_per_part()),
-		partitioning_options(other.get_partitioning_options()),
-		no_load_balancing(other.get_no_load_balancing()),
-		reserved_options(other.get_reserved_options()),
-		cell_weights(other.get_cell_weights()),
-		communication_weights(other.get_communication_weights()),
-		partitioning_neighborhoods(other.partitioning_neighborhoods),
-		neighbor_processes(other.get_neighbor_processes()),
-		balancing_load(other.get_balancing_load()),
-		load_balance_norm(other.load_balance_norm)
-	{
-		if (other.get_balancing_load()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Copy constructor called while the instance being copied is balancing load"
-				<< std::endl;
-			abort();
-		}
-
-		if (!this->geometry_rw.set(other.geometry)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't set geometry while copy constructing"
-				<< std::endl;
-			abort();
-		}
-
-		if (!this->mapping_rw.set_maximum_refinement_level(other.mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Couldn't set maximum refinement level when copy constructing"
-				<< std::endl;
-			abort();
-		}
-
-		this->zoltan = Zoltan_Copy(other.get_zoltan());
-
-		// default construct Other_Cell_Data of local cells
-		for (typename std::unordered_map<uint64_t, Other_Cell_Data>::const_iterator
-			cell_item = other.get_cell_data().begin();
-			cell_item != other.get_cell_data().end();
-			cell_item++
-		) {
-			this->cell_data[cell_item->first];
-		}
-	}
-
+	// Copy constructor is deleted, since copying the entire grid is typically a mistake
+	template< class Other_Cell_Data, class Other_Geometry > Dccrg(const Dccrg<Other_Cell_Data, Other_Geometry>& other) = delete;
 
 	/*!
 	Initializes the instance of the grid with given parameters.
@@ -510,6 +417,16 @@ public:
 		return *this;
 	}
 
+	void finalize() {
+		if (comm != MPI_COMM_NULL) {
+			MPI_Comm_free(&comm);
+			comm = MPI_COMM_NULL;
+		}
+	}
+
+	~Dccrg() {
+		finalize();
+	}
 
 	/*!
 	Sets the geometry of the grid to given values.
@@ -649,7 +566,7 @@ public:
 				abort();
 			}
 
-			const int child = this->get_child(cell);
+			const uint64_t child = this->get_child(cell);
 			if (child == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
 					<< " Process " << this->rank
@@ -3188,6 +3105,7 @@ public:
 		std::vector<std::vector<uint64_t>> all_ordered_cells_to_unrefine;
 		All_Gather()(ordered_cells_to_unrefine, all_ordered_cells_to_unrefine, this->comm);
 
+		// Assumes all_ordered_cells_to_unrefine.size() is equal to this->comm_size
 		for (unsigned int process = 0; process < all_ordered_cells_to_unrefine.size(); process++) {
 			if (!std::equal(
 				all_ordered_cells_to_unrefine[process].begin(),
@@ -3313,13 +3231,6 @@ public:
 					}
 				}
 
-				// Duplicate, not necessary
-				// for (const auto& neighbor_to_i: this->neighbors_to.at(refined)) {
-				//	const auto& neighbor_to = neighbor_to_i.first;
-				//	if (this->cell_process.at(neighbor_to) == this->rank) {
-				//		update_neighbors.insert(neighbor_to);
-				//	}
-				// }
 			}
 
 			// figure out rest of the neighbor lists that need updating
@@ -3341,86 +3252,8 @@ public:
 			}
 		}
 
-		// needed for checking which neighborhoods to update due to unrefining
-		std::unordered_set<uint64_t> parents_of_unrefined;
-
-		// initially only one sibling is recorded per process when unrefining,
-		// insert the rest of them now
-		for (const uint64_t unrefined: this->cells_to_unrefine) {
-
-			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
-			#ifdef DEBUG
-			if (unrefined != this->get_child(unrefined)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (parent_of_unrefined == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
-				abort();
-			}
-
-			if (parent_of_unrefined == unrefined) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has no parent"
-					<< std::endl;
-				abort();
-			}
-			#endif
-
-			parents_of_unrefined.insert(parent_of_unrefined);
-
-			const std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
-
-			#ifdef DEBUG
-			bool unrefined_in_siblings = false;
-			for (const uint64_t sibling: siblings) {
-
-				if (this->cell_process.count(sibling) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-
-				if (sibling != this->get_child(sibling)) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " has has children"
-						<< std::endl;
-					abort();
-				}
-
-				if (this->cell_process.at(sibling) == this->rank
-				&& this->cell_data.count(sibling) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " has no data"
-						<< std::endl;
-					abort();
-				}
-
-				if (unrefined == sibling) {
-					unrefined_in_siblings = true;
-				}
-			}
-
-			if (!unrefined_in_siblings) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell to unrefine isn't its parent's child" << std::endl;
-				abort();
-			}
-			#endif
-
-			this->all_to_unrefine.insert(siblings.begin(), siblings.end());
-		}
-
 		// unrefines
-		for (const uint64_t unrefined: this->all_to_unrefine) {
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
 			#ifdef DEBUG
@@ -3545,6 +3378,7 @@ public:
 			}
 			#endif
 
+			// Does not need to provide "has_children==true" as children have already been removed.
 			const auto new_neighbors_of
 				= this->find_neighbors_of(parent, this->neighborhood_of);
 
@@ -3559,31 +3393,10 @@ public:
 				}
 			}
 
-			// Duplicate, not needed
-			// const auto new_neighbors_to
-			//	= this->find_neighbors_to(parent, this->neighborhood_to);
-			// for (const auto& neighbor_i: new_neighbors_to) {
-			//	const auto& neighbor = neighbor_i.first;
-			//	if (this->cell_process.at(neighbor) == this->rank) {
-			//		update_neighbors.insert(neighbor);
-			//	}
-			// }
-
 			// add user data and neighbor lists of local parents of unrefined cells
 			if (this->cell_process.at(parent) == this->rank) {
 				this->cell_data[parent];
-				this->neighbors_of[parent] = new_neighbors_of;
-				this->neighbors_to[parent] = this->fill_neighbors_to(parent, this->neighborhood_to);
-				this->face_neighbors_of[parent] = this->find_face_neighbors_of(parent);
-
-				// add user neighbor lists
-				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-					item = this->user_hood_of.begin();
-					item != this->user_hood_of.end();
-					item++
-				) {
-					this->update_user_neighbors(parent, item->first);
-				}
+				update_neighbors.insert(parent);
 			}
 		}
 
@@ -3640,7 +3453,7 @@ public:
 		}
 
 		// remove neighbor lists of removed cells
-		for (const uint64_t unrefined: this->all_to_unrefine) {
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
 			this->neighbors_of.erase(unrefined);
 			this->neighbors_to.erase(unrefined);
 			this->face_neighbors_of.erase(unrefined);
@@ -3711,6 +3524,30 @@ public:
 				retVal.push_back(i);
 		
 		return retVal;
+	}
+
+	size_t get_cells_to_refine_count()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_cells_to_refine_count() called outside refining"
+				<< std::endl;
+			return 0;
+		}
+		
+		return cells_to_refine.size();
+	}
+
+	size_t get_cells_to_unrefine_count()
+	{
+		if (!this->refining) {
+			std::cerr << __FILE__ << ":" << __LINE__
+				<< " get_cells_to_unrefine_count() called outside refining"
+				<< std::endl;
+			return 0;
+		}
+		
+		return cells_to_unrefine.size();
 	}
 
 	/*!
@@ -3787,8 +3624,8 @@ public:
 
 		// remove user data of unrefined cells from this->cell_data
 		for (std::unordered_set<uint64_t>::const_iterator
-			unrefined = this->all_to_unrefine.begin();
-			unrefined != this->all_to_unrefine.end();
+			unrefined = this->cells_to_unrefine.begin();
+			unrefined != this->cells_to_unrefine.end();
 			unrefined++
 		) {
 			this->cell_data.erase(*unrefined);
@@ -3796,7 +3633,7 @@ public:
 
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
-		this->all_to_unrefine.clear();
+		this->parents_of_unrefined.clear();
 
 		this->recalculate_neighbor_update_send_receive_lists();
 
@@ -3820,7 +3657,7 @@ public:
 		this->cells_to_send.clear();
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
-		this->all_to_unrefine.clear();
+		this->parents_of_unrefined.clear();
 		this->refining = false;
 		return;
 	}
@@ -4114,6 +3951,7 @@ public:
 		this->cells_not_to_unrefine.clear();
 		this->cell_weights.clear();
 		this->communication_weights.clear();
+		this->parents_of_unrefined.clear();
 
 		#ifdef DEBUG
 		// check that there are no duplicate adds / removes
@@ -4493,17 +4331,27 @@ public:
 		std::array<int,3> cells_seen = {0,0,0};
 		uint64_t last_cell_seen = starting_cell;
 
-		// Walk in the same dimensional order as Vlasiator's translation solver.
-		// (https://github.com/fmihpc/vlasiator/blob/master/vlasovsolver/vlasovmover.cpp#L66)
+		// Walk in provided order of dimensions
 		for(int dimension : dims) {
 			int steps_inside_this_cell = 0;
 
 			while(cells_seen[dimension] <= abs(offsets[dimension]) && last_cell_seen != error_cell) {
 
-				uint64_t cellHere = this->get_existing_cell(
+				uint64_t cellHere;
+
+				// Check whether we are still inside the starting cell (which
+				// *might* not be the smallest in this location, if we are looking
+				// for speculative neighbors for unrefining.)
+				uint64_t cell_at_location = this->mapping.get_cell_from_indices({(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]}, refinement_level);
+				if(cell_at_location == starting_cell) {
+					// Yup, we are.
+					cellHere = starting_cell;
+				} else {
+					cellHere = this->get_existing_cell(
 						{(uint64_t)x[0],(uint64_t)x[1],(uint64_t)x[2]},
 						std::max(refinement_level-1,0), 
 						std::min(refinement_level+1, this->mapping.get_maximum_refinement_level()));
+				}
 
 				// Apparently, this is a new cell.
 				if(cellHere != last_cell_seen) {
@@ -4532,25 +4380,27 @@ public:
 							}
 						}
 
+						// Evaluate new paths based on lower corner of previous lower refinement cell.
 						// The other paths start such that they are quantized to the refinement level edges
 						for(int i : {dim1,dim2}) {
 							x[i] -= x[i] % (1<<(this->mapping.get_maximum_refinement_level() - prev_refinement_level));
 						}
 						Types<3>::indices_t other_path_x = {(uint64_t)x[0], (uint64_t)x[1], (uint64_t)x[2]};
 
+						int split_path_step = (1<<(this->mapping.get_maximum_refinement_level() - new_refinement_level));
 						// Find at offset (1,0)
-						other_path_x[dim1] += (1<<(this->mapping.get_maximum_refinement_level() - new_refinement_level));
+						other_path_x[dim1] += split_path_step;
 						uint64_t otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
 						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
 						// Find at offset (1,1)
-						other_path_x[dim2] += (1<<(this->mapping.get_maximum_refinement_level() - new_refinement_level));
+						other_path_x[dim2] += split_path_step;
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
 						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
 						// Find at offset (0,1)
 						other_path_x[dim1] = x[dim1];
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
 						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
-						// The fourth path will continue here as before.
+						// The fourth path will continue here as before. (0,0)
 						other_path_x[dim2] = x[dim2];
 						otherCellHere = this->get_existing_cell(other_path_x, new_refinement_level, new_refinement_level);
 						retval.merge(find_cells_at_offset(other_path_x, otherCellHere, new_refinement_level, other_path_offset, dims));
@@ -4819,14 +4669,7 @@ public:
 					continue;
 				}
 
-				return_neighbors.push_back({
-						neighCell,
-						{
-							offsets[0],
-							offsets[1],
-							offsets[2]
-						}
-				});
+				return_neighbors.push_back({neighCell, {offsets[0], offsets[1], offsets[2]} });
 			}
 		}
 		return return_neighbors;
@@ -4876,11 +4719,13 @@ public:
 		return return_neighbors;
 	}
 
+#ifdef DEBUG
 	/*!
 	Returns cells (which don't have children) that consider given cell as a neighbor.
-	Constructs lists based on pre-existing list neighbors_of.
+	Constructs list as a direct copy of the pre-existing list neighbors_of.
 
 	For a full search, see find_neighbors_of.
+	DEBUG ONLY
 	*/
 	std::vector<
 		std::pair<
@@ -4888,8 +4733,7 @@ public:
 			std::array<int, 3>
 		>
 	> fill_neighbors_to(
-		const uint64_t cell,
-		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
+		const uint64_t cell
 	) const {
 		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
 
@@ -4903,10 +4747,6 @@ public:
 		}
 
 		for (const auto& item: this->neighbors_of.at(cell)) {
-			std::pair<uint64_t,std::array<int, 3>> mirror_item{item.first,
-									   {-item.second[0],
-									    -item.second[1],
-									    -item.second[2]}};
 			return_neighbors.push_back(item);
 		}
 		return return_neighbors;
@@ -4923,7 +4763,9 @@ public:
 	(both cases: neighbors_of, neighbors_to).
 
 	see also: fill_neighbors_to()
+	DEBUG ONLY
 	*/
+
 	std::vector<
 		std::pair<
 			uint64_t,
@@ -4969,13 +4811,12 @@ public:
 		// Iterate through the neighborhood
 		// Note that for neighbors_to calculations, these are already
 		// inverted from the "proper" neighborhoods
-		for (const auto& inverse_offsets: neighborhood) {
+		for (const auto& offsets: neighborhood) {
 
-			// Find the neighbour(s) in opposite direction
-			Types<3>::neighborhood_item_t offsets = {-inverse_offsets[0], -inverse_offsets[1], -inverse_offsets[2]};
+			// Find the neighbour(s) in this (opposite in reference to _of) direction
 			std::set<uint64_t> neigh_cells;
 			for(const auto& dims : dim_permutations) {
-				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, inverse_offsets, dims));
+				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, offsets, dims));
 			}
 
 			for (const auto& neighCell : neigh_cells) {
@@ -4986,18 +4827,12 @@ public:
 
 				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighCell);
 
-				return_neighbors.push_back({
-						neighCell,
-						{
-							offsets[0],
-							offsets[1],
-							offsets[2]
-						}
-				});
+				return_neighbors.push_back({neighCell, {offsets[0], offsets[1], offsets[2]} });
 			}
 		}
 		return return_neighbors;
 	}
+#endif
 
 	/*!
 	  Returns the existing neighbors (that don't have children) of given cell.
@@ -5024,7 +4859,7 @@ public:
 
 		if (this->neighbors_to.at(cell).size() == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
-				  << " Failed to get cached neighbors_of for cell " << cell
+				  << " Failed to get cached neighbors_to for cell " << cell
 				  << " when updating user neighborhood! " << std::endl;
 			abort();
 		}
@@ -5032,7 +4867,8 @@ public:
 		for (const auto& offsets: neighborhood) {
 
 			// Check if any of the cached neighbours match these offsets
-			for (const auto& n: this->neighbors_to.at(cell)) {
+			// Due to the provided offsets being inverse, we search from this->neighbors_of.
+			for (const auto& n: this->neighbors_of.at(cell)) {
 				if ((n.second[0] == offsets[0])
 				    && (n.second[1] == offsets[1])
 				    && (n.second[2] == offsets[2])) {
@@ -6738,20 +6574,6 @@ public:
 	{
 		return this->cell_data;
 	}
-	/*!
-	Returns the storage of mostly local cell ids and their data. Warning, non-const return value!
-	*/
-        std::unordered_map<uint64_t, Cell_Data>& get_cell_data_for_editing()
-	{
-		return this->cell_data;
-	}
-	/*!
-	Returns the storage of remote cell ids and their data. Warning, non-const return value!
-	*/
-        std::unordered_map<uint64_t, Cell_Data>& get_remote_cell_data_for_editing()
-	{
-		return this->remote_neighbors;
-	}
 
 	/*!
 	Returns the neighborhood of cells.
@@ -7226,7 +7048,10 @@ private:
 	std::unordered_set<uint64_t> added_cells, removed_cells;
 
 	// cells to be refined / unrefined after a call to stop_refining()
-	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine, all_to_unrefine;
+	std::unordered_set<uint64_t> cells_to_refine, cells_to_unrefine;
+
+	// needed for checking which neighborhoods to update due to unrefining
+	std::unordered_set<uint64_t> parents_of_unrefined;
 
 	// cells that shouldn't be refined / unrefined after a call to stop_refining()
 	std::unordered_set<uint64_t> cells_not_to_refine, cells_not_to_unrefine;
@@ -8156,7 +7981,8 @@ private:
 
 			// Base neighbourhood is symmetric, so just construct symmetric complement.
 			// this->neighbors_to[item.first] = this->find_neighbors_to(item.first, this->neighborhood_to);
-			this->neighbors_to[item.first] = this->fill_neighbors_to(item.first, this->neighborhood_to);
+			// this->neighbors_to[item.first] = this->fill_neighbors_to(item.first);
+			this->neighbors_to[item.first] = this->neighbors_of[item.first];
 			this->face_neighbors_of[item.first] = this->find_face_neighbors_of(item.first);
 		}
 		#ifdef DEBUG
@@ -8802,7 +8628,8 @@ private:
 		this->neighbors_of[cell] = this->find_neighbors_of(cell, this->neighborhood_of);
 		// Base neighbourhood is symmetric, so just construct symmetric complement.
 		// this->neighbors_to[cell] = this->find_neighbors_to(cell, this->neighborhood_to);
-		this->neighbors_to[cell] = this->fill_neighbors_to(cell, this->neighborhood_to);
+		// this->neighbors_to[cell] = this->fill_neighbors_to(cell);
+		this->neighbors_to[cell] = this->neighbors_of[cell];
 
 		#ifdef DEBUG
 		if (
@@ -8909,9 +8736,6 @@ private:
 			return;
 		}
 
-		// TODO: also update remote_cells_on_process_boundary
-		this->local_cells_on_process_boundary.erase(cell);
-
 		#ifdef DEBUG
 		if (this->neighbors_of.count(cell) == 0) {
 			std::cerr << __FILE__ << ":" << __LINE__
@@ -8954,16 +8778,18 @@ private:
 			}
 		}
 
-		// cells with given cell as neighbor
+
+		// cells with given cell as neighbor (not required as base neighborhood is symmetric)
+		/**
 		for (const auto& neighbor_to_i: this->neighbors_to.at(cell)) {
 			const auto& neighbor_to = neighbor_to_i.first;
 
 			#ifdef DEBUG
 			if (this->cell_process.count(neighbor_to) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor_to " << neighbor_to
-					<< " doesn't exist in cell_process"
-					<< std::endl;
+					  << " Neighbor_to " << neighbor_to
+					  << " doesn't exist in cell_process"
+					  << std::endl;
 				abort();
 			}
 			#endif
@@ -8973,6 +8799,7 @@ private:
 				this->remote_cells_on_process_boundary.insert(neighbor_to);
 			}
 		}
+		*/
 
 		#ifdef DEBUG
 		if (!this->verify_remote_neighbor_info(cell)) {
@@ -9049,8 +8876,6 @@ private:
 		}
 		#endif
 
-		this->user_local_cells_on_process_boundary.at(neighborhood_id).erase(cell);
-
 		// neighbors of given cell
 		for (const auto& neighbor_i: this->user_neigh_of.at(neighborhood_id).at(cell)) {
 			const auto& neighbor = neighbor_i.first;
@@ -9075,23 +8900,23 @@ private:
 			}
 		}
 
-		// cells with given cell as neighbor
+		// cells with given cell as neighbor (required for asymmetric neighborhoods)
 		for (const auto& neighbor_to_i: this->user_neigh_to.at(neighborhood_id).at(cell)) {
 			const auto& neighbor_to = neighbor_to_i.first;
 
 			#ifdef DEBUG
 			if (neighbor_to == error_cell) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid cell in neighbor_to list of cell " << cell
-					<< std::endl;
+					  << " Invalid cell in neighbor_to list of cell " << cell
+					  << std::endl;
 				abort();
 			}
 
 			if (this->cell_process.count(neighbor_to) == 0) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor_to " << neighbor_to
-					<< " doesn't exist in cell_process"
-					<< std::endl;
+					  << " Neighbor_to " << neighbor_to
+					  << " doesn't exist in cell_process"
+					  << std::endl;
 				abort();
 			}
 			#endif
@@ -9449,7 +9274,7 @@ private:
 					parent,
 					this->neighborhood_of,
 					true
-				);	// todo this should probably be using cached values
+				);
 
 			for (const auto& neighbor_i: neighbors) {
 				const auto& neighbor = neighbor_i.first;
@@ -9479,8 +9304,88 @@ private:
 			this->cells_to_unrefine.insert(
 				all_unrefines[process].begin(),
 				all_unrefines[process].end()
-			);
+		);
+	}
+
+		// Janky helper collection
+		std::set<uint64_t> cells_to_add;
+
+		// initially only one sibling is recorded per process when unrefining,
+		// insert the rest of them now
+		for (const uint64_t unrefined: this->cells_to_unrefine) {
+
+			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
+			#ifdef DEBUG
+			if (unrefined != this->get_child(unrefined)) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has children"
+					<< std::endl;
+				abort();
+			}
+
+			if (parent_of_unrefined == 0) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
+				abort();
+			}
+
+			if (parent_of_unrefined == unrefined) {
+				std::cerr << __FILE__ << ":" << __LINE__
+					<< " Cell " << unrefined
+					<< " has no parent"
+					<< std::endl;
+				abort();
+			}
+			#endif
+
+			parents_of_unrefined.insert(parent_of_unrefined);
+
+			const std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
+
+			#ifdef DEBUG
+			bool unrefined_in_siblings = false;
+			for (const uint64_t sibling: siblings) {
+
+				if (this->cell_process.count(sibling) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " doesn't exist"
+						<< std::endl;
+					abort();
+				}
+
+				if (sibling != this->get_child(sibling)) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " has has children"
+						<< std::endl;
+					abort();
+				}
+
+				if (this->cell_process.at(sibling) == this->rank
+				&& this->cell_data.count(sibling) == 0) {
+					std::cerr << __FILE__ << ":" << __LINE__
+						<< " Cell " << sibling
+						<< " has no data"
+						<< std::endl;
+					abort();
+				}
+
+				if (unrefined == sibling) {
+					unrefined_in_siblings = true;
+				}
+			}
+
+			if (!unrefined_in_siblings) {
+				std::cerr << __FILE__ << ":" << __LINE__ << " Cell to unrefine isn't its parent's child" << std::endl;
+				abort();
+			}
+			#endif
+
+			cells_to_add.insert(siblings.begin(), siblings.end());
 		}
+
+		this->cells_to_unrefine.insert(cells_to_add.begin(), cells_to_add.end());
 
 		#ifdef DEBUG
 		// check that maximum refinement level difference between future neighbors <= 1
@@ -9590,14 +9495,6 @@ private:
 						all_neighbors.insert(n.first);
 					}
 				}
-
-				// Duplicate, not necessary
-				// const auto* const neighs_to = this->get_neighbors_to(cell);
-				// if (neighs_to != nullptr) {
-				//	for (const auto& n: *neighs_to) {
-				//		all_neighbors.insert(n.first);
-				//	}
-				// }
 
 				const auto ref_lvl = this->mapping.get_refinement_level(cell);
 				for (const auto& neighbor: all_neighbors) {
@@ -10319,7 +10216,10 @@ public:
 				this->neighbors_of[cell].clear();
 				this->neighbors_to[cell].clear();
 				this->neighbors_of[cell] = this->find_neighbors_of(cell, this->neighborhood_of);
-				this->neighbors_to[cell] = this->fill_neighbors_to(cell, this->neighborhood_to);
+				// Symmetric complement
+				// this->neighbors_to[cell] = this->find_neighbors_to(cell, this->neighborhood_to);
+				// this->neighbors_to[cell] = this->fill_neighbors_to(cell);
+				this->neighbors_to[cell] = this->neighbors_of[cell];
 				this->face_neighbors_of[cell] = this->find_face_neighbors_of(cell);
 
 				// update user neighbor lists
@@ -11339,7 +11239,7 @@ private:
 		std::vector<std::vector<uint64_t>> all_processes;
 		All_Gather()(local_processes, all_processes, this->comm);
 
-		for (process = 0; process < this->comm_size; process++) {
+		for (uint process = 0; process < this->comm_size; process++) {
 			if (!std::equal(
 				all_cells[process].begin(),
 				all_cells[process].end(),
@@ -11530,7 +11430,9 @@ private:
 				<< " neighbor counts for cell " << cell
 				<< " (child of " << this->get_parent(cell)
 				<< ") don't match "
-				<< neighbor_of_lists.at(cell).size() << ": ";
+				<< neighbor_of_lists.at(cell).size()
+				<< " <-> " << compare_neighbors.size()
+				<< ": ";
 
 			for (const auto& c_i: neighbor_of_lists.at(cell)) {
 				const auto& c = c_i.first;
@@ -11861,7 +11763,7 @@ private:
 						no_remote_neighbor = false;
 					}
 
-					if (!this->is_neighbor(neighbor, item.first})) {
+					if (!this->is_neighbor(neighbor, item.first)) {
 						std::cerr << __FILE__ << ":" << __LINE__
 							<< " Cell " << item.first
 							<< " should be a neighbor to cell " << neighbor
@@ -11931,16 +11833,12 @@ private:
 	*/
 	bool pin_requests_succeeded()
 	{
-		for (std::unordered_map<uint64_t, uint64_t>::const_iterator
-			pin_request = this->pin_requests.begin();
-			pin_request != this->pin_requests.end();
-			pin_request++
-		) {
-			if (this->cell_process.at(pin_request->first) != pin_request->second) {
+		for (auto& [cell, process] : pin_requests) {
+			if (this->cell_process.at(cell) != process) {
 				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << pin_request->first
-					<< " not at requested process " << pin_request->second
-					<< " but at " << this->cell_process.at(pin_request->first)
+					<< " Cell " << cell
+					<< " not at requested process " << process
+					<< " but at " << this->cell_process.at(cell)
 					<< std::endl;
 				return false;
 			}
