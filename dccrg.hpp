@@ -7087,8 +7087,8 @@ private:
 	// optional user-given communication weights of cells on this process
 	std::unordered_map<uint64_t, double> communication_weights;
 
-   // Set of neighborhoods each cell communicates in (hyper)graph partitioning
-   std::unordered_map<uint64_t, std::unordered_set<int>> partitioning_neighborhoods;
+	// Set of neighborhoods each cell communicates in (hyper)graph partitioning
+	std::unordered_map<uint64_t, std::unordered_set<int>> partitioning_neighborhoods;
 
 	// processes which have cells close enough from cells of this process
 	std::unordered_set<int> neighbor_processes;
@@ -10814,8 +10814,6 @@ private:
 				return;
 			}
 
-			// number_of_neighbors[i] = 0;
-
 			// We consider the communication weight from this cell to others
 			auto weight {dccrg_instance->get_communication_weight(cell)};
 			for (auto neighborhood : dccrg_instance->partitioning_neighborhoods[cell]) {
@@ -10824,8 +10822,6 @@ private:
 					if (neighbor == 0 || neighbor == cell) {
 						continue;
 					}
-
-					// number_of_neighbors[i]++;
 
 					neighbors[current_neighbor_number] = neighbor;
 					processes_of_neighbors[current_neighbor_number] = int(dccrg_instance->cell_process.at(neighbor));
@@ -10922,8 +10918,6 @@ private:
 				}
 			}
 		}
-
-		// std::cerr << "I have " + std::to_string(dccrg_instance->cell_data.size()) + "cells, " + std::to_string(*number_of_hyperedges) + " hedges and " + std::to_string(*number_of_connections) + " connections!\n";
 	}
 
 
@@ -11144,16 +11138,6 @@ private:
 		}
 
 		return dccrg_instance->partition_number[level];
-
-		// int process = int(dccrg_instance->rank);
-		// int part;
-
-		// for (int i = 0; i <= level; i++) {
-		// 	part = process / dccrg_instance->processes_per_part[i];
-		// 	process %= dccrg_instance->processes_per_part[i];
-		// }
-
-		// return part;
 	}
 
 
