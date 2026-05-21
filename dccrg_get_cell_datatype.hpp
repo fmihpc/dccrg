@@ -44,16 +44,11 @@ BOOST_TTI_HAS_MEMBER_FUNCTION(get_mpi_datatype)
 
 #if __cplusplus >= 202002L
 // Concept replacement for BOOST_TTI (WIP)
-template<typename T>
-concept has_mem_fn_get_mpi_datatype = requires (T x) {
-	// TODO: check the five zeroes is following type:
-	// 		- const uint64_t
-	// 		- const int
-	// 		- const int
-	// 		- const bool
-	// 		- const int
-	{x.get_mpi_datatype(0,0,0,0,0)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+template<typename T, typename A, typename B, typename C, typename D, typename E>
+concept has_mem_fn_get_mpi_datatype = requires (T x, A a, B b, C c, D d, E e) {
+	{x.get_mpi_datatype(a,b,c,d,e)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
 };
+#define GET_MPI_DATATYPE_INPUTS const uint64_t, const int, const int, const bool, const int
 #endif
 
 #ifdef GENERAL_DCCRG
@@ -107,7 +102,7 @@ Version for get_mpi_datatype(const uint64_t, ..., const int).
 */
 template<class Cell_Data>
 #if __cplusplus >= 202002L
-requires has_mem_fn_get_mpi_datatype<Cell_Data>
+requires has_mem_fn_get_mpi_datatype<Cell_Data, GET_MPI_DATATYPE_INPUTS>
 #endif
 std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	Cell_Data& cell,
