@@ -82,6 +82,18 @@ Namespace where all dccrg classes, functions, etc are defined.
 namespace dccrg
 {
 
+	/* Custom implementation of erase_if for C++17 */
+	template<typename T, typename F>
+	void erase_if(std::unordered_set<T> v, F pred) {
+#if __cplusplus >= 202002L
+		std::erase_if(v, pred);
+#else
+		for(const auto& k:v)
+			v.erase(k);
+#endif
+		return;
+	}
+
 static const int
 	/*! @var
 	*/
@@ -9023,7 +9035,7 @@ private:
 			unique_induced_refines.clear();
 		}
 
-		std::erase_if(cells_to_refine, [this](uint64_t cell){return !this->is_local(cell);});
+		dccrg::erase_if(cells_to_refine, [this](uint64_t cell){return !this->is_local(cell);});
 
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
@@ -9355,7 +9367,7 @@ private:
 			this->all_to_all_set(new_donts);
 		} while (new_donts.size() > 0);
 
-		std::erase_if(old_donts, [this](uint64_t cell){return !this->is_local(cell);});;
+		dccrg::erase_if(old_donts, [this](uint64_t cell){return !this->is_local(cell);});;
 
 		this->cells_not_to_refine = old_donts;
 		this->all_to_all_set(this->cells_not_to_refine);

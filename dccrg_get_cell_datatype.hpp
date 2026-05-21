@@ -28,18 +28,35 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "mpi.h"
 
+#ifdef GENERAL_DCCRG
 #include "boost/function_types/property_tags.hpp"
 #include "boost/mpl/vector.hpp"
 #include "boost/tti/has_member_function.hpp"
+#endif
 
 
 namespace dccrg {
 namespace detail {
 
-
+#ifdef GENERAL_DCCRG
 BOOST_TTI_HAS_MEMBER_FUNCTION(get_mpi_datatype)
+#endif
 
+#if __cplusplus >= 202002L
+// Concept replacement for BOOST_TTI (WIP)
+template<typename T>
+concept has_mem_fn_get_mpi_datatype = requires (T x) {
+	// TODO: check the five zeroes is following type:
+	// 		- const uint64_t
+	// 		- const int
+	// 		- const int
+	// 		- const bool
+	// 		- const int
+	{x.get_mpi_datatype(0,0,0,0,0)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+};
+#endif
 
+#ifdef GENERAL_DCCRG
 /*!
 Returns the MPI transfer info from given cell.
 
@@ -81,33 +98,18 @@ template<
 		neighborhood_id
 	);
 }
-
+#endif
 
 /*!
 Returns the MPI transfer info from given cell.
 
 Version for get_mpi_datatype(const uint64_t, ..., const int).
 */
-template<
-	class Cell_Data
-> typename std::enable_if<
-	has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<
-			const uint64_t,
-			const int,
-			const int,
-			const bool,
-			const int
-		>
-	>::value,
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	>
->::type get_cell_mpi_datatype(
+template<class Cell_Data>
+#if __cplusplus >= 202002L
+requires has_mem_fn_get_mpi_datatype<Cell_Data>
+#endif
+std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	Cell_Data& cell,
 	const uint64_t cell_id,
 	const int sender,
@@ -124,7 +126,7 @@ template<
 	);
 }
 
-
+#ifdef GENERAL_DCCRG
 /*!
 Returns the MPI transfer info from given cell.
 
@@ -211,7 +213,7 @@ template<
 ) {
 	return cell.get_mpi_datatype();
 }
-
+#endif
 
 // give a human-readable error message
 template<class Cell_Data> std::tuple<void*, int, MPI_Datatype> get_mpi_datatype_basic(Cell_Data&) {
@@ -280,6 +282,7 @@ DCCRG_GET_MPI_DATATYPE_ARRAY(std::complex<long double>, MPI_CXX_LONG_DOUBLE_COMP
 #endif
 #undef DCCRG_GET_MPI_DATATYPE_ARRAY
 
+#ifdef GENERAL_DCCRG
 /*!
 Returns the MPI transfer info from given cell.
 
@@ -337,7 +340,7 @@ template<
 ) {
 	return get_mpi_datatype_basic(cell);
 }
-
+#endif
 
 }} // namespaces
 
