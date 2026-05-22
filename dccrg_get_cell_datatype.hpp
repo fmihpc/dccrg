@@ -28,71 +28,37 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "mpi.h"
 
-#ifdef GENERAL_DCCRG
-#include "boost/function_types/property_tags.hpp"
-#include "boost/mpl/vector.hpp"
-#include "boost/tti/has_member_function.hpp"
-#endif
-
-
 namespace dccrg {
 namespace detail {
 
-#ifdef GENERAL_DCCRG
-BOOST_TTI_HAS_MEMBER_FUNCTION(get_mpi_datatype)
-#endif
-
 #if __cplusplus >= 202002L
+#define REQUIRES(...) requires __VA_ARGS__
 // Concept replacement for BOOST_TTI (WIP)
-template<typename T, typename A, typename B, typename C, typename D, typename E>
-concept has_mem_fn_get_mpi_datatype = requires (T x, A a, B b, C c, D d, E e) {
+template<typename T>
+concept has_mem_fn_get_mpi_datatype = requires (T x, const uint64_t a, const int b, const int c, const bool d, const int e) {
 	{x.get_mpi_datatype(a,b,c,d,e)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
 };
-#define GET_MPI_DATATYPE_INPUTS const uint64_t, const int, const int, const bool, const int
-#endif
-
-#ifdef GENERAL_DCCRG
-/*!
-Returns the MPI transfer info from given cell.
-
-Version for get_mpi_datatype(const uint64_t, ..., const int) const.
-*/
-template<
-	class Cell_Data
-> typename std::enable_if<
-	has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<
-			const uint64_t,
-			const int,
-			const int,
-			const bool,
-			const int
-		>,
-		boost::function_types::const_qualified
-	>::value,
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	>
->::type get_cell_mpi_datatype(
-	const Cell_Data& cell,
-	const uint64_t cell_id,
-	const int sender,
-	const int receiver,
-	const bool receiving,
-	const int neighborhood_id
-) {
-	return cell.get_mpi_datatype(
-		cell_id,
-		sender,
-		receiver,
-		receiving,
-		neighborhood_id
-	);
-}
+template<typename T>
+concept has_mem_fn_get_mpi_datatype_const = requires (const T x, const uint64_t a, const int b, const int c, const bool d, const int e) {
+	{x.get_mpi_datatype(a,b,c,d,e)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+};
+template<typename T>
+concept has_mem_fn_get_mpi_datatype_noArgs = requires (T x) {
+	{x.get_mpi_datatype()} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+	!has_mem_fn_get_mpi_datatype<T>;
+	!has_mem_fn_get_mpi_datatype_const<T>;
+};
+template<typename T>
+concept has_mem_fn_get_mpi_datatype_noArgs_const = requires (const T x) {
+	{x.get_mpi_datatype()} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+	!has_mem_fn_get_mpi_datatype<T>;
+	!has_mem_fn_get_mpi_datatype_const<T>;
+};
+#else
+// WARNING: This disables the type-check guard,
+//          which means for C++17 and below,
+//          we only implement the version used by vlasiator
+#define REQUIRES(...) /*requires __VA_ARGS__*/
 #endif
 
 /*!
@@ -101,9 +67,7 @@ Returns the MPI transfer info from given cell.
 Version for get_mpi_datatype(const uint64_t, ..., const int).
 */
 template<class Cell_Data>
-#if __cplusplus >= 202002L
-requires has_mem_fn_get_mpi_datatype<Cell_Data, GET_MPI_DATATYPE_INPUTS>
-#endif
+REQUIRES(has_mem_fn_get_mpi_datatype<Cell_Data>)
 std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	Cell_Data& cell,
 	const uint64_t cell_id,
@@ -121,41 +85,45 @@ std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	);
 }
 
-#ifdef GENERAL_DCCRG
+/* Disable other impl.s
+ * For C++17 and below, because we cannot use
+ * concepts as a type guard for different impl.s
+ * we'll be excluding them just to be safe.
+ */
+#if __cplusplus < 202002L
+/*!
+Returns the MPI transfer info from given cell.
+
+Version for get_mpi_datatype(const uint64_t, ..., const int) const.
+*/
+template<class Cell_Data>
+REQUIRES(has_mem_fn_get_mpi_datatype<Cell_Data>)
+std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
+	const Cell_Data& cell,
+	const uint64_t cell_id,
+	const int sender,
+	const int receiver,
+	const bool receiving,
+	const int neighborhood_id
+) {
+	return cell.get_mpi_datatype(
+		cell_id,
+		sender,
+		receiver,
+		receiving,
+		neighborhood_id
+	);
+}
+
 /*!
 Returns the MPI transfer info from given cell.
 
 Version for get_mpi_datatype() const.
 Gives precedence to get_mpi_datatype which takes arguments.
 */
-template<
-	class Cell_Data
-> typename std::enable_if<
-	has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<>,
-		boost::function_types::const_qualified
-	>::value
-	and not
-	has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<
-			const uint64_t,
-			const int,
-			const int,
-			const bool,
-			const int
-		>,
-		boost::function_types::const_qualified
-	>::value,
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	>
->::type get_cell_mpi_datatype(
+template<class Cell_Data>
+REQUIRES(has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data>)
+std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	const Cell_Data& cell,
 	const uint64_t /*cell_id*/,
 	const int /*sender*/,
@@ -173,32 +141,9 @@ Returns the MPI transfer info from given cell.
 Version for get_mpi_datatype().
 Gives precedence to get_mpi_datatype which takes arguments.
 */
-template<
-	class Cell_Data
-> typename std::enable_if<
-	has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<>
-	>::value
-	and not
-	has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<
-			const uint64_t,
-			const int,
-			const int,
-			const bool,
-			const int
-		>
-	>::value,
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	>
->::type get_cell_mpi_datatype(
+template<class Cell_Data>
+REQUIRES(has_mem_fn_get_mpi_datatype_noArgs<Cell_Data>)
+std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	Cell_Data& cell,
 	const uint64_t /*cell_id*/,
 	const int /*sender*/,
@@ -207,6 +152,28 @@ template<
 	const int /*neighborhood_id*/
 ) {
 	return cell.get_mpi_datatype();
+}
+
+/*!
+Returns the MPI transfer info from given cell.
+
+Version for cell that doesn't have get_mpi_datatype().
+*/
+template<class Cell_Data>
+REQUIRES(!(
+	has_mem_fn_get_mpi_datatype_noArgs<Cell_Data> &&
+	has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data> &&
+	has_mem_fn_get_mpi_datatype<Cell_Data> &&
+	has_mem_fn_get_mpi_datatype_const<Cell_Data>
+) std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
+	Cell_Data& cell,
+	const uint64_t /*cell_id*/,
+	const int /*sender*/,
+	const int /*receiver*/,
+	const bool /*receiving*/,
+	const int /*neighborhood_id*/
+) {
+	return get_mpi_datatype_basic(cell);
 }
 #endif
 
@@ -276,66 +243,6 @@ DCCRG_GET_MPI_DATATYPE_ARRAY(std::complex<double>, MPI_CXX_DOUBLE_COMPLEX)
 DCCRG_GET_MPI_DATATYPE_ARRAY(std::complex<long double>, MPI_CXX_LONG_DOUBLE_COMPLEX)
 #endif
 #undef DCCRG_GET_MPI_DATATYPE_ARRAY
-
-#ifdef GENERAL_DCCRG
-/*!
-Returns the MPI transfer info from given cell.
-
-Version for cell that doesn't have get_mpi_datatype().
-*/
-template<
-	class Cell_Data
-> typename std::enable_if<
-	not has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<
-			const uint64_t,
-			const int,
-			const int,
-			const bool,
-			const int
-		>,
-		boost::function_types::const_qualified
-	>::value
-	and not has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<
-			const uint64_t,
-			const int,
-			const int,
-			const bool,
-			const int
-		>
-	>::value
-	and not has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<>,
-		boost::function_types::const_qualified
-	>::value
-	and not has_member_function_get_mpi_datatype<
-		Cell_Data,
-		std::tuple<void*, int, MPI_Datatype>,
-		boost::mpl::vector<>
-	>::value,
-	std::tuple<
-		void*,
-		int,
-		MPI_Datatype
-	>
->::type get_cell_mpi_datatype(
-	Cell_Data& cell,
-	const uint64_t /*cell_id*/,
-	const int /*sender*/,
-	const int /*receiver*/,
-	const bool /*receiving*/,
-	const int /*neighborhood_id*/
-) {
-	return get_mpi_datatype_basic(cell);
-}
-#endif
 
 }} // namespaces
 

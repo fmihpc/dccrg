@@ -89,7 +89,8 @@ namespace dccrg
 		std::erase_if(v, pred);
 #else
 		for(const auto& k:v)
-			v.erase(k);
+			if(pred(k))
+				v.erase(k);
 #endif
 		return;
 	}
