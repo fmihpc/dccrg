@@ -31,119 +31,62 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 namespace dccrg {
 namespace detail {
 
-/* Generating different implementations for cell_mpi_datatype calls
- */
-template<class Cell_Data_T>
-std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype_(
-	std::tuple<void*, int, MPI_Datatype>(Cell_Data_T::*memFn)(
-		const uint64_t cell_id,
-		const int sender,
-		const int receiver,
-		const bool receiving,
-		const int neighborhood_id
-	),
-	Cell_Data_T& cell,
-	const uint64_t cell_id,
-	const int sender,
-	const int receiver,
-	const bool receiving,
-	const int neighborhood_id
-) {
-	return (cell.*memFn)(
-			cell_id,
-			sender,
-			receiver,
-			receiving,
-			neighborhood_id
-		    );
-}
-template<class Cell_Data_T>
-std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype_(
-	std::tuple<void*, int, MPI_Datatype>(Cell_Data_T::*memFn)(),
-	Cell_Data_T& cell,
-	const uint64_t cell_id,
-	const int sender,
-	const int receiver,
-	const bool receiving,
-	const int neighborhood_id
-) {
-	//(void) cell_id, sender, receiver, receiving, neighborhood_id
-	return (cell.*memFn)();
-}
-
 /*!
 Returns the MPI transfer info from given cell.
 
 Version for get_mpi_datatype(const uint64_t, ..., const int).
 */
-template<class Cell_Data_T>
-std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
-	Cell_Data_T& cell,
-	const uint64_t cell_id,
-	const int sender,
-	const int receiver,
-	const bool receiving,
-	const int neighborhood_id
-) {
-	return get_cell_mpi_datatype_(
-		&Cell_Data_T::get_mpi_datatype,
-		cell,
-		cell_id,
-		sender,
-		receiver,
-		receiving,
-		neighborhood_id
-	);
-}
-/*!
-Returns the MPI transfer info from given cell.
-
-Version for get_mpi_datatype(const uint64_t, ..., const int) const.
-*/
-template<class Cell_Data_T>
-std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
-	const Cell_Data_T& cell,
-	const uint64_t cell_id,
-	const int sender,
-	const int receiver,
-	const bool receiving,
-	const int neighborhood_id
-) {
-	return get_cell_mpi_datatype_(
-		&Cell_Data_T::get_mpi_datatype,
-		cell,
-		cell_id,
-		sender,
-		receiver,
-		receiving,
-		neighborhood_id
-	);
-}
-
+#define gen_get_cell_mpi_datatype(CONST_ATTR, RESTRAINT, INPUTS...)     \
+template<class Cell_Data_T>                                  \
+RESTRAINT						     \
+std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(  \
+	CONST_ATTR Cell_Data_T& cell,                        \
+	const uint64_t cell_id,    \
+	const int sender,          \
+	const int receiver,        \
+	const bool receiving,      \
+	const int neighborhood_id  \
+) {                                                          \
+	return cell.get_mpi_datatype(INPUTS);                \
+}                                                            
+#define CELL_MPI_DATATYPE\
+	cell_id,         \
+	sender,          \
+	receiver,        \
+	receiving,       \
+	neighborhood_id
+gen_get_cell_mpi_datatype(/*non-const*/, /*no constraint*/, CELL_MPI_DATATYPE)
+gen_get_cell_mpi_datatype(const        , /*no constraint*/, CELL_MPI_DATATYPE)
 #if __cplusplus >= 202002L
-// Concept replacement for BOOST_TTI (WIP)
-template<typename T>
-concept has_mem_fn_get_mpi_datatype = requires (T& x, const uint64_t a, const int b, const int c, const bool d, const int e) {
-	{x.get_mpi_datatype(a,b,c,d,e)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
-};
 template<typename T>
 concept has_mem_fn_get_mpi_datatype_const = requires (const T& x, const uint64_t a, const int b, const int c, const bool d, const int e) {
 	{x.get_mpi_datatype(a,b,c,d,e)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+};
+template<typename T>
+concept has_mem_fn_get_mpi_datatype_noArgs_const = requires (const T& x) {
+	{x.get_mpi_datatype()} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+	!has_mem_fn_get_mpi_datatype_const<T>;
+};
+template<typename T>
+concept has_mem_fn_get_mpi_datatype = requires (T& x, const uint64_t a, const int b, const int c, const bool d, const int e) {
+	{x.get_mpi_datatype(a,b,c,d,e)} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
+	!has_mem_fn_get_mpi_datatype_const<T>;
+	!has_mem_fn_get_mpi_datatype_noArgs_const<T>;
 };
 template<typename T>
 concept has_mem_fn_get_mpi_datatype_noArgs = requires (T& x) {
 	{x.get_mpi_datatype()} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
 	!has_mem_fn_get_mpi_datatype<T>;
 	!has_mem_fn_get_mpi_datatype_const<T>;
-};
-template<typename T>
-concept has_mem_fn_get_mpi_datatype_noArgs_const = requires (const T& x) {
-	{x.get_mpi_datatype()} -> std::same_as<std::tuple<void*, int, MPI_Datatype>>;
-	!has_mem_fn_get_mpi_datatype<T>;
-	!has_mem_fn_get_mpi_datatype_const<T>;
+	!has_mem_fn_get_mpi_datatype_noArgs_const<T>;
 };
 
-// TODO: This part is not supported for C++17
+/* Requires C++20
+ * For the following to be not a redefinition of above
+ */
+gen_get_cell_mpi_datatype(/*non-const*/, requires has_mem_fn_get_mpi_datatype_noArgs      <Cell_Data_T>,/*no args*/)
+gen_get_cell_mpi_datatype(const        , requires has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data_T>, /*no args*/)
+
 /*!
 Returns the MPI transfer info from given cell.
 
@@ -151,10 +94,10 @@ Version for cell that doesn't have get_mpi_datatype().
 */
 template<class Cell_Data>
 requires (!(
-	has_mem_fn_get_mpi_datatype_noArgs<Cell_Data> ||
-	has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data> ||
-	has_mem_fn_get_mpi_datatype<Cell_Data> ||
-	has_mem_fn_get_mpi_datatype_const<Cell_Data>))
+	//has_mem_fn_get_mpi_datatype_noArgs<Cell_Data> ||
+	//has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data> ||
+	//has_mem_fn_get_mpi_datatype_const<Cell_Data> ||
+	has_mem_fn_get_mpi_datatype<Cell_Data>))
 std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	Cell_Data& cell,
 	const uint64_t /*cell_id*/,
@@ -163,12 +106,7 @@ std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	const bool /*receiving*/,
 	const int /*neighborhood_id*/
 ) {
-	return get_mpi_datatype_basic(cell);
-}
-#endif
-
-// give a human-readable error message
-template<class Cell_Data> std::tuple<void*, int, MPI_Datatype> get_mpi_datatype_basic(Cell_Data&) {
+	// give a human-readable error message
 	static_assert(
 		not std::is_same<Cell_Data, Cell_Data>::value,
 		"Cell_Data given to dccrg is not a supported type and "
@@ -176,6 +114,7 @@ template<class Cell_Data> std::tuple<void*, int, MPI_Datatype> get_mpi_datatype_
 	);
 	return std::make_tuple(nullptr, -1, MPI_DATATYPE_NULL);
 }
+#endif
 
 #define DCCRG_GET_MPI_DATATYPE_BASIC(CPP, MPI) \
 	std::tuple< \
@@ -207,7 +146,7 @@ DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<long double>, MPI_CXX_LONG_DOUBLE_COMP
 #undef DCCRG_GET_MPI_DATATYPE_BASIC
 
 #define DCCRG_GET_MPI_DATATYPE_ARRAY(CPP, MPI) \
-	template<size_t N> std::tuple< \
+	template<std::size_t N> std::tuple< \
 		void*, int, MPI_Datatype \
 	> inline get_mpi_datatype_basic(std::array<CPP, N>& cell) { \
 		return std::make_tuple((void*) cell.data(), cell.size(), MPI); \
