@@ -74,6 +74,7 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
+{ // wrap all entities into a scope to force destructor before MPI_Finalize
 	dccrg::Dccrg<Cell1, dccrg::Cartesian_Geometry> grid1;
 
 	grid1
@@ -96,7 +97,7 @@ int main(int argc, char* argv[])
 	const std::unordered_set<uint64_t>& remote_neighbors1
 		= grid1.get_remote_cells_on_process_boundary_internal();
 
-	const std::unordered_map<uint64_t, uint64_t>& cell_process1
+	const std::unordered_map<uint64_t, int>& cell_process1
 		= grid1.get_cell_process();
 
 	for (const auto& cell: remote_neighbors1) {
@@ -148,7 +149,7 @@ int main(int argc, char* argv[])
 	const std::unordered_set<uint64_t>& remote_neighbors2
 		= grid2.get_remote_cells_on_process_boundary_internal();
 
-	const std::unordered_map<uint64_t, uint64_t>& cell_process2
+	const std::unordered_map<uint64_t, int>& cell_process2
 		= grid2.get_cell_process();
 
 	for (const auto& cell: remote_neighbors2) {
@@ -166,7 +167,7 @@ int main(int argc, char* argv[])
 			abort();
 		}
 	}
-
+}
 	MPI_Finalize();
 
 	return EXIT_SUCCESS;
