@@ -22,6 +22,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "algorithm"
 #include "climits"
+#include<limits> // for std::numeric_limits
 #include "cstdint"
 #include "cstdlib"
 #include "iostream"
