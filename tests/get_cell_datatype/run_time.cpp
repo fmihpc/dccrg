@@ -174,7 +174,7 @@ int main(int /*argc*/, char** /*argv*/)
 	CHECK_DATATYPE_COUNT(c6_1, 7)
 
 	Cell6 c6_2;
-	CHECK_DATATYPE_COUNT(c6_2, 9)
+	CHECK_DATATYPE_COUNT(c6_2, 7) // used to be 9, but under C++20 we cannot force it to use non-const
 
 	const Cell7 c7_1;
 	CHECK_DATATYPE_COUNT(c7_1, 11)

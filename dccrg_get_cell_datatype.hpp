@@ -84,8 +84,8 @@ concept has_mem_fn_get_mpi_datatype_noArgs = requires (T& x) {
 /* Requires C++20
  * For the following to be not a redefinition of above
  */
-gen_get_cell_mpi_datatype(/*non-const*/, requires has_mem_fn_get_mpi_datatype_noArgs      <Cell_Data_T>,/*no args*/)
-gen_get_cell_mpi_datatype(const        , requires has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data_T>, /*no args*/)
+gen_get_cell_mpi_datatype(/*non-const*/, requires(has_mem_fn_get_mpi_datatype_noArgs<Cell_Data_T> && !(has_mem_fn_get_mpi_datatype<Cell_Data_T>)),/*no args*/)
+gen_get_cell_mpi_datatype(const        , requires(has_mem_fn_get_mpi_datatype_noArgs_const<Cell_Data_T> && !(has_mem_fn_get_mpi_datatype_const<Cell_Data_T>)), /*no args*/)
 
 /*!
 Returns the MPI transfer info from given cell.
