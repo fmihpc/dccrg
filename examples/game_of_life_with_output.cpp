@@ -25,7 +25,7 @@ struct game_of_life_cell {
 		is_alive = 0,
 		live_neighbor_count = 0;
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS) {
 		return std::make_tuple((void*) &(this->is_alive), 1, MPI_UNSIGNED);
 	}
 };

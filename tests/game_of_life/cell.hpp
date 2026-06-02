@@ -26,6 +26,8 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "mpi.h"
 
+#define SEND_SINGLE_CELLS // to comply with fb sig.
+
 /*!
 Game of life cell with 8 * 13 bytes of data.
 */

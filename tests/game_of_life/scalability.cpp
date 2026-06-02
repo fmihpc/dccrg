@@ -39,7 +39,7 @@ struct game_of_life_cell {
 	// data[0] == 1 if cell is alive, data[1] holds the number of live neighbors
 	unsigned int data[2];
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple(&(this->data), 1, MPI_INT);
 	}

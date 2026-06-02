@@ -47,7 +47,7 @@ public:
 	static bool transfer_particles;
 
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		void* address = NULL;
 		int count = -1;

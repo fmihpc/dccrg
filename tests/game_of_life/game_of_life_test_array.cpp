@@ -40,7 +40,7 @@ using namespace boost;
 using namespace dccrg;
 
 // [0] == alive?, [1] == nr live neighbors
-using Cell = std::array<uint64_t, 2>;
+using Cell = dccrg::detail::array_wrapper<uint64_t, 2, MPI_UNSIGNED_LONG_LONG>;
 
 /*!
 Returns EXIT_SUCCESS if the state of the given game at given timestep is correct on this process, returns EXIT_FAILURE otherwise.

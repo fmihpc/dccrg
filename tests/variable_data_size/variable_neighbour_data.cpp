@@ -25,7 +25,7 @@ class CellData {
 public:
 	vector<int> variables1, variables2;
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		if (not send_variables2) {
 			return std::make_tuple(this->variables1.data(), this->variables1.size(), MPI_INT);

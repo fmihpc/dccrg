@@ -58,7 +58,7 @@ struct CellData {
 		return *this;
 	}
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS) {
 		return std::make_tuple((void*) &(this->data), 1, MPI_DOUBLE);
 	}
 };

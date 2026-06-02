@@ -25,6 +25,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "boost/mpl/vector.hpp"
 #include "boost/tti/has_member_function.hpp"
 #include "mpi.h"
+#include "dccrg_get_cell_datatype.hpp"
 
 struct Cell1 {
 	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
@@ -46,20 +47,10 @@ struct Cell1 {
 	) {
 		return std::make_tuple((void*) NULL, 2, MPI_DATATYPE_NULL);
 	}
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
-	{
-		return std::make_tuple((void*) NULL, 3, MPI_DATATYPE_NULL);
-	}
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
-	{
-		return std::make_tuple((void*) NULL, 4, MPI_DATATYPE_NULL);
-	}
 };
 
 struct Cell2 {
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple((void*) NULL, 5, MPI_DATATYPE_NULL);
 	}
@@ -128,52 +119,17 @@ int main(int /*argc*/, char** /*argv*/)
 		abort();
 	}
 
-
-	static_assert(
-		has_member_function_get_mpi_datatype<
-			Cell1,
-			std::tuple<void*, int, MPI_Datatype>,
-			boost::mpl::vector<>,
-			boost::function_types::const_qualified
-		>::value,
-		"Error"
-	);
-	const Cell1 c1_3;
-	std::tie(
-		address,
-		count,
-		datatype
-	) = c1_3.get_mpi_datatype();
-	if (count != 3) {
-		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-		abort();
-	}
-
-	static_assert(
-		has_member_function_get_mpi_datatype<
-			Cell1,
-			std::tuple<void*, int, MPI_Datatype>,
-			boost::mpl::vector<>
-		>::value,
-		"Error"
-	);
-	Cell1 c1_4;
-	std::tie(
-		address,
-		count,
-		datatype
-	) = c1_4.get_mpi_datatype();
-	if (count != 4) {
-		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
-		abort();
-	}
-
-
 	static_assert(
 		has_member_function_get_mpi_datatype<
 			Cell2,
 			std::tuple<void*, int, MPI_Datatype>,
-			boost::mpl::vector<>
+			boost::mpl::vector< // unused but still have to confy with the fn sig.
+				const uint64_t,
+				const int,
+				const int,
+				const bool,
+				const int
+			>
 		>::value,
 		"Error"
 	);
@@ -182,7 +138,7 @@ int main(int /*argc*/, char** /*argv*/)
 		address,
 		count,
 		datatype
-	) = c2_1.get_mpi_datatype();
+	) = c2_1.get_mpi_datatype(DEFAULT_GMD_ARGS);
 	if (count != 5) {
 		std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 		abort();

@@ -26,7 +26,7 @@ struct game_of_life_cell {
 	Whenever cell data is transferred between MPI processes dccrg
 	passes on this data to MPI for sending/receiving the data.
 	*/
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() {
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS) {
 		return std::make_tuple((void*) &(this->is_alive), 1, MPI_UNSIGNED);
 	}
 };

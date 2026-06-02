@@ -38,7 +38,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 struct game_of_life_cell {
 	unsigned int is_alive, live_neighbor_count;
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple(&(this->is_alive), 1, MPI_UNSIGNED);
 	}

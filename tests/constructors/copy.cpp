@@ -37,7 +37,7 @@ Cell data in grid1.
 struct Cell1 {
 	int data = -1;
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple((void*) &(this->data), 1, MPI_INT);
 	}
@@ -49,7 +49,7 @@ Cell data in grid2.
 struct Cell2 {
 	double data = -2;
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple(&(this->data), 1, MPI_DOUBLE);
 	}

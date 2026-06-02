@@ -38,7 +38,7 @@ public:
 		void*,
 		int,
 		MPI_Datatype
-	> get_mpi_datatype() const
+	> get_mpi_datatype(UNUSED_GMD_ARGS) const
 	{
 		return std::make_tuple((void*) &(this->data[Cell::stage]), 1, MPI_INT);
 	}

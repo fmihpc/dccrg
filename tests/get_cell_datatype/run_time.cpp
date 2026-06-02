@@ -23,20 +23,6 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 
 #include "dccrg_get_cell_datatype.hpp"
 
-struct Cell1 {
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
-	{
-		return std::make_tuple((void*) NULL, 1, MPI_DATATYPE_NULL);
-	}
-};
-
-struct Cell2 {
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
-	{
-		return std::make_tuple((void*) NULL, 2, MPI_DATATYPE_NULL);
-	}
-};
-
 struct Cell3 {
 	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
 		const uint64_t /*cell_id*/,
@@ -83,51 +69,6 @@ struct Cell5 {
 	}
 };
 
-struct Cell6 {
-	// the one with arguments should take precedence
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
-		const uint64_t /*cell_id*/,
-		const int /*sender*/,
-		const int /*receiver*/,
-		const bool /*receiving*/,
-		const int /*neighborhood_id*/
-	) const {
-		return std::make_tuple((void*) NULL, 7, MPI_DATATYPE_NULL);
-	}
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
-	{
-		return std::make_tuple((void*) NULL, 8, MPI_DATATYPE_NULL);
-	}
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
-	{
-		return std::make_tuple((void*) NULL, 9, MPI_DATATYPE_NULL);
-	}
-};
-
-struct Cell7 {
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(
-		const uint64_t /*cell_id*/,
-		const int /*sender*/,
-		const int /*receiver*/,
-		const bool /*receiving*/,
-		const int /*neighborhood_id*/
-	) {
-		return std::make_tuple((void*) NULL, 10, MPI_DATATYPE_NULL);
-	}
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype() const
-	{
-		return std::make_tuple((void*) NULL, 11, MPI_DATATYPE_NULL);
-	}
-
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
-	{
-		return std::make_tuple((void*) NULL, 12, MPI_DATATYPE_NULL);
-	}
-};
-
 #define CHECK_DATATYPE_COUNT(cell, returned_count) \
 std::tie( \
 	address, \
@@ -152,12 +93,6 @@ int main(int /*argc*/, char** /*argv*/)
 	int count = -1;
 	MPI_Datatype datatype = MPI_DATATYPE_NULL;
 
-	Cell1 c1;
-	CHECK_DATATYPE_COUNT(c1, 1)
-
-	const Cell2 c2;
-	CHECK_DATATYPE_COUNT(c2, 2)
-
 	Cell3 c3;
 	CHECK_DATATYPE_COUNT(c3, 3)
 
@@ -169,18 +104,6 @@ int main(int /*argc*/, char** /*argv*/)
 
 	Cell5 c5_2;
 	CHECK_DATATYPE_COUNT(c5_2, 6)
-
-	const Cell6 c6_1;
-	CHECK_DATATYPE_COUNT(c6_1, 7)
-
-	Cell6 c6_2;
-	CHECK_DATATYPE_COUNT(c6_2, 7) // used to be 9, but under C++20 we cannot force it to use non-const
-
-	const Cell7 c7_1;
-	CHECK_DATATYPE_COUNT(c7_1, 11)
-
-	Cell7 c7_2;
-	CHECK_DATATYPE_COUNT(c7_2, 10)
 
 	return EXIT_SUCCESS;
 }

@@ -11,6 +11,8 @@ Example that uses basic types as cell data.
 
 using namespace std;
 
+typedef dccrg::detail::dccrg_INT dccrg_INT;
+
 int main(int argc, char* argv[])
 {
 	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
@@ -24,7 +26,7 @@ int main(int argc, char* argv[])
 	    exit(EXIT_FAILURE);
 	}
 
-	dccrg::Dccrg<int> grid;
+	dccrg::Dccrg<dccrg_INT> grid;
 	grid
 		.set_initial_length({7, 13, 11})
 		.set_maximum_refinement_level(1)

@@ -17,7 +17,7 @@ struct CellData {
 
 	double variables[3];
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple(&(this->variables), 3, MPI_DOUBLE);
 	}

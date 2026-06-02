@@ -48,7 +48,7 @@ struct game_of_life_cell {
 	std::array<uint64_t, 8> child_of_processed;
 
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple(&(this->is_alive), 4, MPI_UINT64_T);
 	}

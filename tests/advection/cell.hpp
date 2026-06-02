@@ -23,6 +23,7 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "cstdint"
 
 #include "mpi.h"
+#include "dccrg_get_cell_datatype.hpp"
 
 class Cell
 {
@@ -44,7 +45,7 @@ public:
 	std::array<double, 9> data;
 
 	// returns MPI_Datatype corresponding to cell data to transfer
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		int nr_to_transfer = 1;
 		if (transfer_all_data) {

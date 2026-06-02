@@ -44,7 +44,7 @@ public:
 	// == true when saving and restarting
 	static bool transfer_only_life;
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		if (Cell::transfer_only_life) {
 			return std::make_tuple((void*) &(this->data), 1, MPI_UINT64_T);

@@ -22,6 +22,8 @@ Copyright 2010, 2011, 2012, 2013, 2014,
 using namespace std;
 using namespace dccrg;
 
+typedef dccrg::detail::dccrg_INT dccrg_INT;
+
 int main(int argc, char* argv[])
 {
 	if (MPI_Init(&argc, &argv) != MPI_SUCCESS) {
@@ -43,7 +45,7 @@ int main(int argc, char* argv[])
 
 
 	{
-	Dccrg<int> grid; grid
+	Dccrg<dccrg_INT> grid; grid
 		.set_initial_length({3, 1, 1})
 		.set_neighborhood_length(1)
 		.set_maximum_refinement_level(-1)
@@ -55,7 +57,7 @@ int main(int argc, char* argv[])
 	grid.stop_refining();
 
 	uint64_t failed = 0;
-	for (const auto& cell: grid.local_cells()) {
+	for (const auto& cell: grid.local_cells) {
 		if (cell.id == 4) {
 			cerr << "Cell 1 was refined directly." << std::endl;
 			failed = 1;
@@ -69,7 +71,7 @@ int main(int argc, char* argv[])
 
 
 	{
-	Dccrg<int> grid; grid
+	Dccrg<dccrg_INT> grid; grid
 		.set_initial_length({3, 1, 1})
 		.set_neighborhood_length(1)
 		.set_maximum_refinement_level(-1)
@@ -87,7 +89,7 @@ int main(int argc, char* argv[])
 	grid.stop_refining();
 
 	uint64_t failed = 0;
-	for (const auto& cell: grid.local_cells()) {
+	for (const auto& cell: grid.local_cells) {
 		if (cell.id == 4) {
 			cerr << "Cell 1 was refined from face neighbor" << std::endl;
 			failed = 1;
@@ -103,7 +105,7 @@ int main(int argc, char* argv[])
 	grid.stop_refining();
 
 	failed = 0;
-	for (const auto& cell: grid.local_cells()) {
+	for (const auto& cell: grid.local_cells) {
 		if (cell.id == 4) {
 			cerr << "Cell 1 was refined from further neighbor" << std::endl;
 			failed = 1;
@@ -117,7 +119,7 @@ int main(int argc, char* argv[])
 
 
 	{
-	Dccrg<int> grid; grid
+	Dccrg<dccrg_INT> grid; grid
 		.set_initial_length({3, 1, 1})
 		.set_neighborhood_length(1)
 		.set_maximum_refinement_level(-1)
@@ -138,7 +140,7 @@ int main(int argc, char* argv[])
 	grid.stop_refining();
 
 	uint64_t failed = 0;
-	for (const auto& cell: grid.local_cells()) {
+	for (const auto& cell: grid.local_cells) {
 		if (cell.id == 4) {
 			cerr << "Cell 1 was refined from furthest neighbor" << std::endl;
 			failed = 1;

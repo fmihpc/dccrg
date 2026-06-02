@@ -18,7 +18,7 @@ Tests the grid with some simple game of life patters in 2d using a general neigh
 struct game_of_life_cell {
 	unsigned int data[2];
 
-	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype()
+	std::tuple<void*, int, MPI_Datatype> get_mpi_datatype(UNUSED_GMD_ARGS)
 	{
 		return std::make_tuple((void*) &(this->data[0]), 1, MPI_UNSIGNED);
 	}
