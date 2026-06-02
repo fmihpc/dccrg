@@ -46,13 +46,13 @@ std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	const int neighborhood_id
 ) {
 	return cell.get_mpi_datatype(
-			cell_id,
-			sender,
-			receiver,
-			receiving,
-			neighborhood_id
-		);
-}                                                            
+		cell_id,
+		sender,
+		receiver,
+		receiving,
+		neighborhood_id
+	);
+}
 
 #define DCCRG_GET_MPI_DATATYPE_BASIC(CPP, MPI) \
 	std::tuple< \

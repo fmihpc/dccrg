@@ -1,0 +1,25 @@
+# Makefile for the case where all prerequisites are installed
+# into your home directory according to the instructions at
+# https://github.com/fmihpc/dccrg/wiki/Install
+CXX = g++
+MPICXX = cc
+
+RUN =
+MPIRUN = mpiexec -n 3
+
+CPPFLAGS = -I . -Wno-sign-compare #-fsanitize=memory
+
+BOOST_CPPFLAGS = -I $(HOME)/include
+BOOST_LDFLAGS = -L $(HOME)/lib
+BOOST_LIBS = -lboost_program_options
+
+LIBRARY_PREFIX = /turso/group/spacephysics/vlasiator/libraries/libraries-hile_cpu
+ZOLTAN_CPPFLAGS  = -isystem $(LIBRARY_PREFIX)/include
+ZOLTAN_LDFLAGS  = -L$(LIBRARY_PREFIX)/lib64 -lzoltan -Wl,-rpath=$(LIBRARY_PREFIX)/lib64
+#ZOLTAN_CPPFLAGS = -I $(pwd)/../../library-build/Zoltan/include
+#ZOLTAN_LDFLAGS = -L  $(pwd)/../../library-build/Zoltan/lib
+ZOLTAN_LIBS = -lzoltan
+
+INC_PROFILE = -isystem $(LIBRARY_PREFIX)/include -D_ROCTX -I${ROCM_PATH}/include
+LIB_PROFILE = -L$(LIBRARY_PREFIX)/lib -lphiprof -Wl,-rpath=$(LIBRARY_PREFIX)/lib
+CXXFLAGS += $(INC_PROFILE) $(LIB_PROFILE) -Wno-unused-parameter -Wno-sign-compare -ggdb
