@@ -54,32 +54,59 @@ std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 	);
 }
 
-#define DCCRG_GET_MPI_DATATYPE_BASIC(CPP, MPI) \
-	std::tuple< \
-		void*, int, MPI_Datatype \
-	> inline get_mpi_datatype_basic(CPP& cell) { \
-		return std::make_tuple((void*) &cell, 1, MPI); \
+// Compatibility macros
+#define UNUSED_GCMD_ARGS \
+	const uint64_t cell_id, \
+	const int sender,       \
+	const int receiver,     \
+	const bool receiving,   \
+	const int neighborhood_id
+// primitive types weapper
+template<typename T>
+struct wrapper {
+	T value;
+	/*
+	std::tuple<void*, int, MPI_Datatype>
+	get_mpi_datatype(UNUSED_GCMD_ARGS) {
+		return std::make_tuple((void*)this, 1, MPI_##type);
 	}
-DCCRG_GET_MPI_DATATYPE_BASIC(char, MPI_CHAR)
-DCCRG_GET_MPI_DATATYPE_BASIC(signed char, MPI_CHAR)
-DCCRG_GET_MPI_DATATYPE_BASIC(unsigned char, MPI_UNSIGNED_CHAR)
-DCCRG_GET_MPI_DATATYPE_BASIC(short int, MPI_SHORT)
-DCCRG_GET_MPI_DATATYPE_BASIC(unsigned short int, MPI_UNSIGNED_SHORT)
-DCCRG_GET_MPI_DATATYPE_BASIC(int, MPI_INT)
-DCCRG_GET_MPI_DATATYPE_BASIC(unsigned int, MPI_UNSIGNED)
-DCCRG_GET_MPI_DATATYPE_BASIC(long int, MPI_LONG)
-DCCRG_GET_MPI_DATATYPE_BASIC(unsigned long int, MPI_UNSIGNED_LONG)
-DCCRG_GET_MPI_DATATYPE_BASIC(long long int, MPI_LONG_LONG)
-DCCRG_GET_MPI_DATATYPE_BASIC(unsigned long long int, MPI_UNSIGNED_LONG_LONG)
-DCCRG_GET_MPI_DATATYPE_BASIC(float, MPI_FLOAT)
-DCCRG_GET_MPI_DATATYPE_BASIC(double, MPI_DOUBLE)
-DCCRG_GET_MPI_DATATYPE_BASIC(long double, MPI_LONG_DOUBLE)
-DCCRG_GET_MPI_DATATYPE_BASIC(wchar_t, MPI_WCHAR)
-DCCRG_GET_MPI_DATATYPE_BASIC(bool, MPI_CXX_BOOL)
+	*/
+};
+template<typename T, typename OS> // OS for std::ostream, w/o including header
+OS& operator<< (OS& os, const wrapper<T> x) {
+    return os << x.value;
+}
+#define DCCRG_GET_MPI_DATATYPE_BASIC(T, type)                               \
+	struct dccrg_##type:wrapper<T> {                                    \
+		T value;						    \
+		std::tuple<void*, int, MPI_Datatype>                        \
+		get_mpi_datatype(UNUSED_GCMD_ARGS) {                        \
+			return std::make_tuple((void*)this, 1, MPI_##type); \
+		}                                                           \
+		inline operator T() const { return this->value; } 	    \
+		dccrg_##type(const T x): value(x) {} 			    \
+		dccrg_##type() {} 					    \
+	};
+DCCRG_GET_MPI_DATATYPE_BASIC(char, CHAR)
+//DCCRG_GET_MPI_DATATYPE_BASIC(signed char, CHAR)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned char, UNSIGNED_CHAR)
+DCCRG_GET_MPI_DATATYPE_BASIC(short int, SHORT)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned short int, UNSIGNED_SHORT)
+DCCRG_GET_MPI_DATATYPE_BASIC(int, INT)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned int, UNSIGNED)
+DCCRG_GET_MPI_DATATYPE_BASIC(long int, LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned long int, UNSIGNED_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(long long int, LONG_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(unsigned long long int, UNSIGNED_LONG_LONG)
+DCCRG_GET_MPI_DATATYPE_BASIC(float, FLOAT)
+DCCRG_GET_MPI_DATATYPE_BASIC(double, DOUBLE)
+DCCRG_GET_MPI_DATATYPE_BASIC(long double, LONG_DOUBLE)
+DCCRG_GET_MPI_DATATYPE_BASIC(wchar_t, WCHAR)
+DCCRG_GET_MPI_DATATYPE_BASIC(bool, CXX_BOOL)
 #ifdef DCCRG_USER_COMPLEX
-DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<float>, MPI_CXX_FLOAT_COMPLEX)
-DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<double>, MPI_CXX_DOUBLE_COMPLEX)
-DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<long double>, MPI_CXX_LONG_DOUBLE_COMPLEX)
+DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<float>, CXX_FLOAT_COMPLEX)
+DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<double>, CXX_DOUBLE_COMPLEX)
+DCCRG_GET_MPI_DATATYPE_BASIC(std::complex<long double>, CXX_LONG_DOUBLE_COMPLEX)
 #endif
 #undef DCCRG_GET_MPI_DATATYPE_BASIC
 
