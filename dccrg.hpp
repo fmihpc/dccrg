@@ -658,42 +658,6 @@ public:
 
 			const uint64_t cell = item.first;
 
-			#ifdef DEBUG
-			if (this->cell_process.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << cell
-					<< " shouldn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.at(cell) != this->rank) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< ": Cell " << cell
-					<< " should be on process " << this->cell_process.at(cell)
-					<< std::endl;
-				abort();
-			}
-
-			const uint64_t child = this->get_child(cell);
-			if (child == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< ": Child == 0 for cell " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (child != cell) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< ": Cell " << cell
-					<< " has a child"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			if (criteria.size() == 0) {
 				ret_val.push_back(cell);
@@ -803,31 +767,11 @@ public:
 	) const {
 		if (this->cell_process.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
-				#ifdef DEBUG
-				if (this->neighbors_of.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << this->rank
-						<< ": Neighbor list for cell " << cell
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-				#endif
 
 				return &(this->neighbors_of.at(cell));
 
 			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
 
-				#ifdef DEBUG
-				if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << this->rank
-						<< ": Neighbor list for cell " << cell
-						<< " doesn't exist for neighborhood id " << neighborhood_id
-						<< std::endl;
-					abort();
-				}
-				#endif
 
 				return &(this->user_neigh_of.at(neighborhood_id).at(cell));
 			}
@@ -857,28 +801,10 @@ public:
 	) const {
 		if (this->cell_process.count(cell) > 0) {
 			if (neighborhood_id == default_neighborhood_id) {
-				#ifdef DEBUG
-				if (this->neighbors_to.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbors_to list for cell " << cell
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-				#endif
 				return &(this->neighbors_to.at(cell));
 
 			} else if (this->user_hood_of.count(neighborhood_id) > 0) {
 
-				#ifdef DEBUG
-				if (this->user_neigh_to.at(neighborhood_id).count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbors_to list for cell " << cell
-						<< " doesn't exist for neighborhood id " << neighborhood_id
-						<< std::endl;
-					abort();
-				}
-				#endif
 				return &(this->user_neigh_to.at(neighborhood_id).at(cell));
 			}
 		}
@@ -2361,16 +2287,6 @@ public:
 
 		const int refinement_level = this->mapping.get_refinement_level(cell);
 
-		#ifdef DEBUG
-		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
-		}
-
-		// not if cell has children
-		if (cell != this->get_child(cell)) {
-			throw std::runtime_error(__FILE__ "(" + std::to_string(__LINE__) + ")");
-		}
-		#endif
 
 		if (refinement_level == this->mapping.get_maximum_refinement_level()) {
 			this->dont_unrefine(cell);
@@ -2493,19 +2409,6 @@ public:
 		const uint64_t parent = this->get_parent(cell);
 		const int refinement_level = this->mapping.get_refinement_level(parent);
 
-		#ifdef DEBUG
-		if (parent == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Invalid refinement level for parent"
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		const auto neighbors
 			= this->find_neighbors_of(
@@ -2615,14 +2518,6 @@ public:
 	{
 		using std::to_string;
 
-		#ifdef DEBUG
-		if (not this->grid_initialized) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " DCCRG not initialized before calling " << __func__
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		if (cell == error_cell) {
 			return false;
@@ -3131,19 +3026,6 @@ public:
 	*/
 	std::vector<uint64_t> execute_refines()
 	{
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " User data is inconsistent" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		phiprof::Timer timer {"Execute refines"};
 		std::vector<uint64_t> new_cells;
@@ -3154,48 +3036,6 @@ public:
 		this->refined_cell_data.clear();
 		this->unrefined_cell_data.clear();
 
-		#ifdef DEBUG
-		// check that cells_to_refine is identical between processes
-		std::vector<uint64_t> ordered_cells_to_refine(this->cells_to_refine.begin(), this->cells_to_refine.end());
-		std::sort(ordered_cells_to_refine.begin(), ordered_cells_to_refine.end());
-
-		std::vector<std::vector<uint64_t>> all_ordered_cells_to_refine;
-		All_Gather()(ordered_cells_to_refine, all_ordered_cells_to_refine, this->comm);
-
-		for (int process = 0; process < this->comm_size; process++) {
-			if (!std::equal(
-				all_ordered_cells_to_refine[process].begin(),
-				all_ordered_cells_to_refine[process].end(),
-				all_ordered_cells_to_refine[0].begin()
-			)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " cells_to_refine differ between processes 0 and " << process
-					<< std::endl;
-				exit(EXIT_FAILURE);
-			}
-		}
-
-		// check that cells_to_unrefine is identical between processes
-		std::vector<uint64_t> ordered_cells_to_unrefine(this->cells_to_unrefine.begin(), this->cells_to_unrefine.end());
-		std::sort(ordered_cells_to_unrefine.begin(), ordered_cells_to_unrefine.end());
-
-		std::vector<std::vector<uint64_t>> all_ordered_cells_to_unrefine;
-		All_Gather()(ordered_cells_to_unrefine, all_ordered_cells_to_unrefine, this->comm);
-
-		// Assumes all_ordered_cells_to_unrefine.size() is equal to this->comm_size
-		for (unsigned int process = 0; process < all_ordered_cells_to_unrefine.size(); process++) {
-			if (!std::equal(
-				all_ordered_cells_to_unrefine[process].begin(),
-				all_ordered_cells_to_unrefine[process].end(),
-				all_ordered_cells_to_unrefine[0].begin()
-			)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " cells_to_unrefine differ between processes 0 and " << process
-					<< std::endl;
-				exit(EXIT_FAILURE);
-			}
-		}
-		#endif
 
 		// cells whose neighbor lists have to be updated afterwards
 		std::unordered_set<uint64_t> update_neighbors;
@@ -3207,43 +3047,6 @@ public:
 		// refines
 		for (const uint64_t refined: this->cells_to_refine) {
 
-			#ifdef DEBUG
-			if (this->cell_process.count(refined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << refined
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->rank == this->cell_process.at(refined)
-			&& this->cell_data.count(refined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Data for cell " << refined
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-
-			if (this->cell_process.at(refined) == this->rank
-			&& this->neighbors_of.count(refined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor list for cell " << refined
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.at(refined) == this->rank
-			&& this->neighbors_to.count(refined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor_to list for cell " << refined
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			const int process_of_refined = this->cell_process.at(refined);
 
@@ -3334,15 +3137,6 @@ public:
 		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
-			#ifdef DEBUG
-			if (parent_of_unrefined == unrefined) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has no parent"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			const int process_of_parent = this->cell_process.at(parent_of_unrefined);
 			const int process_of_unrefined = this->cell_process.at(unrefined);
@@ -3358,15 +3152,6 @@ public:
 			if (this->rank == process_of_unrefined
 			&& this->rank == process_of_parent) {
 
-				#ifdef DEBUG
-				if (this->cell_data.count(unrefined) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << unrefined
-						<< " to be unrefined has no data"
-						<< std::endl;
-					abort();
-				}
-				#endif
 
 				// TODO move data instead of copying
 				this->unrefined_cell_data[unrefined] = this->cell_data.at(unrefined);
@@ -3437,23 +3222,6 @@ public:
 			std::vector<uint64_t> children = this->get_all_children(*parent);
 			*/
 
-			#ifdef DEBUG
-			if (this->cell_process.count(parent) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Parent " << parent
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (parent != this->get_child(parent)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Parent " << parent
-					<< " still has children"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			// Does not need to provide "has_children==true" as children have already been removed.
 			const auto new_neighbors_of
@@ -3492,78 +3260,48 @@ public:
 
 		// remove neighbor lists of added cells' parents
 		for (const uint64_t refined: this->cells_to_refine) {
-
 			if (this->cell_process.at(refined) == this->rank) {
-
-				#ifdef DEBUG
-				if (this->neighbors_of.count(refined) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor list for cell " << refined
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-
-				if (this->neighbors_to.count(refined) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor_to list for cell " << refined
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-				#endif
-
-				this->neighbors_of.erase(refined);
-				this->neighbors_to.erase(refined);
-				this->face_neighbors_of.erase(refined);
-
-				// remove also from user's neighborhood
-				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-					item = this->user_hood_of.begin();
-					item != this->user_hood_of.end();
-					item++
-				) {
-					this->user_neigh_of.at(item->first).erase(refined);
-					this->user_neigh_to.at(item->first).erase(refined);
-				}
-			}
-		}
-
-		// remove neighbor lists of removed cells
-		for (const uint64_t unrefined: this->cells_to_unrefine) {
-			this->neighbors_of.erase(unrefined);
-			this->neighbors_to.erase(unrefined);
-			this->face_neighbors_of.erase(unrefined);
-			// also from user neighborhood
-			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-				item = this->user_hood_of.begin();
-				item != this->user_hood_of.end();
-				item++
-			) {
-				this->user_neigh_of.at(item->first).erase(unrefined);
-				this->user_neigh_to.at(item->first).erase(unrefined);
-			}
-		}
-
-		this->update_remote_neighbor_info();
-		// also remote neighbor info of user neighborhoods
-		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-			item = this->user_hood_of.begin();
-			item != this->user_hood_of.end();
-			item++
-		) {
-			this->update_user_remote_neighbor_info(item->first);
-		}
-
-		#ifdef DEBUG
-		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor lists are inconsistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
-
+ 				this->neighbors_of.erase(refined);
+ 				this->neighbors_to.erase(refined);
+ 				this->face_neighbors_of.erase(refined);
+ 
+ 				// remove also from user's neighborhood
+ 				for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
+ 					item = this->user_hood_of.begin();
+ 					item != this->user_hood_of.end();
+ 					item++
+ 				) {
+ 					this->user_neigh_of.at(item->first).erase(refined);
+ 					this->user_neigh_to.at(item->first).erase(refined);
+ 				}
+ 			}
+ 		}
+ 
+ 		// remove neighbor lists of removed cells
+ 		for (const uint64_t unrefined: this->cells_to_unrefine) {
+ 			this->neighbors_of.erase(unrefined);
+ 			this->neighbors_to.erase(unrefined);
+ 			this->face_neighbors_of.erase(unrefined);
+ 			// also from user neighborhood
+ 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
+ 				item = this->user_hood_of.begin();
+ 				item != this->user_hood_of.end();
+ 				item++
+ 			) {
+ 				this->user_neigh_of.at(item->first).erase(unrefined);
+ 				this->user_neigh_to.at(item->first).erase(unrefined);
+ 			}
+ 		}
+ 
+ 		this->update_remote_neighbor_info();
+ 		// also remote neighbor info of user neighborhoods
+ 		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
+ 			item = this->user_hood_of.begin();
+ 			item != this->user_hood_of.end();
+ 			item++
+ 		) {
+ 			this->update_user_remote_neighbor_info(item->first);
+ 		}
 
 		return new_cells;
 	}
@@ -3692,12 +3430,6 @@ public:
 		this->cells_to_receive.clear();
 		this->cells_to_send.clear();
 
-		#ifdef DEBUG
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " virhe" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		// remove user data of unrefined cells from this->cell_data
 		for (std::unordered_set<uint64_t>::const_iterator
@@ -3987,21 +3719,6 @@ public:
 
 		this->balancing_load = true;
 
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " User data not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		this->make_new_partition(use_zoltan);
 
@@ -4029,73 +3746,6 @@ public:
 		this->cell_weights.clear();
 		this->parents_of_unrefined.clear();
 
-		#ifdef DEBUG
-		// check that there are no duplicate adds / removes
-		// removed cells on all processes
-		std::vector<uint64_t> temp_removed_cells(
-			this->removed_cells.begin(),
-			this->removed_cells.end()
-		);
-		std::sort(temp_removed_cells.begin(), temp_removed_cells.end());
-
-		std::vector<std::vector<uint64_t>> all_removed_cells;
-		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
-
-		// created cells on all processes
-		std::vector<uint64_t> temp_added_cells(
-			this->added_cells.begin(),
-			this->added_cells.end()
-		);
-		std::sort(temp_added_cells.begin(), temp_added_cells.end());
-
-		std::vector<std::vector<uint64_t>> all_added_cells;
-		All_Gather()(temp_added_cells, all_added_cells, this->comm);
-
-		std::unordered_set<uint64_t> all_adds, all_removes;
-
-		for (const auto& item: all_removed_cells) {
-			for (const uint64_t removed_cell: item) {
-
-				if (all_removes.count(removed_cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << removed_cell
-						<< " was already removed"
-						<< std::endl;
-					abort();
-				}
-				all_removes.insert(removed_cell);
-			}
-		}
-
-		for (const auto& item: all_added_cells) {
-			for (const uint64_t added_cell: item) {
-
-				if (all_adds.count(added_cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << added_cell
-						<< " was already removed"
-						<< std::endl;
-					abort();
-				}
-				all_adds.insert(added_cell);
-			}
-		}
-
-		// check that cells were removed by their process
-		for (uint64_t cell_remover = 0; cell_remover < all_removed_cells.size(); cell_remover++) {
-
-			for (const uint64_t removed_cell: all_removed_cells.at(cell_remover)) {
-
-				if (this->cell_process.at(removed_cell) != cell_remover) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << removed_cell
-						<< " doesn't belong to process " << cell_remover
-						<< std::endl;
-					abort();
-				}
-			}
-		}
-		#endif
 		return *this;
 	}
 
@@ -4183,56 +3833,6 @@ public:
 		std::vector<std::vector<uint64_t>> all_added_cells;
 		All_Gather()(temp_added_cells, all_added_cells, this->comm);
 
-		#ifdef DEBUG
-		std::vector<std::vector<uint64_t> > all_removed_cells;
-		All_Gather()(temp_removed_cells, all_removed_cells, this->comm);
-
-		// check that there are no duplicate adds / removes
-		std::unordered_set<uint64_t> all_adds, all_removes;
-
-		for (const auto& item: all_removed_cells) {
-			for (const uint64_t removed_cell: item) {
-
-				if (all_removes.count(removed_cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << removed_cell
-						<< " was already removed"
-						<< std::endl;
-					abort();
-				}
-				all_removes.insert(removed_cell);
-			}
-		}
-
-		for (const auto& item: all_added_cells) {
-			for (const uint64_t added_cell: item) {
-
-				if (all_adds.count(added_cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << added_cell
-						<< " was already removed"
-						<< std::endl;
-					abort();
-				}
-				all_adds.insert(added_cell);
-			}
-		}
-
-		// check that cells were removed by their process
-		for (uint64_t cell_remover = 0; cell_remover < all_removed_cells.size(); cell_remover++) {
-
-			for (const uint64_t removed_cell: all_removed_cells.at(cell_remover)) {
-
-				if (this->cell_process.at(removed_cell) != cell_remover) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << removed_cell
-						<< " doesn't belong to process " << cell_remover
-						<< std::endl;
-					abort();
-				}
-			}
-		}
-		#endif
 
 		// update cell to process mappings
 		for (uint64_t cell_creator = 0; cell_creator < all_added_cells.size(); cell_creator++) {
@@ -4242,21 +3842,6 @@ public:
 			}
 		}
 
-		#ifdef DEBUG
-		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Grid is not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->pin_requests_succeeded()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Pin requests didn't succeed"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		// create neighbor lists for cells without children that came to this process
 		for (const uint64_t added_cell: this->added_cells) {
@@ -4314,35 +3899,6 @@ public:
 		//	this->allocate_copies_of_remote_neighbors(item.first);
 		// }
 
-		#ifdef DEBUG
-		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " The grid is inconsistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor lists are incorrect"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " User data not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		this->added_cells.clear();
 		this->removed_cells.clear();
@@ -4572,16 +4128,6 @@ public:
 			this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
 		};
 
-		#ifdef DEBUG
-		for (unsigned int dimension = 0; dimension < 3; dimension++) {
-			if (indices[dimension] >= grid_length[dimension]) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Given indices outside of the grid in dimension " << dimension
-					<< std::endl;
-				abort();
-			}
-		}
-		#endif
 
 		for (const auto& offsets: neighborhood) {
 
@@ -4595,15 +4141,6 @@ public:
 						// neighborhood might wrap around the grid several times
 						for (int i = 0; i > offsets[dimension]; i--) {
 
-							#ifdef DEBUG
-							if (temp_indices[dimension] < length_in_indices - 1
-							&& temp_indices[dimension] > 0) {
-								std::cerr << __FILE__ << ":" << __LINE__
-									<< " Cells aren't supposed to wrap around the grid."
-									<< std::endl;
-								abort();
-							}
-							#endif
 
 							if (temp_indices[dimension] >= length_in_indices) {
 								temp_indices[dimension] -= length_in_indices;
@@ -4628,14 +4165,6 @@ public:
 					if (this->topology.is_periodic(dimension)) {
 						for (int i = 0; i < offsets[dimension]; i++) {
 
-							#ifdef DEBUG
-							if (temp_indices[dimension] > grid_length[dimension] - length_in_indices) {
-								std::cerr << __FILE__ << ":" << __LINE__
-									<< " Cells aren't supposed to wrap around the grid."
-									<< std::endl;
-								abort();
-							}
-							#endif
 
 							if (temp_indices[dimension] < grid_length[dimension] - length_in_indices) {
 								temp_indices[dimension] += length_in_indices;
@@ -4697,30 +4226,6 @@ public:
 		const int refinement_level
 			= this->mapping.get_refinement_level(cell);
 
-		#ifdef DEBUG
-		if (cell == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Invalid cell given: " << cell
-				<< std::endl;
-			abort();
-		}
-
-		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level of given cell (" << cell
-				<< ") is too large: " << refinement_level
-				<< std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Invalid refinement level for cell " << cell
-				<< ": " << refinement_level
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		if (this->cell_process.count(cell) == 0) {
 			return return_neighbors;
@@ -4795,121 +4300,6 @@ public:
 		return return_neighbors;
 	}
 
-#ifdef DEBUG
-	/*!
-	Returns cells (which don't have children) that consider given cell as a neighbor.
-	Constructs list as a direct copy of the pre-existing list neighbors_of.
-
-	For a full search, see find_neighbors_of.
-	DEBUG ONLY
-	*/
-	std::vector<
-		std::pair<
-			uint64_t,
-			std::array<int, 3>
-		>
-	> fill_neighbors_to(
-		const uint64_t cell
-	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
-
-		if (
-			cell == error_cell
-			or cell > this->mapping.get_last_cell()
-			or this->cell_process.count(cell) == 0
-			or cell != this->get_child(cell)
-		) {
-			return return_neighbors;
-		}
-
-		for (const auto& item: this->neighbors_of.at(cell)) {
-			return_neighbors.push_back(item);
-		}
-		return return_neighbors;
-	}
-
-	/*!
-	Returns cells (which don't have children) that consider given cell as a neighbor.
-
-	Returns nothing if the following cases:
-		- given cell has children
-		- given cell doesn't exist on any process
-	Returned cells are not in any particular order.
-	Assumes a maximum refinement level difference of one between neighbors
-	(both cases: neighbors_of, neighbors_to).
-
-	see also: fill_neighbors_to()
-	DEBUG ONLY
-	*/
-
-	std::vector<
-		std::pair<
-			uint64_t,
-			std::array<int, 3>
-		>
-	> find_neighbors_to(
-		const uint64_t cell,
-		const std::vector<Types<3>::neighborhood_item_t>& neighborhood
-	) const {
-		std::vector<std::pair<uint64_t, std::array<int, 3>>> return_neighbors;
-
-		if (
-			cell == error_cell
-			or cell > this->mapping.get_last_cell()
-			or this->cell_process.count(cell) == 0
-			or cell != this->get_child(cell)
-		) {
-			return return_neighbors;
-		}
-
-		const int refinement_level = this->mapping.get_refinement_level(cell);
-
-		#ifdef DEBUG
-		if (refinement_level > this->mapping.get_maximum_refinement_level()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level (" << refinement_level
-				<< ") of cell " << cell
-				<< " exceeds maximum refinement level of the grid ("
-				<< this->mapping.get_maximum_refinement_level() << ")"
-				<< std::endl;
-			abort();
-		}
-
-		if (refinement_level < 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Refinement level of cell " << cell
-				<< " is less than 0: " << refinement_level
-				<< std::endl;
-			abort();
-		}
-		#endif
-
-		// Iterate through the neighborhood
-		// Note that for neighbors_to calculations, these are already
-		// inverted from the "proper" neighborhoods
-		for (const auto& offsets: neighborhood) {
-
-			// Find the neighbour(s) in this (opposite in reference to _of) direction
-			std::set<uint64_t> neigh_cells;
-			for(const auto& dims : dim_permutations) {
-				neigh_cells.merge(this->find_cells_at_offset(this->mapping.get_indices(cell),cell, refinement_level, offsets, dims));
-			}
-
-			for (const auto& neighCell : neigh_cells) {
-				if (neighCell == error_cell) {
-					//return_neighbors.push_back({0, {0, 0, 0, 0}});
-					continue;
-				}
-
-				//Suppress unused var
-				/*const int neighbor_ref_lvl = */this->mapping.get_refinement_level(neighCell);
-
-				return_neighbors.push_back({neighCell, {offsets[0], offsets[1], offsets[2]} });
-			}
-		}
-		return return_neighbors;
-	}
-#endif
 
 	/*!
 	  Returns the existing neighbors (that don't have children) of given cell.
@@ -4975,43 +4365,6 @@ public:
 		const uint64_t index_increase
 			= uint64_t(1) << (this->mapping.get_maximum_refinement_level() - maximum_refinement_level);
 
-		#ifdef DEBUG
-		if (minimum_refinement_level > maximum_refinement_level) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Invalid refinement levels given"
-				<< std::endl;
-			abort();
-		}
-
-		if (maximum_refinement_level > this->mapping.get_maximum_refinement_level()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Invalid maximum refinement level given"
-				<< std::endl;
-			abort();
-		}
-
-		// check that outer shell makes sense
-		if (indices_min[0] > indices_max[0]) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " minimum x index > maximum x index"
-				<< std::endl;
-			abort();
-		}
-
-		if (indices_min[1] > indices_max[1]) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " minimum y index > maximum y index"
-				<< std::endl;
-			abort();
-		}
-
-		if (indices_min[2] > indices_max[2]) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " minimum z index > maximum z index"
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		std::vector<uint64_t> result;
 		std::unordered_set<uint64_t> uniques;
@@ -5028,39 +4381,6 @@ public:
 					maximum_refinement_level
 				);
 
-			#ifdef DEBUG
-			if (cell == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No cell found between refinement levels [" << minimum_refinement_level
-					<< ", " << maximum_refinement_level
-					<< "] at indices " << indices[0]
-					<< " " << indices[1]
-					<< " " << indices[2]
-					<< std::endl;
-
-				const uint64_t smallest
-					= this->get_existing_cell(indices, 0, this->mapping.get_maximum_refinement_level());
-
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " smallest cell there is " << smallest
-					<< " with refinement level " << this->mapping.get_refinement_level(smallest)
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << cell
-					<< " doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (cell > this->mapping.get_last_cell()) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell can't exist" << std::endl;
-				abort();
-			}
-			#endif
 
 			/*
 			When searching for neighbors_to, cells may exist with larger refinement
@@ -5143,69 +4463,10 @@ public:
 
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
 
-			#ifdef DEBUG
-			// TODO: merge debugging code with original
-			if (this->user_hood_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			ret_val = false;
 		}
 
-		#ifdef DEBUG
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		if (!this->start_user_data_receives(
 			this->remote_neighbors,
@@ -5244,68 +4505,10 @@ public:
 
 		if (this->user_hood_of.count(neighborhood_id) == 0) {
 
-			#ifdef DEBUG
-			if (this->user_hood_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_to.count(neighborhood_id) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should not have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			ret_val = false;
 		}
 
-		#ifdef DEBUG
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		if (!this->start_user_data_sends(
 			this->user_neigh_cells_to_send.at(neighborhood_id),
@@ -5432,14 +4635,6 @@ public:
 			return std::numeric_limits<uint64_t>::max();
 		}
 
-		#ifdef DEBUG
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
 			receiver_item = this->user_neigh_cells_to_send.at(neighborhood_id).begin();
@@ -5484,14 +4679,6 @@ public:
 			return std::numeric_limits<uint64_t>::max();
 		}
 
-		#ifdef DEBUG
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		for (std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>::const_iterator
 			sender_item = this->user_neigh_cells_to_receive.at(neighborhood_id).begin();
@@ -5858,34 +5045,6 @@ public:
 	*/
 	bool unpin_local_cells()
 	{
-		#ifdef DEBUG
-		// check that all child cells on this process are also in this->cell_data.
-		for (const auto& i : this->cell_process) {
-			const uint64_t cell = i.first;
-
-			if (this->cell_process.at(cell) != this->rank) {
-				continue;
-			}
-
-			if (cell == this->get_child(cell)) {
-				if (this->cell_data.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << cell
-						<< " should be in this->cell_data of process " << this->rank
-						<< std::endl;
-					abort();
-				}
-			} else {
-				if (this->cell_data.count(cell) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << cell
-						<< " shouldn't be in this->cell_data of process " << this->rank
-						<< std::endl;
-					abort();
-				}
-			}
-		}
-		#endif
 
 		bool ret_val = true;
 		for (const auto& item: this->cell_data) {
@@ -6274,68 +5433,10 @@ public:
 
 		if (this->user_hood_of.count(neighborhood_id) > 0) {
 
-			#ifdef DEBUG
-			if (this->user_hood_to.count(neighborhood_id) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_of.count(neighborhood_id) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-
-			if (this->user_neigh_to.count(neighborhood_id) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Should have id " << neighborhood_id
-					<< std::endl;
-				abort();
-			}
-			#endif
 			throw std::invalid_argument("user_hood_of entries exist already, not overwriting");
 			return false;
 		}
 
-		#ifdef DEBUG
-		if (this->user_hood_to.count(neighborhood_id) > 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.count(neighborhood_id) > 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.count(neighborhood_id) > 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_send.count(neighborhood_id) > 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_cells_to_receive.count(neighborhood_id) > 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Should not have id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		if (this->neighborhood_length > 0) {
 
@@ -6397,35 +5498,6 @@ public:
 		this->recalculate_neighbor_update_send_receive_lists(neighborhood_id);
 		this->allocate_copies_of_remote_neighbors(neighborhood_id);
 
-		#ifdef DEBUG
-		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " The grid is inconsistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor lists are incorrect"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (!this->verify_user_data()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " User data not consistent"
-				<< std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		return true;
 	}
@@ -7684,15 +6756,6 @@ private:
 			}
 		}
 
-		#ifdef DEBUG
-		if (cell_to_create != total_cells + 1) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Incorrect number of cells created: " << cell_to_create - 1
-				<< ", should be " << total_cells
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		#else // ifndef USE_SFC
 
@@ -7913,23 +6976,6 @@ private:
 		// update neighbor lists of created cells
 		for (const auto& item: this->cell_data) {
 			this->neighbors_of[item.first] = this->find_neighbors_of(item.first, this->neighborhood_of);
-			#ifdef DEBUG
-			for (const auto& neighbor: this->neighbors_of.at(item.first)) {
-				if (neighbor.first == error_cell) {
-					continue;
-				}
-				if (
-					neighbor.second[0] == 0
-					and neighbor.second[1] == 0
-					and neighbor.second[2] == 0
-				) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< "Invalid offset for neighbor " << neighbor.first
-						<< " of cell " << item.first << std::endl;
-					abort();
-				}
-			}
-			#endif
 
 			// Base neighbourhood is symmetric, so just construct symmetric complement.
 			// this->neighbors_to[item.first] = this->find_neighbors_to(item.first, this->neighborhood_to);
@@ -7937,24 +6983,8 @@ private:
 			this->neighbors_to[item.first] = this->neighbors_of[item.first];
 			this->face_neighbors_of[item.first] = this->find_face_neighbors_of(item.first);
 		}
-		#ifdef DEBUG
-		if (!this->verify_neighbors()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor lists are inconsistent"
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		this->update_remote_neighbor_info();
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		this->recalculate_neighbor_update_send_receive_lists();
 
@@ -7993,15 +7023,6 @@ private:
 					this->pin_requests[all_new_pinned_cells[process][i]] = requested_process;
 				}
 
-				#ifdef DEBUG
-				if (this->cell_process.at(all_new_pinned_cells[process][i]) != process) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Process " << process
-						<< " tried pin cell " << all_new_pinned_cells[process][i]
-						<< std::endl;
-					exit(EXIT_FAILURE);
-				}
-				#endif
 			}
 		}
 
@@ -8062,29 +7083,6 @@ private:
 				abort();
 			}
 
-			#ifdef DEBUG
-			// check that processes have the cells they're supposed to send
-			for (int i = 0; i < number_to_send; i++) {
-				if (this->cell_data.count(global_ids_to_send[i]) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cannot send cell " << global_ids_to_send[i]
-						<< " to process " << receiver_processes[i]
-						<< std::endl;
-					abort();
-				}
-			}
-
-			// check that cells to be received are on the sending process
-			for (int i = 0; i < number_to_receive; i++) {
-				if (this->cell_process.at(global_ids_to_receive[i]) != (uint64_t)sender_processes[i]) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cannot receive cell " << global_ids_to_receive[i]
-						<< " from process " << sender_processes[i]
-						<< std::endl;
-					abort();
-				}
-			}
-			#endif
 		}
 
 		this->added_cells.clear();
@@ -8127,15 +7125,6 @@ private:
 					std::make_pair(global_ids_to_receive[i], -1)
 				);
 
-				#ifdef DEBUG
-				if (this->added_cells.count(global_ids_to_receive[i]) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << global_ids_to_receive[i]
-						<< " has already been received from process " << this->rank
-						<< std::endl;
-					abort();
-				}
-				#endif
 
 				this->added_cells.insert(global_ids_to_receive[i]);
 			}
@@ -8195,15 +7184,6 @@ private:
 					std::make_pair(global_ids_to_send[i], -1)
 				);
 
-				#ifdef DEBUG
-				if (this->removed_cells.count(global_ids_to_send[i]) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << global_ids_to_send[i]
-						<< " has already been sent from process " << this->rank
-						<< std::endl;
-					abort();
-				}
-				#endif
 
 				this->removed_cells.insert(global_ids_to_send[i]);
 			}
@@ -8258,28 +7238,6 @@ private:
 		// calculate new lists for neighbor data updates
 		for (const uint64_t cell: this->local_cells_on_process_boundary) {
 
-			#ifdef DEBUG
-			if (cell != this->get_child(cell)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << cell << " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->neighbors_of.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No neighbor_of list for cell " << cell
-					<< std::endl;
-				abort();
-			}
-
-			if (this->neighbors_to.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No neighbor_to list for cell " << cell
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			const int current_process = this->rank;
 
@@ -8320,14 +7278,6 @@ private:
 		for (const auto& receiver: unique_cells_to_send) {
 			const int process = receiver.first;
 
-			#ifdef DEBUG
-			if (process == this->rank) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << process << " would send to self"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			this->cells_to_send[process].reserve(receiver.second.size());
 
@@ -8364,14 +7314,6 @@ private:
 		for (const auto& sender: unique_cells_to_receive) {
 			const int process = sender.first;
 
-			#ifdef DEBUG
-			if (process == this->rank) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << process << " would receive from self"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			this->cells_to_receive[process].reserve(sender.second.size());
 
@@ -8417,14 +7359,6 @@ private:
 	*/
 	void recalculate_neighbor_update_send_receive_lists(const int neighborhood_id)
 	{
-		#ifdef DEBUG
-		if (this->user_local_cells_on_process_boundary.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		// clear previous lists
 		this->user_neigh_cells_to_send[neighborhood_id].clear();
@@ -8437,14 +7371,6 @@ private:
 		// calculate new lists for neighbor data updates
 		for (const uint64_t cell: this->user_local_cells_on_process_boundary.at(neighborhood_id)) {
 
-			#ifdef DEBUG
-			if (cell != this->get_child(cell)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << cell << " has children"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			// data must be sent to neighbors_of
 			for (const auto& neighbor_i: this->user_neigh_of.at(neighborhood_id).at(cell)) {
@@ -8583,39 +7509,6 @@ private:
 		// this->neighbors_to[cell] = this->fill_neighbors_to(cell);
 		this->neighbors_to[cell] = this->neighbors_of[cell];
 
-		#ifdef DEBUG
-		if (
-			!this->verify_neighbors(
-				cell,
-				this->neighborhood_of,
-				this->neighborhood_to,
-				this->neighbors_of,
-				this->neighbors_to
-			)
-		) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor update failed for cell " << cell
-				<< " (child of " << this->get_parent(cell) << ")"
-				<< std::endl;
-			abort();
-		}
-
-		for (const auto& neighbor: this->neighbors_of.at(cell)) {
-			if (neighbor.first == error_cell) {
-				continue;
-			}
-			if (
-				neighbor.second[0] == 0
-				and neighbor.second[1] == 0
-				and neighbor.second[2] == 0
-			) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid offset of neighbor " << neighbor.first
-					<< " for cell " << cell << std::endl;
-				abort();
-			}
-		}
-		#endif
 		// Update also cached face neighbors
 		this->face_neighbors_of[cell] = this->find_face_neighbors_of(cell);
 	}
@@ -8639,14 +7532,6 @@ private:
 			abort();
 		}
 
-		#ifdef DEBUG
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood to with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		this->user_neigh_of[neighborhood_id][cell].clear();
 		this->user_neigh_to[neighborhood_id][cell].clear();
@@ -8688,23 +7573,6 @@ private:
 			return;
 		}
 
-		#ifdef DEBUG
-		if (this->neighbors_of.count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbor list for cell " << cell
-				<< " doesn't exist"
-				<< std::endl;
-			abort();
-		}
-
-		if (this->neighbors_to.count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Neighbors_to list for cell " << cell
-				<< " doesn't exist"
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		// neighbors of given cell
 		for (const auto& neighbor_i: this->neighbors_of.at(cell)) {
@@ -8714,15 +7582,6 @@ private:
 				continue;
 			}
 
-			#ifdef DEBUG
-			if (this->cell_process.count(neighbor) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor " << neighbor
-					<< " doesn't exist in cell_process"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			if (this->cell_process.at(neighbor) != this->rank) {
 				this->local_cells_on_process_boundary.insert(cell);
@@ -8730,38 +7589,6 @@ private:
 			}
 		}
 
-
-		// cells with given cell as neighbor (not required as base neighborhood is symmetric)
-		/**
-		for (const auto& neighbor_to_i: this->neighbors_to.at(cell)) {
-			const auto& neighbor_to = neighbor_to_i.first;
-
-			#ifdef DEBUG
-			if (this->cell_process.count(neighbor_to) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					  << " Neighbor_to " << neighbor_to
-					  << " doesn't exist in cell_process"
-					  << std::endl;
-				abort();
-			}
-			#endif
-
-			if (this->cell_process.at(neighbor_to) != this->rank) {
-				this->local_cells_on_process_boundary.insert(cell);
-				this->remote_cells_on_process_boundary.insert(neighbor_to);
-			}
-		}
-		*/
-
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info(cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info for cell " << cell
-				<< " is not consistent on rank " << this->rank
-				<< std::endl;
-			abort();
-		}
-		#endif
 	}
 
 	/*!
@@ -8780,53 +7607,6 @@ private:
 			return;
 		}
 
-		#ifdef DEBUG
-		if (this->user_hood_of.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_hood_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No user neighborhood to with id " << neighborhood_id
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< " in neighbor lists"
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_of.at(neighborhood_id).count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighbor list with neighborhood id " << neighborhood_id
-				<< " for cell " << cell
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.count(neighborhood_id) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighborhood with id " << neighborhood_id
-				<< " in neighbor_to lists"
-				<< std::endl;
-			abort();
-		}
-
-		if (this->user_neigh_to.at(neighborhood_id).count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " No neighbor_to list with neighborhood id " << neighborhood_id
-				<< " for cell " << cell
-				<< std::endl;
-			abort();
-		}
-		#endif
 
 		// neighbors of given cell
 		for (const auto& neighbor_i: this->user_neigh_of.at(neighborhood_id).at(cell)) {
@@ -8836,15 +7616,6 @@ private:
 				continue;
 			}
 
-			#ifdef DEBUG
-			if (this->cell_process.count(neighbor) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor " << neighbor
-					<< " doesn't exist in cell_process"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			if (this->cell_process.at(neighbor) != this->rank) {
 				this->user_local_cells_on_process_boundary.at(neighborhood_id).insert(cell);
@@ -8856,22 +7627,6 @@ private:
 		for (const auto& neighbor_to_i: this->user_neigh_to.at(neighborhood_id).at(cell)) {
 			const auto& neighbor_to = neighbor_to_i.first;
 
-			#ifdef DEBUG
-			if (neighbor_to == error_cell) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					  << " Invalid cell in neighbor_to list of cell " << cell
-					  << std::endl;
-				abort();
-			}
-
-			if (this->cell_process.count(neighbor_to) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					  << " Neighbor_to " << neighbor_to
-					  << " doesn't exist in cell_process"
-					  << std::endl;
-				abort();
-			}
-			#endif
 
 			if (this->cell_process.at(neighbor_to) != this->rank) {
 				this->user_local_cells_on_process_boundary.at(neighborhood_id).insert(cell);
@@ -8879,15 +7634,6 @@ private:
 			}
 		}
 
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info(cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info for cell " << cell
-				<< " is not consistent"
-				<< std::endl;
-			abort();
-		}
-		#endif
 	}
 
 
@@ -8911,25 +7657,8 @@ private:
 
 			this->update_remote_neighbor_info(item.first);
 
-			#ifdef DEBUG
-			if (!this->verify_remote_neighbor_info(item.first)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Remote neighbor info for cell " << item.first
-					<< " is not consistent on rank " << this->rank
-					<< std::endl;
-				abort();
-			}
-			#endif
 		}
 
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent on rank " << this->rank
-				<< std::endl;
-			abort();
-		}
-		#endif
 	}
 
 	/*!
@@ -8950,25 +7679,8 @@ private:
 
 			this->update_user_remote_neighbor_info(item.first, neighborhood_id);
 
-			#ifdef DEBUG
-			if (!this->verify_remote_neighbor_info(item.first)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Remote neighbor info for cell " << item.first
-					<< " is not consistent"
-					<< std::endl;
-				abort();
-			}
-			#endif
 		}
 
-		#ifdef DEBUG
-		if (!this->verify_remote_neighbor_info()) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Remote neighbor info is not consistent"
-				<< std::endl;
-			abort();
-		}
-		#endif
 	}
 
 
@@ -9068,14 +7780,6 @@ private:
 						continue;
 					}
 
-					#ifdef DEBUG
-					if (this->cell_process.count(neighbor) == 0) {
-						std::cerr << "Process " << this->rank
-							  << ": Cell " << refined
-							  << " had a non-existing neighbor in neighbor list: " << neighbor
-							  << std::endl;
-					}
-					#endif
 
 					// TODO switch to is_local()
 					if (this->cell_process.at(neighbor) != this->rank) {
@@ -9207,19 +7911,6 @@ private:
 			// ...parent of unrefined wouldn't fulfill requirements
 			const int refinement_level = this->mapping.get_refinement_level(parent);
 
-			#ifdef DEBUG
-			if (parent == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent" << std::endl;
-				abort();
-			}
-
-			if (refinement_level < 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Invalid refinement level for parent"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			const auto neighbors
 				= this->find_neighbors_of(
@@ -9267,154 +7958,17 @@ private:
 		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
-			#ifdef DEBUG
-			if (unrefined != this->get_child(unrefined)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (parent_of_unrefined == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Invalid parent cell" << std::endl;
-				abort();
-			}
-
-			if (parent_of_unrefined == unrefined) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has no parent"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			parents_of_unrefined.insert(parent_of_unrefined);
 
 			const std::vector<uint64_t> siblings = this->get_all_children(parent_of_unrefined);
 
-			#ifdef DEBUG
-			bool unrefined_in_siblings = false;
-			for (const uint64_t sibling: siblings) {
-
-				if (this->cell_process.count(sibling) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " doesn't exist"
-						<< std::endl;
-					abort();
-				}
-
-				if (sibling != this->get_child(sibling)) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " has has children"
-						<< std::endl;
-					abort();
-				}
-
-				if (this->cell_process.at(sibling) == this->rank
-				&& this->cell_data.count(sibling) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Cell " << sibling
-						<< " has no data"
-						<< std::endl;
-					abort();
-				}
-
-				if (unrefined == sibling) {
-					unrefined_in_siblings = true;
-				}
-			}
-
-			if (!unrefined_in_siblings) {
-				std::cerr << __FILE__ << ":" << __LINE__ << " Cell to unrefine isn't its parent's child" << std::endl;
-				abort();
-			}
-			#endif
 
 			cells_to_add.insert(siblings.begin(), siblings.end());
 		}
 
 		this->cells_to_unrefine.insert(cells_to_add.begin(), cells_to_add.end());
 
-		#ifdef DEBUG
-		// check that maximum refinement level difference between future neighbors <= 1
-		for (const uint64_t unrefined: this->cells_to_unrefine) {
-
-			if (unrefined != this->get_child(unrefined)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.count(unrefined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " to be unrefined doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.at(unrefined) == this->rank
-			&& this->cell_data.count(unrefined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << unrefined
-					<< " to be unrefined has no data"
-					<< std::endl;
-				abort();
-			}
-
-			const int ref_lvl = this->mapping.get_refinement_level(unrefined);
-
-			// neighbors_of
-			const auto neighbors
-				= this->find_neighbors_of(
-					this->get_parent(unrefined),
-					this->neighborhood_of,
-					true
-				);
-
-			for (const auto& neighbor_i: neighbors) {
-				const auto& neighbor = neighbor_i.first;
-
-				if (neighbor == 0) {
-					continue;
-				}
-
-				const int neighbor_ref_lvl = this->mapping.get_refinement_level(neighbor);
-
-				if (neighbor_ref_lvl > ref_lvl) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor " << neighbor
-						<< " of cell that will be unrefined (" << unrefined
-						<< ", ref lvl " << ref_lvl
-						<< ") has too large refinement level: " << neighbor_ref_lvl
-						<< std::endl;
-					abort();
-				}
-
-				if (neighbor_ref_lvl == ref_lvl
-				&& this->cells_to_refine.count(neighbor) > 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Neighbor " << neighbor
-						<< " of cell that will be unrefined (" << unrefined
-						<< ", ref lvl " << ref_lvl
-						<< ") is identical in size and will be refined"
-						<< std::endl;
-					abort();
-				}
-			}
-		}
-
-		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
-			abort();
-		}
-		#endif
 	}
 
 
@@ -9489,41 +8043,6 @@ private:
 			}
 		}
 
-		#ifdef DEBUG
-		// check that maximum refinement level difference between future neighbors <= 1
-		for (const uint64_t refined: this->cells_to_refine) {
-
-			if (refined != this->get_child(refined)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << refined
-					<< " has children"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.count(refined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << refined
-					<< " to be refined doesn't exist"
-					<< std::endl;
-				abort();
-			}
-
-			if (this->cell_process.at(refined) == this->rank
-			&& this->cell_data.count(refined) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << refined
-					<< " to be refined has no data"
-					<< std::endl;
-				abort();
-			}
-		}
-
-		if (!this->is_consistent()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Grid isn't consistent" << std::endl;
-			abort();
-		}
-		#endif
 	}
 
 
@@ -9566,16 +8085,6 @@ private:
 			const int sending_process = sender.first;
 			const size_t number_of_receives = sender.second.size();
 
-			#ifdef DEBUG
-			if (sending_process == this->rank
-			&& number_of_receives > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Process " << this->rank
-					<< " trying to transfer to self"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			int ret_val = -1;
 
@@ -9775,15 +8284,6 @@ private:
 			const int receiving_process = receiver.first;
 			const size_t number_of_sends = receiver.second.size();
 
-			#ifdef DEBUG
-			if (receiving_process == this->rank
-			&& number_of_sends > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Trying to transfer to self"
-					<< std::endl;
-				abort();
-			}
-			#endif
 
 			if (this->send_single_cells) {
 
@@ -10037,35 +8537,6 @@ public:
 	*/
 	bool indices_overlap(const uint64_t index1, const uint64_t size1, const uint64_t index2, const uint64_t size2) const
 	{
-		#ifdef DEBUG
-		if (
-			index1 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-			and index1 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-			and index1 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index1 given" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (
-			index2 >= this->length.get()[0] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-			and index2 >= this->length.get()[1] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-			and index2 >= this->length.get()[2] * (uint64_t(1) << this->mapping.get_maximum_refinement_level())
-		) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid index2 given" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (size1 > (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size1 given" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-
-		if (size2 > (uint64_t(1) << this->mapping.get_maximum_refinement_level())) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid size2 given" << std::endl;
-			exit(EXIT_FAILURE);
-		}
-		#endif
 
 		if (index1 + size1 > index2 && index1 < index2 + size2) {
 			return true;
@@ -10094,25 +8565,6 @@ private:
 	*/
 	int overlapping_indices(const uint64_t cell1, const uint64_t cell2) const
 	{
-		#ifdef DEBUG
-		if (cell1 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			abort();
-		}
-		if (cell2 == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			abort();
-		}
-
-		if (cell1 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			abort();
-		}
-		if (cell2 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			abort();
-		}
-		#endif
 
 		if (this->cell_process.count(cell1) == 0 || this->cell_process.count(cell2) == 0) {
 			return 0;
@@ -10345,23 +8797,6 @@ private:
 			if (neighbors_to == nullptr) {
 				throw std::runtime_error("No neighbors to list.");
 			}
-			#ifdef DEBUG
-			for (const auto& neighbor: *neighbors_of) {
-				if (neighbor.first == error_cell) {
-					continue;
-				}
-				if (
-					neighbor.second[0] == 0
-					and neighbor.second[1] == 0
-					and neighbor.second[2] == 0
-				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): "
-						<< "Invalid offset for neighbor " << neighbor.first
-						<< " of cell " << cell << std::endl;
-					abort();
-				}
-			}
-			#endif
 
 			std::set<uint64_t> ids_of, ids_to;
 			for (const auto& n: *neighbors_of) {
@@ -10432,18 +8867,6 @@ private:
 				// call user-defined update function(s)
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
-				#ifdef DEBUG
-				if (
-					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].y == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].z == 0
-				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): "
-						<< "Invalid offset saved for neighbor " << item.id
-						<< " of cell " << cell << std::endl;
-					abort();
-				}
-				#endif
 			}
 			for (const auto& neighbor_id: neighbors_both) {
 				const auto& offsets = all_neighbors.at(neighbor_id);
@@ -10455,19 +8878,6 @@ private:
 				item.z = offsets[2];
 				item.update_caller(*this, this->cells_rw.back(), item, Additional_Neighbor_Items()...);
 				this->neighbors_rw.push_back(std::move(item));
-				#ifdef DEBUG
-				if (
-					this->neighbors_rw[this->neighbors_rw.size() - 1].x == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].y == 0
-					and this->neighbors_rw[this->neighbors_rw.size() - 1].z == 0
-				) {
-					std::cerr << __FILE__ "(" << __LINE__ << "): "
-						<< "Invalid offset saved for neighbor " << item.id
-						<< " of cell " << cell << ": " << item.x
-						<< ", " << item.y << ", " << item.z << std::endl;
-					abort();
-				}
-				#endif
 			}
 			for (const auto& neighbor_id: only_neighbors_to) {
 				const auto& offsets = all_neighbors.at(neighbor_id);
@@ -10639,12 +9049,6 @@ private:
 		int i = 0;
 		for (const auto& item: dccrg_instance->cell_data) {
 
-			#ifdef DEBUG
-			if (item.first == 0) {
-				std::cerr << "User data exist for an illegal cell" << std::endl;
-				abort();
-			}
-			#endif
 
 			global_ids[i] = item.first;
 
@@ -11115,647 +9519,6 @@ private:
 		}
 	}
 
-#ifdef DEBUG
-	/*!
-	Returns false if the same cells don't exist on the same process for all processes.
-	DEBUG ONLY
-	*/
-	bool is_consistent()
-	{
-		// sort existing cells from this process
-		std::vector<uint64_t> local_cells;
-		local_cells.reserve(this->cell_process.size());
-		for (const auto& cell : this->cell_process) {
-			local_cells.push_back(cell.first);
-		}
-		std::sort(local_cells.begin(), local_cells.end());
-
-		// processes of existing cells from this process
-		std::vector<uint64_t> local_processes;
-		local_processes.reserve(this->cell_process.size());
-		for (std::vector<uint64_t>::const_iterator
-			cell = local_cells.begin();
-			cell != local_cells.end();
-			cell++
-		) {
-			local_processes.push_back((uint64_t)this->cell_process[*cell]);
-		}
-
-		// compare the above between processes
-		std::vector<std::vector<uint64_t>> all_cells;
-		All_Gather()(local_cells, all_cells, this->comm);
-		std::vector<std::vector<uint64_t>> all_processes;
-		All_Gather()(local_processes, all_processes, this->comm);
-
-		for (uint process = 0; process < this->comm_size; process++) {
-			if (!std::equal(
-				all_cells[process].begin(),
-				all_cells[process].end(),
-				all_cells[0].begin()
-			)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Grid has different cells between processes 0 and " << process
-					<< std::endl;
-				return false;
-			}
-
-			if (!std::equal(
-				all_processes[process].begin(),
-				all_processes[process].end(),
-				all_processes[0].begin()
-			)) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Grid's cells have different processes between processes 0 and " << process
-					<< std::endl;
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-	/*!
-	Returns true if cell1 considers cell2 as a neighbor, even.
-	Warning: this function performs slow iterative searches without caching.
-	DEBUG ONLY
-	*/
-	bool is_neighbor(const uint64_t cell1, const uint64_t cell2) const
-	{
-		if (cell1 == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell1 given." << std::endl;
-			abort();
-		}
-
-		if (cell1 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Impossible cell1 given." << std::endl;
-			abort();
-		}
-
-		if (cell2 == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell2 given." << std::endl;
-			abort();
-		}
-
-		if (cell2 > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Impossible cell2 given." << std::endl;
-			abort();
-		}
-
-		const Types<3>::indices_t indices1 = this->mapping.get_indices(cell1);
-		const int refinement_level = this->mapping.get_refinement_level(cell1);
-
-		// Walk through the whole neighborhood and look for our target cell
-		for(int x=-(int)this->neighborhood_length; x<= (int)this->neighborhood_length; x++) {
-			for(int y=-(int)this->neighborhood_length; y<= (int)this->neighborhood_length; y++) {
-				for(int z=-(int)this->neighborhood_length; z<= (int)this->neighborhood_length; z++) {
-					if(x==0 && y==0 && z==0) {
-						continue;
-					}
-
-					// Look in neighbors_of
-					for(const auto& dims : dim_permutations) {
-						std::set<uint64_t> neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {x,y,z}, dims);
-						if(neighborsHere.count(cell2) > 0) {
-							return true;
-						}
-
-						// Look in neighbors_to
-						neighborsHere = find_cells_at_offset(indices1, cell1, refinement_level, {-x,-y,-z}, dims);
-						if(neighborsHere.count(cell2) > 0) {
-							return true;
-						}
-					}
-				}
-			}
-		}
-
-		// Not found.
-		return false;
-
-	}
-
-	/*!
-	Return false if neighbors lists of the given cell aren't consistent
-	DEBUG ONLY
-	*/
-	bool verify_neighbors(
-		const uint64_t cell,
-		const std::vector<Types<3>::neighborhood_item_t>& hood_of,
-		const std::vector<Types<3>::neighborhood_item_t>& hood_to,
-		const std::unordered_map<
-			uint64_t,
-			std::vector<
-				std::pair<
-					uint64_t,
-					std::array<int, 3>
-				>
-			>
-		>& neighbor_of_lists,
-		std::unordered_map<
-			uint64_t,
-			std::vector<
-				std::pair<
-					uint64_t,
-					std::array<int, 3>
-				>
-			>
-		>& neighbor_to_lists
-	) {
-		if (cell == error_cell) {
-			std::cerr << __FILE__ << ":" << __LINE__ << " Invalid cell given" << std::endl;
-			return false;
-		}
-
-		if (cell > this->mapping.get_last_cell()) {
-			std::cerr << __FILE__ << ":" << __LINE__ <<
-				" Cell " << cell << " shouldn't exist"
-				<< std::endl;
-			return false;
-		}
-
-		if (this->cell_process.count(cell) == 0) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Cell " << cell << " doesn't exist"
-				<< std::endl;
-			return false;
-		}
-
-		if (cell == this->get_child(cell)) {
-
-			if (neighbor_of_lists.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No neighbor list for cell " << cell
-					<< std::endl;
-				return false;
-			}
-
-			if (neighbor_to_lists.count(cell) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " No neighbor_to list for cell " << cell
-					<< std::endl;
-				return false;
-			}
-
-		} else {
-
-			if (neighbor_of_lists.count(cell) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor list for cell " << cell
-					<< " shouldn't exist"
-					<< std::endl;
-				return false;
-			}
-
-			if (neighbor_to_lists.count(cell) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Neighbor_to list for cell " << cell
-					<< " shouldn't exist"
-					<< std::endl;
-				return false;
-			}
-
-			return true;
-		}
-
-		// neighbors
-		const auto compare_neighbors
-			= this->find_neighbors_of(cell, hood_of);
-
-		if (
-			neighbor_of_lists.at(cell).size() != compare_neighbors.size()
-		|| (
-			neighbor_of_lists.at(cell).size() > 0
-			&& compare_neighbors.size() > 0
-			&& !std::equal(
-				neighbor_of_lists.at(cell).begin(),
-				neighbor_of_lists.at(cell).end(),
-				compare_neighbors.begin()
-			)
-		)
-		) {
-			std::cerr << __FILE__ "(" << __LINE__ << ") "
-				<< "Process " << this->rank
-				<< " neighbor counts for cell " << cell
-				<< " (child of " << this->get_parent(cell)
-				<< ") don't match "
-				<< neighbor_of_lists.at(cell).size()
-				<< " <-> " << compare_neighbors.size()
-				<< ": ";
-
-			for (const auto& c_i: neighbor_of_lists.at(cell)) {
-				const auto& c = c_i.first;
-				std::cerr << c << " ";
-			}
-			std::cerr << ", should be (+ child of) " << compare_neighbors.size() << ": ";
-			for (const auto& c_i: compare_neighbors) {
-				const auto& c = c_i.first;
-				std::cerr << c << "(" << this->get_parent(c) << ") ";
-			}
-			std::cerr << std::endl;
-			return false;
-		}
-
-		// neighbors_to
-		if (neighbor_to_lists.at(cell).size() > 0) {
-			std::sort(neighbor_to_lists.at(cell).begin(), neighbor_to_lists.at(cell).end());
-		}
-		auto compare_neighbors_to
-			= this->find_neighbors_to(cell, hood_to);
-		if (compare_neighbors_to.size() > 0) {
-			std::sort(compare_neighbors_to.begin(), compare_neighbors_to.end());
-		}
-
-		if (
-			!std::equal(
-				neighbor_to_lists.at(cell).begin(),
-				neighbor_to_lists.at(cell).end(),
-				compare_neighbors_to.begin()
-			)
-		) {
-			std::cerr << "Process " << this->rank
-				<< " neighbor_to counts for cell " << cell
-				<< " (child of " << this->get_parent(cell)
-				<< ") don't match: " << neighbor_to_lists.at(cell).size()
-				<< " (";
-
-			for (const auto& c_i: neighbor_to_lists.at(cell)) {
-				const auto& c = c_i.first;
-				std::cerr << c;
-				if (c != this->get_child(c)) {
-					std::cerr << " [has a child " << this->get_child(c) << "], ";
-				} else {
-					std::cerr << ", ";
-				}
-			}
-			std::cerr << ") should be " << compare_neighbors_to.size() << " (";
-			for (const auto& c_i: compare_neighbors_to) {
-				const auto& c = c_i.first;
-				std::cerr << c << ", ";
-			}
-			std::cerr << ")" << std::endl;
-			return false;
-		}
-
-		return true;
-	}
-
-
-	/*!
-	Returns false if neighbor lists on this process aren't consistent
-	DEBUG ONLY
-	*/
-	bool verify_neighbors()
-	{
-		for (const auto& cell : cell_process) {
-			if (cell.second != this->rank) {
-				continue;
-			}
-
-			// verify default neighbor lists
-			if (
-				!this->verify_neighbors(
-					cell.first,
-					this->neighborhood_of,
-					this->neighborhood_to,
-					this->neighbors_of,
-					this->neighbors_to
-				)
-			) {
-				std::cerr << "Default neighbor list incorrect." << std::endl;
-				return false;
-			}
-
-			// verify user neighbor lists
-			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
-				item = this->user_hood_of.begin();
-				item != this->user_hood_of.end();
-				item++
-			) {
-				const int hood_id = item->first;
-				if (
-					!this->verify_neighbors(
-						cell.first,
-						this->user_hood_of.at(hood_id),
-						this->user_hood_to.at(hood_id),
-						this->user_neigh_of.at(hood_id),
-						this->user_neigh_to.at(hood_id)
-					)
-				) {
-					std::cerr << "Neighbor list for user neighborhood id " << hood_id << " incorrect." << std::endl;
-					return false;
-				}
-			}
-		}
-
-		// verify that refinement level differences <= 1
-		for (const auto& cell: this->cells) {
-			const auto ref_lvl = this->get_refinement_level(cell.id);
-			for (const auto& neigh: cell.neighbors_of) {
-				const auto neigh_ref_lvl = this->get_refinement_level(neigh.id);
-				if (std::abs(ref_lvl - neigh_ref_lvl) > 1) {
-					std::cerr << "Refinement level of cell " << cell.id
-						<< " and neighbor_of " << neigh.id << " differ too much" << std::endl;
-					return false;
-				}
-			}
-			for (const auto& neigh: cell.neighbors_to) {
-				const auto neigh_ref_lvl = this->get_refinement_level(neigh.id);
-				if (std::abs(ref_lvl - neigh_ref_lvl) > 1) {
-					std::cerr << "Refinement level of cell " << cell.id
-						<< " and neighbor_to " << neigh.id << " differ too much" << std::endl;
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-
-	/*!
-	Returns false if remote neighbor info for given cell is inconsistent.
-
-	Remote neighbor info consists of local_cells_on_process_boundary and
-	remote_cells_on_process_boundary.
-	DEBUG ONLY
-	*/
-	bool verify_remote_neighbor_info(const uint64_t cell)
-	{
-		if (
-			!this->verify_neighbors(
-				cell,
-				this->neighborhood_of,
-				this->neighborhood_to,
-				this->neighbors_of,
-				this->neighbors_to
-			)
-		) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Cell " << cell
-				<< " has inconsistent neighbors"
-				<< std::endl;
-			return false;
-		}
-
-		if (cell != this->get_child(cell)) {
-			std::cerr << __FILE__ << ":" << __LINE__
-				<< " Cell " << cell << " has children"
-				<< std::endl;
-			return true;
-		}
-
-		std::vector<
-			std::pair<
-				uint64_t,
-				std::array<int, 3>
-			>
-		> all_neighbors(
-			this->neighbors_of.at(cell).begin(),
-			this->neighbors_of.at(cell).end()
-		);
-		all_neighbors.insert(
-			all_neighbors.end(),
-			this->neighbors_to.at(cell).begin(),
-			this->neighbors_to.at(cell).end()
-		);
-
-		for (const auto& neighbor_i: all_neighbors) {
-			const auto& neighbor = neighbor_i.first;
-
-			if (neighbor == error_cell) {
-				continue;
-			}
-
-			if (this->cell_process.at(neighbor) != this->rank) {
-
-				if (this->local_cells_on_process_boundary.count(cell) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Local cell " << cell
-						<< " should be in local_cells_on_process_boundary"
-						<< std::endl;
-					return false;
-				}
-
-				if (this->remote_cells_on_process_boundary.count(neighbor) == 0) {
-					std::cerr << __FILE__ << ":" << __LINE__
-						<< " Remote cell " << neighbor
-						<< " should be in remote_cells_on_process_boundary"
-						<< std::endl;
-					return false;
-				}
-			}
-		}
-
-		return true;
-	}
-
-
-	/*!
-	Returns false if remote neighbor info on this process is inconsistent.
-
-	Remote neighbor info consists of local_cells_on_process_boundary
-	and remote_cells_on_process_boundary.
-	DEBUG ONLY
-	*/
-	bool verify_remote_neighbor_info()
-	{
-		for (const auto& item : cell_process) {
-
-			if (item.first != this->get_child(item.first)) {
-				continue;
-			}
-
-			// check whether this cell should be in remote_cells_on_process_boundary
-			if (item.second != this->rank) {
-
-				bool should_be_in_remote_cells = false;
-
-				for (const auto& local_cell: this->cell_data) {
-
-					if (local_cell.first != this->get_child(local_cell.first)) {
-						continue;
-					}
-
-					if (item.first == local_cell.first) {
-						std::cerr << __FILE__ << ":" << __LINE__ << " Same cell." << std::endl;
-						abort();
-					}
-
-					if (this->is_neighbor(item.first, local_cell.first)
-					|| this->is_neighbor(local_cell.first, item.first)) {
-						should_be_in_remote_cells = true;
-					}
-				}
-
-				if (should_be_in_remote_cells) {
-
-					if (this->remote_cells_on_process_boundary.count(item.first) == 0) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Remote cell " << item.first
-							<< " should be in remote_cells_on_process_boundary because:"
-							<< std::endl;
-
-						for (const auto& cell: this->cell_data) {
-							if (item.first == cell.first) {
-								std::cerr << __FILE__ << ":" << __LINE__
-									<< " Same cell."
-									<< std::endl;
-								abort();
-							}
-
-							if (this->is_neighbor(item.first, cell.first)
-							|| this->is_neighbor(cell.first, item.first)) {
-								std::cerr << "\tremote cell " << item.first
-									<< " has a local neighbor " << cell.first
-									<< std::endl;
-							}
-						}
-						return false;
-					}
-
-				} else {
-
-					if (this->remote_cells_on_process_boundary.count(item.first) > 0) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Remote cell " << item.first
-							<< " should not be in remote_cells_on_process_boundary"
-							<< std::endl;
-						return false;
-					}
-				}
-
-			// check whether this cell should be in cells_with_remote_neighbor
-			} else {
-
-				bool no_remote_neighbor = true;
-
-				// search in neighbors_of
-				const auto neighbors_of
-					= this->find_neighbors_of(
-						item.first,
-						this->neighborhood_of
-					);
-
-				for (const auto& neighbor_i: neighbors_of) {
-					const auto& neighbor = neighbor_i.first;
-
-					if (neighbor == 0) {
-						continue;
-					}
-
-					if (this->cell_process.at(neighbor) != this->rank) {
-						no_remote_neighbor = false;
-					}
-
-					if (!this->is_neighbor(item.first, neighbor)) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Cell " << neighbor
-							<< " should be a neighbor of cell " << item.first
-							<< " with offset (" << neighbor_i.second[0] << ", " << neighbor_i.second[1] << ", " << neighbor_i.second[2] << ")"
-							<< std::endl;
-						abort();
-					}
-				}
-
-				// search in neighbors_to
-				const auto neighbors_to
-					= this->find_neighbors_to(item.first, this->neighborhood_to);
-				for (const auto& neighbor_i: neighbors_to) {
-					const auto& neighbor = neighbor_i.first;
-
-					if (neighbor == 0) {
-						continue;
-					}
-
-					if (this->cell_process.at(neighbor) != this->rank) {
-						no_remote_neighbor = false;
-					}
-
-					if (!this->is_neighbor(neighbor, item.first)) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Cell " << item.first
-							<< " should be a neighbor to cell " << neighbor
-							<< " with offset (" << neighbor_i.second[0] << ", " << neighbor_i.second[1] << ", " << neighbor_i.second[2] << ")"
-							<< std::endl;
-						abort();
-					}
-				}
-
-				if (no_remote_neighbor) {
-					if (this->local_cells_on_process_boundary.count(item.first) > 0) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Local cell " << item.first
-							<< " should not be in local_cells_on_process_boundary"
-							<< std::endl;
-						return false;
-					}
-				} else {
-					if (this->local_cells_on_process_boundary.count(item.first) == 0) {
-						std::cerr << __FILE__ << ":" << __LINE__
-							<< " Local cell " << item.first
-							<< " should be in local_cells_on_process_boundary"
-							<< std::endl;
-						return false;
-					}
-				}
-			}
-		}
-
-		return true;
-	}
-
-
-	/*!
-	Returns true if user data exists for local cells.
-	DEBUG ONLY
-	*/
-	bool verify_user_data()
-	{
-		for (const auto& item : this->cell_process) {
-			if (item.second == this->rank
-			&& item.first == this->get_child(item.first)
-			&& this->cell_data.count(item.first) == 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " User data for local cell " << item.first
-					<< " should exist"
-					<< std::endl;
-				return false;
-			}
-			if (item.second != this->rank
-			&& this->cell_data.count(item.first) > 0) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " User data for local cell " << item.first
-					<< " shouldn't exist"
-					<< std::endl;
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-
-	/*!
-	Returns true if all cells are where pin reqests should have placed them.
-	DEBUG ONLY
-	*/
-	bool pin_requests_succeeded()
-	{
-		for (auto& [cell, process] : pin_requests) {
-			if (this->cell_process.at(cell) != process) {
-				std::cerr << __FILE__ << ":" << __LINE__
-					<< " Cell " << cell
-					<< " not at requested process " << process
-					<< " but at " << this->cell_process.at(cell)
-					<< std::endl;
-				return false;
-			}
-		}
-
-		return true;
-	}
-
-#endif // end #ifdef debug
 
 };
 
