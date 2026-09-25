@@ -1,0 +1,194 @@
+name: Github-CI
+
+on:
+  # Dispatch this workflow whenever master or dev get a PR or commit
+  push:
+    branches : ["vlasiator-version"]
+  pull_request:
+    branches: ["vlasiator-version"]
+  # ... or when the workflow is started manually
+  workflow_dispatch:
+
+concurrency:
+   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+   cancel-in-progress: true
+
+jobs:
+
+  get_git_diff:
+    runs-on: ubuntu-latest
+    outputs:
+       RUN_TP: ${{ steps.gitdiff.outputs.RUN_TP }}
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Get git diff
+        id: gitdiff
+        run: |
+          cd $GITHUB_WORKSPACE
+          #chmod +x ./.github/workflows/CI_git_diff.sh
+          echo Comparing PR branch against ${{ github.base_ref }}
+          if [[ $(./.github/workflows/CI_git_diff.sh ${{ github.base_ref }} ) = "no_test" ]]; then
+            echo "RUN_TP=False" >> $GITHUB_OUTPUT
+            echo "Not running testpackage"
+            exit 0
+          fi
+          echo "Running testpackage"
+  get_git_diff_check:
+    runs-on: ubuntu-latest
+    needs: get_git_diff
+    if: ${{ needs.get_git_diff.outputs.RUN_TP != 'False' }}
+    steps:
+      - name: Checking whether to run tests
+        run: |
+          echo "Running testpackage"
+
+
+  build_libraries_carrington:
+    # Build libraries for the testpackage build and run on the carrington cluster (also, ukko CPU side)
+    runs-on: carrington
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Run library build script
+        run: srun --interactive --constraint "amd" -J build_libs -n 1 -c 64 bash -c "hostname ; realpath modules/modules.sh ; ./fetch_and_build_libraries.sh carrington_gcc_openmpi"
+      - name: Build libraries tar
+        run: tar -zcf libraries-carrington_gcc_openmpi.tar.gz libraries-carrington_gcc_openmpi/
+      - name: Upload libraries as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libraries-carrington_gcc_openmpi
+          path: libraries-carrington_gcc_openmpi.tar.gz
+          retention-days: 5
+          if-no-files-found: error
+
+  run_TP:
+    # Run the testpackage on the carrington cluster
+    runs-on: carrington
+    needs: [get_git_diff_check, build_libraries_carrington]
+
+    continue-on-error: true
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+      with:
+        submodules: false
+    - name: Fetch libraries
+      uses: actions/download-artifact@v5
+      with:
+        name: libraries-carrington_gcc_openmpi
+    - name: Unpack libraries
+      run: tar -zxf libraries-carrington_gcc_openmpi.tar.gz
+    - name: Run testpackage
+      id: run
+      run: |
+        cd testpackage
+        # Delete any old run directories
+        rm -rf run_20*
+        export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GITHUB_WORKSPACE/libraries-carrington_gcc_openmpi/lib
+        sbatch -W -o testpackage_run_output.txt ./full_test_carrington.sh || true
+        mkdir -p $GITHUB_WORKSPACE/test_results/
+        rsync -av --include='*/' --include='*tst*' --exclude='*' ./tests/ $GITHUB_WORKSPACE/test_results/
+        PARSE_OUTPUT_CMD=$( cat << MORO
+        echo "Job finished, checking output."
+        cat testpackage_run_output.txt
+        cat $GITHUB_STEP_SUMMARY > $GITHUB_WORKSPACE/testpackage_check_description.txt
+        cd $GITHUB_WORKSPACE
+        ls -halB testpackage_check_description.txt
+        tar -czf testpackage-output.tar.gz testpackage_check_description.txt testpackage_output_variables.txt test_results/
+        MORO
+        )
+        srun --job-name CI_package_results --constraint "amd" -N 1 -c 1 --mem=3G bash -c "$PARSE_OUTPUT_CMD" # excl. ukko2
+        if [ -f $GITHUB_WORKSPACE/testpackage_failed ]; then
+          # Fail this step if any test failed.
+          exit 1
+        fi
+    - name: Scancel dangling job upon cancellation
+      if: cancelled()
+      run: |
+        # Try accessing the job id echoed by the job script.
+        scancel ${{ steps.run.outputs.SLURM_JOB_ID }}
+    - name: Make sure the output tarball is visible in lustre
+      uses: nick-fields/retry@v3
+      with:
+        timeout_seconds: 15
+        max_attempts: 3
+        retry_on: error
+        command: ls $GITHUB_WORKSPACE/testpackage-output.tar.gz
+    - name: Upload testpackage output
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: testpackage-output
+        path: testpackage-output.tar.gz
+      # Note: Testpackage output is further processed in the pr_report.yml workflow
+      # (to produce Checks against pull requests)
+
+  run_TP_HILE-C:
+    # Run the testpackage on the HILE-C cluster
+    runs-on: hile
+    needs: [get_git_diff_check]
+    continue-on-error: true
+
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+      with:
+        submodules: false
+    - name: Run testpackage
+      id: run
+      run: |
+        chmod +x $GITHUB_WORKSPACE/vlasiator
+        chmod +x $GITHUB_WORKSPACE/vlsv*_DP
+        cd testpackage
+        # Delete any old run directories
+        rm -rf run_20*
+        # export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$GITHUB_WORKSPACE/libraries-hile_cpu/lib
+        sbatch -W -o testpackage_run_output.txt ./small_test_hile_cpu_github_ci.sh
+        PARSE_OUTPUT_CMD=$( cat << MORO
+        echo "Job finished, checking output."
+        cat testpackage_run_output.txt
+        cat $GITHUB_STEP_SUMMARY > $GITHUB_WORKSPACE/testpackage_check_description.txt
+        cd $GITHUB_WORKSPACE
+        ls -halB testpackage_check_description.txt
+        tar -czf testpackage-output-HILE-C.tar.gz testpackage_check_description.txt testpackage_output_variables.txt
+        MORO
+        )
+        srun --job-name CI_package_results -C c -N 1 -c 1 --mem=1G bash -c "$PARSE_OUTPUT_CMD"
+        if [ -f $GITHUB_WORKSPACE/testpackage_failed ]; then
+          # Fail this step if any test failed.
+          exit 1
+        fi
+    - name: Scancel dangling job upon cancellation
+      if: cancelled()
+      run: |
+        # Try accessing the job id echoed by the job script.
+        scancel ${{ steps.run.outputs.SLURM_JOB_ID }}
+    - name: Make sure the output tarball is visible in lustre
+      uses: nick-fields/retry@v3
+      with:
+        timeout_seconds: 15
+        max_attempts: 3
+        retry_on: error
+        command: ls $GITHUB_WORKSPACE/testpackage-output-HILE-C.tar.gz
+    - name: Upload testpackage output
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: testpackage-output-HILE-C
+        path: testpackage-output-HILE-C.tar.gz
+      # Note: Testpackage output is further processed in the pr_report_HILE_C.yml workflow
+      # (to produce Checks against pull requests)
+    - name: Run fluxfunction test
+      run: |
+        chmod +x $GITHUB_WORKSPACE/fluxfunction
+        srun -C c --job-name fluxtest --nodes=1 -n 1 -c 1 --mem-per-cpu=2G -t 0:10:0 bash -c 'hostname ; realpath modules/modules.sh ; source modules/hile_cpu.sh ; $GITHUB_WORKSPACE/fluxfunction testpackage/run_*/Magnetosphere_small/bulk.0000001.vlsv equatorial.bin'
+        srun -C c --job-name fluxtest --nodes=1 -n 1 -c 1 --mem-per-cpu=2G -t 0:10:0 bash -c 'hostname ; realpath modules/modules.sh ; source modules/hile_cpu.sh ; $GITHUB_WORKSPACE/fluxfunction testpackage/run_*/Magnetosphere_polar_small/bulk.0000001.vlsv polar.bin'
+        diff -q equatorial.bin /turso/group/spacephysics/vlasiator/testpackage/CI_reference/equatorial.bin || if [ $? -eq 1 ] ; then true; else false; fi
+        diff -q polar.bin /turso/group/spacephysics/vlasiator/testpackage/CI_reference/polar.bin || if [ $? -eq 1 ] ; then true; else false; fi
