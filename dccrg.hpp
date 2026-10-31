@@ -81,6 +81,27 @@ Namespace where all dccrg classes, functions, etc are defined.
 */
 namespace dccrg
 {
+	template<class T>
+	struct dynFlatMap: std::vector<T> {
+		size_t _baseSize=16;
+		using _arr=std::vector<T>;
+		dynFlatMap() {
+			_arr::resize(_baseSize);
+		}
+		T& operator[](const int key) {
+			if(key>=_baseSize) {
+				_baseSize*=2;
+				_arr::resize(_baseSize); // or resize?
+				std::cerr<<"(dynFlatMap) doubling size\n";
+			}
+			return _arr::operator[](key);
+		}
+		void clear() noexcept {
+			_baseSize=32;
+			_arr::clear();
+			_arr::resize(32);
+		}
+	};
 
 	/* Custom implementation of erase_if for C++17,
 	 * TODO: Support full range of of unordered_set,
@@ -6107,6 +6128,7 @@ private:
 		int,
 		std::vector<MPI_Request>
 	> send_requests, receive_requests;
+	dynFlatMap<std::vector<MPI_Request>> send_requests_, receive_requests_;
 
 	// cells whose data has to be received / sent by this process from the process as the key
 	std::unordered_map<int, std::vector<std::pair<uint64_t, int>>>
@@ -8098,6 +8120,7 @@ private:
 					}
 
 					this->receive_requests[sending_process].push_back(MPI_Request());
+					this->receive_requests_[sending_process].push_back(MPI_Request());
 
 					void* address = NULL;
 					int count = -1;
@@ -8139,7 +8162,7 @@ private:
 						sending_process,
 						item.second,
 						this->comm,
-						&(this->receive_requests[sending_process].back())
+						&(this->receive_requests_[sending_process].back())
 					);
 
 					if (ret_val != MPI_SUCCESS) {
@@ -8230,6 +8253,7 @@ private:
 				}
 
 				this->receive_requests[sending_process].push_back(MPI_Request());
+				this->receive_requests_[sending_process].push_back(MPI_Request());
 
 				ret_val = MPI_Irecv(
 					addresses[0],
@@ -8238,7 +8262,7 @@ private:
 					sending_process,
 					0,
 					this->comm,
-					&(this->receive_requests[sending_process].back())
+					&(this->receive_requests_[sending_process].back())
 				);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
@@ -8291,6 +8315,7 @@ private:
 					const uint64_t cell = item.first;
 
 					this->send_requests[receiving_process].push_back(MPI_Request());
+					this->send_requests_[receiving_process].push_back(MPI_Request());
 
 					void* address = NULL;
 					int count = -1;
@@ -8332,7 +8357,7 @@ private:
 						receiving_process,
 						item.second,
 						this->comm,
-						&(this->send_requests[receiving_process].back())
+						&(this->send_requests_[receiving_process].back())
 					);
 
 					if (ret_val != MPI_SUCCESS) {
@@ -8415,6 +8440,7 @@ private:
 				}
 
 				this->send_requests[receiving_process].push_back(MPI_Request());
+				this->send_requests_[receiving_process].push_back(MPI_Request());
 
 				ret_val = MPI_Isend(
 					addresses[0],
@@ -8423,7 +8449,7 @@ private:
 					receiving_process,
 					0,
 					this->comm,
-					&(this->send_requests[receiving_process].back())
+					&(this->send_requests_[receiving_process].back())
 				);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
@@ -8467,8 +8493,8 @@ private:
 
 		// Collate all requests into one list, and wait for all in one go.
 		std::vector<MPI_Request> allRequests;
-		for( const auto& process : this->receive_requests) {
-			allRequests.insert(allRequests.end(), process.second.begin(), process.second.end());
+		for( const auto& process : this->receive_requests_) {
+			allRequests.insert(allRequests.end(), process.begin(), process.end());
 		}
 		if(!allRequests.empty()) {
 			std::vector<MPI_Status> statuses;
@@ -8488,6 +8514,7 @@ private:
 		}
 
 		this->receive_requests.clear();
+		this->receive_requests_.clear();
 
 		return success;
 	}
@@ -8503,8 +8530,8 @@ private:
 
 		// Collate all requests into one list, and wait for all in one go.
 		std::vector<MPI_Request> allRequests;
-		for( const auto& process : this->send_requests) {
-			allRequests.insert(allRequests.end(), process.second.begin(), process.second.end());
+		for( const auto& process : this->send_requests_) {
+			allRequests.insert(allRequests.end(), process.begin(), process.end());
 		}
 		if(!allRequests.empty()) {
 			std::vector<MPI_Status> statuses;
@@ -8525,6 +8552,7 @@ private:
 		}
 
 		this->send_requests.clear();
+		this->send_requests_.clear();
 
 		return success;
 	}
