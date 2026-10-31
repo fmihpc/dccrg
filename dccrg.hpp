@@ -2294,6 +2294,7 @@ public:
 	*/
 	bool refine_completely(const uint64_t cell)
 	{
+		phiprof::Timer refineCompletely{"(dccrg) refine_completely"};
 		if (cell == error_cell) {
 			return false;
 		}
@@ -3066,6 +3067,8 @@ public:
 		std::unordered_set<uint64_t> update_neighbors_unrefined;
 
 		// refines
+//#pragma omp parallel for
+		phiprof::Timer timerBigFor {"(dccrg) Execute refines big for loop 1st"};
 		for (const uint64_t refined: this->cells_to_refine) {
 
 
@@ -3153,8 +3156,10 @@ public:
 				}
 			}
 		}
+		timerBigFor.stop();
 
 		// unrefines
+		phiprof::Timer timerBigFor2 {"(dccrg) Execute refines big for loop 2nd"};
 		for (const uint64_t unrefined: this->cells_to_unrefine) {
 
 			const uint64_t parent_of_unrefined = this->get_parent(unrefined);
@@ -3193,7 +3198,9 @@ public:
 				this->unrefined_cell_data[unrefined];
 			}
 		}
+		timerBigFor2.stop();
 
+		phiprof::Timer timerBigFor3 {"(dccrg) Execute refines big for loop 3rd"};
 		// receive cells in known order and add message tags
 		for (auto& [process, cell_pairs] : cells_to_receive) {
 			std::sort(cell_pairs.begin(), cell_pairs.end());
@@ -3213,8 +3220,10 @@ public:
 				cell_pairs[i].second = static_cast<int>(tag);
 			}
 		}
+		timerBigFor3.stop();
 
 		// send cells in known order and add message tags
+		phiprof::Timer timerBigFor4 {"(dccrg) Execute refines big for loop 4th"};
 		for (auto& [process, cell_pairs] : cells_to_send) {
 			std::sort(cell_pairs.begin(), cell_pairs.end());
 			// TODO: check that message tags don't overflow
@@ -3233,10 +3242,12 @@ public:
 				cell_pairs[i].second = static_cast<int>(tag);
 			}
 		}
+		timerBigFor4.stop();
 
 		// update data for parents (and their neighborhood) of unrefined cells
 		// TODO: this loop happens to casually bypass the update_neighbors function
 		// It gave me a headache and will give one to you too, see if this can be refactored
+		phiprof::Timer timerBigFor5 {"(dccrg) Execute refines big for loop 5th"};
 		for (const uint64_t parent: parents_of_unrefined) {
 
 			/* TODO: skip unrefined cells far enough away
@@ -3265,8 +3276,10 @@ public:
 				update_neighbors.insert(parent);
 			}
 		}
+		timerBigFor5.stop();
 
 		// update neighbor lists of cells affected by refining / unrefining
+		phiprof::Timer timerBigFor6 {"(dccrg) Execute refines big for loop 6th"};
 		for (const uint64_t cell: update_neighbors) {
 			this->update_neighbors(cell);
 			//update also neighbor lists of user neighborhoods
@@ -3278,8 +3291,10 @@ public:
 				this->update_user_neighbors(cell, item->first);
 			}
 		}
+		timerBigFor6.stop();
 
 		// remove neighbor lists of added cells' parents
+		phiprof::Timer timerBigFor7 {"(dccrg) Execute refines big for loop 7th"};
 		for (const uint64_t refined: this->cells_to_refine) {
 			if (this->cell_process.at(refined) == this->rank) {
  				this->neighbors_of.erase(refined);
@@ -3297,8 +3312,10 @@ public:
  				}
  			}
  		}
+		timerBigFor7.stop();
  
  		// remove neighbor lists of removed cells
+		phiprof::Timer timerBigFor8 {"(dccrg) Execute refines big for loop 8th"};
  		for (const uint64_t unrefined: this->cells_to_unrefine) {
  			this->neighbors_of.erase(unrefined);
  			this->neighbors_to.erase(unrefined);
@@ -3313,9 +3330,13 @@ public:
  				this->user_neigh_to.at(item->first).erase(unrefined);
  			}
  		}
+		timerBigFor8.stop();
  
+		phiprof::Timer timerBigForU {"(dccrg) Execute refines big update_remote_neighbor_info"};
  		this->update_remote_neighbor_info();
+		timerBigForU.stop();
  		// also remote neighbor info of user neighborhoods
+		phiprof::Timer timerBigFor9 {"(dccrg) Execute refines big for loop 9th"};
  		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
  			item = this->user_hood_of.begin();
  			item != this->user_hood_of.end();
@@ -3323,6 +3344,7 @@ public:
  		) {
  			this->update_user_remote_neighbor_info(item->first);
  		}
+		timerBigFor9.stop();
 
 		return new_cells;
 	}
@@ -3453,6 +3475,7 @@ public:
 
 
 		// remove user data of unrefined cells from this->cell_data
+		phiprof::Timer timer1{"(dccrg) finish_refining first for"};
 		for (std::unordered_set<uint64_t>::const_iterator
 			unrefined = this->cells_to_unrefine.begin();
 			unrefined != this->cells_to_unrefine.end();
@@ -3460,18 +3483,23 @@ public:
 		) {
 			this->cell_data.erase(*unrefined);
 		}
+		timer1.stop();
 
 		this->cells_to_refine.clear();
 		this->cells_to_unrefine.clear();
 		this->parents_of_unrefined.clear();
 
+		phiprof::Timer timer2{"(dccrg) finish_refining->recalculate_neighbor_update_send_receive_lists"};
 		this->recalculate_neighbor_update_send_receive_lists();
+		timer2.stop();
 
+		phiprof::Timer timer3{"(dccrg) finish_refining 3rd block"};
 		this->allocate_copies_of_remote_neighbors();
 		this->update_cell_pointers();
 		for (const auto& item: this->user_hood_of) {
 			this->allocate_copies_of_remote_neighbors(item.first);
 		}
+		timer3.stop();
 
 		timer.stop();
 		this->refining = false;
@@ -3497,9 +3525,12 @@ public:
 	*/
 	std::vector<uint64_t> stop_refining(const bool sorted = false)
 	{
+		phiprof::Timer stopRefining{"(dccrg) stop_refining"};
 		this->initialize_refines();
 
+		phiprof::Timer executeRefines{"(dccrg) stop_refining->execute_refines"};
 		std::vector<uint64_t> ret_val = this->execute_refines();
+		executeRefines.stop();
 		if (sorted && ret_val.size() > 0) {
 			std::sort(ret_val.begin(), ret_val.end());
 		}
@@ -3509,7 +3540,9 @@ public:
 				<< " stop_refining() called with unrefined cells. "
 				<< std::endl;
 		}
+		phiprof::Timer finishRefines{"(dccrg) stop_refining->finish_refines"};
 		this->finish_refining();
+		finishRefines.stop();
 		return ret_val;
 	}
 
@@ -3740,17 +3773,21 @@ public:
 
 		this->balancing_load = true;
 
-
+		phiprof::Timer timer1{"(dccrg) initialize_balance_load->make_new_partition"};
 		this->make_new_partition(use_zoltan);
+		timer1.stop();
 
 		// default construct user data of arriving cells
+		phiprof::Timer timer2{"(dccrg) initialize_balance_load->for1"};
 		for (const auto& [process, cell_items] : this->cells_to_receive) {
 			for (const auto& [id, process] : cell_items) {
 				this->cell_data[id];
 			}
 		}
+		timer2.stop();
 
 		// clear data related to remote neighbor updates, adaptation, etc.
+		phiprof::Timer timer3{"(dccrg) initialize_balance_load->clearAll"};
 		this->local_cells_on_process_boundary.clear();
 		this->remote_cells_on_process_boundary.clear();
 		this->user_local_cells_on_process_boundary.clear();
@@ -3766,6 +3803,7 @@ public:
 		this->cells_not_to_unrefine.clear();
 		this->cell_weights.clear();
 		this->parents_of_unrefined.clear();
+		timer3.stop();
 
 		return *this;
 	}
@@ -3852,28 +3890,36 @@ public:
 		);
 
 		std::vector<std::vector<uint64_t>> all_added_cells;
+		phiprof::Timer timer1{"(dccrg) finish_balance_load->All_Gather"};
 		All_Gather()(temp_added_cells, all_added_cells, this->comm);
+		timer1.stop();
 
 
 		// update cell to process mappings
+		phiprof::Timer timer2{"(dccrg) finish_balance_load(2)"};
 		for (uint64_t cell_creator = 0; cell_creator < all_added_cells.size(); cell_creator++) {
 
 			for (const uint64_t created_cell: all_added_cells.at(cell_creator)) {
 				this->cell_process.at(created_cell) = cell_creator;
 			}
 		}
+		timer2.stop();
 
 
 		// create neighbor lists for cells without children that came to this process
+		phiprof::Timer timer3{"(dccrg) finish_balance_load(3)"};
 		for (const uint64_t added_cell: this->added_cells) {
 
 			if (added_cell != this->get_child(added_cell)) {
 				continue;
 			}
 
+			phiprof::Timer timer31{"(dccrg) finish_balance_load(3)->update_neighbors"};
 			this->update_neighbors(added_cell);
+			timer31.stop();
 
 			// also update user neighbor lists
+			phiprof::Timer timer32{"(dccrg) finish_balance_load(3)->update_user_neighbors for"};
 			for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
 				item = this->user_hood_of.begin();
 				item != this->user_hood_of.end();
@@ -3881,9 +3927,12 @@ public:
 			) {
 				this->update_user_neighbors(added_cell, item->first);
 			}
+			timer32.stop();
 		}
+		timer3.stop();
 
 		// free user data and neighbor lists of cells removed from this process
+		phiprof::Timer timer4{"(dccrg) finish_balance_load(4)"};
 		for (const uint64_t removed_cell: this->removed_cells) {
 			this->cell_data.erase(removed_cell);
 			this->neighbors_of.erase(removed_cell);
@@ -3900,9 +3949,13 @@ public:
 				this->user_neigh_to.at(item->first).erase(removed_cell);
 			}
 		}
+		timer4.stop();
 
+		phiprof::Timer timer5{"(dccrg) finish_balance_load(5)"};
 		this->update_remote_neighbor_info();
+		timer5.stop();
 		// also remote neighbor info of user neighborhoods
+		phiprof::Timer timer6{"(dccrg) finish_balance_load(6)"};
 		for (std::unordered_map<int, std::vector<Types<3>::neighborhood_item_t>>::const_iterator
 			item = this->user_hood_of.begin();
 			item != this->user_hood_of.end();
@@ -3910,11 +3963,18 @@ public:
 		) {
 			this->update_user_remote_neighbor_info(item->first);
 		}
+		timer6.stop();
 
+		phiprof::Timer timer7{"(dccrg) finish_balance_load(7)"};
 		this->recalculate_neighbor_update_send_receive_lists();
+		timer7.stop();
 
+		phiprof::Timer timer8{"(dccrg) finish_balance_load(8)"};
 		this->allocate_copies_of_remote_neighbors();
+		timer8.stop();
+		phiprof::Timer timer9{"(dccrg) finish_balance_load(9)"};
 		this->update_cell_pointers();
+		timer9.stop();
 		// All remote neighbors of user hoods are already included in base hood
 		// for (const auto& item: this->user_hood_of) {
 		//	this->allocate_copies_of_remote_neighbors(item.first);
@@ -7782,15 +7842,19 @@ private:
 	void induce_refines()
 	{
 		std::vector<uint64_t> new_refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
+		phiprof::Timer timer1{"(dccrg) induce_refines outer while"};
 		while (All_Reduce()(new_refines.size(), this->comm) > 0) {
 
 			std::vector<std::vector<uint64_t>> all_new_refines;
+			phiprof::Timer timer3{"(dccrg) induce_refines while->All_Gather"};
 			All_Gather()(new_refines, all_new_refines, this->comm);
+			timer3.stop();
 			new_refines.clear();
 
 			std::unordered_set<uint64_t> unique_induced_refines;
 
 			// induced refines on this process
+			phiprof::Timer timer4{"(dccrg) induce_refines while->for1"};
 			for (const uint64_t refined: all_new_refines.at(this->rank)) {
 
 				// refine local neighbors that are too large
@@ -7815,8 +7879,11 @@ private:
 					}
 				}
 			}
+			timer4.stop();
 
 			// refines induced here by other processes
+			// TODO: optimise?
+			phiprof::Timer timer5{"(dccrg) induce_refines while->for2"};
 			for (int process = 0; process < this->comm_size; process++) {
 
 				if (process == this->rank) {
@@ -7846,26 +7913,38 @@ private:
 					}
 				}
 			}
+			timer5.stop();
+			phiprof::Timer timer6{"(dccrg) induce_refines->all_new_refines.clear()"};
 			all_new_refines.clear();
+			timer6.stop();
 
+			phiprof::Timer timer7{"(dccrg) induce_refines->new_refines.insert"};
 			new_refines.insert(
 				new_refines.end(),
 				unique_induced_refines.begin(),
 				unique_induced_refines.end()
 			);
+			timer7.stop();
+			phiprof::Timer timer8{"(dccrg) induce_refines->cells_to_refine.insert"};
 			this->cells_to_refine.insert(
 				unique_induced_refines.begin(),
 				unique_induced_refines.end()
 			);
+			timer8.stop();
+			phiprof::Timer timer9{"(dccrg) induce_refines->unique_induced_refines.clear"};
 			unique_induced_refines.clear();
+			timer9.stop();
 		}
+		timer1.stop();
 
 		dccrg::erase_if(cells_to_refine, [this](uint64_t cell){return !this->is_local(cell);});
 
 		// add refines from all processes to cells_to_refine
 		std::vector<uint64_t> refines(this->cells_to_refine.begin(), this->cells_to_refine.end());
 		std::vector<std::vector<uint64_t>> all_refines;
+		phiprof::Timer timer2{"(dccrg) induce_refines All_Gather"};
 		All_Gather()(refines, all_refines, this->comm);
+		timer2.stop();
 
 		for (int process = 0; process < this->comm_size; process++) {
 			this->cells_to_refine.insert(all_refines[process].begin(), all_refines[process].end());
@@ -8003,6 +8082,7 @@ private:
 
 		// spread dont_refines accross processes and neighborhoods
 		std::unordered_set<uint64_t> new_donts, donts, old_donts;
+		phiprof::Timer orBigTimer{"(dccrg) override_refines outer do-while"};
 		do {
 			donts = new_donts;
 			new_donts.clear();
@@ -8010,6 +8090,7 @@ private:
 			donts.insert(this->cells_not_to_refine.cbegin(), this->cells_not_to_refine.cend());
 			this->cells_not_to_refine.clear();
 
+			phiprof::Timer orInTimer{"(dccrg) override_refines inner do-while"};
 			for (const auto& cell: donts) {
 				// Skip non-local cells
 				if (this->cell_process.at(cell) != this->rank) {
@@ -8036,11 +8117,19 @@ private:
 					}
 				}
 			}
+			orInTimer.stop();
+			phiprof::Timer timer12{"(dccrg) override_refines->do-while->old_donts.insert"};
 			old_donts.insert(donts.cbegin(), donts.cend());
+			timer12.stop();
+			phiprof::Timer timer13{"(dccrg) override_refines->do-while->donts.clear"};
 			donts.clear();
+			timer13.stop();
 
+			phiprof::Timer timer14{"(dccrg) override_refines->do-while->all_to_all_set"};
 			this->all_to_all_set(new_donts);
+			timer14.stop();
 		} while (new_donts.size() > 0);
+		orBigTimer.stop();
 
 		dccrg::erase_if(old_donts, [this](uint64_t cell){return !this->is_local(cell);});;
 
@@ -8793,6 +8882,7 @@ private:
 		*/
 		std::vector<std::array<size_t, 4>> nr_neighbors(ordered_cells.size());
 
+		phiprof::Timer timer24{"(dccrg) update_cell_pointers->ompFor"};
 		for (size_t i = 0; i < ordered_cells.size(); i++) {
 			nr_neighbors[i][0] = this->neighbors_rw.size();
 
@@ -8919,6 +9009,7 @@ private:
 				this->neighbors_rw.push_back(std::move(item));
 			}
 		}
+		timer24.stop();
 
 		for (size_t i = 0; i < this->cells_rw.size(); i++) {
 			this->cells_rw[i].neighbors_of.begin_ =
