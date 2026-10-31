@@ -922,13 +922,13 @@ public:
 		std::tuple<Additional_Neighbor_Items...>
 	>& balance_load(const bool use_zoltan = true)
 	{
-		phiprof::Timer initTimer {"Initialize Balance load"};
+		phiprof::Timer initTimer {"(dccrg) Initialize Balance load"};
 		this->initialize_balance_load(use_zoltan);
 		initTimer.stop();
-		phiprof::Timer contTimer {"Continue Balance load"};
+		phiprof::Timer contTimer {"(dccrg) Continue Balance load"};
 		this->continue_balance_load();
 		contTimer.stop();
-		phiprof::Timer finishTimer {"Finish Balance load"};
+		phiprof::Timer finishTimer {"(dccrg) Finish Balance load"};
 		this->finish_balance_load();
 		finishTimer.stop();
 		return *this;
@@ -3024,15 +3024,15 @@ public:
 
 		this->refining = true;
 
-		phiprof::Timer orTimer {"Override refines"};
+		phiprof::Timer orTimer {"(dccrg) Override refines"};
 		this->override_refines();
 		orTimer.stop();
 
-		phiprof::Timer irTimer {"Induce refines"};
+		phiprof::Timer irTimer {"(dccrg) Induce refines"};
 		this->induce_refines();
 		irTimer.stop();
 
-		phiprof::Timer ouTimer {"Override unrefines"};
+		phiprof::Timer ouTimer {"(dccrg) Override unrefines"};
 		this->override_unrefines();
 		ouTimer.stop();
 	}
@@ -3048,7 +3048,7 @@ public:
 	std::vector<uint64_t> execute_refines()
 	{
 
-		phiprof::Timer timer {"Execute refines"};
+		phiprof::Timer timer {"(dccrg) Execute refines"};
 		std::vector<uint64_t> new_cells;
 
 		this->remote_neighbors.clear();
@@ -3447,7 +3447,7 @@ public:
 			abort();
 		}
 
-		phiprof::Timer timer {"Finish refining"};
+		phiprof::Timer timer {"(dccrg) Finish refining"};
 		this->cells_to_receive.clear();
 		this->cells_to_send.clear();
 
@@ -3636,7 +3636,7 @@ public:
 	bool load_cells(const std::vector<uint64_t>& given_cells)
 	{
 		// get the global maximum refinement level of cells to be loaded
-		phiprof::Timer overlapTimer {"Find local cells overlap"};
+		phiprof::Timer overlapTimer {"(dccrg) Find local cells overlap"};
 		std::unordered_set<uint64_t> overlapping
 			= this->get_cells_overlapping_local(given_cells);
 		int local_max_ref_lvl_of_overlapping = 0;
@@ -3648,7 +3648,7 @@ public:
 		overlapTimer.stop();
 
 		int max_ref_lvl_of_overlapping = 0, result;
-		phiprof::Timer mpiTimer {"Allreduce max ref level"};
+		phiprof::Timer mpiTimer {"(dccrg) Allreduce max ref level"};
 		result = MPI_Allreduce(
 			&local_max_ref_lvl_of_overlapping,
 			&max_ref_lvl_of_overlapping,
@@ -3670,7 +3670,7 @@ public:
 		Starting from refinement level 0 refine each local cell
 		that has a child in given_cells
 		*/
-		phiprof::Timer parentTimer {"Find all cells and parents"};
+		phiprof::Timer parentTimer {"(dccrg) Find all cells and parents"};
 		std::vector<std::unordered_set<uint64_t>> cells_and_parents(max_ref_lvl_of_overlapping);
 
 		// refine local cells recursively until all given_cells are created
@@ -3684,7 +3684,7 @@ public:
 			}
 		}
 		parentTimer.stop();
-		phiprof::Timer refineTimer {"Refine cells and parents"};
+		phiprof::Timer refineTimer {"(dccrg) Refine cells and parents"};
 		for (int
 			current_ref_lvl = 0;
 			current_ref_lvl < max_ref_lvl_of_overlapping;
