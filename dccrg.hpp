@@ -7851,7 +7851,7 @@ private:
 			timer3.stop();
 			new_refines.clear();
 
-			std::unordered_set<uint64_t> unique_induced_refines;
+			std::vector<uint64_t> induced_refines;
 
 			// induced refines on this process
 			phiprof::Timer timer4{"(dccrg) induce_refines while->for1"};
@@ -7874,7 +7874,7 @@ private:
 
 					if (this->mapping.get_refinement_level(neighbor) < this->mapping.get_refinement_level(refined)) {
 						if (this->cells_to_refine.count(neighbor) == 0) {
-							unique_induced_refines.insert(neighbor);
+							induced_refines.push_back(neighbor);
 						}
 					}
 				}
@@ -7884,6 +7884,10 @@ private:
 			// refines induced here by other processes
 			// TODO: optimise?
 			phiprof::Timer timer5{"(dccrg) induce_refines while->for2"};
+#pragma omp parallel
+{
+			std::vector<uint64_t> induced_refines_local;
+#pragma omp for nowait
 			for (int process = 0; process < this->comm_size; process++) {
 
 				if (process == this->rank) {
@@ -7908,11 +7912,21 @@ private:
 						if (this->is_cached_neighbor(local, refined)
 						    && this->mapping.get_refinement_level(local) < this->mapping.get_refinement_level(refined)
 						    && this->cells_to_refine.count(local) == 0) {
-							unique_induced_refines.insert(local);
+							induced_refines_local.push_back(local);
 						}
 					}
 				}
 			}
+#pragma omp critical
+			{
+			induced_refines.insert(
+					induced_refines.end(),
+					induced_refines_local.begin(),
+					induced_refines_local.end()
+					);
+			}
+} // omp parallel
+			std::unordered_set<uint64_t> unique_induced_refines(induced_refines.begin(), induced_refines.end());;
 			timer5.stop();
 			phiprof::Timer timer6{"(dccrg) induce_refines->all_new_refines.clear()"};
 			all_new_refines.clear();
