@@ -32,6 +32,8 @@ along with dccrg. If not, see <http://www.gnu.org/licenses/>.
 #include "unordered_set"
 #include "vector"
 
+#include "phiprof.hpp"
+
 namespace dccrg {
 
 
@@ -132,6 +134,7 @@ public:
 			send_count = int(values.size());
 		}
 
+		phiprof::Timer timer{"(dccrg_mpi_support) MPI_Allgather"};
 		if (
 			MPI_Allgather(
 				&send_count,
@@ -146,6 +149,7 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
+		timer.stop();
 
 		#ifdef DEBUG
 		// check that own value is correct
@@ -204,6 +208,7 @@ public:
 		}
 
 		// gather
+		phiprof::Timer timer2{"(dccrg_mpi_support) MPI_Allgatherv"};
 		if (
 			MPI_Allgatherv(
 				sane_address,
@@ -219,6 +224,7 @@ public:
 			std::cerr << __FILE__ << ":" << __LINE__ << std::endl;
 			abort();
 		}
+		timer2.stop();
 
 		// fill result
 		for (size_t i = 0; i < (size_t) comm_size; i++) {
@@ -250,7 +256,9 @@ public:
 		uint64_t value,
 		MPI_Comm& comm
 	) {
+		phiprof::Timer timer{"(dccrg_mpi_support) All_Reduce()"};
 		uint64_t result;
+		phiprof::Timer timer1{"(dccrg_mpi_support) MPI_Allreduce"};
 		const int ret_val = MPI_Allreduce(
 			&value,
 			&result,
@@ -259,6 +267,7 @@ public:
 			MPI_SUM,
 			comm
 		);
+		timer1.stop();
 		if (ret_val != MPI_SUCCESS) {
 			std::cerr << __FILE__ << ":" << __LINE__
 				<< " MPI_Allreduce failed: " << Error_String()(ret_val)
