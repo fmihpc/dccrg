@@ -3070,8 +3070,6 @@ public:
 //#pragma omp parallel for
 		phiprof::Timer timerBigFor {"(dccrg) Execute refines big for loop 1st"};
 		for (const uint64_t refined: this->cells_to_refine) {
-
-
 			const int process_of_refined = this->cell_process.at(refined);
 
 			// move user data of refined cells into refined_cell_data
@@ -3137,25 +3135,39 @@ public:
 				}
 
 			}
-
-			// figure out rest of the neighbor lists that need updating
-			if (this->remote_cells_on_process_boundary.count(refined) > 0) {
-				// Check through all local cells on process boundary
-				for (const auto& local_candidate: this->local_cells_on_process_boundary) {
-					if (update_neighbors.count(local_candidate) > 0 ) {
-						continue;
-					}
-					// Check if any of their neighbours are the refined cell
-					for (const auto& neighbor: neighbors_of.at(local_candidate) ) {
-						if (neighbor.first == refined) {
-							// Tag this local cell as needing updating
-							update_neighbors.insert(local_candidate);
-							break;
-						}
-					}
-				}
-			}
 		}
+        // figure out rest of the neighbor lists that need updating
+        std::vector<uint64_t> v(
+                this->local_cells_on_process_boundary.begin(),
+                this->local_cells_on_process_boundary.end()
+        );
+#pragma omp parallel
+{
+        std::vector<uint64_t> local_update_neighbors;
+        #pragma omp for schedule(dynamic, 64)
+        for (size_t i = 0; i < v.size(); ++i) {
+            const uint64_t local_candidate = v[i];
+            if (this->cells_to_refine.count(local_candidate) > 0 ||
+                update_neighbors.count(local_candidate) > 0) {
+                continue;
+            }
+            for (const auto& neighbor : this->neighbors_of.at(local_candidate)) {
+                if (this->remote_cells_on_process_boundary.count(neighbor.first) > 0 &&
+                    this->cells_to_refine.count(neighbor.first) > 0) {
+                    local_update_neighbors.push_back(local_candidate);
+                    break;
+                }
+            }
+        }
+
+#pragma omp critical
+{
+            update_neighbors.insert(
+                local_update_neighbors.begin(),
+                local_update_neighbors.end()
+            );
+} // omp critical
+} // omp parallel
 		timerBigFor.stop();
 
 		// unrefines
