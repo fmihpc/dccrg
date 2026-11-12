@@ -7896,10 +7896,7 @@ private:
 			// refines induced here by other processes
 			// TODO: optimise?
 			phiprof::Timer timer5{"(dccrg) induce_refines while->for2"};
-#pragma omp parallel
-{
-			std::vector<uint64_t> induced_refines_local;
-#pragma omp for nowait
+            std::vector<uint64_t> refined_todo;
 			for (int process = 0; process < this->comm_size; process++) {
 
 				if (process == this->rank) {
@@ -7911,32 +7908,49 @@ private:
 					if (this->remote_cells_on_process_boundary.count(refined) == 0) {
 						continue;
 					}
+                    refined_todo.push_back(refined);
+                }
+            }
 
-					// refine all local cells that are too large and neighboring the refined cell
-					/*
-					   Due to slowness of new neighbour finding algorithm, instead search through all
-					   local cells on process boundary and add those cells if the remote new refine
-					   is within their neighbourhood.
+            // refine all local cells that are too large and neighboring the refined cell
+            /*
+               Due to slowness of new neighbour finding algorithm, instead search through all
+               local cells on process boundary and add those cells if the remote new refine
+               is within their neighbourhood.
 
-					   Alternatively could store neighbours of remote cells.
-					*/
-					for (const uint64_t local: this->local_cells_on_process_boundary) {
-						if (this->is_cached_neighbor(local, refined)
-						    && this->mapping.get_refinement_level(local) < this->mapping.get_refinement_level(refined)
-						    && this->cells_to_refine.count(local) == 0) {
-							induced_refines_local.push_back(local);
-						}
-					}
-				}
-			}
+               Alternatively could store neighbours of remote cells.
+            */
+
+            std::vector<uint64_t> v(
+                    this->local_cells_on_process_boundary.begin(),
+                    this->local_cells_on_process_boundary.end()
+            );
+#pragma omp parallel
+{
+            std::vector<uint64_t> induced_refines_local;
+#pragma omp for nowait schedule(dynamic, 32)
+            for (size_t i = 0; i < v.size(); i++) {
+                const uint64_t local = v[i];
+                if (this->cells_to_refine.count(local) > 0) continue;
+                const int local_lvl = this->mapping.get_refinement_level(local);
+
+                for (const uint64_t refined:refined_todo) {
+                    if (local_lvl < this->mapping.get_refinement_level(refined)
+                            && this->is_cached_neighbor(local, refined)) {
+                        induced_refines_local.push_back(local);
+                        break;
+                    }
+                }
+            }
+
 #pragma omp critical
-			{
-			induced_refines.insert(
-					induced_refines.end(),
-					induced_refines_local.begin(),
-					induced_refines_local.end()
-					);
-			}
+{
+            induced_refines.insert(
+                    induced_refines.end(),
+                    induced_refines_local.begin(),
+                    induced_refines_local.end()
+            );
+} // omp critical
 } // omp parallel
 			std::unordered_set<uint64_t> unique_induced_refines(induced_refines.begin(), induced_refines.end());;
 			timer5.stop();
