@@ -9673,6 +9673,7 @@ private:
 				std::vector<int> counts(number_of_receives, -1);
 				std::vector<MPI_Datatype> datatypes(number_of_receives, MPI_DATATYPE_NULL);
 
+                                phiprof::start("Build MPI Receive Datatypes");
 				for (size_t i = 0; i < number_of_receives; i++) {
 					const uint64_t cell = sender.second[i].first;
 
@@ -9720,9 +9721,11 @@ private:
 						<< std::endl;
 					abort();
 				}
+                                phiprof::stop("Build MPI Receive Datatypes");
 
 				this->receive_requests[sending_process].push_back(MPI_Request());
 
+                                phiprof::start("MPI Irecv");
 				ret_val = MPI_Irecv(
 					addresses[0],
 					1,
@@ -9740,6 +9743,7 @@ private:
 						<< std::endl;
 					abort();
 				}
+                                phiprof::stop("MPI Irecv");
 
 				MPI_Type_free(&receive_datatype);
 				for (auto& type: datatypes) {
@@ -9797,6 +9801,7 @@ private:
 					int count = -1;
 					MPI_Datatype user_datatype = MPI_DATATYPE_NULL;
 
+                                        phiprof::start("Build MPI Send Datatypes");
 					std::tie(
 						address,
 						count,
@@ -9825,7 +9830,9 @@ private:
 							abort();
 						}
 					}
+                                        phiprof::stop("Build MPI Send Datatypes");
 
+                                        phiprof::start("MPI Isend");
 					ret_val = MPI_Isend(
 						address,
 						count,
@@ -9857,6 +9864,7 @@ private:
 							abort();
 						}
 					}
+                                        phiprof::stop("MPI Isend");
 				}
 
 			} else { // if this->send_single_cells
@@ -9866,6 +9874,7 @@ private:
 				std::vector<int> counts(number_of_sends, -1);
 				std::vector<MPI_Datatype> datatypes(number_of_sends, MPI_DATATYPE_NULL);
 
+                                phiprof::start("Build MPI Send Datatypes");
 				for (size_t i = 0; i < number_of_sends; i++) {
 					const uint64_t cell = receiver.second[i].first;
 
@@ -9914,9 +9923,11 @@ private:
 						<< std::endl;
 					abort();
 				}
+                                phiprof::stop("Build MPI Send Datatypes");
 
 				this->send_requests[receiving_process].push_back(MPI_Request());
 
+                                phiprof::start("MPI Isend");
 				ret_val = MPI_Isend(
 					addresses[0],
 					1,
@@ -9934,6 +9945,7 @@ private:
 						<< std::endl;
 					abort();
 				}
+                                phiprof::stop("MPI Isend");
 
 				MPI_Type_free(&send_datatype);
 				for (auto& type: datatypes) {
