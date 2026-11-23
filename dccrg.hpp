@@ -9906,7 +9906,7 @@ private:
 					abort();
 				}
 
-				MPI_Type_commit(&send_datatype);
+				ret_val = MPI_Type_commit(&send_datatype);
 				if (ret_val != MPI_SUCCESS) {
 					std::cerr << __FILE__ << ":" << __LINE__
 						<< " MPI_Type_commit failed for process " << this->rank
