@@ -3094,10 +3094,9 @@ public:
 	Returns cells that were created by refinement on this process.
 	Moves user data of unrefined cells to the current process of their parent.
 
-	By default returned cells are in random order but if sorted == true
-	they are sorted using std::sort before returning.
+	Returned cells are in random order (sorting not implemented)
 	*/
-	void initialize_refines(const bool sorted = false)
+	void initialize_refines()
 	{
 		if (this->refining) {
 			std::cerr << __FILE__ << ":" << __LINE__

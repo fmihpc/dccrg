@@ -56,11 +56,11 @@ std::tuple<void*, int, MPI_Datatype> get_cell_mpi_datatype(
 
 // Compatibility macros
 #define UNUSED_GMD_ARGS \
-	const uint64_t cell_id, \
-	const int sender,       \
-	const int receiver,     \
-	const bool receiving,   \
-	const int neighborhood_id
+	[[maybe_unused]] const uint64_t cell_id, \
+	[[maybe_unused]] const int sender,       \
+	[[maybe_unused]] const int receiver,     \
+	[[maybe_unused]] const bool receiving,   \
+	[[maybe_unused]] const int neighborhood_id
 #define DEFAULT_GMD_ARGS 0,0,0,0,0
 // struct types weapper
 template<typename T, std::size_t N, MPI_Datatype D>
@@ -100,7 +100,7 @@ OS& operator<< (OS& os, const wrapper<T> x) {
 	struct dccrg_##type:wrapper<T> {                                    \
 		T value;						    \
 		std::tuple<void*, int, MPI_Datatype>                        \
-		get_mpi_datatype(UNUSED_GMD_ARGS) {                        \
+		get_mpi_datatype(UNUSED_GMD_ARGS) {                         \
 			return std::make_tuple((void*)this, 1, MPI_##type); \
 		}                                                           \
 		inline operator T() const { return this->value; } 	    \
