@@ -1,0 +1,26 @@
+# Makefile for the case where all prerequisites are installed
+# into your home directory according to the instructions at
+# https://github.com/fmihpc/dccrg/wiki/Install
+
+CXX = g++
+MPICXX = mpicxx
+
+RUN =
+MPIRUN = 
+#MPIRUN = mpirun -mca pml ucx --mca btl ^uct,ofi --mca mtl ^ofi -x UCX_NET_DEVICES=mlx5_0:1 -x UCX_TLS=rc,sm
+
+CPPFLAGS = -I . -Wno-sign-compare #-fsanitize=address
+#CPPFLAGS += -DDCCRG_NO_STOP_REFINING_ERR
+
+LIBRARY_PREFIX = $(VLASIATOR_HOME)/libraries-$(VLASIATOR_ARCH)
+
+#compiled libraries mostly in modules
+LIB_PROFILE = -L$(LIBRARY_PREFIX)/lib -lnophiprof -lgfortran -Wl,-rpath=$(LIBRARY_PREFIX)/lib
+INC_PROFILE = -isystem $(LIBRARY_PREFIX)/include
+
+LIB_BOOST = -lboost_program_options
+
+LIB_ZOLTAN = -L$(LIBRARY_PREFIX)/lib64 -lzoltan
+INC_ZOLTAN = -isystem $(LIBRARY_PREFIX)/include
+
+CXXFLAGS += $(INC_PROFILE) $(LIB_PROFILE) $(LIB_ZOLTAN) $(LIB_BOOST) -Wno-unused-parameter -Wno-sign-compare -ggdb
